@@ -54,7 +54,14 @@ class DocumentBridgeTest < ApplicationSystemTestCase
     end
 
     # Linking flips the panel action to unlink and files the row against the entry.
+    # Ruling 9 (M1): `for_entry.exists?` alone passed even on a dead click — the
+    # `linked_receipt` fixture (lunch.pdf) already belongs to @entry and survives
+    # setup's delete_all, and the panel renders Unlink for every linked row. Pin
+    # the UPLOADED row by its unique filename, and pin that no link candidate is
+    # left (setup left the upload as the only one).
     assert_button I18n.t("document_link_panel.unlink")
-    assert DocumentLink.for_entry(@entry).exists?, "the uploaded receipt must link to the entry"
+    upload = DocumentLink.find_by(original_filename: "receipt.png")
+    assert_equal @entry.id, upload.entry_id, "the uploaded receipt must link to the entry"
+    assert_no_button I18n.t("document_link_panel.link")
   end
 end
