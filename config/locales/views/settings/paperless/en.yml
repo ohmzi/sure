@@ -1,0 +1,13 @@
+en:
+  settings:
+    paperless:
+      show:
+        title: paperless
+        configured: The app is connected to paperless.
+        unconfigured: Not connected. Set the paperless URL and token, then check the connection.
+        rotation_title: paperless token needs rotation
+        rotation_description: "The last paperless call was rejected (401) at %{time}. Rotate the token, then run the connection check."
+        check: Check connection
+      check:
+        ok: paperless accepted the token.
+        failed: paperless did not accept the token. It still needs rotation.

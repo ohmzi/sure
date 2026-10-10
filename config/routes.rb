@@ -414,6 +414,9 @@ Rails.application.routes.draw do
         get ":provider_key/connect_form", action: :connect_form, as: :connect_form
       end
     end
+    resource :paperless, controller: "paperless", only: :show do
+      post :check, on: :member
+    end
   end
 
   resource :subscription, only: %i[new show create] do

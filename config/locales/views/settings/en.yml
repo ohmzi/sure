@@ -372,6 +372,7 @@ en:
       sso_providers_label: SSO Providers
       documents_label: Documents
       statement_vault_label: Statement Vault
+      paperless_label: paperless
       system_health_label: System health
       tags_label: Tags
       transactions_section_title: Transactions
