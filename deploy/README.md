@@ -44,10 +44,17 @@ and `no-new-privileges`. `deploy/dc exec -T web` is the service name (`web`, nev
 `<ts>` is `date +%Y-%m-%d_%H%M%S`; the run uses one timestamp for all four files.
 `BACKUP_DIR` (default `$HOME/ohmzbudget-backups/backups`) and `BACKUP_KEEP_DAYS`
 (default `14`) come from the untracked `deploy/.env`; artifacts older than
-`BACKUP_KEEP_DAYS` are deleted (`find … -mtime +N -delete`). The four names are
-fixed (consumed by the restore drill and, later, the M5 monitor). Run it by hand
-with `./backup.sh`; a failed dump fails the script (`set -euo pipefail`), and
-`gzip` closes the file so a partial stream is detectably invalid.
+`BACKUP_KEEP_DAYS` are deleted (`find … -mtime +N -delete`, which also sweeps
+stray `*.part` files). The four names are fixed (consumed by the restore drill
+and, later, the M5 monitor).
+
+Each database dump goes to a temp file, is verified (`pg_dump` exit status plus a
+`PostgreSQL database dump` marker) and only then published to the fixed name via
+a `.part` file and an atomic rename, so a failed `pg_dump` never leaves a
+valid-looking `.sql.gz` for the restore drill or the M5 monitor to trust. Run it
+by hand with `./backup.sh`; if a dump fails the run aborts (non-zero exit) and is
+logged (`backup FAILED: …`) on stderr, but it may leave no usable backup for that
+run.
 
 Host crontab entry (03:17 — off the top of the hour; the log lives under the
 owner's backup root, not `/var/log`):
