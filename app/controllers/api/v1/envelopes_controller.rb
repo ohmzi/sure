@@ -28,9 +28,9 @@ class Api::V1::EnvelopesController < Api::V1::BaseController
   def show = render(:show)
 
   def update
-    # Ruling M4a-L3 (Important): ONE transaction — a combined payload (money +
-    # an invalid target) must not leave the money write committed while the
-    # recompute and sync_budgeted_spending! are skipped.
+    # Ruling M4a-L3 (Important): ONE transaction for the WRITES — a combined
+    # payload (money + an invalid target) must not leave the money write
+    # committed while the target write is rejected.
     BudgetCategory.transaction do
       @envelope.update_budgeted_spending!(budgeted_spending_param) if params.dig(:envelope, :budgeted_spending)
 
@@ -47,10 +47,17 @@ class Api::V1::EnvelopesController < Api::V1::BaseController
         @envelope.update!(target_params)
         @envelope.propagate_target_choice_forward!
       end
-
-      Budget::Recalculate.call(family: @envelope.budget.family, budget: @envelope.budget)
-      @envelope.budget.sync_budgeted_spending!
     end
+
+    # Ruling M4a-L3c: the recompute runs AFTER the writes commit, never inside
+    # the transaction — RolloverCalculator takes a transaction-scoped advisory
+    # lock, and acquiring it while update_budgeted_spending!'s row locks are
+    # held inverts the lock order (Architecture: "after those transactions
+    # commit — never inside them"; Global Constraints: advisory-lock order) and
+    # deadlocks two concurrent writes on one rollover chain.
+    Budget::Recalculate.call(family: @envelope.budget.family, budget: @envelope.budget)
+    @envelope.budget.sync_budgeted_spending!
+
     @envelope.reload
     render :show
   rescue ActiveRecord::RecordInvalid => e
