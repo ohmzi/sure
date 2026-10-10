@@ -183,6 +183,23 @@ class BudgetCategory < ApplicationRecord
     later.update_all(rollover_enabled: rollover_enabled, updated_at: Time.current)
   end
 
+  TARGET_TYPES = %w[monthly_assign savings_balance savings_by_date needed_for_spending].freeze
+  TARGET_FIELDS = %i[target_amount target_type target_date].freeze
+
+  validates :target_type, inclusion: { in: TARGET_TYPES }, allow_nil: true
+  validates :target_amount, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
+
+  # A target is a standing choice about the envelope, like the rollover
+  # toggle: changing it must reach the months that were already opened.
+  def propagate_target_choice_forward!
+    BudgetCategory
+      .joins(:budget)
+      .where(category_id: category_id)
+      .where(budgets: { family_id: budget.family_id, user_id: budget.user_id })
+      .where("budgets.start_date > ?", budget.start_date)
+      .update_all(target_amount:, target_type:, target_date:, updated_at: Time.current)
+  end
+
   def update_budgeted_spending!(new_budgeted_spending)
     self.class.transaction do
       lock!

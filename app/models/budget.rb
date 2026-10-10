@@ -125,11 +125,13 @@ class Budget < ApplicationRecord
     inherited_rollover = inherited_rollover_flags(categories_to_add)
 
     categories_to_add.each do |category_id|
+      inherited_target = inherited_targets(category_id) || {}
       budget_categories.create!(
         category: current_categories_by_id.fetch(category_id),
         budgeted_spending: 0,
         currency: family.currency,
-        rollover_enabled: inherited_rollover.fetch(category_id, false)
+        rollover_enabled: inherited_rollover.fetch(category_id, false),
+        **inherited_target.symbolize_keys
       )
     end
 
@@ -152,6 +154,15 @@ class Budget < ApplicationRecord
     source.budget_categories
       .where(category_id: category_ids, rollover_enabled: true)
       .each_with_object({}) { |bc, flags| flags[bc.category_id] = true }
+  end
+
+  def inherited_targets(category_id)
+    source = most_recent_initialized_budget
+    return nil unless source
+
+    source.budget_categories.find_by(category_id: category_id)&.attributes&.slice(
+      "target_amount", "target_type", "target_date"
+    )
   end
 
   def uncategorized_budget_category
@@ -305,11 +316,15 @@ class Budget < ApplicationRecord
         target_bc = target_by_category[source_bc.category_id]
         next unless target_bc
 
-        # The toggle is a preference and travels with the copy; the amount
-        # is derived state that only Budget::RolloverCalculator may write.
+        # The toggle and the target are preferences and travel with the copy;
+        # the amount is derived state that only Budget::RolloverCalculator may
+        # write.
         target_bc.update!(
           budgeted_spending: source_bc.budgeted_spending,
-          rollover_enabled: source_bc.rollover_enabled
+          rollover_enabled: source_bc.rollover_enabled,
+          target_amount: source_bc.target_amount,
+          target_type: source_bc.target_type,
+          target_date: source_bc.target_date
         )
       end
 

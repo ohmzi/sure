@@ -1119,6 +1119,18 @@ class BudgetCategoryRolloverTest < ActiveSupport::TestCase
            "an earlier month keeps the choice it was given"
   end
 
+  test "a new month inherits the envelope target from the last initialized budget" do
+    first = initialized_budget(2.months.ago)
+    first.budget_categories.find_by!(category: @category)
+         .update!(target_type: "savings_balance", target_amount: 900, target_date: nil)
+
+    second = initialized_budget(1.month.ago)
+    bc = second.budget_categories.find_by!(category: @category)
+
+    assert_equal "savings_balance", bc.target_type
+    assert_equal 900, bc.target_amount
+  end
+
   private
     def capture_sql
       statements = []

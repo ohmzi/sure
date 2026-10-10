@@ -515,6 +515,20 @@ class BudgetTest < ActiveSupport::TestCase
     assert_equal 0, new_bc.budgeted_spending
   end
 
+  test "copy_from carries envelope targets" do
+    family = families(:dylan_family)
+    source = Budget.find_or_bootstrap(family, start_date: 2.months.ago)
+    source.budget_categories.find_by!(category: categories(:food_and_drink))
+          .update!(target_type: "savings_balance", target_amount: 900)
+
+    target = Budget.find_or_bootstrap(family, start_date: 1.month.ago)
+    target.copy_from!(source)
+
+    copied = target.budget_categories.find_by!(category: categories(:food_and_drink)).reload
+    assert_equal "savings_balance", copied.target_type
+    assert_equal 900, copied.target_amount
+  end
+
   test "previous_budget_param returns param when date is valid" do
     budget = Budget.create!(
       family: @family,
