@@ -1,0 +1,9 @@
+<%= flash_notification_stream_items %>
+
+<%# The RTA-banner replace lands in Task 6, where `_ready_to_assign` and the
+    surface that renders `dom_id(@budget, :ready_to_assign)` both exist. %>
+<% [ @from, @to ].each do |budget_category| %>
+  <%= turbo_stream.replace dom_id(budget_category, :envelope) do %>
+    <%= render "envelopes/envelope_row", budget_category: budget_category.reload, budget: @budget %>
+  <% end %>
+<% end %>

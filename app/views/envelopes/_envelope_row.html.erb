@@ -1,0 +1,8 @@
+<%# locals: (budget_category:, budget:) %>
+<div id="<%= dom_id(budget_category, :envelope) %>" class="flex items-center gap-3 px-4 py-2">
+  <span class="w-1 h-3 rounded-xl" style="background-color: <%= budget_category.category.color %>"></span>
+  <span class="flex-1 min-w-0 truncate text-primary"><%= budget_category.category.display_name %></span>
+  <span class="tabular-nums privacy-sensitive <%= budget_category.available_to_spend.negative? ? "text-destructive" : "text-primary" %>">
+    <%= format_money(budget_category.available_to_spend_money) %>
+  </span>
+</div>

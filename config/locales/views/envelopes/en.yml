@@ -1,0 +1,5 @@
+---
+en:
+  envelopes:
+    cover:
+      success: "Money moved to cover the overspend"

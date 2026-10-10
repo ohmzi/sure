@@ -460,6 +460,13 @@ class Budget < ApplicationRecord
     end
   end
 
+  # Keeps the month total equal to the sum of its assignments. Called from the
+  # envelope write path so Sure's available_to_allocate arithmetic stays a
+  # consistent "assigned minus allocated" (zero once fully assigned).
+  def sync_budgeted_spending!
+    update!(budgeted_spending: assigned_total)
+  end
+
   def allocated_percent
     return 0 unless budgeted_spending && budgeted_spending > 0
 
