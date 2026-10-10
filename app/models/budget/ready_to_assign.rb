@@ -17,9 +17,13 @@ class Budget::ReadyToAssign
 
   # Money that arrived: income-category entries in the period, on
   # family-visible included_in_reports accounts, converted to the budget
-  # currency. Transfers and cc_payment rows never count (they move money the
-  # user already has). Entries reconciled to a statement are excluded per
-  # spec 9.1 -- implemented verbatim; see the plan's assumptions.
+  # currency. Transfers of ANY kind never count (they move money the user
+  # already has -- funds_movement, cc_payment, loan_payment,
+  # investment_contribution), and provider-pending entries never count
+  # (the money has not arrived yet; Ruling M4a-L1). A one_time entry DOES
+  # count: it is real, categorizable money, excluded only from Sure's
+  # median-style analytics. Entries reconciled to a statement are excluded
+  # per spec 9.1 -- implemented verbatim; see the plan's assumptions.
   def income
     @income ||= -income_entries.sum { |entry| converted_amount(entry) }
   end
@@ -79,10 +83,18 @@ class Budget::ReadyToAssign
       budget.user_id.present? ? rel.where(accounts: { owner_id: budget.user_id }) : rel
     end
 
+    # Ruling M4a-L1 (2026-10-10): spec 9.1's "excluding transfers" is the
+    # codebase's own TRANSFER_KINDS (Transaction#transfer? uses exactly it);
+    # BUDGET_EXCLUDED_KINDS both under-excludes (loan_payment,
+    # investment_contribution would count as assignable income) and
+    # over-excludes (one_time is real, categorizable income). Pending entries
+    # are excluded too: RTA is money that ARRIVED, matching IncomeStatement's
+    # excluding_pending house pattern.
     def qualifying_transactions
       Transaction
         .where(category_id: income_category_ids)
-        .where.not(kind: Transaction::BUDGET_EXCLUDED_KINDS)
+        .where.not(kind: Transaction::TRANSFER_KINDS)
+        .excluding_pending
     end
 
     def converted_amount(entry)

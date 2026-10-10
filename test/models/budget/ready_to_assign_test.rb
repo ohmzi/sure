@@ -45,11 +45,33 @@ class Budget::ReadyToAssignTest < ActiveSupport::TestCase
     assert_equal 2000, Budget::ReadyToAssign.new(family: @family, budget: budget).income
   end
 
-  test "income excludes transfers and cc_payment rows" do
+  test "income excludes every transfer kind (Ruling M4a-L1)" do
     budget = initialized_budget(Date.current)
     create_transaction(account: @account, date: budget.start_date, amount: -2000, category: @salary)
-    create_transaction(account: @account, date: budget.start_date, amount: -500, category: @salary, kind: "cc_payment")
-    create_transaction(account: @account, date: budget.start_date, amount: -300, category: @salary, kind: "funds_movement")
+    Transaction::TRANSFER_KINDS.each do |kind|
+      create_transaction(account: @account, date: budget.start_date, amount: -500, category: @salary, kind: kind)
+    end
+
+    assert_equal 2000, Budget::ReadyToAssign.new(family: @family, budget: budget).income
+  end
+
+  test "income counts a one_time entry that is categorized as income (Ruling M4a-L1)" do
+    budget = initialized_budget(Date.current)
+    create_transaction(account: @account, date: budget.start_date, amount: -2000, category: @salary)
+    create_transaction(account: @account, date: budget.start_date, amount: -1250, category: @salary, kind: "one_time")
+
+    assert_equal 3250, Budget::ReadyToAssign.new(family: @family, budget: budget).income
+  end
+
+  test "income excludes provider-pending entries (Ruling M4a-L1)" do
+    budget = initialized_budget(Date.current)
+    create_transaction(account: @account, date: budget.start_date, amount: -2000, category: @salary)
+    # Mechanical correction to the amended plan's test line: `extra` is a
+    # `transactions` column, not an entries column, so it cannot ride through
+    # `create_transaction` (UnknownAttributeError for Entry). This is the same
+    # create-then-update idiom the repo's other pending fixtures use.
+    pending_entry = create_transaction(account: @account, date: budget.start_date, amount: -700, category: @salary)
+    pending_entry.transaction.update!(extra: { "plaid" => { "pending" => true } })
 
     assert_equal 2000, Budget::ReadyToAssign.new(family: @family, budget: budget).income
   end
