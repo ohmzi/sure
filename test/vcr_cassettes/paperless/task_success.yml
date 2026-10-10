@@ -1,0 +1,18 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://paperless.test:8000/api/tasks/?task_id=11111111-2222-3333-4444-555555555555
+    body:
+      encoding: ASCII-8BIT
+      string: ''
+    headers:
+      Authorization: ["Token <PAPERLESS_API_TOKEN>"]
+      Accept: ["application/json; version=10"]
+  response:
+    status: { code: 200, message: OK }
+    headers: { Content-Type: ["application/json"] }
+    body: { encoding: UTF-8, string: '{"count":1,"results":[{"status":"success","result_data":{"document_id":4242}}]}' }
+    http_version: '1.1'
+  recorded_at: Sat, 10 Oct 2026 00:00:00 GMT
+recorded_with: VCR 6.3.1

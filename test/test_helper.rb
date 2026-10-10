@@ -54,6 +54,12 @@ VCR.configure do |config|
   config.filter_sensitive_data("<STRIPE_WEBHOOK_SECRET>") { ENV["STRIPE_WEBHOOK_SECRET"] }
   config.filter_sensitive_data("<PLAID_CLIENT_ID>") { ENV["PLAID_CLIENT_ID"] }
   config.filter_sensitive_data("<PLAID_SECRET>") { ENV["PLAID_SECRET"] }
+  config.filter_sensitive_data("<PAPERLESS_API_TOKEN>") do
+    ENV["OHMZBUDGET_PAPERLESS_TOKEN"].presence ||
+      (ENV["OHMZBUDGET_PAPERLESS_TOKEN_FILE"].present? &&
+        File.exist?(ENV["OHMZBUDGET_PAPERLESS_TOKEN_FILE"]) &&
+        File.read(ENV["OHMZBUDGET_PAPERLESS_TOKEN_FILE"]).strip)
+  end
 end
 
 # Configure OmniAuth for testing

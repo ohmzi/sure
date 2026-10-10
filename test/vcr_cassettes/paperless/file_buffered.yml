@@ -1,0 +1,19 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: http://paperless.test:8000/api/documents/4242/preview/
+    body:
+      encoding: ASCII-8BIT
+      string: ''
+    headers:
+      Authorization: ["Token <PAPERLESS_API_TOKEN>"]
+      Accept: ["application/json; version=10"]
+  response:
+    status: { code: 200, message: OK }
+    headers:
+      Content-Type: ["application/pdf"]
+    body: { encoding: UTF-8, string: '%PDF' }
+    http_version: '1.1'
+  recorded_at: Sat, 10 Oct 2026 00:00:00 GMT
+recorded_with: VCR 6.3.1
