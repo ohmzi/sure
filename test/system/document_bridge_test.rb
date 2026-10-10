@@ -60,6 +60,12 @@ class DocumentBridgeTest < ApplicationSystemTestCase
     # the UPLOADED row by its unique filename, and pin that no link candidate is
     # left (setup left the upload as the only one).
     assert_button I18n.t("document_link_panel.unlink")
+    # Ruling 10 (M1): the link POST is asynchronous — Turbo submits the form and
+    # follows the controller's redirect — so the database read below can race the
+    # commit (it read nil on 4 of 15 recorded runs). Wait for the panel to
+    # re-render the UPLOADED row as linked — a positive DOM signal that only
+    # exists after the POST commits — before reading the database.
+    assert_selector :xpath, "//div[@id='document-link-panel']//div[.//span[normalize-space()='receipt.png'] and .//button[normalize-space()='#{I18n.t("document_link_panel.unlink")}']]"
     upload = DocumentLink.find_by(original_filename: "receipt.png")
     assert_equal @entry.id, upload.entry_id, "the uploaded receipt must link to the entry"
     assert_no_button I18n.t("document_link_panel.link")
