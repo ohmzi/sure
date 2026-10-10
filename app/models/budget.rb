@@ -447,6 +447,19 @@ class Budget < ApplicationRecord
     budget_categories.reject { |bc| bc.subcategory? }.sum(&:budgeted_spending)
   end
 
+  # Every dollar the user assigned across this month's envelopes, counted
+  # once. A parent's stored figure already contains its ring-fenced
+  # subcategories' allocations, so each parent contributes only its own
+  # reserve; inheriting subcategories hold no allocation of their own and are
+  # skipped. (The correction RolloverCalculator#leftover_for applies in
+  # reverse.) Numerically equal to `allocated_spending`, which sums roots.
+  def assigned_total
+    budget_categories.reject(&:inherits_parent_budget?).sum do |bc|
+      ring_fenced = bc.subcategories.reject(&:inherits_parent_budget?)
+      bc[:budgeted_spending].to_d - ring_fenced.sum { |child| child[:budgeted_spending].to_d }
+    end
+  end
+
   def allocated_percent
     return 0 unless budgeted_spending && budgeted_spending > 0
 
