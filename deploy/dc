@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Run docker compose for the ohmzbudget project with secret files injected.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+[ -f .env ] || { echo "deploy/.env missing — run deploy/bootstrap-secrets.sh first" >&2; exit 1; }
+# shellcheck disable=SC1091
+set -a; . ./.env; set +a
+
+require_secret() {
+  local f="secrets/$1"
+  [ -s "$f" ] || { echo "secret file $f is missing or empty — run deploy/bootstrap-secrets.sh" >&2; exit 1; }
+  cat "$f"
+}
+export SECRET_KEY_BASE="$(require_secret secret_key_base)"
+export POSTGRES_PASSWORD="$(require_secret postgres_password)"
+export PAPERLESS_DBPASS="$(require_secret paperless_db_password)"
+
+exec docker compose -f compose.yml -f docker-compose.override.yml "$@"

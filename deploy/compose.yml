@@ -1,0 +1,245 @@
+# OhmzBudget deploy stack — one compose project that also re-adopts the
+# existing paperless-ngx sidecar so its named volumes reattach.
+name: ohmzbudget
+
+x-app-env: &app_env
+  SELF_HOSTED: "true"
+  ONBOARDING_STATE: "${ONBOARDING_STATE:-invite_only}"
+  RAILS_FORCE_SSL: "false"
+  RAILS_ASSUME_SSL: "${RAILS_ASSUME_SSL:-true}"
+  DB_HOST: db
+  DB_PORT: "5432"
+  POSTGRES_USER: "${POSTGRES_USER:-sure_user}"
+  POSTGRES_DB: "${POSTGRES_DB:-sure_production}"
+  POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+  SECRET_KEY_BASE: "${SECRET_KEY_BASE}"
+  REDIS_URL: "redis://redis:6379/1"
+  # Canonical paperless contract (M0 owns producing it; M1 consumes it).
+  OHMZBUDGET_PAPERLESS_URL: "${OHMZBUDGET_PAPERLESS_URL:-http://paperless:8000}"
+  OHMZBUDGET_PAPERLESS_TOKEN_FILE: "${OHMZBUDGET_PAPERLESS_TOKEN_FILE:-/run/secrets/paperless_token}"
+  OHMZBUDGET_PAPERLESS_STAGING_DIR: "${OHMZBUDGET_PAPERLESS_STAGING_DIR:-/rails/storage/paperless-staged}"
+
+# Hardening shared by the stateless services.
+x-app-hardening: &app_hardening
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+# Hardening for the postgres services: they still need these caps to chown
+# the data dir and drop to the postgres user during entrypoint init.
+x-db-hardening: &db_hardening
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  cap_add:
+    - CHOWN
+    - DAC_OVERRIDE
+    - FOWNER
+    - SETGID
+    - SETUID
+
+# Hardening for images that start as root and drop privileges inside their
+# entrypoint (redis, valkey): dropping ALL caps breaks them — verified:
+# `redis:7-alpine` exits with "setpriv: setresuid failed: Operation not
+# permitted" under `--cap-drop ALL`, so SETUID/SETGID must be re-added.
+x-drop-hardening: &drop_hardening
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  cap_add:
+    - SETGID
+    - SETUID
+
+# paperless runs an s6 supervision tree as root and drops to the paperless
+# user (uid 1000): beyond SETUID/SETGID its init chowns/creates directories
+# under the data volume, which needs CHOWN/DAC_OVERRIDE/FOWNER as well
+# (verified: a bare `--cap-drop ALL` boot fails with
+# "s6-applyuidgid: ... Operation not permitted" and
+# "mkdir: cannot create directory '/usr/src/paperless/data/index'").
+x-paperless-hardening: &paperless_hardening
+  <<: *drop_hardening
+  cap_add:
+    - CHOWN
+    - DAC_OVERRIDE
+    - FOWNER
+    - SETGID
+    - SETUID
+
+services:
+  web:
+    image: ohmzbudget:local
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: ./bin/rails server
+    ports:
+      - "127.0.0.1:7300:3000"
+    volumes:
+      - app-storage:/rails/storage
+    environment:
+      <<: *app_env
+    secrets:
+      - paperless_token
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    <<: *app_hardening
+    mem_limit: 1g
+    networks:
+      - default
+
+  worker:
+    image: ohmzbudget:local
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: bundle exec sidekiq
+    volumes:
+      - app-storage:/rails/storage
+    environment:
+      <<: *app_env
+    secrets:
+      - paperless_token
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    <<: *app_hardening
+    mem_limit: 1g
+    networks:
+      - default
+
+  db:
+    image: postgres:16
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: "${POSTGRES_USER:-sure_user}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:-sure_production}"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    <<: *db_hardening
+    mem_limit: 1g
+    networks:
+      - default
+
+  redis:
+    image: redis:7-alpine   # version-pinned: deterministic broker/cache for Sidekiq
+    volumes:
+      - redis-data:/data
+    read_only: true          # tolerated: only /data (volume) and /tmp (tmpfs) are written
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    <<: *drop_hardening
+    mem_limit: 256m
+    networks:
+      - default
+
+  # --- paperless-ngx sidecar (unmodified image; re-adopted) ---
+  paperless:
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.3.0
+    container_name: paperless
+    depends_on:
+      paperless-db:
+        condition: service_healthy
+      paperless-valkey:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:7301:8000"
+    volumes:
+      - paperless-data:/usr/src/paperless/data
+      - paperless-media:/usr/src/paperless/media
+      - paperless-consume:/usr/src/paperless/consume
+      - paperless-export:/usr/src/paperless/export
+    environment:
+      PAPERLESS_REDIS: "redis://paperless-valkey:6379"
+      PAPERLESS_DBENGINE: "postgresql"
+      PAPERLESS_DBHOST: "paperless-db"
+      PAPERLESS_DBNAME: "${PAPERLESS_DBNAME:-paperless}"
+      PAPERLESS_DBUSER: "${PAPERLESS_DBUSER:-paperless}"
+      PAPERLESS_DBPASS: "${PAPERLESS_DBPASS}"
+      PAPERLESS_SECRET_KEY_FILE: /run/secrets/paperless_secret_key
+      PAPERLESS_URL: "${PAPERLESS_URL:-http://localhost:7301}"
+      PAPERLESS_OCR_LANGUAGE: "${PAPERLESS_OCR_LANGUAGE:-eng}"
+      USERMAP_UID: "1000"
+      USERMAP_GID: "1000"
+    secrets:
+      - paperless_secret_key
+    <<: *paperless_hardening
+    mem_limit: 2g
+    networks:
+      - default
+      - internal
+
+  paperless-db:
+    image: postgres:17-alpine
+    container_name: paperless-db
+    environment:
+      POSTGRES_DB: "${PAPERLESS_DBNAME:-paperless}"
+      POSTGRES_USER: "${PAPERLESS_DBUSER:-paperless}"
+      POSTGRES_PASSWORD: "${PAPERLESS_DBPASS}"
+    volumes:
+      - paperless-db:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    <<: *db_hardening
+    mem_limit: 512m
+    networks:
+      - internal
+
+  paperless-valkey:
+    image: valkey/valkey:9-alpine
+    container_name: paperless-valkey
+    healthcheck:
+      test: [ "CMD", "valkey-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    <<: *drop_hardening
+    mem_limit: 256m
+    networks:
+      - internal
+
+volumes:
+  app-storage:
+  postgres-data:
+  redis-data:
+  paperless-data:
+  paperless-media:
+  paperless-db:
+  paperless-consume:
+  paperless-export:
+
+secrets:
+  paperless_secret_key:
+    file: ./secrets/paperless_secret_key
+  paperless_token:
+    file: ./secrets/paperless_token
+
+networks:
+  default:
+    name: ohmzbudget_default
+  internal:
+    name: ohmzbudget_internal
+    internal: true

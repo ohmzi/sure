@@ -43,3 +43,7 @@
 # Ignore Docker-related files
 /.dockerignore
 /Dockerfile*
+
+# Keep deploy-time secrets and the live env out of build contexts (M0).
+# The Dockerfile's `COPY . .` would otherwise bake deploy/secrets/* into the image.
+/deploy/

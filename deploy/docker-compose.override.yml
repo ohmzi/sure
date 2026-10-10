@@ -1,0 +1,11 @@
+# Pin the two bridge subnets so the existing ohmzbudget_* networks are adopted
+# (host Docker pools are exhausted; a subnet change would force a re-allocate).
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.88.0.0/24
+  internal:
+    ipam:
+      config:
+        - subnet: 10.89.0.0/24

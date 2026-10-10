@@ -134,3 +134,10 @@ logs/security/
 # Ignore Playwright artifacts
 playwright-report/
 .playwright-mcp
+
+# --- OhmzBudget deploy (M0) ---
+# Upstream ignores compose.yml repo-wide; the deploy stack must be tracked.
+!deploy/compose.yml
+# Live deploy state: never track the env file or secret values.
+deploy/.env
+deploy/secrets/
