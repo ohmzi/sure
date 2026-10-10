@@ -776,6 +776,7 @@ Rails.application.routes.draw do
       resources :balances, only: [ :index, :show ]
       resources :budgets, only: [ :index, :show ]
       resources :budget_categories, only: [ :index, :show ]
+      resources :envelopes, only: [ :index, :show, :update, :destroy ]
       resources :categories, only: [ :index, :show, :create ]
       resources :merchants, only: [ :index, :show, :create ]
       resources :rules, only: [ :index, :show ]

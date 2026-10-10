@@ -921,6 +921,110 @@ components:
             "$ref": "#/components/schemas/BudgetCategorySummary"
         pagination:
           "$ref": "#/components/schemas/Pagination"
+    Envelope:
+      type: object
+      required:
+      - id
+      - budget_id
+      - currency
+      - subcategory
+      - inherits_parent_budget
+      - rollover_enabled
+      - category
+      - created_at
+      - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        budget_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+        subcategory:
+          type: boolean
+        inherits_parent_budget:
+          type: boolean
+        rollover_enabled:
+          type: boolean
+        target_type:
+          type: string
+          nullable: true
+          enum:
+          - monthly_assign
+          - savings_balance
+          - savings_by_date
+          - needed_for_spending
+        target_amount:
+          type: string
+          nullable: true
+        target_amount_cents:
+          type: integer
+          nullable: true
+        target_date:
+          type: string
+          format: date
+          nullable: true
+        budgeted_spending:
+          type: string
+        budgeted_spending_cents:
+          type: integer
+        display_budgeted_spending:
+          type: string
+        display_budgeted_spending_cents:
+          type: integer
+        actual_spending:
+          type: string
+        actual_spending_cents:
+          type: integer
+        rolled_over_amount:
+          type: string
+        rolled_over_amount_cents:
+          type: integer
+        available_to_spend:
+          type: string
+        available_to_spend_cents:
+          type: integer
+        category:
+          type: object
+          required:
+          - id
+          - name
+          - color
+          - lucide_icon
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            color:
+              type: string
+            lucide_icon:
+              type: string
+            parent_id:
+              type: string
+              format: uuid
+              nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    EnvelopeCollection:
+      type: object
+      required:
+      - envelopes
+      - pagination
+      properties:
+        envelopes:
+          type: array
+          items:
+            "$ref": "#/components/schemas/Envelope"
+        pagination:
+          "$ref": "#/components/schemas/Pagination"
     Balance:
       type: object
       required:
@@ -5950,6 +6054,92 @@ paths:
                 "$ref": "#/components/schemas/ErrorResponse"
         '422':
           description: no assistant message available
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+  "/api/v1/envelopes":
+    get:
+      summary: List envelopes
+      tags:
+      - Envelopes
+      security:
+      - apiKeyAuth: []
+      responses:
+        '200':
+          description: envelopes listed
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/EnvelopeCollection"
+        '401':
+          description: unauthorized
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+  "/api/v1/envelopes/{id}":
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    get:
+      summary: Retrieve an envelope
+      tags:
+      - Envelopes
+      security:
+      - apiKeyAuth: []
+      responses:
+        '200':
+          description: envelope retrieved
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Envelope"
+        '404':
+          description: envelope not found
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Update an envelope
+      tags:
+      - Envelopes
+      security:
+      - apiKeyAuth: []
+      parameters: []
+      responses:
+        '200':
+          description: envelope updated
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/Envelope"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                envelope:
+                  type: object
+                  properties:
+                    budgeted_spending:
+                      type: string
+        required: true
+    delete:
+      summary: Delete an envelope
+      tags:
+      - Envelopes
+      security:
+      - apiKeyAuth: []
+      responses:
+        '200':
+          description: envelope deleted
           content:
             application/json:
               schema:

@@ -544,6 +544,56 @@ RSpec.configure do |config|
               pagination: { '$ref' => '#/components/schemas/Pagination' }
             }
           },
+          Envelope: {
+            type: :object,
+            required: %w[id budget_id currency subcategory inherits_parent_budget rollover_enabled category created_at updated_at],
+            properties: {
+              id: { type: :string, format: :uuid },
+              budget_id: { type: :string, format: :uuid },
+              currency: { type: :string },
+              subcategory: { type: :boolean },
+              inherits_parent_budget: { type: :boolean },
+              rollover_enabled: { type: :boolean },
+              target_type: { type: :string, nullable: true, enum: BudgetCategory::TARGET_TYPES },
+              target_amount: { type: :string, nullable: true },
+              target_amount_cents: { type: :integer, nullable: true },
+              target_date: { type: :string, format: :date, nullable: true },
+              budgeted_spending: { type: :string },
+              budgeted_spending_cents: { type: :integer },
+              display_budgeted_spending: { type: :string },
+              display_budgeted_spending_cents: { type: :integer },
+              actual_spending: { type: :string },
+              actual_spending_cents: { type: :integer },
+              rolled_over_amount: { type: :string },
+              rolled_over_amount_cents: { type: :integer },
+              available_to_spend: { type: :string },
+              available_to_spend_cents: { type: :integer },
+              category: {
+                type: :object,
+                required: %w[id name color lucide_icon],
+                properties: {
+                  id: { type: :string, format: :uuid },
+                  name: { type: :string },
+                  color: { type: :string },
+                  lucide_icon: { type: :string },
+                  parent_id: { type: :string, format: :uuid, nullable: true }
+                }
+              },
+              created_at: { type: :string, format: :'date-time' },
+              updated_at: { type: :string, format: :'date-time' }
+            }
+          },
+          EnvelopeCollection: {
+            type: :object,
+            required: %w[envelopes pagination],
+            properties: {
+              envelopes: {
+                type: :array,
+                items: { '$ref' => '#/components/schemas/Envelope' }
+              },
+              pagination: { '$ref' => '#/components/schemas/Pagination' }
+            }
+          },
           Balance: {
             type: :object,
             required: %w[id date currency flows_factor balance balance_cents start_balance start_balance_cents end_balance end_balance_cents account created_at updated_at],
