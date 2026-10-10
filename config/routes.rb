@@ -524,6 +524,10 @@ Rails.application.routes.draw do
     resources :mappings, only: :update, module: :import
   end
 
+  namespace :ingest do
+    post "paperless", to: "paperless#create"
+  end
+
   resources :documents, controller: "document_links", only: %i[index create destroy] do
     member do
       get :file
