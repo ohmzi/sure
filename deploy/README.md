@@ -45,13 +45,19 @@ and `no-new-privileges`. `deploy/dc exec -T web` is the service name (`web`, nev
 `BACKUP_DIR` (default `$HOME/ohmzbudget-backups/backups`) and `BACKUP_KEEP_DAYS`
 (default `14`) come from the untracked `deploy/.env`; artifacts older than
 `BACKUP_KEEP_DAYS` are deleted (`find … -mtime +N -delete`, which also sweeps
-stray `*.part` files). The four names are fixed (consumed by the restore drill
-and, later, the M5 monitor).
+stray `*.part` files and the dot-named `.*.sql` dump temps). The four names are
+fixed (consumed by the restore drill and, later, the M5 monitor).
 
 Each database dump goes to a temp file, is verified (`pg_dump` exit status plus a
 `PostgreSQL database dump` marker) and only then published to the fixed name via
 a `.part` file and an atomic rename, so a failed `pg_dump` never leaves a
-valid-looking `.sql.gz` for the restore drill or the M5 monitor to trust. Run it
+valid-looking `.sql.gz` for the restore drill or the M5 monitor to trust. The two
+volume archives get the same verify-before-publish rule: each is written to a
+`.part` name from a read-only mount, a non-zero `tar` exit or a failing `gzip -t`
+removes the `.part` and aborts the run, and only a verified archive is renamed
+into the fixed name — a `tar` that fails on an unreadable member still closes gzip
+cleanly, so a direct `tar czf` at the fixed name would leave a gzip-valid but
+incomplete `.tgz`. Run it
 by hand with `./backup.sh`; if a dump fails the run aborts (non-zero exit) and is
 logged (`backup FAILED: …`) on stderr, but it may leave no usable backup for that
 run.

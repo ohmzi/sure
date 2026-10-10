@@ -42,15 +42,30 @@ dump_db db "$POSTGRES_USER" "$POSTGRES_DB" "$BACKUP_DIR/sure_db_$TS.sql.gz"
 # 2. paperless database (the document engine's metadata)
 dump_db paperless-db "$PAPERLESS_DBUSER" "$PAPERLESS_DBNAME" "$BACKUP_DIR/paperless_db_$TS.sql.gz"
 
+# Volume archives get the SAME verify-before-publish rule as the DB dumps:
+# a tar that fails on an unreadable member still closes gzip cleanly, so a
+# direct `tar czf` at the fixed name would leave a gzip-valid but INCOMPLETE
+# archive that the drill and the monitor would trust.
+archive_volume() {   # archive_volume <volume> <target>
+  local volume="$1" target="$2"
+  local part="$target.part"
+  if ! docker run --rm -v "$volume":/data:ro -v "$BACKUP_DIR":/backup alpine:3.20 \
+       tar czf "/backup/$(basename "$part")" -C /data .; then
+    rm -f "$part"; echo "backup FAILED: $volume archive did not complete" >&2; exit 1
+  fi
+  if ! gzip -t "$part"; then
+    rm -f "$part"; echo "backup FAILED: $volume archive is not valid gzip" >&2; exit 1
+  fi
+  mv -f "$part" "$target"
+}
+
 # 3. Active Storage volume (attached documents)
-docker run --rm -v ohmzbudget_app-storage:/data:ro -v "$BACKUP_DIR":/backup alpine:3.20 \
-  tar czf "/backup/app-storage_$TS.tgz" -C /data .
+archive_volume ohmzbudget_app-storage "$BACKUP_DIR/app-storage_$TS.tgz"
 
 # 4. paperless media volume (the document files)
-docker run --rm -v ohmzbudget_paperless-media:/data:ro -v "$BACKUP_DIR":/backup alpine:3.20 \
-  tar czf "/backup/paperless-media_$TS.tgz" -C /data .
+archive_volume ohmzbudget_paperless-media "$BACKUP_DIR/paperless-media_$TS.tgz"
 
 # Retention
-find "$BACKUP_DIR" -type f \( -name '*.sql.gz' -o -name '*.tgz' -o -name '*.part' \) -mtime +"$BACKUP_KEEP_DAYS" -delete
+find "$BACKUP_DIR" -type f \( -name '*.sql.gz' -o -name '*.tgz' -o -name '*.part' -o -name '.*.sql' \) -mtime +"$BACKUP_KEEP_DAYS" -delete
 
 echo "backup complete: $TS -> $BACKUP_DIR"
