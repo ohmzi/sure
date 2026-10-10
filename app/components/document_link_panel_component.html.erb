@@ -1,0 +1,35 @@
+<%= render DS::Card.new do %>
+  <div id="document-link-panel" class="space-y-2">
+    <h4 class="text-sm text-primary"><%= t("document_link_panel.title") %></h4>
+    <% if documents.any? %>
+      <% documents.each do |document| %>
+        <div class="flex items-center gap-3">
+          <%= image_tag file_document_path(document, kind: "thumb"),
+                alt: document.title.presence || document.original_filename,
+                loading: "lazy", class: "h-10 w-10 rounded object-cover" %>
+          <span class="grow text-primary"><%= document.title.presence || document.original_filename %></span>
+          <% if document.status == "linked" %>
+            <%= render DS::Button.new(text: t("document_link_panel.unlink"), href: unlink_document_path(document), method: :post, variant: :outline, size: :sm) %>
+          <% end %>
+        </div>
+      <% end %>
+    <% end %>
+
+    <% if candidates.any? %>
+      <h5 class="text-xs uppercase text-secondary pt-2"><%= t("document_link_panel.candidates") %></h5>
+      <% candidates.each do |document| %>
+        <div class="flex items-center gap-3">
+          <%= image_tag file_document_path(document, kind: "thumb"),
+                alt: document.title.presence || document.original_filename,
+                loading: "lazy", class: "h-10 w-10 rounded object-cover" %>
+          <span class="grow text-primary"><%= document.title.presence || document.original_filename %></span>
+          <%= render DS::Button.new(text: t("document_link_panel.link"), href: link_document_path(document, entry_id: entry.id), method: :post, variant: :outline, size: :sm) %>
+        </div>
+      <% end %>
+    <% end %>
+
+    <% if documents.none? && candidates.none? %>
+      <p class="text-secondary text-sm"><%= t("document_link_panel.empty") %></p>
+    <% end %>
+  </div>
+<% end %>

@@ -187,3 +187,9 @@ en:
       data_warnings: "Data warnings: %{count}"
       notices: "Notices: %{count}"
       view_data_quality: View data quality details
+  document_link_panel:
+    title: Documents
+    candidates: Recent documents
+    empty: No documents yet
+    unlink: Unlink
+    link: Link
