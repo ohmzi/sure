@@ -1,6 +1,8 @@
 <%# locals: (budget_category:) %>
 <% target = Budget::EnvelopeTarget.new(budget_category) %>
-<% if budget_category.target_type.present? %>
+<%# Ruling 5: guard on the COMPLETE target — a half-target (type without an
+    amount) makes monthly_required nil and Money.new(nil) raise here. %>
+<% if budget_category.target_type.present? && budget_category.target_amount.present? %>
   <div class="text-xs text-secondary privacy-sensitive">
     <% if target.funded? %>
       <%= t("budget_categories.budget_category_form.target.funded") %>

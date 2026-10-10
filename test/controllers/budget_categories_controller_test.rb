@@ -358,6 +358,45 @@ class BudgetCategoriesControllerTest < ActionDispatch::IntegrationTest
       "the choice reaches months that were already open"
   end
 
+  test "a lone target key never writes a half-target and never breaks a render (Ruling 5)" do
+    # The crash path the reviewer reproduced: a PATCH carrying target_type with
+    # no target_amount used to persist a half-target, after which every render
+    # of the envelope raised ActionView::Template::Error (Money.new(nil)) on an
+    # envelope whose available_to_spend is negative (a normal red-carry state).
+    @parent_budget_category.update!(budgeted_spending: 0)
+    @parent_budget_category.update_column(:rolled_over_amount, -50)
+
+    patch budget_budget_category_path(@budget, @parent_budget_category),
+          params: { budget_category: { target_type: "savings_balance" } }
+
+    assert_nil @parent_budget_category.reload.target_type, "a lone key is ignored"
+    assert_nil @parent_budget_category.target_amount
+
+    get budget_budget_categories_path(@budget)
+    assert_response :success
+
+    # The model refuses a half-target from any other write path too.
+    @parent_budget_category.target_type = "savings_balance"
+    assert_not @parent_budget_category.valid?
+    assert_includes @parent_budget_category.errors[:target_amount], "can't be blank"
+  end
+
+  test "a poisoned half-target row never breaks a render on a negative envelope (Ruling 5)" do
+    # The render guard, independent of the write paths: a row written by
+    # update_all, the pre-validation API, or any surface that bypasses the
+    # model validations must render nothing, not raise. The negative balance
+    # comes from budgeted_spending because it survives
+    # RolloverCalculator#recompute!, unlike a bare update_column(
+    # :rolled_over_amount, ...) which find_or_bootstrap recomputes back to the
+    # chain's real carry on the next request.
+    @parent_budget_category.update_column(:budgeted_spending, -10)
+    @parent_budget_category.update_column(:target_type, "savings_balance")
+
+    get budget_budget_categories_path(@budget)
+
+    assert_response :success
+  end
+
   test "the category form renders the needed-per-month figure" do
     # 600 clears the fixture's 500 budgeted_spending, so funded? is false and
     # the partial reaches the monthly_required branch
@@ -391,13 +430,18 @@ class BudgetCategoriesControllerTest < ActionDispatch::IntegrationTest
     patch budget_budget_category_path(@budget, @parent_budget_category),
           params: { budget_category: {
             budgeted_spending: @parent_budget_category.budgeted_spending,
-            target_type: "monthly_assign", target_amount: "300"
+            target_type: "monthly_assign", target_amount: "600"
           } },
           as: :turbo_stream
 
     assert_response :success
     assert_match dom_id(@parent_budget_category, :form), response.body
-    assert_match "300", response.body
+    # 600 clears the fixture's 500 available_to_spend, so the replacement
+    # carries the figure itself; a funded target renders only "Target funded"
+    # and the old assert_match "300" was matching the toggle's duration-300
+    # classes instead.
+    assert_match "needed per month", response.body
+    assert_match "600.00", response.body
   end
 end
 

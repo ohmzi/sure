@@ -122,9 +122,13 @@ class BudgetCategoriesController < ApplicationController
             .transform_values { |value| value.presence }
     end
 
+    # Ruling 5: a target is all-or-nothing. BOTH keys must be present for a
+    # write — a lone target_type (or target_amount) is ignored, never persisted
+    # as a half-target (the form and the API always send both; clearing sends
+    # both blank). The model validation below is the second line of defence.
     def target_params_present?
-      params.require(:budget_category).key?(:target_type) ||
-        params.require(:budget_category).key?(:target_amount)
+      permitted = params.require(:budget_category)
+      permitted.key?(:target_type) && permitted.key?(:target_amount)
     end
 
     def set_budget

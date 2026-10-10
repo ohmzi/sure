@@ -189,6 +189,14 @@ class BudgetCategory < ApplicationRecord
   validates :target_type, inclusion: { in: TARGET_TYPES }, allow_nil: true
   validates :target_amount, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
+  # Ruling 5: the target is all-or-nothing. A half-target (a type with no
+  # amount, or an amount with no type) must never persist: every surface that
+  # renders the envelope would raise on Money.new(nil) or show a false
+  # "Target funded". Clearing a target sets both columns blank, which stays
+  # valid (both conditions are false when the value is nil).
+  validates :target_amount, presence: true, if: -> { target_type.present? }
+  validates :target_type, presence: true, if: -> { target_amount.present? }
+
   # A target is a standing choice about the envelope, like the rollover
   # toggle: changing it must reach the months that were already opened.
   def propagate_target_choice_forward!
