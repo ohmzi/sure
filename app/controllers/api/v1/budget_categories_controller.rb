@@ -51,10 +51,13 @@ class Api::V1::BudgetCategoriesController < Api::V1::BaseController
     # to the surface that was missed.
     def refresh_rollover_chains
       visible_owner_ids.each do |owner_id|
-        Budget::RolloverCalculator.new(
-          family: current_resource_owner.family,
-          user: owner_id && User.find_by(id: owner_id)
-        ).recompute!
+        budget = Budget
+          .where(family: current_resource_owner.family, user_id: owner_id)
+          .order(start_date: :desc)
+          .first
+        next unless budget
+
+        Budget::Recalculate.call(family: current_resource_owner.family, budget: budget)
       end
     end
 

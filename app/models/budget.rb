@@ -15,6 +15,7 @@ class Budget < ApplicationRecord
   belongs_to :user, optional: true
 
   has_many :budget_categories, -> { includes(:category) }, dependent: :destroy
+  has_many :credit_envelopes, dependent: :destroy
 
   validates :start_date, :end_date, presence: true
   validates :start_date, :end_date, uniqueness: { scope: [ :family_id, :user_id ] }
@@ -83,7 +84,7 @@ class Budget < ApplicationRecord
         budget.current_user = user
         budget.sync_budget_categories
 
-        Budget::RolloverCalculator.new(family: family, user: owner).recompute!
+        Budget::Recalculate.call(family: family, budget: budget)
 
         budget
       end
@@ -329,9 +330,10 @@ class Budget < ApplicationRecord
       end
 
       # Copying the toggle changes what the chain should hold, and this runs
-      # after find_or_bootstrap already recomputed it. Recompute again so the
-      # target doesn't sit on a zero carry until the next page load.
-      Budget::RolloverCalculator.new(family: family, user: user).recompute!
+      # after find_or_bootstrap already recomputed it. Run the seam again so
+      # both the rollover carry and the credit envelopes follow the copied
+      # toggles instead of waiting for the next page load.
+      Budget::Recalculate.call(family: family, budget: self)
     end
   end
 
