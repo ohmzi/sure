@@ -5,14 +5,18 @@ class Api::V1::EnvelopesController < Api::V1::BaseController
 
   before_action :ensure_read_scope, only: [ :index, :show ]
   before_action :ensure_write_scope, only: [ :update, :destroy ]
+  # Ruling M4a-L3: serve fresh derived money, the sibling budget_categories API's
+  # own bargain (writes nothing for a family without rollover).
+  # Ruling M4a-L3b: declared BEFORE set_envelope — the loader must load the
+  # refreshed row; the refresh's upsert_all fixes the DB but not an
+  # already-loaded instance, so with the loader first `show` rendered the stale
+  # carry. Same order as the sibling controller (refresh at :7, loader at :8).
+  before_action :refresh_rollover_chains, only: [ :index, :show ]
   before_action :set_envelope, only: [ :show, :update, :destroy ]
   # Ruling M4a-L3 (Critical): the API key scope is not the only gate — a
   # read_only BudgetShare must not write either. 404, exactly like the web
   # surface's gated actions.
   before_action :ensure_budget_writable, only: [ :update, :destroy ]
-  # Ruling M4a-L3: serve fresh derived money, the sibling budget_categories
-  # API's own bargain (writes nothing for a family without rollover).
-  before_action :refresh_rollover_chains, only: [ :index, :show ]
 
   def index
     @pagy, @envelopes = pagy(envelopes_scope.order(:created_at),

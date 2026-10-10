@@ -159,10 +159,10 @@ class Api::V1::EnvelopesControllerTest < ActionDispatch::IntegrationTest
 
   # The API reads the materialized column straight, so without the refresh it
   # can serve a carry left stale by a sync or a recategorisation (Ruling
-  # M4a-L3; same test shape as the sibling budget-categories API). The served
-  # payload assertion lands with the callback-order amendment in fix round 2;
-  # this pins the recompute itself.
-  test "show recomputes a stale materialized carry" do
+  # M4a-L3; same test shape as the sibling budget-categories API). The refresh
+  # must be declared BEFORE the loader, or show renders the pre-refresh row
+  # (Ruling M4a-L3b); the served-payload assertion below is what catches it.
+  test "show refreshes a stale materialized carry rather than serving it" do
     earlier = Budget.find_or_bootstrap(@family, start_date: 3.months.ago.to_date, user: nil)
     earlier.update!(budgeted_spending: 3000, expected_income: 5000)
     earlier.budget_categories.find_by!(category: categories(:food_and_drink))
@@ -181,5 +181,7 @@ class Api::V1::EnvelopesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal 500, later_envelope.reload[:rolled_over_amount]
+    body = JSON.parse(response.body)
+    assert_equal "$500.00", body["rolled_over_amount"]
   end
 end
