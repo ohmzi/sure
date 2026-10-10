@@ -285,6 +285,11 @@ class ActiveStorageAuthorizationTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "DocumentLink stages bytes on disk and declares no Active Storage attachments" do
+    assert_empty DocumentLink.reflect_on_all_attachments
+    assert DocumentLink.attribute_types.key?("staged_path")
+  end
+
   private
 
     def sign_out(user)
