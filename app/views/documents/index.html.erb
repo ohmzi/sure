@@ -7,7 +7,8 @@
 <% end %>
 
 <%= render DS::Card.new do %>
-  <div data-controller="receipt-dropzone">
+  <div data-controller="receipt-dropzone"
+       data-action="dragover->receipt-dropzone#dragover drop->receipt-dropzone#drop">
     <%= styled_form_with url: documents_path, multipart: true,
           data: { "receipt-dropzone-target": "form" } do |form| %>
       <%= form.file_field :document, data: { "receipt-dropzone-target": "input" }, accept: "application/pdf,image/*" %>

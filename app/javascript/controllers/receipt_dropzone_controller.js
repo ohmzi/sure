@@ -14,9 +14,15 @@ export default class extends Controller {
 
   drop(event) {
     event.preventDefault();
-    if (event.dataTransfer.files.length) {
-      this.inputTarget.files = event.dataTransfer.files;
-      this.formTarget.requestSubmit();
-    }
+    // Ruling 6 (M1): exactly ONE file. The input is single-file and the server
+    // expects one `document` param — handing it a multi-entry FileList makes
+    // params.require(:document) an Array and 500s the upload. This holds on the
+    // heic-ok branch too (no conversion, but still funnel only the first file).
+    const file = event.dataTransfer.files[0];
+    if (!file) return;
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    this.inputTarget.files = dt.files;
+    this.formTarget.requestSubmit();
   }
 }

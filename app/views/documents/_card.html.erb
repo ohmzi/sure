@@ -1,8 +1,15 @@
 <%= render DS::Card.new do %>
   <div class="flex items-center gap-3">
-    <%= image_tag file_document_path(document, kind: "thumb"),
-          alt: document.title.presence || document.original_filename,
-          loading: "lazy", class: "h-10 w-10 rounded object-cover" %>
+    <%# Ruling 6 (M1): only rows with a paperless copy have a thumbnail —
+        #file 404s for queued/held rows, so render a placeholder instead of a
+        broken image. %>
+    <% if document.paperless_document_id.present? %>
+      <%= image_tag file_document_path(document, kind: "thumb"),
+            alt: document.title.presence || document.original_filename,
+            loading: "lazy", class: "h-10 w-10 rounded object-cover" %>
+    <% else %>
+      <div class="h-10 w-10 rounded bg-container-inset" aria-hidden="true"></div>
+    <% end %>
     <div class="grow">
       <p class="text-primary"><%= document.title.presence || document.original_filename %></p>
       <p class="text-secondary text-xs"><%= t("documents.status.#{document.status}") %></p>

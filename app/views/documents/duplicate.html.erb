@@ -2,6 +2,8 @@
   <% dialog.with_header(title: t(".title")) %>
   <% dialog.with_body do %>
     <p><%= t(".description") %></p>
-    <%= render DS::Button.new(text: t(".back"), href: documents_path, variant: :primary) %>
+    <%# Ruling 6 (M1): DS::Button's href branch is button_to, which defaults to
+        POST — without method: :get this "back" button POSTs /documents and 400s. %>
+    <%= render DS::Button.new(text: t(".back"), href: documents_path, method: :get, variant: :primary) %>
   <% end %>
 <% end %>

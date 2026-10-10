@@ -29,6 +29,9 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
   test "the archive renders the dropzone controller" do
     get documents_path
     assert_select "[data-controller~='receipt-dropzone']"
+    # Ruling 6 (M1): Stimulus binds only via data-action — pin the wiring so a
+    # dead dropzone can never pass this test again.
+    assert_select "[data-action~='drop->receipt-dropzone#drop']"
   end
 
   test "a failed document surfaces its failure message on the card" do
