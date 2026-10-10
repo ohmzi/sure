@@ -69,6 +69,39 @@ owner's backup root, not `/var/log`):
 17 3 * * * /home/ohmz/StudioProjects/OhmzBudget/deploy/backup.sh >> /home/ohmz/ohmzbudget-backups/backup.log 2>&1
 ```
 
+## Restore drill (proven)
+`deploy/restore-drill.sh` (mode 0755) proves the newest dump is a real,
+loadable backup — the M0 exit criterion. It **never touches the live database**:
+it loads `sure_db_<ts>.sql.gz` into a scratch database
+`ohmzbudget_restore_drill` on the same `db` container, compares it against live,
+then drops the scratch database.
+
+```bash
+cd ~/StudioProjects/OhmzBudget
+deploy/restore-drill.sh
+```
+
+What it does, in order, and what fails the run (any mismatch exits non-zero):
+
+- Picks the newest `sure_db_*.sql.gz`, `app-storage_*.tgz`,
+  `paperless_db_*.sql.gz` and `paperless-media_*.tgz` from `$BACKUP_DIR`
+  (a missing app dump or storage archive aborts up front).
+- `DROP DATABASE IF EXISTS` / `CREATE DATABASE ohmzbudget_restore_drill`, then
+  loads the gzipped dump into it with `psql`.
+- Compares `entries` **and** `users` row counts, live vs restored; they must be
+  equal, and restored `users` must be `>= 1` (an empty dump cannot pass).
+- Lists the first 5 entries of the storage archive, and of the
+  paperless-media archive when one exists (`|| true` guards the `head` SIGPIPE
+  that would otherwise trip `set -euo pipefail` as archives grow).
+- `gunzip -t` verifies the paperless-db dump when one exists.
+- `DROP DATABASE ohmzbudget_restore_drill` — no scratch database is left behind.
+- Prints `restore drill OK` and exits `0`.
+
+Each run writes only to `ohmzbudget_restore_drill`; the live `sure_production`
+database is read for the comparison counts and otherwise untouched. The drill is
+the verification for the backup set, so run it after enabling cron and after any
+schema or backup change.
+
 ## §16.8 decision
 The paperless consume folder stays enabled (paperless default) on the
 `paperless-consume` named volume; it is unused — the M1 ingest path is the API.
