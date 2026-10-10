@@ -75,4 +75,111 @@ class Api::V1::EnvelopesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
   end
+
+  test "401s without credentials" do
+    get api_v1_envelopes_url, as: :json
+
+    assert_response :unauthorized
+  end
+
+  # The API key scope is not the only gate: a member granted read_only on the
+  # owner's personal budget must not write through the API either. 404, like
+  # the web surface's ensure_budget_editable! (Ruling M4a-L3).
+  test "a read_only viewer cannot write through the API" do
+    viewer = users(:family_member)
+    viewer.api_keys.active.destroy_all
+    viewer_key = ApiKey.create!(user: viewer, name: "Viewer", scopes: [ "read_write" ],
+                                source: "web", display_key: "test_viewer_#{SecureRandom.hex(8)}")
+    owned_budget = @family.budgets.create!(
+      start_date: 7.months.ago.beginning_of_month, end_date: 7.months.ago.end_of_month,
+      budgeted_spending: 1000, currency: "USD", user: @user
+    )
+    owned_envelope = owned_budget.budget_categories.create!(
+      category: categories(:food_and_drink), budgeted_spending: 300, currency: "USD"
+    )
+    BudgetShare.create!(owner: @user, viewer: viewer, permission: "read_only")
+
+    patch api_v1_envelope_url(owned_envelope.id),
+          params: { envelope: { budgeted_spending: "450" } },
+          headers: api_headers(viewer_key), as: :json
+    assert_response :not_found
+    assert_equal 300, owned_envelope.reload.budgeted_spending
+
+    delete api_v1_envelope_url(owned_envelope.id), headers: api_headers(viewer_key), as: :json
+    assert_response :not_found
+    assert BudgetCategory.exists?(owned_envelope.id)
+  end
+
+  # Invalid target params must answer with the API's JSON 422 contract rather
+  # than the framework error page (docs/llm-guides/api-endpoint-consistency.md
+  # requires the 422 case; the web sibling rescues the same error).
+  test "rejects an invalid target with a JSON 422" do
+    patch api_v1_envelope_url(@envelope.id),
+          params: { envelope: { target_type: "bogus", target_amount: "10" } },
+          headers: api_headers(@write_key), as: :json
+
+    assert_response :unprocessable_entity
+    body = JSON.parse(response.body)
+    assert_equal "validation_failed", body["error"]
+    assert_nil @envelope.reload.target_type
+  end
+
+  # A combined payload (money + an invalid target) must be all-or-nothing: the
+  # rejected request must not leave the money write committed without the
+  # mandated Recalculate/sync_budgeted_spending! (Ruling M4a-L3).
+  test "an invalid target rolls back a money write in the same payload" do
+    patch api_v1_envelope_url(@envelope.id),
+          params: { envelope: { budgeted_spending: "450", target_type: "bogus", target_amount: "10" } },
+          headers: api_headers(@write_key), as: :json
+
+    assert_response :unprocessable_entity
+    assert_equal 300, @envelope.reload.budgeted_spending
+  end
+
+  # `rollover_enabled: false` is a legitimate value: the guard must be key
+  # presence, not truthiness (Ruling M4a-L3).
+  test "turns rollover off and propagates the choice forward" do
+    @envelope.update!(rollover_enabled: true)
+    later_budget = @family.budgets.create!(
+      start_date: 4.months.ago.beginning_of_month, end_date: 4.months.ago.end_of_month,
+      budgeted_spending: 1000, currency: "USD"
+    )
+    later_envelope = later_budget.budget_categories.create!(
+      category: categories(:food_and_drink), budgeted_spending: 300, currency: "USD", rollover_enabled: true
+    )
+
+    patch api_v1_envelope_url(@envelope.id),
+          params: { envelope: { rollover_enabled: false } },
+          headers: api_headers(@write_key), as: :json
+
+    assert_response :success
+    assert_equal false, @envelope.reload.rollover_enabled
+    assert_equal false, later_envelope.reload.rollover_enabled
+  end
+
+  # The API reads the materialized column straight, so without the refresh it
+  # can serve a carry left stale by a sync or a recategorisation (Ruling
+  # M4a-L3; same test shape as the sibling budget-categories API). The served
+  # payload assertion lands with the callback-order amendment in fix round 2;
+  # this pins the recompute itself.
+  test "show recomputes a stale materialized carry" do
+    earlier = Budget.find_or_bootstrap(@family, start_date: 3.months.ago.to_date, user: nil)
+    earlier.update!(budgeted_spending: 3000, expected_income: 5000)
+    earlier.budget_categories.find_by!(category: categories(:food_and_drink))
+           .update!(budgeted_spending: 500, rollover_enabled: true)
+
+    later = Budget.find_or_bootstrap(@family, start_date: 2.months.ago.to_date, user: nil)
+    later.update!(budgeted_spending: 3000, expected_income: 5000)
+    later_envelope = later.budget_categories.find_by!(category: categories(:food_and_drink))
+    later_envelope.update!(budgeted_spending: 500, rollover_enabled: true)
+
+    # Simulate what a sync does: rewrite the stored carry behind the app's
+    # back, the way a changed past month would leave it.
+    later_envelope.update_column(:rolled_over_amount, 0)
+
+    get api_v1_envelope_url(later_envelope.id), headers: api_headers(@write_key), as: :json
+
+    assert_response :success
+    assert_equal 500, later_envelope.reload[:rolled_over_amount]
+  end
 end

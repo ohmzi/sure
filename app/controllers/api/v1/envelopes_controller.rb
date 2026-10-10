@@ -6,6 +6,13 @@ class Api::V1::EnvelopesController < Api::V1::BaseController
   before_action :ensure_read_scope, only: [ :index, :show ]
   before_action :ensure_write_scope, only: [ :update, :destroy ]
   before_action :set_envelope, only: [ :show, :update, :destroy ]
+  # Ruling M4a-L3 (Critical): the API key scope is not the only gate — a
+  # read_only BudgetShare must not write either. 404, exactly like the web
+  # surface's gated actions.
+  before_action :ensure_budget_writable, only: [ :update, :destroy ]
+  # Ruling M4a-L3: serve fresh derived money, the sibling budget_categories
+  # API's own bargain (writes nothing for a family without rollover).
+  before_action :refresh_rollover_chains, only: [ :index, :show ]
 
   def index
     @pagy, @envelopes = pagy(envelopes_scope.order(:created_at),
@@ -17,25 +24,35 @@ class Api::V1::EnvelopesController < Api::V1::BaseController
   def show = render(:show)
 
   def update
-    @envelope.update_budgeted_spending!(budgeted_spending_param) if params.dig(:envelope, :budgeted_spending)
+    # Ruling M4a-L3 (Important): ONE transaction — a combined payload (money +
+    # an invalid target) must not leave the money write committed while the
+    # recompute and sync_budgeted_spending! are skipped.
+    BudgetCategory.transaction do
+      @envelope.update_budgeted_spending!(budgeted_spending_param) if params.dig(:envelope, :budgeted_spending)
 
-    if params.dig(:envelope, :rollover_enabled)
-      @envelope.update!(rollover_enabled: ActiveModel::Type::Boolean.new.cast(params[:envelope][:rollover_enabled]))
-      @envelope.propagate_rollover_choice_forward!
+      # Ruling M4a-L3 (Important): key PRESENCE, not truthiness — `false` is a
+      # legitimate value and must apply and propagate.
+      if params.require(:envelope).key?(:rollover_enabled)
+        @envelope.update!(rollover_enabled: ActiveModel::Type::Boolean.new.cast(params[:envelope][:rollover_enabled]))
+        @envelope.propagate_rollover_choice_forward!
+      end
+
+      # Ruling 5: all-or-nothing — BOTH keys must be present (same rule as the
+      # web controller), so a lone key can never write a half-target.
+      if params.require(:envelope).key?(:target_type) && params.require(:envelope).key?(:target_amount)
+        @envelope.update!(target_params)
+        @envelope.propagate_target_choice_forward!
+      end
+
+      Budget::Recalculate.call(family: @envelope.budget.family, budget: @envelope.budget)
+      @envelope.budget.sync_budgeted_spending!
     end
-
-    # Ruling 5: all-or-nothing — BOTH keys must be present (same rule as the
-    # web controller), so a lone key can never write a half-target.
-    if params.require(:envelope).key?(:target_type) && params.require(:envelope).key?(:target_amount)
-      @envelope.update!(target_params)
-      @envelope.propagate_target_choice_forward!
-    end
-
-    Budget::Recalculate.call(family: @envelope.budget.family, budget: @envelope.budget)
-    @envelope.budget.sync_budgeted_spending!
     @envelope.reload
     render :show
-  rescue BudgetCategory::InvalidMove => e
+  rescue ActiveRecord::RecordInvalid => e
+    # Ruling M4a-L3: the reachable failure here is a validation error
+    # (BudgetCategory::InvalidMove is not raised by these paths); 422 matches
+    # BudgetCategoriesController#update.
     render_validation_error(e.message)
   end
 
@@ -50,6 +67,22 @@ class Api::V1::EnvelopesController < Api::V1::BaseController
   private
     def ensure_read_scope = authorize_scope!(:read)
     def ensure_write_scope = authorize_scope!(:write)
+
+    # Ruling M4a-L3: a read_only BudgetShare is a 404 on write, like the web.
+    def ensure_budget_writable
+      raise ActiveRecord::RecordNotFound unless @envelope.budget.editable_by?(current_resource_owner)
+    end
+
+    # Ruling M4a-L3: the sibling budget_categories API's exact refresh, so the
+    # API never serves a stale rolled_over_amount/available_to_spend.
+    def refresh_rollover_chains
+      visible_owner_ids.each do |owner_id|
+        Budget::RolloverCalculator.new(
+          family: current_resource_owner.family,
+          user: owner_id && User.find_by(id: owner_id)
+        ).recompute!
+      end
+    end
 
     def set_envelope
       raise ActiveRecord::RecordNotFound unless valid_uuid?(params[:id])

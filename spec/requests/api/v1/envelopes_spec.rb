@@ -89,7 +89,9 @@ RSpec.describe 'API V1 Envelopes', type: :request do
       produces 'application/json'
       let(:id) { budget_category.id }
       response '200', 'envelope deleted' do
-        schema '$ref' => '#/components/schemas/ErrorResponse'
+        # Ruling M4a-L3: the controller renders { message: ... } with 200 —
+        # ErrorResponse was the wrong $ref (only a real request run catches it).
+        schema '$ref' => '#/components/schemas/DeleteResponse'
         run_test!
       end
     end

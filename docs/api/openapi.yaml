@@ -6143,7 +6143,7 @@ paths:
           content:
             application/json:
               schema:
-                "$ref": "#/components/schemas/ErrorResponse"
+                "$ref": "#/components/schemas/DeleteResponse"
   "/api/v1/family_exports":
     get:
       summary: Lists family exports
