@@ -524,6 +524,15 @@ Rails.application.routes.draw do
     resources :mappings, only: :update, module: :import
   end
 
+  resources :documents, controller: "document_links", only: %i[index create destroy] do
+    member do
+      get :file
+      post :link
+      post :unlink
+      post :retry
+    end
+  end
+
   resources :holdings, only: %i[index new show update destroy] do
     member do
       post :unlock_cost_basis
