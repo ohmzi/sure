@@ -32,6 +32,52 @@ and `no-new-privileges`. `deploy/dc exec -T web` is the service name (`web`, nev
 - `./dc ps` / `./dc logs -f web` — status and logs.
 - `./dc build web worker && ./dc up -d web worker` — rebuild after a code change.
 
+## Tunnel (cloudflared)
+The app is reached over a cloudflared tunnel; TLS terminates at the edge, so the
+app runs with `RAILS_ASSUME_SSL=true` and `RAILS_FORCE_SSL=false` (see
+`.env.example`) and generates `https://` URLs. The tunnel config/dashboard holds
+the ingress rule — this tracked file shows only the placeholder hostname; a live
+hostname lives solely in the tunnel config and in untracked `deploy/.env`:
+
+```yaml
+ingress:
+  - hostname: budget.example.com      # live value lives only in the tunnel config, never in a tracked file
+    service: http://127.0.0.1:7300
+```
+
+Both published ports are bound to loopback only — the app on `127.0.0.1:7300`
+and paperless on `127.0.0.1:7301`; nothing binds `0.0.0.0`, so the edge is the
+only way in. The owner sets the live hostname in untracked `deploy/.env` as
+`TUNNEL_HOST` (never a tracked file) for the probes:
+
+```bash
+cd ~/StudioProjects/OhmzBudget
+set -a; . deploy/.env; set +a          # TUNNEL_HOST is the untracked live value
+curl -fsS -o /dev/null -w 'local   %{http_code}\n' http://127.0.0.1:7300/up   # 200
+curl -fsS -o /dev/null -w 'tunnel  %{http_code}\n' "https://$TUNNEL_HOST/up"  # 200
+ss -ltn | grep -E '(0\.0\.0\.0|\[::\]):(7300|7301)\b' && echo "EXPOSED ON 0.0.0.0 — stop" || echo "loopback only"
+```
+
+A real credential login through the tunnel (cookie jar + CSRF from the sign-in
+form; the password is read from the secret file by curl, never echoed):
+
+```bash
+set -a; . deploy/.env; set +a
+token=$(curl -fsS -c /tmp/ohmz-tunnel-cookies.txt "https://$TUNNEL_HOST/sessions/new" \
+  | grep -oP 'name="authenticity_token" value="\K[^"]+' | head -1)
+curl -fsS -o /dev/null -w 'tunnel-login %{http_code}\n' -b /tmp/ohmz-tunnel-cookies.txt -c /tmp/ohmz-tunnel-cookies.txt \
+  --data-urlencode "authenticity_token=$token" \
+  --data-urlencode "email=$ADMIN_EMAIL" \
+  --data-urlencode "password@deploy/secrets/admin_password" \
+  "https://$TUNNEL_HOST/sessions"
+curl -fsS -o /dev/null -w 'tunnel-home %{http_code}\n' -b /tmp/ohmz-tunnel-cookies.txt "https://$TUNNEL_HOST/"
+```
+
+Expected: `local 200` and `tunnel 200`; `loopback only`; `tunnel-login 302`,
+then `tunnel-home 302` to `/onboarding` until the owner completes the wizard
+once (or `200` once onboarding is complete); `/up` answers `200` with no
+`http://` downgrade redirect.
+
 ## Backups
 `deploy/backup.sh` (mode 0755, cron-driven) writes four timestamped artifacts into
 `$BACKUP_DIR` and prunes the set:
