@@ -40,13 +40,17 @@ class BudgetCategoriesController < ApplicationController
       # flag off and had nothing to inherit, so the chain stopped there.
       @budget_category.propagate_rollover_choice_forward!
     end
+    if target_params_present?
+      @budget_category.update!(target_params)
+      @budget_category.propagate_target_choice_forward!
+    end
     @budget_category.update_budgeted_spending!(budgeted_spending_param)
 
     # Allocations and the rollover toggle both feed the chain, so recompute
     # it here rather than on every transaction change: the budget page is
     # the only place the amount is read, and it always comes through here or
     # through Budget.find_or_bootstrap.
-    Budget::RolloverCalculator.new(family: @budget.family, user: @budget.user).recompute!
+    Budget::Recalculate.call(family: @budget.family, budget: @budget)
     @budget_category.reload
 
     respond_to do |format|
@@ -68,7 +72,7 @@ class BudgetCategoriesController < ApplicationController
     @to = @budget.budget_categories.find(params[:to_id])
 
     BudgetCategory.move_allocation!(from: @from, to: @to, amount: move_amount_param)
-    Budget::RolloverCalculator.new(family: @budget.family, user: @budget.user).recompute!
+    Budget::Recalculate.call(family: @budget.family, budget: @budget)
 
     @budget.reload
     flash.now[:notice] = t(".success")
@@ -106,6 +110,21 @@ class BudgetCategoriesController < ApplicationController
         .permit(:budgeted_spending)
         .fetch(:budgeted_spending, nil)
         .presence || 0
+    end
+
+    # Blank values clear the target; the columns are nullable and the
+    # inclusion/range validations allow nil. `presence` turns an empty string
+    # into nil rather than a value the validators would reject.
+    def target_params
+      params.require(:budget_category)
+            .permit(:target_amount, :target_type, :target_date)
+            .to_h
+            .transform_values { |value| value.presence }
+    end
+
+    def target_params_present?
+      params.require(:budget_category).key?(:target_type) ||
+        params.require(:budget_category).key?(:target_amount)
     end
 
     def set_budget

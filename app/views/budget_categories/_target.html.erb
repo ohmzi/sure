@@ -1,0 +1,12 @@
+<%# locals: (budget_category:) %>
+<% target = Budget::EnvelopeTarget.new(budget_category) %>
+<% if budget_category.target_type.present? %>
+  <div class="text-xs text-secondary privacy-sensitive">
+    <% if target.funded? %>
+      <%= t("budget_categories.budget_category_form.target.funded") %>
+    <% else %>
+      <%= t("budget_categories.budget_category_form.target.needed_per_month",
+            amount: format_money(Money.new(target.monthly_required, budget_category.currency))) %>
+    <% end %>
+  </div>
+<% end %>

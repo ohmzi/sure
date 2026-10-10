@@ -341,6 +341,64 @@ class BudgetCategoriesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
     assert_equal 0, foreign.reload.budgeted_spending.to_i
   end
+
+  test "updating a category persists a target and propagates it forward" do
+    later = Budget.find_or_bootstrap(@family, start_date: 1.month.from_now)
+    later_bc = later.budget_categories.find_by!(category: @parent_category)
+
+    patch budget_budget_category_path(@budget, @parent_budget_category),
+          params: { budget_category: {
+            budgeted_spending: @parent_budget_category.budgeted_spending,
+            target_type: "savings_balance", target_amount: "900"
+          } }
+
+    assert_equal "savings_balance", @parent_budget_category.reload.target_type
+    assert_equal 900, @parent_budget_category.target_amount
+    assert_equal "savings_balance", later_bc.reload.target_type,
+      "the choice reaches months that were already open"
+  end
+
+  test "the category form renders the needed-per-month figure" do
+    # 600 clears the fixture's 500 budgeted_spending, so funded? is false and
+    # the partial reaches the monthly_required branch
+    # (Ruling P-m4a-3, 2026-10-10 pre-flight).
+    @parent_budget_category.update!(target_type: "monthly_assign", target_amount: 600)
+
+    get budget_budget_categories_path(@budget)
+
+    assert_response :success
+    assert_match "needed per month", response.body
+    assert_match "600.00", response.body
+  end
+
+  test "clearing a target propagates it forward" do
+    later = Budget.find_or_bootstrap(@family, start_date: 1.month.from_now)
+    later_bc = later.budget_categories.find_by!(category: @parent_category)
+    @parent_budget_category.update!(target_type: "savings_balance", target_amount: 900)
+    @parent_budget_category.propagate_target_choice_forward!
+
+    patch budget_budget_category_path(@budget, @parent_budget_category),
+          params: { budget_category: {
+            budgeted_spending: @parent_budget_category.budgeted_spending,
+            target_type: "", target_amount: ""
+          } }
+
+    assert_nil @parent_budget_category.reload.target_type
+    assert_nil later_bc.reload.target_type, "clearing the target reaches later months too"
+  end
+
+  test "the changed row re-renders with its target figure over turbo" do
+    patch budget_budget_category_path(@budget, @parent_budget_category),
+          params: { budget_category: {
+            budgeted_spending: @parent_budget_category.budgeted_spending,
+            target_type: "monthly_assign", target_amount: "300"
+          } },
+          as: :turbo_stream
+
+    assert_response :success
+    assert_match dom_id(@parent_budget_category, :form), response.body
+    assert_match "300", response.body
+  end
 end
 
 class BudgetCategoriesControllerSharingTest < ActionDispatch::IntegrationTest

@@ -91,6 +91,9 @@ en:
       rollover_title: Keep this category's unspent money from one month to the next
       shared_placeholder: Shared
       shared_title: Leave empty to share parent's budget
+      target:
+        funded: "Target funded"
+        needed_per_month: "%{amount} needed per month"
     confirm_button:
       confirm: "Confirm"
     move:
