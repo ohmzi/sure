@@ -1,0 +1,40 @@
+unlinked_receipt:
+  family: dylan_family
+  created_by: family_admin
+  paperless_document_id: 9001
+  status: unlinked
+  source: receipt
+  title: Coffee receipt
+  original_filename: receipt.png
+  content_type: image/png
+
+queued_receipt:
+  family: dylan_family
+  created_by: family_admin
+  status: queued
+  source: receipt
+  title: New receipt
+  original_filename: new-receipt.pdf
+  content_type: application/pdf
+
+linked_receipt:
+  family: dylan_family
+  created_by: family_admin
+  entry: transaction
+  paperless_document_id: 9002
+  status: linked
+  source: receipt
+  title: Lunch receipt
+  confidence: 90
+  original_filename: lunch.pdf
+  content_type: application/pdf
+
+held_bill:
+  family: dylan_family
+  created_by: family_admin
+  status: queued
+  source: bill
+  title: Water bill
+  original_filename: water.pdf
+  content_type: application/pdf
+  staged_path: staged/held-water.pdf

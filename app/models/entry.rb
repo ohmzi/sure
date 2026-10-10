@@ -29,6 +29,10 @@ class Entry < ApplicationRecord
   # Read side only, so a transaction can say which bills it paid. The foreign key
   # already nullifies on delete, so this adds no lifecycle behaviour.
   has_many :recurring_allocations, dependent: nil, inverse_of: :entry
+  # Read-only, like recurring_allocations: writes go through DocumentLink.
+  # dependent: nil — the FK is ON DELETE SET NULL, and the callback below runs
+  # unlink! first so confidence is cleared too (ON DELETE SET NULL cannot).
+  has_many :document_links, inverse_of: :entry, dependent: nil
 
   delegated_type :entryable, types: Entryable::TYPES, dependent: :destroy
   accepts_nested_attributes_for :entryable
@@ -42,6 +46,7 @@ class Entry < ApplicationRecord
   validate :split_child_date_matches_parent
 
   before_destroy :prevent_individual_child_deletion, if: :split_child?
+  before_destroy :unlink_document_links
   after_save :track_earliest_saved_date, if: :saved_change_to_date?
 
   scope :visible, -> {
@@ -595,6 +600,10 @@ class Entry < ApplicationRecord
   end
 
   private
+
+    def unlink_document_links
+      DocumentLink.for_entry(self).find_each(&:unlink!)
+    end
 
     # Remembers the earliest date this entry had before any save that changed
     # it, for sync_account_later to use as the sync window start.
