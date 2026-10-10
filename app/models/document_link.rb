@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "digest"
+
 # The receipt/bill/statement spine. One row per uploaded document: it tracks the
 # paperless upload, the staged bytes while paperless is unreachable, and the
 # optional link to an entry. Status changes go through `transition!` only — a
@@ -76,6 +78,26 @@ class DocumentLink < ApplicationRecord
   def retry_upload!
     transition!(from: %w[failed queued processing], to: "queued",
                 paperless_task_id: nil, failure_message: nil, poll_attempts: 0)
+  end
+
+  # Writes the uploaded bytes to the staging volume and records their digest.
+  # Guarded like every other write, so a row that moved on is not re-staged.
+  def stage!(io:, filename:, content_type:)
+    path = DocumentLink::Staging.write(io: io, id: id)
+    digest = Digest::SHA256.file(path).hexdigest
+    transition!(from: %w[queued processing failed], to: "queued",
+                staged_path: path, content_sha256: digest,
+                original_filename: filename, content_type: content_type)
+  end
+
+  def staged_io(&block)
+    return nil if staged_path.blank?
+    DocumentLink::Staging.open(staged_path, &block)
+  end
+
+  def delete_staged!
+    DocumentLink::Staging.delete(staged_path)
+    transition!(from: STATUSES, to: status, staged_path: nil)
   end
 
   # M3's matcher writes only through this guarded primitive (R4), so a cron tick
