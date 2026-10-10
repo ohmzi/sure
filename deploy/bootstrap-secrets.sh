@@ -10,7 +10,16 @@ chmod 700 secrets
 
 write_secret() {           # write_secret <name> < value-on-stdin
   local f="secrets/$1"
-  if [ -s "$f" ]; then echo "keep  $f"; return; fi
+  if [ -s "$f" ]; then
+    # Drain stdin before returning: the callers pipe into this function, and
+    # returning without reading gives the upstream `tr`/`openssl` SIGPIPE —
+    # under `set -o pipefail` that aborts the whole script (exit 141) at the
+    # FIRST kept file, so a later re-run that needs to recover a missing
+    # secret would silently skip everything after it.
+    cat >/dev/null
+    echo "keep  $f"
+    return
+  fi
   local t="$f.tmp.$$"
   cat > "$t"
   chmod 400 "$t"
