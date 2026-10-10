@@ -24,7 +24,7 @@ services:
       - ..:/workspace:cached
       - bundle_cache:/bundle
     ports:
-      - ${PORT:-3000}:3000
+      - "127.0.0.1:${PORT:-3000}:3000"
     command: sleep infinity
     environment:
       <<: *rails_env
@@ -58,7 +58,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     restart: unless-stopped
     environment:
       <<: *db_env
@@ -66,8 +66,8 @@ services:
   selenium:
     image: selenium/standalone-chromium:latest
     ports:
-      - "4444:4444"
-      - "7900:7900"
+      - "127.0.0.1:4444:4444"
+      - "127.0.0.1:7900:7900"
     shm_size: 2gb
     restart: unless-stopped
     environment:

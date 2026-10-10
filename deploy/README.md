@@ -45,12 +45,23 @@ own `db`/`redis`/`selenium`; compose project `devcontainer`, separate from the
 `ohmzbudget` deploy project).
 
 ### Container branch (recorded default)
+The dev stack's four published ports are loopback-bound — `127.0.0.1:5432`
+(db), `127.0.0.1:4444` / `127.0.0.1:7900` (selenium), and
+`127.0.0.1:${PORT:-3000}` (app) — a fork-only edit of upstream's
+`.devcontainer/docker-compose.yml`, which published them on `0.0.0.0` (Docker
+publishes bypass ufw, and a dev Postgres with dev credentials must not be
+LAN-reachable). Host port 3000 is already held on this host (a host-network
+container), so the `app` *service* cannot publish at all; that is fine, because
+the test loop uses `compose run`, which publishes nothing. `PORT=3001 … up -d
+app` is the escape hatch if the dev server itself is ever wanted.
+
 One-time per dev data volume: the dev Postgres defaults to
 `max_locks_per_transaction = 64` (≈6.4k lock slots). `bin/rails test` forks one
 worker per core, and each worker reconstructs the 753-relation test schema at
 startup (~1.8k locks/worker); on a 24-core host that overruns the table and
 every run dies with `PG::OutOfMemory: ERROR: out of shared memory`. Raise it
-once (persisted in the dev data volume via `postgresql.auto.conf`):
+once (a dev-volume-local setting persisted via `postgresql.auto.conf` — not a
+tracked file, so a fresh dev data volume resets it):
 
 ```bash
 docker compose -f .devcontainer/docker-compose.yml exec -T db psql -U postgres -c \
@@ -73,7 +84,7 @@ docker compose -f .devcontainer/docker-compose.yml run --rm app bash -lc 'bin/ra
 The repo is mounted at `/workspace` and gems cache in the `bundle_cache`
 volume; the build context is the repo root and `.dockerignore` keeps `/deploy/`
 (secrets) out of it. `docker compose run` publishes no app port (no
-`--service-ports`), so the loop coexists with whatever already holds host 3000.
+`--service-ports`), so the loop is unaffected by the host-3000 conflict.
 
 ### Host-Ruby branch (not installed; fidelity upgrade)
 Needs a version manager (`mise`/`asdf` absent). A fresh `mise` install is
