@@ -1,0 +1,7 @@
+<%= render DS::Dialog.new do |dialog| %>
+  <% dialog.with_header(title: t(".title")) %>
+  <% dialog.with_body do %>
+    <p><%= t(".description") %></p>
+    <%= render DS::Button.new(text: t(".back"), href: documents_path, variant: :primary) %>
+  <% end %>
+<% end %>

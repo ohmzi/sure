@@ -29,7 +29,8 @@ class DocumentLinksController < ApplicationController
 
   def create
     file = params.require(:document)
-    source = params.require(:source).to_s
+    source = params[:source].presence ||
+             DocumentLink::SourceGuesser.guess(filename: file.original_filename, content_type: file.content_type).to_s
     return render(plain: "invalid source", status: :unprocessable_entity) unless DocumentLink::SOURCES.include?(source)
     return render(plain: "filename too long", status: :unprocessable_entity) if file.original_filename.to_s.length > MAX_FILENAME_LENGTH
     # Cap before the digest read: an over-cap upload must never be buffered in

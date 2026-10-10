@@ -1,0 +1,24 @@
+<% content_for :page_title, t(".title") %>
+<% content_for :system_alerts do %>
+  <% if @token_invalid_at.present? %>
+    <%= render DS::Alert.new(variant: :warning, title: t(".token_invalid_title"),
+                             message: t(".token_invalid_description", time: l(@token_invalid_at, format: :short))) %>
+  <% end %>
+<% end %>
+
+<%= render DS::Card.new do %>
+  <div data-controller="receipt-dropzone">
+    <%= styled_form_with url: documents_path, multipart: true,
+          data: { "receipt-dropzone-target": "form" } do |form| %>
+      <%= form.file_field :document, data: { "receipt-dropzone-target": "input" }, accept: "application/pdf,image/*" %>
+      <%= form.select :source, [ [ t(".source_auto"), "" ] ] + DocumentLink::SOURCES.map { |s| [ t("documents.source.#{s}"), s ] }, selected: "" %>
+      <%= form.submit t(".upload") %>
+    <% end %>
+  </div>
+<% end %>
+
+<div class="space-y-2">
+  <% @documents.each do |document| %>
+    <%= render "documents/card", document: document %>
+  <% end %>
+</div>

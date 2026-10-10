@@ -1,0 +1,16 @@
+<%= render DS::Card.new do %>
+  <div class="flex items-center gap-3">
+    <%= image_tag file_document_path(document, kind: "thumb"),
+          alt: document.title.presence || document.original_filename,
+          loading: "lazy", class: "h-10 w-10 rounded object-cover" %>
+    <div class="grow">
+      <p class="text-primary"><%= document.title.presence || document.original_filename %></p>
+      <p class="text-secondary text-xs"><%= t("documents.status.#{document.status}") %></p>
+      <% if document.failure_message.present? %>
+        <p class="text-destructive text-xs"><%= document.failure_message %></p>
+      <% end %>
+    </div>
+    <%= render DS::Button.new(text: t(".retry"), href: retry_document_path(document), method: :post, variant: :outline, size: :sm) if document.status.in?(%w[failed queued]) %>
+    <%= render DS::Button.new(text: t(".remove"), href: document_path(document), method: :delete, variant: :outline_destructive, size: :sm) %>
+  </div>
+<% end %>

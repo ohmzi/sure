@@ -1,0 +1,41 @@
+en:
+  documents:
+    index:
+      title: Documents
+      upload: Upload
+      source_auto: Detect automatically
+      token_invalid_title: paperless token needs rotation
+      token_invalid_description: "The last paperless call was rejected (401) at %{time}. Rotate the token in settings."
+    create:
+      queued: Document queued for processing.
+    link:
+      linked: Document linked to the entry.
+      unlinked: Document unlinked from the entry.
+    retry:
+      queued: Retrying the upload.
+      failed: The upload is held; retry once paperless is reachable.
+    destroy:
+      removed: Document removed.
+    card:
+      loading: Loading…
+      retry: Retry
+      remove: Remove
+    duplicate:
+      title: Duplicate document
+      description: These bytes are already in your archive. The existing copy was kept and nothing new was added.
+      back: Back to documents
+    source:
+      receipt: Receipt
+      bill: Bill
+      statement: Statement
+      other: Other
+    status:
+      queued: Queued
+      processing: Processing
+      unlinked: Unlinked
+      suggested: Suggested
+      pending_review: Pending review
+      linked: Linked
+      verified: Verified
+      dismissed: Dismissed
+      failed: Failed

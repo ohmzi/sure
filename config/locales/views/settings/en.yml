@@ -370,6 +370,7 @@ en:
       security_label: Security
       self_hosting_label: Self-Hosting
       sso_providers_label: SSO Providers
+      documents_label: Documents
       statement_vault_label: Statement Vault
       system_health_label: System health
       tags_label: Tags
