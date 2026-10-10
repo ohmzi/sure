@@ -223,10 +223,15 @@ class BudgetCategory < ApplicationRecord
   # parent's budget) keeps every consumer consistent even if a stale amount
   # outlives the toggle that produced it.
   def rolled_over_amount
-    return 0 unless rollover_enabled?
     return 0 if inherits_parent_budget?
 
-    super || 0
+    raw = super || 0
+    # A red carry follows the envelope regardless of the toggle; only a
+    # surplus is gated by it.
+    return raw if raw.negative?
+    return 0 unless rollover_enabled?
+
+    raw
   end
 
   def rolled_over?

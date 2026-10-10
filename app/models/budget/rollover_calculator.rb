@@ -24,9 +24,11 @@ class Budget::RolloverCalculator
   # column this writes, so nothing else protects it. A transaction-scoped
   # advisory lock keyed on the chain serializes them.
   #
-  # Taken after the cheap guard, so families that never enabled rollover pay
-  # one query and never contend, and re-read under the lock because the chain
-  # may have changed while we waited for it.
+  # Taken before the lock and re-read under it, because the chain may have
+  # changed while we waited. This is the honest bargain now: every family with
+  # an initialized budget is walked once per recompute, which is the cost of
+  # red carry being unconditional. Only a family with no initialized budget
+  # still returns early on one query.
   def recompute!
     return if first_relevant_budget_date.nil?
 
@@ -88,13 +90,19 @@ class Budget::RolloverCalculator
             )
           end
 
-          # Switching the toggle off has to stop the money in both directions.
-          # Gating only what a month receives would let an opted-out month hand
-          # its whole allocation to the next one that opts back in, so the
-          # surplus a user meant to forfeit would reappear a month later.
-          outgoing = if budget_category.rollover_enabled?
-            children = ring_fenced_children[budget_category.category_id] || []
-            leftover_for(budget, budget_category, incoming, children)
+          # Overspend follows the envelope forward; the toggle governs only
+          # whether a surplus does. A negative leftover is money the user
+          # still owes this envelope, so it must survive the month boundary.
+          #
+          # The sign test and the carried value come from ONE call: for a
+          # parent with ring-fenced children the nil-children form measures a
+          # different number than the real carry (a parent's allocation
+          # already contains its children's), so gating on it would both drop
+          # a genuine red carry and let a surplus through with the toggle off.
+          children = ring_fenced_children[budget_category.category_id] || []
+          leftover = leftover_for(budget, budget_category, incoming, children)
+          outgoing = if budget_category.rollover_enabled? || leftover.negative?
+            leftover
           else
             0
           end
@@ -116,14 +124,15 @@ class Budget::RolloverCalculator
     end
 
 
-    # Earliest month this chain has anything to say about: rollover switched
-    # on, or an amount left behind by a toggle that was switched off and
-    # still needs clearing. nil -- the common case, families that never
-    # turned rollover on -- costs one query and does nothing.
+    # With signed leftovers the chain's relevance can no longer be read from
+    # stored flags: an overspend must materialise as a negative carry even when
+    # no envelope ever had the toggle on, and that negative does not exist in
+    # `rolled_over_amount` until this walk writes it. Any initialized month
+    # that owns categories therefore makes the chain relevant; a family with no
+    # initialized month still costs one query and returns nil before the lock.
     def first_relevant_budget_date
       initialized_budgets
         .joins("INNER JOIN budget_categories ON budget_categories.budget_id = budgets.id")
-        .where("budget_categories.rollover_enabled OR budget_categories.rolled_over_amount <> 0")
         .minimum(:start_date)
     end
 
@@ -151,12 +160,13 @@ class Budget::RolloverCalculator
     end
 
     def incoming_carry(carry, budget_category)
-      return 0 unless budget_category.rollover_enabled?
-
       amount, currency = carry[budget_category.category_id]
       return 0 if amount.nil? || currency != budget_category.currency
+      # A red carry is a debt, not a preference: it is received regardless of
+      # the toggle. A positive carry is only received when rollover is on.
+      return amount if amount.negative?
 
-      amount
+      budget_category.rollover_enabled? ? amount : 0
     end
 
     # The household chain has no owner to scope actuals by, and IncomeStatement
@@ -174,21 +184,19 @@ class Budget::RolloverCalculator
         .group_by { |bc| bc.category.parent_id }
     end
 
-    # max(0, budgeted + rolled_over − actual): v1 only carries a surplus, a
-    # negative balance stops at the month it happened in.
+    # budgeted + rolled_over − actual, signed: overspend carries forward as a
+    # red envelope, surplus carries only when the toggle is on (gated by the
+    # caller). A parent's allocation already contains its ring-fenced
+    # subcategories', so take them out here rather than rolling twice.
     def leftover_for(budget, budget_category, incoming, ring_fenced_children)
       budgeted = (budget_category[:budgeted_spending] || 0) + incoming
       actual = budget.budget_category_actual_spending(budget_category)
 
-      # A parent's allocation already contains its ring-fenced subcategories'
-      # allocations, and its actual spending already contains their spending.
-      # Those subcategories carry their own surplus forward, so take them out
-      # here rather than rolling the same money over twice.
-      ring_fenced_children.each do |child|
+      Array(ring_fenced_children).each do |child|
         budgeted -= (child[:budgeted_spending] || 0)
         actual -= budget.budget_category_actual_spending(child)
       end
 
-      [ budgeted - actual, 0 ].max
+      budgeted - actual
     end
 end

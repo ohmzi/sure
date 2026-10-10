@@ -585,7 +585,7 @@ class BudgetCategoryRolloverTest < ActiveSupport::TestCase
     assert_equal 170, budget_category_for(second).available_to_spend
   end
 
-  test "an overspent month rolls over nothing rather than a negative" do
+  test "an overspent month carries its negative forward" do
     first = initialized_budget(2.months.ago)
     allocate(first, 100)
     spend(150, budget: first)
@@ -595,8 +595,83 @@ class BudgetCategoryRolloverTest < ActiveSupport::TestCase
 
     recompute!
 
+    assert_equal(-50, stored_rollover(second))
+    assert_equal 50, budget_category_for(second).available_to_spend
+  end
+
+  test "surplus does not carry when the toggle is off, but overspend does" do
+    first = initialized_budget(2.months.ago)
+    allocate(first, 100)
+    spend(150, budget: first)
+
+    second = initialized_budget(1.month.ago)
+    allocate(second, 100, rollover: false)
+
+    recompute!
+
+    assert_equal(-50, stored_rollover(second),
+      "an overspend follows the envelope even into a month with rollover off")
+    assert_equal 50, budget_category_for(second).available_to_spend
+  end
+
+  test "an overspend carries forward even when every month has rollover off" do
+    # The production default: no envelope ever enabled the toggle. With the
+    # old flag-based gate the chain was never walked, so this negative never
+    # materialised; signed leftovers force the gate open.
+    first = initialized_budget(2.months.ago)
+    allocate(first, 100, rollover: false)
+    spend(150, budget: first)
+
+    second = initialized_budget(1.month.ago)
+    allocate(second, 100, rollover: false)
+
+    recompute!
+
+    assert_equal(-50, stored_rollover(second))
+    assert_equal 50, budget_category_for(second).available_to_spend
+  end
+
+  test "a parent with a ring-fenced child carries its own red carry with the toggle off" do
+    # The gate and the carry must come from one call. With the children
+    # subtracted in only one of them, this parent's own -50 reads as +300 and
+    # the red carry is silently dropped.
+    subcategory = @family.categories.create!(name: "Hotels", parent: @category, color: "#6172F3")
+
+    first = initialized_budget(2.months.ago)
+    allocate(first, 500, rollover: false)
+    first.budget_categories.find_by!(category: subcategory).update!(budgeted_spending: 400, rollover_enabled: false)
+    spend(150, budget: first)                                   # the parent's own reserve
+    spend(50, budget: first, category: subcategory)
+
+    second = initialized_budget(1.month.ago)
+    allocate(second, 500, rollover: false)
+    second.budget_categories.find_by!(category: subcategory).update!(budgeted_spending: 400, rollover_enabled: false)
+
+    recompute!
+
+    # Parent's own pool: (500 - 400) budgeted - (200 - 50) spent = -50.
+    assert_equal(-50, stored_rollover(second))
+  end
+
+  test "a parent whose child overspends does not carry a surplus with the toggle off" do
+    # Mirror case: the gross figure (-50) is negative while the parent's own
+    # reserve is untouched (+100); a gate on the gross number would carry a
+    # surplus with the toggle off, which spec 9.2 forbids.
+    subcategory = @family.categories.create!(name: "Hotels", parent: @category, color: "#6172F3")
+
+    first = initialized_budget(2.months.ago)
+    allocate(first, 500, rollover: false)
+    first.budget_categories.find_by!(category: subcategory).update!(budgeted_spending: 400, rollover_enabled: false)
+    spend(550, budget: first, category: subcategory)
+
+    second = initialized_budget(1.month.ago)
+    allocate(second, 500, rollover: false)
+    second.budget_categories.find_by!(category: subcategory).update!(budgeted_spending: 400, rollover_enabled: false)
+
+    recompute!
+
+    # Parent's own pool: 400 - 0 = +100, toggle off -> no carry.
     assert_equal 0, stored_rollover(second)
-    assert_equal 100, budget_category_for(second).available_to_spend
   end
 
   test "a category without the toggle never accumulates a rollover" do
