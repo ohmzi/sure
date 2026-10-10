@@ -1,8 +1,29 @@
 <%# locals: (budget_category:, budget:) %>
-<div id="<%= dom_id(budget_category, :envelope) %>" class="flex items-center gap-3 px-4 py-2">
-  <span class="w-1 h-3 rounded-xl" style="background-color: <%= budget_category.category.color %>"></span>
-  <span class="flex-1 min-w-0 truncate text-primary"><%= budget_category.category.display_name %></span>
-  <span class="tabular-nums privacy-sensitive <%= budget_category.available_to_spend.negative? ? "text-destructive" : "text-primary" %>">
+<div id="<%= dom_id(budget_category, :envelope) %>" class="grid grid-cols-12 items-center gap-2 px-3 py-2">
+  <div class="col-span-6 flex items-center gap-2 min-w-0">
+    <span class="w-1 h-3 rounded-xl" style="background-color: <%= budget_category.category.color %>"></span>
+    <span class="truncate text-primary"><%= budget_category.category.display_name %></span>
+    <%# Opens the shared move dialog filled from this row. The params match
+        budget_move_controller's `open({ params })`, which drives the
+        `toSelect` destination select — there is no `toId` target. %>
+    <button type="button"
+            class="text-subdued hover:text-primary p-1 rounded-md focus-ring"
+            title="<%= t("envelopes.move.button_title") %>"
+            aria-label="<%= t("envelopes.move.button_title") %>"
+            data-action="budget-move#open"
+            data-budget-move-from-id-param="<%= budget_category.id %>"
+            data-budget-move-from-name-param="<%= budget_category.category.display_name %>"
+            data-budget-move-category-id-param="<%= budget_category.category_id %>"
+            data-budget-move-parent-id-param="<%= budget_category.category.parent_id %>"
+            data-budget-move-available-param="<%= budget_category.budgeted_spending_money.format %>">
+      <%= icon("arrow-left-right", size: "sm") %>
+    </button>
+  </div>
+  <div class="col-span-2">
+    <%= render "envelopes/assign_form", budget_category: budget_category, budget: budget %>
+  </div>
+  <span class="col-span-2 text-right tabular-nums privacy-sensitive"><%= format_money(budget_category.actual_spending_money) %></span>
+  <span class="col-span-2 text-right tabular-nums privacy-sensitive <%= budget_category.available_to_spend.negative? ? "text-destructive" : "text-primary" %>">
     <%= format_money(budget_category.available_to_spend_money) %>
   </span>
 </div>

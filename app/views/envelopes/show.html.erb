@@ -1,0 +1,32 @@
+<% content_for :header_nav do %>
+  <%= render "budgets/budget_nav", budget: @budget %>
+<% end %>
+
+<div class="pb-6 lg:pb-12" data-controller="envelope budget-move">
+  <%# _budget_header declares four strict locals; pass the rest as nil. %>
+  <%= render "budgets/budget_header", budget: @budget,
+        previous_budget: nil, next_budget: nil, latest_budget: nil %>
+
+  <div class="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-4">
+    <%= render "envelopes/accounts_column", account_groups: @account_groups %>
+
+    <div class="space-y-4">
+      <%= render "envelopes/ready_to_assign", budget: @budget %>
+
+      <% if !@budget.initialized? && @source_budget.present? && @editable %>
+        <%= render "budgets/copy_previous_prompt", budget: @budget, source_budget: @source_budget %>
+      <% else %>
+        <% @envelope_groups.each do |group| %>
+          <%= render "envelopes/category_group", group: group, budget: @budget %>
+        <% end %>
+      <% end %>
+
+      <%# M4b replaces this placeholder with the per-account payment group. %>
+      <%= render "envelopes/credit_card_group", budget: @budget %>
+
+      <%# One move dialog for the page; each row's button opens it. Covering a
+          red envelope is the same gesture, so one dialog serves both. %>
+      <%= render "envelopes/move_dialog", budget: @budget, budget_categories: @budget.budget_categories %>
+    </div>
+  </div>
+</div>

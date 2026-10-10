@@ -1,0 +1,17 @@
+<%# locals: (budget_category:, budget:) %>
+<%= form_with url: assign_envelopes_path(**budget_owner_query), method: :post,
+              data: { turbo_stream: true } do |f| %>
+  <%= hidden_field_tag :id, budget_category.id %>
+  <%# Every gesture carries the viewed month so it mutates this month's rows. %>
+  <%= hidden_field_tag :month_year, budget.to_param %>
+  <div class="flex items-center gap-1">
+    <span class="text-secondary text-sm"><%= Money::Currency.new(budget.currency).symbol %></span>
+    <%= number_field_tag "budget_category[budgeted_spending]",
+          budget_category.budgeted_spending,
+          step: Money::Currency.new(budget.currency).step,
+          autocomplete: "off",
+          class: "form-field__input w-[110px] text-right tabular-nums privacy-sensitive",
+          data: { envelope_target: "amount",
+                  action: "keydown.enter->envelope#submit" } %>
+  </div>
+<% end %>

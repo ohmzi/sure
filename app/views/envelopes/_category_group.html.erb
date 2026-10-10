@@ -1,0 +1,14 @@
+<%# locals: (group:, budget:) %>
+<div class="bg-container rounded-xl shadow-border-xs p-1">
+  <div class="px-3 pt-3 pb-1">
+    <h3 class="text-sm font-medium text-primary"><%= group.category.name %></h3>
+  </div>
+
+  <%= render "envelopes/envelope_row", budget_category: group.budget_category, budget: budget %>
+
+  <% group.budget_subcategories.each do |subcategory| %>
+    <div class="pl-4">
+      <%= render "envelopes/envelope_row", budget_category: subcategory, budget: budget %>
+    </div>
+  <% end %>
+</div>

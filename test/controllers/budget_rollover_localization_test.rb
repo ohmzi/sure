@@ -49,11 +49,6 @@ class BudgetRolloverLocalizationTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "dt", text: "Übertragen"
-
-    get budget_url(Budget.date_to_param(Date.current))
-
-    assert_response :success
-    assert_select "a[href=?]", budget_budget_category_path(@budget, @budget_category), text: /\+.*25.*übertragen/
   end
 
   test "English category form preserves rollover copy" do

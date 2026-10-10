@@ -5,14 +5,11 @@ class BudgetsController < ApplicationController
   before_action :ensure_budget_editable!, only: %i[edit update copy_previous]
 
   def index
-    redirect_to_current_month_budget
+    redirect_to envelope_path(Budget.date_to_param(Date.current), **budget_owner_query)
   end
 
   def show
-    @source_budget = @budget.most_recent_initialized_budget unless @budget.initialized?
-    @editable = @budget.editable_by?(Current.user)
-    @switch_options = budget_switch_options(@budget)
-    @breadcrumbs = plan_breadcrumb_prefix + [ [ t("breadcrumbs.budgets"), nil ] ]
+    redirect_to envelope_path(@budget.to_param, **budget_owner_query)
   end
 
   def edit

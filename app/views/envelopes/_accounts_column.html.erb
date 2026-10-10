@@ -1,0 +1,15 @@
+<%# locals: (account_groups:) %>
+<aside class="bg-container rounded-xl shadow-border-xs p-4 space-y-3">
+  <h2 class="text-sm text-secondary uppercase"><%= t("envelopes.accounts.heading") %></h2>
+  <% account_groups.each do |group| %>
+    <div class="space-y-1">
+      <p class="text-xs text-secondary"><%= (group[:classification] || "other").titleize %></p>
+      <% group[:accounts].each do |account| %>
+        <div class="flex items-center justify-between text-sm">
+          <span class="truncate text-primary"><%= account.name %></span>
+          <span class="tabular-nums privacy-sensitive"><%= format_money(account.balance_money) %></span>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</aside>

@@ -459,8 +459,9 @@ Rails.application.routes.draw do
   # Hub page fronting budgets + goals under a single "Plan" nav entry.
   resource :plan, only: :show
 
-  resources :envelopes, only: [], param: :month_year do
+  resources :envelopes, only: %i[index show update], param: :month_year do
     collection do
+      post :assign
       post :move
       post :cover
     end

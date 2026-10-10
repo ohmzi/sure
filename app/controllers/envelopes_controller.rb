@@ -4,8 +4,50 @@ class EnvelopesController < ApplicationController
   # for the same reason.
   include ActionView::RecordIdentifier
 
-  before_action :set_budget, only: %i[move cover]
-  before_action :ensure_budget_editable!, only: %i[move cover]
+  before_action :set_budget, only: %i[show update assign move cover]
+  before_action :ensure_budget_editable!, only: %i[update assign move cover]
+
+  def index
+    redirect_to envelope_path(Budget.date_to_param(Date.current), **budget_owner_query)
+  end
+
+  def show
+    @editable = @budget.editable_by?(Current.user)
+    @switch_options = budget_switch_options(@budget)
+    @source_budget = @budget.most_recent_initialized_budget unless @budget.initialized?
+    @account_groups = EnvelopesHelper.account_columns(@budget)
+    @envelope_groups = BudgetCategory::Group.for(@budget.budget_categories.includes(:category))
+    @breadcrumbs = plan_breadcrumb_prefix + [ [ t("breadcrumbs.budgets"), nil ] ]
+  end
+
+  def update
+    @budget.update!(budget_params)
+    redirect_to envelope_path(@budget.to_param, **budget_owner_query)
+  end
+
+  # Inline assignment from a row: one envelope, one amount, through the
+  # existing update_budgeted_spending! seam. Recomputed through the shared
+  # Budget::Recalculate seam, after the write commits.
+  def assign
+    budget_category = @budget.budget_categories.find(params[:id])
+    budget_category.update_budgeted_spending!(assigned_amount_param)
+    Budget::Recalculate.call(family: @budget.family, budget: @budget)
+    @budget.sync_budgeted_spending!
+
+    @budget.reload
+    respond_to do |format|
+      format.turbo_stream do
+        render turbo_stream: turbo_stream.replace(
+          dom_id(budget_category, :envelope),
+          partial: "envelopes/envelope_row",
+          locals: { budget_category: budget_category.reload, budget: @budget }
+        )
+      end
+      format.html { redirect_to envelope_path(@budget.to_param, **budget_owner_query) }
+    end
+  rescue ActiveRecord::RecordInvalid
+    head :unprocessable_entity
+  end
 
   # Fills the red envelope from a donor, one gesture, through the existing
   # move_allocation! seam. The recompute runs AFTER the move commits, never
@@ -28,14 +70,13 @@ class EnvelopesController < ApplicationController
     flash.now[:notice] = t("envelopes.cover.success")
     respond_to do |format|
       format.turbo_stream { render :cover }
-      # Task 6 repoints this at the envelope surface once its show route lands.
-      format.html { redirect_to budget_path(@budget.to_param, **budget_owner_query), notice: t("envelopes.cover.success") }
+      format.html { redirect_to envelope_path(@budget.to_param, **budget_owner_query), notice: t("envelopes.cover.success") }
     end
   rescue BudgetCategory::InvalidMove => e
     flash.now[:alert] = e.message
     respond_to do |format|
       format.turbo_stream { render turbo_stream: flash_notification_stream_items, status: :unprocessable_entity }
-      format.html { redirect_to budget_path(@budget.to_param, **budget_owner_query), alert: e.message, status: :see_other }
+      format.html { redirect_to envelope_path(@budget.to_param, **budget_owner_query), alert: e.message, status: :see_other }
     end
   end
 
@@ -46,6 +87,15 @@ class EnvelopesController < ApplicationController
   end
 
   private
+    def budget_params
+      params.require(:budget).permit(:expected_income)
+    end
+
+    def assigned_amount_param
+      params.require(:budget_category).permit(:budgeted_spending)
+            .fetch(:budgeted_spending, nil).presence || 0
+    end
+
     def move_amount_param
       params.require(:budget_category_move).permit(:amount).fetch(:amount, nil).to_d
     end

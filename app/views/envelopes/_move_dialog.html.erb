@@ -1,0 +1,44 @@
+<%# locals: (budget:, budget_categories:) %>
+<%= render DS::Dialog.new(auto_open: false, disable_frame: true, width: "sm",
+                          data: { budget_move_target: "dialog" }) do |dialog| %>
+  <% dialog.with_header(title: t("envelopes.move.dialog_title")) %>
+  <% dialog.with_body do %>
+    <%= form_with url: move_envelopes_path(**budget_owner_query),
+                  method: :post,
+                  data: { action: "turbo:submit-end->budget-move#submitEnd" } do %>
+      <%= hidden_field_tag :month_year, budget.to_param %>
+      <%= hidden_field_tag "from_id", nil, data: { budget_move_target: "fromId" } %>
+
+      <p class="text-sm text-secondary">
+        <span class="text-primary font-medium" data-budget-move-target="fromName"></span>
+        ·
+        <span class="tabular-nums privacy-sensitive" data-budget-move-target="available"></span>
+      </p>
+
+      <%= number_field_tag "budget_category_move[amount]", nil, required: true,
+            step: Money::Currency.new(budget.currency).step,
+            autocomplete: "off",
+            class: "form-field__input w-full text-right tabular-nums privacy-sensitive",
+            data: { budget_move_target: "amount" } %>
+
+      <%= select_tag "to_id",
+            safe_join(budget_categories.map { |bc|
+              tag.option(bc.category.display_name, value: bc.id,
+                         data: { category_id: bc.category_id, parent_id: bc.category.parent_id })
+            }),
+            class: "form-field__input w-full",
+            data: { budget_move_target: "toSelect" } %>
+
+      <p class="hidden text-sm text-secondary" data-budget-move-target="noDestination">
+        <%= t("envelopes.move.no_destination") %>
+      </p>
+
+      <div class="flex justify-end gap-2 pt-1">
+        <%= render DS::Button.new(text: t("envelopes.move.cancel"), variant: "secondary",
+                                  type: "button", data: { action: "budget-move#close" }) %>
+        <%= render DS::Button.new(text: t("envelopes.move.submit"), type: "submit",
+                                  data: { budget_move_target: "submit" }) %>
+      </div>
+    <% end %>
+  <% end %>
+<% end %>
