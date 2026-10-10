@@ -475,11 +475,13 @@ class Budget < ApplicationRecord
     end
   end
 
-  # Keeps the month total equal to the sum of its assignments. Called from the
-  # envelope write path so Sure's available_to_allocate arithmetic stays a
-  # consistent "assigned minus allocated" (zero once fully assigned).
+  # Keeps the month total equal to the sum of its assignments. Guards against
+  # marking a fresh month "initialized": a bootstrap writes nothing, and
+  # `initialized?` (budgeted_spending.present?) drives the copy-previous
+  # prompt, so a zero total must not flip it.
   def sync_budgeted_spending!
-    update!(budgeted_spending: assigned_total)
+    total = assigned_total
+    update!(budgeted_spending: total) if total.positive? || initialized?
   end
 
   def allocated_percent

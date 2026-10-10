@@ -581,4 +581,28 @@ class BudgetTest < ActiveSupport::TestCase
       assert_equal 0, budget.days_remaining
     end
   end
+
+  test "sync sets budgeted_spending to the month's assignment total" do
+    family = families(:dylan_family)
+    budget = Budget.find_or_bootstrap(family, start_date: 1.month.ago)
+    donut = budget.budget_categories.find_by(category: categories(:food_and_drink))
+    donut.update_budgeted_spending!(400)
+
+    budget.sync_budgeted_spending!
+    budget.reload
+
+    assert_equal budget.allocated_spending, budget.budgeted_spending
+    assert_equal 0, budget.available_to_allocate
+  end
+
+  test "sync does not mark a fresh month initialized" do
+    family = families(:dylan_family)
+    budget = Budget.find_or_bootstrap(family, start_date: 3.months.ago)
+
+    budget.sync_budgeted_spending!
+    budget.reload
+
+    assert_nil budget.budgeted_spending
+    assert_not budget.initialized?
+  end
 end
