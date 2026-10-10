@@ -32,6 +32,30 @@ and `no-new-privileges`. `deploy/dc exec -T web` is the service name (`web`, nev
 - `./dc ps` / `./dc logs -f web` — status and logs.
 - `./dc build web worker && ./dc up -d web worker` — rebuild after a code change.
 
+## Backups
+`deploy/backup.sh` (mode 0755, cron-driven) writes four timestamped artifacts into
+`$BACKUP_DIR` and prunes the set:
+
+- `sure_db_<ts>.sql.gz` — `pg_dump` of the app database (`db` container, local socket).
+- `paperless_db_<ts>.sql.gz` — `pg_dump` of the paperless database (`paperless-db`).
+- `app-storage_<ts>.tgz` — the `ohmzbudget_app-storage` volume (Active Storage attachments, incl. the paperless staging dir).
+- `paperless-media_<ts>.tgz` — the `ohmzbudget_paperless-media` volume (document files).
+
+`<ts>` is `date +%Y-%m-%d_%H%M%S`; the run uses one timestamp for all four files.
+`BACKUP_DIR` (default `$HOME/ohmzbudget-backups/backups`) and `BACKUP_KEEP_DAYS`
+(default `14`) come from the untracked `deploy/.env`; artifacts older than
+`BACKUP_KEEP_DAYS` are deleted (`find … -mtime +N -delete`). The four names are
+fixed (consumed by the restore drill and, later, the M5 monitor). Run it by hand
+with `./backup.sh`; a failed dump fails the script (`set -euo pipefail`), and
+`gzip` closes the file so a partial stream is detectably invalid.
+
+Host crontab entry (03:17 — off the top of the hour; the log lives under the
+owner's backup root, not `/var/log`):
+
+```cron
+17 3 * * * /home/ohmz/StudioProjects/OhmzBudget/deploy/backup.sh >> /home/ohmz/ohmzbudget-backups/backup.log 2>&1
+```
+
 ## §16.8 decision
 The paperless consume folder stays enabled (paperless default) on the
 `paperless-consume` named volume; it is unused — the M1 ingest path is the API.
