@@ -152,6 +152,22 @@ class EnvelopesControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", budgets_path, minimum: 1
   end
 
+  test "the envelope surface renders the credit-card payments group" do
+    card = @family.accounts.create!(
+      accountable: CreditCard.new, name: "Rewards", currency: @budget.currency,
+      balance: 250, status: "active"
+    )
+    CreditEnvelope.create!(
+      budget: @budget, account: card, funded_amount: 60, payment_amount: 20, currency: @budget.currency
+    )
+
+    get envelope_url(@budget.to_param)
+
+    assert_response :success
+    assert_select "[data-testid='credit-card-payments']"
+    assert_match I18n.t("budgets.credit_card_payments.title"), response.body
+  end
+
   private
     def budget_category(name, budget: @budget)
       category = @family.categories.create!(name: "#{name} #{SecureRandom.hex(4)}", color: "#6172F3")

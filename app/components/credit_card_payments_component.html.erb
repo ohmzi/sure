@@ -1,0 +1,22 @@
+<div class="bg-container rounded-xl shadow-border-xs p-4 space-y-3" data-testid="credit-card-payments">
+  <div class="flex items-center justify-between">
+    <h2 class="text-sm font-medium text-primary"><%= t("budgets.credit_card_payments.title") %></h2>
+    <p class="text-sm text-secondary"><%= t("budgets.credit_card_payments.need_to_pay", amount: helpers.format_money(shortfall_total_money)) %></p>
+  </div>
+
+  <div class="divide-y divide-subdued">
+    <% envelopes.each do |envelope| %>
+      <div class="flex items-center justify-between gap-4 py-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <%= helpers.icon "credit-card", class: "shrink-0" %>
+          <span class="text-primary truncate"><%= envelope.account.name %></span>
+        </div>
+        <div class="flex items-center gap-4 text-sm tabular-nums">
+          <span class="text-secondary"><%= t("budgets.credit_card_payments.funded") %>: <%= helpers.format_money(envelope.funded_amount_money) %></span>
+          <span class="text-secondary"><%= t("budgets.credit_card_payments.paid") %>: <%= helpers.format_money(envelope.payment_amount_money) %></span>
+          <span class="text-primary font-medium"><%= t("budgets.credit_card_payments.remaining") %>: <%= helpers.format_money(envelope.payment_available_money) %></span>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

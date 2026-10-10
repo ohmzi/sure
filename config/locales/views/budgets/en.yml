@@ -4,6 +4,12 @@ en:
     switcher:
       aria_label: "Switch budget"
       household: "Household"
+    credit_card_payments:
+      title: "Credit card payments"
+      need_to_pay: "You need %{amount} to pay your cards"
+      funded: "Funded"
+      paid: "Paid"
+      remaining: "Remaining to pay"
     budget_donut:
       spent: "Spent"
       new_budget: "New budget"

@@ -1,7 +1,2 @@
 <%# locals: (budget:) %>
-<div class="bg-container rounded-xl shadow-border-xs p-4">
-  <div class="flex items-center gap-2">
-    <h2 class="text-primary font-medium"><%= t("envelopes.credit_cards.heading") %></h2>
-    <%= render DS::Pill.new(label: t("envelopes.credit_cards.soon"), tone: :neutral, marker: false) %>
-  </div>
-</div>
+<%= render CreditCardPaymentsComponent.new(budget: budget) %>
