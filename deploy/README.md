@@ -24,13 +24,54 @@ and `no-new-privileges`. `deploy/dc exec -T web` is the service name (`web`, nev
 
 ## First-run order
 1. `cp -n .env.example .env`; edit `ADMIN_EMAIL` to the real owner address (blocking).
-2. `./bootstrap-secrets.sh` (Task 3), then rotate the paperless token (Task 4).
-3. `./dc up -d --build`, then `./dc exec -T web ./bin/rails ohmzbudget:first_run`.
-4. `http://127.0.0.1:7300/up` answers 200; log in with the admin email.
+2. `./bootstrap-secrets.sh` (Task 3), then rotate the paperless token — see
+   "Rotate the paperless API token" below.
+3. `./dc up -d --build`, then create the first admin from the repo root:
+   ```bash
+   cd ~/StudioProjects/OhmzBudget
+   set -a; . deploy/.env; set +a          # export ADMIN_EMAIL for the exec below
+   deploy/dc exec -T -e ADMIN_EMAIL="$ADMIN_EMAIL" web ./bin/rails ohmzbudget:first_run < deploy/secrets/admin_password
+   ```
+   Both parts are required: `docker compose exec` does not forward the host
+   environment (hence the export plus `-e ADMIN_EMAIL=…`), and the password is
+   piped from the secret file, never argv.
+4. `http://127.0.0.1:7300/up` answers 200; log in with the admin email — a fresh
+   admin is redirected to `/onboarding` until the wizard is completed once, not
+   to the dashboard.
 
 ## Everyday commands
 - `./dc ps` / `./dc logs -f web` — status and logs.
 - `./dc build web worker && ./dc up -d web worker` — rebuild after a code change.
+- Never run raw `./dc config` (or `docker compose … config`) against the live
+  deployment — it renders the resolved secret values into its output. Validate
+  with `./dc config --services` or `./dc config --quiet` instead.
+
+## Rotate the paperless API token
+The container-shell invocation is the historical M2 runbook of record
+(`reports/2026-10-10-ohmzbudget-m2-document-bridge/task-7-report.md`): inside
+the `paperless` container, `/command/with-contenv python3 manage.py shell -c
+"…"` re-mints the `ohmzbudget` account's DRF token and prints only the
+`TOKENKEY=` line. The capture pattern, run from the repo root:
+
+1. Rotate — write the minted key into `deploy/secrets/paperless_token` via a
+   temp file: `umask 077`, write `deploy/secrets/paperless_token.tmp.$$`,
+   `chmod 400`, then `mv -f` into place (a mode-400 file is not writable in
+   place).
+2. `deploy/dc up -d --force-recreate web worker` — the app reads the token file
+   at module load, and a changed secret file does not change the compose config
+   hash, so a plain `up -d` reports `Running` and both containers keep the old
+   token.
+3. Verify `200` (`401` = wrong token; `403` = the account lost its
+   permissions), from the repo root:
+
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' \
+     -H "Authorization: Token $(cat deploy/secrets/paperless_token)" \
+     http://127.0.0.1:7301/api/documents/
+   ```
+
+Never print the token; record only size and shape (`41 B` = 40 hex chars + a
+newline).
 
 ## Tunnel (cloudflared)
 The app is reached over a cloudflared tunnel; TLS terminates at the edge, so the
@@ -88,11 +129,13 @@ once (or `200` once onboarding is complete); `/up` answers `200` with no
 - `paperless-media_<ts>.tgz` — the `ohmzbudget_paperless-media` volume (document files).
 
 `<ts>` is `date +%Y-%m-%d_%H%M%S`; the run uses one timestamp for all four files.
-`BACKUP_DIR` (default `$HOME/ohmzbudget-backups/backups`) and `BACKUP_KEEP_DAYS`
-(default `14`) come from the untracked `deploy/.env`; artifacts older than
-`BACKUP_KEEP_DAYS` are deleted (`find … -mtime +N -delete`, which also sweeps
-stray `*.part` files and the dot-named `.*.sql` dump temps). The four names are
-fixed (consumed by the restore drill and, later, the M5 monitor).
+`BACKUP_DIR` must be set in the untracked `deploy/.env` — the script hard-requires
+it and aborts with `set BACKUP_DIR in deploy/.env` when it is unset; this
+deployment uses `/home/ohmz/ohmzbudget-backups/backups`. `BACKUP_KEEP_DAYS`
+(default `14`) comes from the same file; artifacts older than `BACKUP_KEEP_DAYS`
+are deleted (`find … -mtime +N -delete`, which also sweeps stray `*.part` files
+and the dot-named `.*.sql` dump temps). The four names are fixed (consumed by
+the restore drill and, later, the M5 monitor).
 
 Each database dump goes to a temp file, is verified (`pg_dump` exit status plus a
 `PostgreSQL database dump` marker) and only then published to the fixed name via
