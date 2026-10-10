@@ -3,6 +3,32 @@
 Compose project `ohmzbudget`: the Rails app (`web`, `worker`) and the re-adopted
 paperless-ngx sidecar (`paperless`, `paperless-db`, `paperless-valkey`).
 
+## Status (2026-10-10)
+
+**Done** — deployed and verified end to end. The seven services are up (`web`
+on `127.0.0.1:7300` answering `/up` 200, paperless on `127.0.0.1:7301`; nothing
+binds `0.0.0.0`). Secrets are bootstrapped (untracked, mode 400) and the
+paperless API token rotated; migrations have run, the first `super_admin`
+exists, and a real credential login works (a fresh admin is redirected to
+`/onboarding` until the wizard is completed once). Signup policy, the stable
+`SECRET_KEY_BASE` across `--force-recreate`, and the re-attached paperless
+volumes (baselines unchanged) were all verified. Nightly backups run from cron
+(03:17, verify-before-publish) and the restore drill has been proven against
+the newest dumps. The container local-dev loop is green (full suite
+`11046 runs, 0 failures`; smoke `92 runs, 0 failures`).
+
+**Left** — owner-gated only:
+
+1. Set the cloudflared ingress for the live host and `TUNNEL_HOST` in untracked
+   `deploy/.env` (currently unset), then run the tunnel probes and the
+   credential login in "Tunnel (cloudflared)" below — expected `local 200`,
+   `tunnel 200`, `tunnel-login 302`.
+2. Complete the onboarding wizard once through the tunnel.
+
+Nothing else is outstanding in this deployment; the non-blocking deferred
+review minors are recorded in the M0 ledger and per-task reports
+(`reports/2026-10-10-ohmzbudget-m0-foundation/` in the planning repo).
+
 ## Files
 - `compose.yml` — services, volumes, secrets, networks, hardening.
 - `docker-compose.override.yml` — pins the two adopted bridge subnets.
