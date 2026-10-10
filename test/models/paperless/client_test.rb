@@ -65,8 +65,14 @@ class Paperless::ClientTest < ActiveSupport::TestCase
         # Ruling 2: WebMock 3.25 raises on ANY body matcher against a
         # multipart/form-data request, so the block form is used — it bypasses
         # the restricted matcher while asserting the same thing.
+        # Ruling 3: tags must go out as repeated flat `tags` parts (paperless's
+        # QueryDict reads the exact key), never as faraday-multipart's `tags[]`.
         assert_requested(:post, "http://paperless.test:8000/api/documents/post_document/",
-                         times: 1) { |request| request.body.include?('name="document"') }
+                         times: 1) { |request|
+          request.body.include?('name="document"') &&
+            request.body.scan('name="tags"').size == 2 &&
+            !request.body.include?('name="tags[]"')
+        }
       end
     end
   end

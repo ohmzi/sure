@@ -24,7 +24,11 @@ class Paperless::Client
         req.body = {
           document: Faraday::Multipart::FilePart.new(io, content_type, filename),
           title: title,
-          created: created.to_s,
+          # Ruling 3: paperless's DRF DateTimeField accepts ISO-8601 only. A
+          # TimeWithZone#to_s is "2026-10-10 18:15:44 UTC" (the trailing "UTC"
+          # abbreviation is not ISO-8601) -> HTTP 400 on every upload. #iso8601
+          # covers Date ("2026-10-01") and TimeWithZone ("2026-10-10T18:15:44Z").
+          created: created.respond_to?(:iso8601) ? created.iso8601 : created.to_s,
           tags: Array(tags)
         }
       end
@@ -127,7 +131,12 @@ class Paperless::Client
       Faraday.new(url: @base_url) do |f|
         f.options.open_timeout = 5
         f.options.timeout = 30
-        f.request :multipart
+        # Ruling 3: faraday-multipart emits array parts as `tags[]`, but
+        # paperless's MultiPartParser/QueryDict reads only the exact key `tags`
+        # (its API docs say "specify this multiple times") -> without
+        # flat_encode the tags are silently dropped. The `document` part name is
+        # unchanged by flat_encode.
+        f.request :multipart, flat_encode: true
         f.request :retry, {
           max: 3, interval: 0.5, interval_randomness: 0.5, backoff_factor: 2,
           exceptions: Faraday::Retry::Middleware::DEFAULT_EXCEPTIONS + [ Faraday::ConnectionFailed ]
