@@ -55,15 +55,17 @@ container), so the `app` *service* cannot publish at all; that is fine, because
 the test loop uses `compose run`, which publishes nothing. `PORT=3001 … up -d
 app` is the escape hatch if the dev server itself is ever wanted.
 
-One-time per dev data volume: the dev Postgres defaults to
-`max_locks_per_transaction = 64` (≈6.4k lock slots). `bin/rails test` forks one
-worker per core, and each worker reconstructs the 753-relation test schema at
-startup (~1.8k locks/worker); on a 24-core host that overruns the table and
-every run dies with `PG::OutOfMemory: ERROR: out of shared memory`. Raise it
-once (a dev-volume-local setting persisted via `postgresql.auto.conf` — not a
-tracked file, so a fresh dev data volume resets it):
+One-time per dev data volume — start `db` first, then raise the limit (a
+dev-volume-local setting persisted via `postgresql.auto.conf` — not a tracked
+file, so a fresh dev data volume resets it). The dev Postgres defaults to
+`max_locks_per_transaction = 64` (≈6.4k lock slots); `bin/rails test` forks one
+worker per core, and each worker locks the whole 753-relation test schema during
+its startup reconstruction — 24 workers × 753 relations ≈ 18k locks on a
+24-core host, overrunning the table, so every run dies with `PG::OutOfMemory:
+ERROR: out of shared memory` until it is raised:
 
 ```bash
+docker compose -f .devcontainer/docker-compose.yml up -d db
 docker compose -f .devcontainer/docker-compose.yml exec -T db psql -U postgres -c \
   "ALTER SYSTEM SET max_locks_per_transaction = '1024';"
 docker compose -f .devcontainer/docker-compose.yml restart db
@@ -101,8 +103,8 @@ mise exec -- ruby -v            # expect: ruby 3.4.9
 
 # Postgres + Redis as containers (host has neither binary; 6379 is taken, so
 # Redis is published on 6390)
-docker run -d --rm --name ohmz-dev-pg -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
-docker run -d --rm --name ohmz-dev-redis -p 6390:6379 redis:7-alpine
+docker run -d --rm --name ohmz-dev-pg -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 127.0.0.1:5432:5432 postgres:16
+docker run -d --rm --name ohmz-dev-redis -p 127.0.0.1:6390:6379 redis:7-alpine
 export DB_HOST=127.0.0.1 POSTGRES_USER=postgres POSTGRES_PASSWORD=postgres \
        POSTGRES_DB=sure_test REDIS_URL=redis://127.0.0.1:6390/1 RAILS_ENV=test
 
