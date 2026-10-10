@@ -93,6 +93,38 @@ class PlansControllerTest < ActionDispatch::IntegrationTest
     assert_match I18n.t("plans.budget_card.empty_body"), response.body
     assert_select "a[href=?]", edit_budget_path(Budget.date_to_param(Date.current))
   end
+
+  test "renders the top-categories bar when a red carry exceeds the month's allocation" do
+    # A month opened after an overspend carries a negative rolled_over_amount
+    # larger than its allocation (spec 9.2). The page recomputes the chain on
+    # load and then reads each top category's percent_of_budget_spent
+    # unconditionally, so this used to be an ArgumentError, not a 200.
+    budget = budgets(:one)
+    category = budget.family.categories.create!(name: "Red carry card", color: "#4da568")
+
+    previous = budget.family.budgets.create!(
+      start_date: 2.months.ago.beginning_of_month, end_date: 2.months.ago.end_of_month,
+      budgeted_spending: 5_000, expected_income: 7_000, currency: "USD"
+    )
+    previous.budget_categories.create!(category: category, budgeted_spending: 100, currency: "USD")
+    Entry.create!(
+      account: accounts(:depository),
+      entryable: Transaction.create!(category: category),
+      date: previous.start_date, name: "Red carry overspend", amount: 350, currency: "USD"
+    )
+
+    budget.budget_categories.create!(category: category, budgeted_spending: 100, currency: "USD")
+    Entry.create!(
+      account: accounts(:depository),
+      entryable: Transaction.create!(category: category),
+      date: budget.start_date, name: "Red carry spend", amount: 50, currency: "USD"
+    )
+
+    get plan_url
+
+    assert_response :success
+    assert_match "Red carry card", response.body
+  end
 end
 
 class PlansControllerHouseholdSwitchingTest < ActionDispatch::IntegrationTest

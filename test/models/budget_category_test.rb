@@ -900,6 +900,45 @@ class BudgetCategoryRolloverTest < ActiveSupport::TestCase
     assert_in_delta 20.0, budget_category_for(second).percent_of_budget_spent, 0.01
   end
 
+  test "a red carry larger than the allocation keeps the spend percentage a number" do
+    # Production default: rollover off everywhere. Month 1 overspends by 250;
+    # month 2 allocates only 100, so the effective budget is -150 while 50 is
+    # spent. The card's progress bar reads this figure unconditionally, so a
+    # nil here is an ArgumentError in the view, not a cosmetic gap.
+    first = initialized_budget(2.months.ago)
+    allocate(first, 100, rollover: false)
+    spend(350, budget: first)
+
+    second = initialized_budget(1.month.ago)
+    allocate(second, 100, rollover: false)
+    spend(50, budget: second)
+
+    recompute!
+    budget_category = budget_category_for(second)
+
+    assert_equal(-250, stored_rollover(second))
+    assert_equal 100, budget_category.percent_of_budget_spent
+    assert_equal 100, budget_category.bar_width_percent
+  end
+
+  test "a red carry larger than the allocation reads zero percent until something is spent" do
+    first = initialized_budget(2.months.ago)
+    allocate(first, 100, rollover: false)
+    spend(350, budget: first)
+
+    # Nothing spent this month: the envelope is fully red from the carry
+    # alone, which reads as 0% consumed rather than a nil percentage.
+    second = initialized_budget(1.month.ago)
+    allocate(second, 100, rollover: false)
+
+    recompute!
+    budget_category = budget_category_for(second)
+
+    assert_equal(-250, stored_rollover(second))
+    assert_equal 0, budget_category.percent_of_budget_spent
+    assert_equal 0, budget_category.bar_width_percent
+  end
+
   test "a category funded only by the carry is not flagged as unbudgeted" do
     first = initialized_budget(2.months.ago)
     allocate(first, 100)

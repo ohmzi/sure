@@ -26,9 +26,9 @@ class Budget::RolloverCalculator
   #
   # Taken before the lock and re-read under it, because the chain may have
   # changed while we waited. This is the honest bargain now: every family with
-  # an initialized budget is walked once per recompute, which is the cost of
-  # red carry being unconditional. Only a family with no initialized budget
-  # still returns early on one query.
+  # an initialized budget that owns categories is walked once per recompute,
+  # which is the cost of red carry being unconditional. Only a family with no
+  # such month still returns early on one query.
   def recompute!
     return if first_relevant_budget_date.nil?
 

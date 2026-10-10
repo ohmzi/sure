@@ -218,10 +218,11 @@ class BudgetCategory < ApplicationRecord
     category.parent_id.present?
   end
 
-  # Materialized by Budget::RolloverCalculator, never derived on read. Going
-  # through the toggle here (and skipping subcategories that share their
-  # parent's budget) keeps every consumer consistent even if a stale amount
-  # outlives the toggle that produced it.
+  # Materialized by Budget::RolloverCalculator, never derived on read. The
+  # toggle gates only a surplus: a red carry is a debt and is always exposed,
+  # while gating the positive side here keeps every consumer consistent even
+  # if a stale surplus outlives the toggle that produced it. Subcategories
+  # that share their parent's budget always read zero.
   def rolled_over_amount
     return 0 if inherits_parent_budget?
 
@@ -315,6 +316,12 @@ class BudgetCategory < ApplicationRecord
       return 0 if budget_amount == 0 && actual_spending == 0
       return 0 if budget_amount > 0 && actual_spending == 0
       return 100 if budget_amount == 0 && actual_spending > 0
+      # A red carry can exceed the month's allocation, driving the effective
+      # budget negative (spec 9.2). Mirror the zero-budget convention above:
+      # nothing spent yet is 0%, any spending is 100% -- never nil, which the
+      # progress bar would crash on.
+      return 0 if budget_amount.negative? && actual_spending == 0
+      return 100 if budget_amount.negative? && actual_spending > 0
       (actual_spending.to_f / budget_amount) * 100 if budget_amount > 0 && actual_spending > 0
     end
   end
