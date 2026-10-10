@@ -27,6 +27,26 @@ class CreditEnvelopeTest < ActiveSupport::TestCase
     assert_equal 190, envelope.shortfall_to_pay_in_full.to_d # 250 debt - 60 available
   end
 
+  test "shortfall converts a card held in another currency (Ruling M4b-L2)" do
+    @card.update!(currency: "EUR")
+    envelope = CreditEnvelope.create!(
+      budget: @budget, account: @card, funded_amount: 100, payment_amount: 40, currency: "USD"
+    )
+
+    ExchangeRate.stubs(:find_or_fetch_rate).returns(OpenStruct.new(rate: 1.25))
+    assert_equal 252.5.to_d, envelope.shortfall_to_pay_in_full.to_d # 250 EUR * 1.25 - 60
+  end
+
+  test "shortfall raises when a mixed-currency rate is missing (Ruling M4b-L2)" do
+    @card.update!(currency: "EUR")
+    envelope = CreditEnvelope.create!(
+      budget: @budget, account: @card, funded_amount: 100, payment_amount: 40, currency: "USD"
+    )
+
+    ExchangeRate.stubs(:find_or_fetch_rate).returns(nil)
+    assert_raises(CreditEnvelope::MissingExchangeRate) { envelope.shortfall_to_pay_in_full }
+  end
+
   test "shortfall never goes negative when the envelope exceeds the debt" do
     envelope = CreditEnvelope.create!(
       budget: @budget, account: @card, funded_amount: 300, payment_amount: 0, currency: "USD"
