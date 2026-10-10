@@ -6,6 +6,8 @@ class Budget::CreditEnvelopeCalculatorTest < ActiveSupport::TestCase
   setup do
     @family = families(:empty)
     @category = @family.categories.create!(name: "Groceries", color: "#6172F3")
+    @parent_category = @family.categories.create!(name: "Home", color: "#6172F3")
+    @ring_fenced_child = @family.categories.create!(name: "Renovations", parent: @parent_category, color: "#6172F3")
     @card = create_card(name: "Rewards")
     @checking = create_checking
   end
@@ -59,6 +61,48 @@ class Budget::CreditEnvelopeCalculatorTest < ActiveSupport::TestCase
     recompute!(budget)
 
     assert_equal 100, envelope_for(budget, @card).funded_amount.to_d
+  end
+
+  test "a ring-fenced child's allocation is not also fundable from the parent (Ruling M4b-L4)" do
+    # The parent's stored budgeted_spending is the GROUP total (500 = 300 own +
+    # 200 child). Using it raw would let the child's 200 fund cards from BOTH
+    # envelopes, so the month's 500 assignments could fund 700 of card spending.
+    budget = initialized_budget(Date.current)
+    parent_bc = budget.budget_categories.find_by!(category: @parent_category)
+    child_bc  = budget.budget_categories.find_by!(category: @ring_fenced_child)
+    child_bc.update!(budgeted_spending: 200)
+    parent_bc.update!(budgeted_spending: 500)
+
+    # 700 of card spending, all on the child's category.
+    create_transaction(account: @card, date: budget.start_date, amount: 700, category: @ring_fenced_child)
+
+    Budget::CreditEnvelopeCalculator.new(family: @family, budget: budget).recompute!
+
+    # Only the child's own 200 is spendable for it; the parent's envelope holds
+    # its own 300 and must not fund the child's spending.
+    assert_equal 200, envelope_for(budget, @card).funded_amount.to_d
+  end
+
+  test "a ring-fenced child's allocation funds the card only once across both envelopes (Ruling M4b-L4)" do
+    # The recorded probe case, scaled to this test's numbers: parent 500 =
+    # 300 own + 200 ring-fenced child, then 700 of card spending split 500 on
+    # the parent's category and 200 on the child's. The raw formula funded all
+    # 700 (500 from the parent's inflated envelope, 200 from the child's) from
+    # 500 assigned. Only the parent's own 300 may fund its spending, and the
+    # child's 200 its own: 500, never 700.
+    budget = initialized_budget(Date.current)
+    parent_bc = budget.budget_categories.find_by!(category: @parent_category)
+    child_bc  = budget.budget_categories.find_by!(category: @ring_fenced_child)
+    child_bc.update!(budgeted_spending: 200)
+    parent_bc.update!(budgeted_spending: 500)
+
+    create_transaction(account: @card, date: budget.start_date, amount: 500, category: @parent_category)
+    create_transaction(account: @card, date: budget.start_date, amount: 200, category: @ring_fenced_child)
+
+    Budget::CreditEnvelopeCalculator.new(family: @family, budget: budget).recompute!
+
+    assert_equal 500, envelope_for(budget, @card).funded_amount.to_d,
+      "500 assigned cannot fund 700 of card spending"
   end
 
   test "two cards funded from one envelope stay separate and never double count" do

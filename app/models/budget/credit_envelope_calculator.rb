@@ -161,6 +161,16 @@ class Budget::CreditEnvelopeCalculator
       inheriting_by_parent = budget_categories
         .select(&:inherits_parent_budget?)
         .group_by { |bc| bc.category.parent_id }
+      # Ruling M4b-L4: a parent's stored budgeted_spending is the GROUP total
+      # (M4a's Budget#assigned_total and sync_parent_budgeted_spending! both
+      # document that a parent's figure already contains its ring-fenced
+      # subcategories), and every non-inheriting row also gets its own
+      # envelope. Without netting them out, a ring-fenced child's allocation
+      # funds cards from its own envelope AND the parent's (the recorded probe:
+      # assigned 100, funded 140) -- money the month never assigned.
+      ring_fenced_by_parent = budget_categories
+        .select { |bc| bc.subcategory? && !bc.inherits_parent_budget? }
+        .group_by { |bc| bc.category.parent_id }
 
       funded = Hash.new(0)
       cash_by_category = Hash.new(0)
@@ -180,7 +190,15 @@ class Budget::CreditEnvelopeCalculator
 
         category_ids = [ budget_category.category_id,
                          *(inheriting_by_parent[budget_category.category_id] || []).map(&:category_id) ]
-        envelope = (budget_category[:budgeted_spending] || 0).to_d + budget_category.rolled_over_amount.to_d
+        # Each envelope counts the row's own share only: the stored figure
+        # minus its ring-fenced children's stored figures (the same correction
+        # Budget#assigned_total applies), so a ring-fenced child's allocation
+        # is fundable from its own envelope and not a second time from the
+        # parent's.
+        ring_fenced = ring_fenced_by_parent[budget_category.category_id] || []
+        own_budgeted_spending = (budget_category[:budgeted_spending] || 0).to_d -
+                                ring_fenced.sum { |child| (child[:budgeted_spending] || 0).to_d }
+        envelope = own_budgeted_spending + budget_category.rolled_over_amount.to_d
         cash = category_ids.sum { |category_id| cash_by_category[category_id] }
 
         per_card = Hash.new(0)
