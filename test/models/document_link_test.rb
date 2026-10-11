@@ -160,4 +160,33 @@ class DocumentLinkTest < ActiveSupport::TestCase
 
     assert_not link.finish_processing!(document_id: 4243)
   end
+
+  # (Ruling M7-L9, 2026-10-11 close-out) the settle choke point's enqueue is
+  # failure-SAFE: a transient enqueue failure (Sidekiq/Redis down) must not
+  # lose the snapshot silently (the M1-Ruling-11 class). The settle stands, the
+  # failure is logged, and the settled-but-snapshotless scope the backfill task
+  # computes — re-driven hourly by SyncCleanerJob — picks the link up.
+  test "a raising content-capture enqueue is rescued and the sweep re-drives the link" do
+    link = document_links(:queued_receipt)
+    assert link.mark_processing!
+
+    Paperless::CaptureContentJob.stubs(:perform_later).raises(StandardError.new("redis down"))
+
+    settled = nil
+    assert_difference "DebugLogEntry.count", 1 do
+      assert_nothing_raised { settled = link.finish_processing!(document_id: 4242) }
+    end
+    assert settled, "the settle must stand when only the enqueue failed"
+
+    link.reload
+    assert_equal "unlinked", link.status
+    assert_equal 4242, link.paperless_document_id
+    assert_nil link.extracted_text
+
+    Paperless::CaptureContentJob.unstub(:perform_later)
+
+    assert_enqueued_with(job: Paperless::CaptureContentJob, args: [ link.id ]) do
+      DocumentLink.capture_pending_content
+    end
+  end
 end

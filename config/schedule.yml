@@ -18,7 +18,7 @@ clean_syncs:
   class: "SyncCleanerJob"
   active_job: true
   queue: "scheduled"
-  description: "Cleans up stale syncs and reaps imports, exports, and provider fetch flags stuck by lost jobs"
+  description: "Cleans up stale syncs and reaps imports, exports, and provider fetch flags stuck by lost jobs, and re-drives lost document-snapshot captures"
 
 process_financekit_inbox:
   cron: "*/5 * * * *"

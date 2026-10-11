@@ -27,9 +27,9 @@ namespace :paperless do
 
   desc "Enqueue an OCR-text snapshot for every settled document link that has none (re-runnable)"
   task backfill_extracted_text: :environment do
-    scope = DocumentLink.where.not(paperless_document_id: nil).where(extracted_text: nil)
-    count = scope.count
-    scope.find_each { |link| Paperless::CaptureContentJob.perform_later(link.id) }
+    # Scope lives on the model so the scheduled sweep (SyncCleanerJob) and this
+    # task can never drift (Ruling M7-L9, 2026-10-11 close-out).
+    count = DocumentLink.capture_pending_content
     puts "Enqueued #{count} document(s) for content capture."
   end
 end

@@ -43,6 +43,20 @@ class DocumentLink < ApplicationRecord
     def link_from_upload!(family:, uploader:, source:, title: nil)
       create!(family: family, created_by: uploader, source: source, title: title, status: "queued")
     end
+
+    # (Ruling M7-L9, 2026-10-11 close-out) The re-drive for a lost snapshot
+    # enqueue: `finish_processing!` rescues the raise and leaves the row
+    # settled-but-snapshotless, which is exactly this scope. SyncCleanerJob
+    # sweeps it hourly; the paperless:backfill_extracted_text rake task is the
+    # operator-driven form. Idempotent — CaptureContentJob no-ops when the
+    # snapshot already exists, so neither path can overwrite a good snapshot or
+    # double-apply. Returns the scanned count, for the task's output.
+    def capture_pending_content
+      scope = where.not(paperless_document_id: nil).where(extracted_text: nil)
+      count = scope.count
+      scope.find_each { |link| Paperless::CaptureContentJob.perform_later(link.id) }
+      count
+    end
   end
 
   # The single write path for status changes. Moves the row only while it is
@@ -72,7 +86,26 @@ class DocumentLink < ApplicationRecord
                           paperless_document_id: document_id, paperless_task_id: nil, failure_message: nil)
     # One choke point for the OCR-text snapshot: polling, the ingest webhook and
     # statement OCR all settle through this method. Idempotent and bounded.
-    Paperless::CaptureContentJob.perform_later(id) if settled
+    # (Ruling M7-L9, 2026-10-11 close-out) The enqueue is failure-SAFE, not
+    # fire-and-forget: a transient enqueue failure (Sidekiq/Redis down) at this
+    # choke point used to raise and strand the settled row with no re-drive (the
+    # M1-Ruling-11 class). The settle stands — the row is unlinked with its
+    # document id — and the row stays in `capture_pending_content`'s scope,
+    # which SyncCleanerJob's hourly sweep re-drives without an operator.
+    if settled
+      begin
+        Paperless::CaptureContentJob.perform_later(id)
+      rescue => e
+        DebugLogEntry.capture(
+          category: "background_jobs",
+          level: "warn",
+          message: "CaptureContentJob enqueue failed: #{e.class}: #{e.message}",
+          source: "document_link",
+          family: family,
+          metadata: { record_type: self.class.name, record_id: id, reason: "enqueue_failed" }
+        )
+      end
+    end
     settled
   end
 

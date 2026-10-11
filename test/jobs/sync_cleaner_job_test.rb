@@ -1,6 +1,9 @@
 require "test_helper"
 
 class SyncCleanerJobTest < ActiveSupport::TestCase
+  # assert_enqueued_with (the snapshot-sweep pin, Ruling M7-L9).
+  include ActiveJob::TestHelper
+
   test "reaps records stuck by lost jobs and spares fresh ones" do
     stuck_import = imports(:transaction)
     stuck_import.update_columns(status: "importing", updated_at: 7.hours.ago)
@@ -92,5 +95,16 @@ class SyncCleanerJobTest < ActiveSupport::TestCase
 
     assert snaptrade.reload.activities_fetch_pending      # rolled back, still stuck
     assert_not questrade.reload.activities_fetch_pending  # still cleared
+  end
+
+  # (Ruling M7-L9, 2026-10-11 close-out) the hourly sweep is the re-drive for a
+  # snapshot enqueue lost at the settle choke point (finish_processing!
+  # rescues it), so the M1-Ruling-11 failure heals without an operator.
+  test "the snapshot sweep re-drives settled links that never got their OCR text" do
+    link = document_links(:unlinked_receipt) # settled (have document id), no snapshot
+
+    assert_enqueued_with(job: Paperless::CaptureContentJob, args: [ link.id ]) do
+      SyncCleanerJob.perform_now
+    end
   end
 end
