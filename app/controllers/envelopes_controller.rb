@@ -37,11 +37,27 @@ class EnvelopesController < ApplicationController
     @budget.reload
     respond_to do |format|
       format.turbo_stream do
-        render turbo_stream: turbo_stream.replace(
-          dom_id(budget_category, :envelope),
-          partial: "envelopes/envelope_row",
-          locals: { budget_category: budget_category.reload, budget: @budget }
-        )
+        # Ruling M4-L4 (2026-10-10 close-out): the gesture moves money on the
+        # whole surface, so the stream refreshes the money figures the row
+        # cannot show -- the ready-to-assign banner and the credit-card
+        # payments group -- not only the touched row.
+        render turbo_stream: [
+          turbo_stream.replace(
+            dom_id(budget_category, :envelope),
+            partial: "envelopes/envelope_row",
+            locals: { budget_category: budget_category.reload, budget: @budget }
+          ),
+          turbo_stream.replace(
+            dom_id(@budget, :ready_to_assign),
+            partial: "envelopes/ready_to_assign",
+            locals: { budget: @budget }
+          ),
+          turbo_stream.replace(
+            dom_id(@budget, :credit_card_payments),
+            partial: "envelopes/credit_card_group",
+            locals: { budget: @budget }
+          )
+        ]
       end
       format.html { redirect_to envelope_path(@budget.to_param, **budget_owner_query) }
     end

@@ -126,6 +126,34 @@ class EnvelopesControllerTest < ActionDispatch::IntegrationTest
     assert_match dom_id(@donor, :envelope), response.body
   end
 
+  # Ruling M4-L4 (2026-10-10 close-out): the gesture moves money across the
+  # whole surface, so its stream must refresh the banner and the credit-card
+  # group — the touched row alone left them at pre-gesture figures.
+  test "assign streams a refresh of the ready-to-assign banner and the credit-card group" do
+    post assign_envelopes_path,
+         params: { month_year: @budget.to_param, id: @donor.id,
+                   budget_category: { budgeted_spending: "250" } },
+         as: :turbo_stream
+
+    assert_response :success
+    assert_match %(target="#{dom_id(@budget, :ready_to_assign)}"), response.body
+    assert_match %(target="#{dom_id(@budget, :credit_card_payments)}"), response.body
+  end
+
+  test "cover streams a refresh of the ready-to-assign banner and the credit-card group" do
+    @donor.update!(budgeted_spending: 200)
+    @red.update!(budgeted_spending: 0)
+
+    post cover_envelopes_path,
+         params: { from_id: @donor.id, to_id: @red.id,
+                   budget_category_move: { amount: 40 } },
+         as: :turbo_stream
+
+    assert_response :success
+    assert_match %(target="#{dom_id(@budget, :ready_to_assign)}"), response.body
+    assert_match %(target="#{dom_id(@budget, :credit_card_payments)}"), response.body
+  end
+
   test "the surface ships the move dialog with the budget-move targets" do
     get envelope_url(@budget.to_param)
 

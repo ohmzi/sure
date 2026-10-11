@@ -1,4 +1,4 @@
-<div class="bg-container rounded-xl shadow-border-xs p-4 space-y-3" data-testid="credit-card-payments">
+<div id="<%= helpers.dom_id(budget, :credit_card_payments) %>" class="bg-container rounded-xl shadow-border-xs p-4 space-y-3" data-testid="credit-card-payments">
   <div class="flex items-center justify-between">
     <h2 class="text-sm font-medium text-primary"><%= t("budgets.credit_card_payments.title") %></h2>
     <p class="text-sm text-secondary"><%= t("budgets.credit_card_payments.need_to_pay", amount: helpers.format_money(shortfall_total_money)) %></p>
