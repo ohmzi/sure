@@ -56,9 +56,10 @@ VCR.configure do |config|
   config.filter_sensitive_data("<PLAID_SECRET>") { ENV["PLAID_SECRET"] }
   config.filter_sensitive_data("<PAPERLESS_API_TOKEN>") do
     ENV["OHMZBUDGET_PAPERLESS_TOKEN"].presence ||
-      (ENV["OHMZBUDGET_PAPERLESS_TOKEN_FILE"].present? &&
-        File.exist?(ENV["OHMZBUDGET_PAPERLESS_TOKEN_FILE"]) &&
-        File.read(ENV["OHMZBUDGET_PAPERLESS_TOKEN_FILE"]).strip)
+      begin
+        path = ENV["OHMZBUDGET_PAPERLESS_TOKEN_FILE"].presence || "/run/secrets/paperless_token"
+        File.read(path).strip if File.exist?(path) # nil, not false, when absent
+      end
   end
 end
 

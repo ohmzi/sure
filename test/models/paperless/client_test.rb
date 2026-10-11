@@ -160,6 +160,31 @@ class Paperless::ClientTest < ActiveSupport::TestCase
     end
   end
 
+  # Ruling M5 (M1), 2026-10-10 close-out: pin the streaming branch's honest
+  # mid-stream behaviour. Faraday's net_http adapter wraps a mid-body failure
+  # (EOFError/Errno::ECONNRESET etc.) in Faraday::ConnectionFailed and raises it
+  # from inside the on_data iteration — i.e. AFTER any earlier chunk was already
+  # handed to the caller's block. The chunk is delivered, then the pinned
+  # :unreachable code surfaces; the caller can no longer send a clean error.
+  test "a mid-stream failure raises unreachable after the delivered chunks" do
+    request = OpenStruct.new(headers: {}, options: OpenStruct.new)
+    connection = Object.new
+    connection.define_singleton_method(:get) do |_path, &setup|
+      setup.call(request)
+      request.options.on_data.call("%PDF", 4, OpenStruct.new(status: 206, response_headers: {}))
+      raise Faraday::ConnectionFailed, "mid-body connection reset"
+    end
+    Paperless::Client.any_instance.stubs(:stream_connection).returns(connection)
+
+    chunks = []
+    error = assert_raises(Paperless::Error) do
+      Paperless::Client.new.file(4242, kind: :preview) { |chunk, _env| chunks << chunk }
+    end
+    assert_equal [ "%PDF" ], chunks,
+                 "the first chunk is already delivered when the mid-stream failure surfaces"
+    assert_equal :unreachable, error.code
+  end
+
   test "a 401 raises unauthorized" do
     with_paperless do
       paperless_cassette("unauthorized") do
