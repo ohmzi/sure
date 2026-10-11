@@ -10,4 +10,5 @@ en:
         check: Check connection
       check:
         ok: paperless accepted the token.
-        failed: paperless did not accept the token. It still needs rotation.
+        failed: The connection check failed. If paperless rejected the token it still needs rotation; otherwise check that paperless is reachable.
+        unconfigured: Not connected yet — set the paperless URL and token, then check again.
