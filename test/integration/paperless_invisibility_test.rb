@@ -12,6 +12,24 @@ class PaperlessInvisibilityTest < ActionDispatch::IntegrationTest
                        "OHMZBUDGET_PAPERLESS_TOKEN" => "must-not-leak") do
       get documents_path
       assert_no_match(/paperless\.test|must-not-leak/, response.body)
+      get account_statements_path
+      assert_no_match(/paperless\.test|must-not-leak/, response.body)
+      get documents_path(q: { search: "coffee" })
+      assert_no_match(/paperless\.test|must-not-leak/, response.body)
+      get viewer_document_path(document_links(:linked_receipt))
+      assert_no_match(/paperless\.test|must-not-leak/, response.body)
     end
+  end
+
+  # added by M8 (repaired 2026-10-11, verifier F6):
+  test "the browser pages and a viewer render with paperless raising" do
+    Paperless::Client.any_instance.stubs(:document).raises(Faraday::ConnectionFailed.new("down"))
+
+    get documents_path
+    assert_response :success
+    get account_statements_path
+    assert_response :success
+    get viewer_document_path(document_links(:linked_receipt))
+    assert_response :success
   end
 end

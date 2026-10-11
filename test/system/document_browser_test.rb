@@ -66,4 +66,50 @@ class DocumentBrowserTest < ApplicationSystemTestCase
     find("[data-document-viewer-target='image']").click
     assert_equal "scale(2)", evaluate_script("document.querySelector(\"[data-document-viewer-target='image']\").style.transform")
   end
+
+  # --- M8 Task 8 — the acceptance journey -----------------------------------
+
+  test "the receipts page browses, searches, filters and opens the viewer from the main chrome" do
+    visit root_path
+    click_link I18n.t("layouts.application.nav.documents") # the main sidebar entry
+    assert_current_path documents_path
+    assert_no_selector "#settings-nav-container"           # never the settings chrome
+
+    # (repaired 2026-10-11, verifier F9) search narrows the list. DS::SearchInput
+    # renders type="search", and auto_submit_form_controller.js resolves search
+    # inputs to the BLUR trigger (a 500ms debounce, then requestSubmit) — fill_in
+    # alone never submits. Blur explicitly (tab), then assert a row that does NOT
+    # match has LEFT the page: "Water bill" is listed before, gone after, so a
+    # no-op search cannot pass this. Blurring here also syncs the list before the
+    # row click below, so the click never blurs the field out from under an
+    # in-flight modal request.
+    assert_text document_links(:held_bill).title                 # listed pre-filter
+    fill_in "q[search]", with: "coffee"
+    find("#q_search").send_keys(:tab)                            # Trigger blur to submit form (transactions_test.rb:37's precedent)
+    assert_text document_links(:unlinked_receipt).title          # the match ("Coffee receipt") stays
+    assert_no_text document_links(:held_bill).title              # and the non-match leaves
+
+    # open the viewer from a row and close it
+    # (adapted 2026-10-11, Task 8 — the fence's `click_on title` is ambiguous,
+    # the Task 4 precedent: the thumbnail link carries the same title as its img
+    # alt. The title link is the text-bearing one.)
+    within "#document_link_#{document_links(:unlinked_receipt).id}" do
+      find("a", text: document_links(:unlinked_receipt).title).click
+    end
+    assert_selector "turbo-frame#modal dialog[open]"
+    page.send_keys(:escape)
+    assert_no_selector "dialog[open]"
+  end
+
+  test "the statements page is a first-class page with its facets" do
+    statement = AccountStatement.create_from_upload!(
+      family: families(:dylan_family), account: accounts(:depository),
+      file: Rack::Test::UploadedFile.new(file_fixture("receipts/statement.pdf"), "application/pdf")
+    )
+    visit root_path
+    click_link I18n.t("layouts.application.nav.statements")
+    assert_current_path account_statements_path
+    assert_no_selector "#settings-nav-container"
+    assert_text statement.filename
+  end
 end
