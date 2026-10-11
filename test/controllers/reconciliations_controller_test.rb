@@ -221,4 +221,45 @@ class ReconciliationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal entry, link.entry
   end
 
+  # (Ruling M3-C2 R2, 2026-10-11 close-out) the tap actions must check their
+  # guarded transitions' return values and refuse honestly (409), never flash
+  # success on a row the user already moved.
+  test "a refused link transition answers 409, never a success flash" do
+    entry, link = suggested_link
+    link.dismiss! # the row already moved on
+    link.reload
+
+    post link_reconciliation_url(link, entry_id: entry.id)
+
+    assert_response :conflict
+    assert_equal "dismissed", link.reload.status
+    assert_nil link.entry
+  end
+
+  test "a refused dismiss transition answers 409, never a success flash" do
+    _entry, link = suggested_link
+    link.dismiss!
+    link.reload
+
+    post dismiss_reconciliation_url(link)
+
+    assert_response :conflict
+    assert_equal "dismissed", link.reload.status
+  end
+
+  test "an unknown or malformed id is a 404 and never reaches the actions" do
+    _entry, link = suggested_link
+    missing = "00000000-0000-0000-0000-000000000000"
+
+    post link_reconciliation_url(missing, entry_id: missing)
+    assert_response :not_found
+
+    post dismiss_reconciliation_url(missing)
+    assert_response :not_found
+
+    post dismiss_reconciliation_url("not-a-uuid")
+    assert_response :not_found
+
+    assert_equal "suggested", link.reload.status
+  end
 end

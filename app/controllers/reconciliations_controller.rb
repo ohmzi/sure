@@ -37,7 +37,13 @@ class ReconciliationsController < ApplicationController
       return redirect_to reconciliations_path, alert: t(".no_candidate")
     end
 
-    @link.link_to_entry!(entry, confidence: confidence_for(result, entry))
+    # (Ruling M3-C2 R2, 2026-10-11 close-out) the guarded transition can refuse
+    # (the row was moved by a concurrent link or dismiss): answer 409 like
+    # DocumentLinksController#link, never a success flash.
+    unless @link.link_to_entry!(entry, confidence: confidence_for(result, entry))
+      return render(plain: "receipt cannot be linked from its current state", status: :conflict)
+    end
+
     respond_to do |format|
       format.html { redirect_to reconciliations_path, notice: t(".success") }
       format.turbo_stream { stream_redirect_to reconciliations_path, notice: t(".success") }
@@ -56,7 +62,12 @@ class ReconciliationsController < ApplicationController
     # suggestion (its entry was edited or deleted away), still dismissable.
     return refuse_not_authorized! if result.candidates.empty? && family_wide_match?
 
-    @link.dismiss!
+    # (Ruling M3-C2 R2, 2026-10-11 close-out) the guarded transition's return:
+    # a row the user already moved must refuse, never flash success.
+    unless @link.dismiss!
+      return render(plain: "receipt cannot be dismissed from its current state", status: :conflict)
+    end
+
     respond_to do |format|
       format.html { redirect_to reconciliations_path, notice: t(".success") }
       format.turbo_stream { stream_redirect_to reconciliations_path, notice: t(".success") }
@@ -68,8 +79,11 @@ class ReconciliationsController < ApplicationController
   end
 
   private
+    # (Ruling M3-C2 R2, 2026-10-11 close-out) resolve through the family
+    # association only; an unknown, malformed or foreign id raises
+    # RecordNotFound — 404, the app's standard — and never reaches an action.
     def set_reconciliation
-      @link = DocumentLink.where(family_id: Current.family.id).find(params[:id])
+      @link = Current.family.document_links.find(params[:id])
     end
 
     # Only an entry the matcher actually produced may be linked, so a crafted
