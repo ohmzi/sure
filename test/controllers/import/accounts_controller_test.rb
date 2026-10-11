@@ -56,4 +56,69 @@ class Import::AccountsControllerTest < ActionDispatch::IntegrationTest
     get import_account_path(@draft)
     assert_response :redirect
   end
+
+  # --- (Ruling M7-L7, 2026-10-11 close-out) the statement-backed move ---------
+  #
+  # set_import is family-scoped, so any member could PATCH this route for any
+  # family statement-backed import. The move re-targets the STATEMENT
+  # (PdfImport#assign_account! -> link_to_account!) and unwinds the
+  # reconciliations it holds on the account being left, so the statement's
+  # CURRENT-account permission is required before the move - the
+  # ImportsController#require_statement_import_permission! /
+  # AccountStatement#manageable_by? mirror. The member here holds the
+  # statement's account (credit_card) read_only but CAN write the target
+  # (depository, full_control), so the old target-only check let the move run.
+
+  test "a member without manage rights on the statement's current account cannot move it" do
+    import, statement = statement_backed_import(account: accounts(:credit_card))
+    sign_in users(:family_member)
+
+    patch import_account_path(import), params: { import: { account_id: accounts(:depository).id } }
+
+    assert_response :redirect
+    assert_nil flash[:notice]
+    assert_equal accounts(:credit_card), import.reload.account
+    assert_equal accounts(:credit_card), statement.reload.account
+  end
+
+  test "a member with manage rights on the statement's current account can move it" do
+    import, statement = statement_backed_import(account: accounts(:depository))
+    # The member can write depository but not credit_card (read_only), so a
+    # genuine move needs both ends writable - upgrade the share.
+    account_shares(:credit_card_shared_with_member).update!(permission: "full_control")
+    sign_in users(:family_member)
+
+    patch import_account_path(import), params: { import: { account_id: accounts(:credit_card).id } }
+
+    assert_redirected_to import_path(import)
+    assert_equal accounts(:credit_card), import.reload.account
+    assert_equal accounts(:credit_card), statement.reload.account
+  end
+
+  test "the owner path still moves a statement-backed import" do
+    import, statement = statement_backed_import(account: accounts(:investment))
+
+    patch import_account_path(import), params: { import: { account_id: accounts(:depository).id } }
+
+    assert_redirected_to import_path(import)
+    assert_equal accounts(:depository), import.reload.account
+    assert_equal accounts(:depository), statement.reload.account
+  end
+
+  private
+    # A statement-backed PdfImport, the seed shape M2's controller tests use.
+    def statement_backed_import(account:)
+      import = imports(:pdf)
+      import.update!(account: account)
+      statement = AccountStatement.create_from_upload!(
+        family: import.family,
+        account: account,
+        file: Rack::Test::UploadedFile.new(
+          file_fixture("imports/sample_bank_statement.pdf"),
+          "application/pdf", true, original_filename: "statement.pdf"
+        )
+      )
+      import.update!(account_statement: statement)
+      [ import, statement ]
+    end
 end

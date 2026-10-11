@@ -6,6 +6,15 @@
 class Import::AccountsController < ApplicationController
   before_action :set_import
   before_action :require_non_guest!
+  # (Ruling M7-L7, 2026-10-11 close-out) A statement-backed move re-targets the
+  # STATEMENT (PdfImport#assign_account! -> AccountStatement#link_to_account!)
+  # and unwinds the reconciliations it holds on the account being left, so the
+  # caller must hold the statement's CURRENT-account permission BEFORE the move
+  # — the same precondition ImportsController enforces for its own statement
+  # mutations (require_statement_import_permission! / Ruling M2-L4's
+  # manageable_by?). Without it, any family member who could write the TARGET
+  # account could move a statement off an account they cannot manage.
+  before_action :require_statement_import_permission!, only: :update
 
   def show
     @accounts = Current.user.accessible_accounts.visible.alphabetically
@@ -27,5 +36,12 @@ class Import::AccountsController < ApplicationController
   private
     def set_import
       @import = Current.family.imports.find(params[:import_id])
+    end
+
+    # The ImportsController guard, mirrored for the wizard's own refusal target.
+    def require_statement_import_permission!
+      return if @import.account_statement.blank? || @import.account_statement.manageable_by?(Current.user)
+
+      redirect_back_or_to import_path(@import), alert: t("accounts.not_authorized")
     end
 end
