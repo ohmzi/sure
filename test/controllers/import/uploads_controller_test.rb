@@ -77,4 +77,82 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
     assert_equal "Must be valid CSV with headers and at least one row of data", flash[:alert]
   end
+
+  test "uploads a valid OFX file, archives it, and generates rows" do
+    import = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
+
+    patch import_upload_url(import), params: {
+      import: {
+        import_file: file_fixture_upload("imports/sample.ofx", "application/x-ofx"),
+        account_id: accounts(:depository).id
+      }
+    }
+
+    assert_redirected_to import_clean_url(import)
+    import.reload
+    assert_equal 3, import.rows.count
+    assert import.account_statement.present?
+    assert import.account_statement.ofx?
+    assert_equal "application/x-ofx", import.account_statement.content_type
+  end
+
+  test "rejects a malformed OFX file" do
+    import = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
+
+    assert_no_difference [ "AccountStatement.count", "Import::Row.count" ] do
+      patch import_upload_url(import), params: {
+        import: {
+          import_file: file_fixture_upload("imports/valid.csv", "text/csv"),
+          account_id: accounts(:depository).id
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+    assert_nil import.reload.account_statement
+  end
+
+  test "requires an account for an OFX import" do
+    import = OfxImport.create!(family: users(:family_admin).family)
+
+    patch import_upload_url(import), params: {
+      import: { import_file: file_fixture_upload("imports/sample.ofx", "application/x-ofx") }
+    }
+
+    assert_response :unprocessable_entity
+    assert_equal 0, import.reload.rows.count
+  end
+
+  test "uploading the same OFX file twice reuses one archived statement and warns" do
+    first = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
+    patch import_upload_url(first), params: {
+      import: { import_file: file_fixture_upload("imports/sample.ofx", "application/x-ofx"), account_id: accounts(:depository).id }
+    }
+
+    second = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
+    patch import_upload_url(second), params: {
+      import: { import_file: file_fixture_upload("imports/sample.ofx", "application/x-ofx"), account_id: accounts(:depository).id }
+    }
+
+    assert_equal 1, AccountStatement.where(content_type: "application/x-ofx").count
+    assert_equal first.reload.account_statement, second.reload.account_statement
+    assert_equal "That OFX file is already archived — reusing the stored statement and re-importing its rows.", flash[:notice]
+    assert_equal 3, second.rows.count
+  end
+
+  test "rejects an OFX upload the vault will not accept" do
+    import = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
+    disallowed = Rack::Test::UploadedFile.new(
+      file_fixture("imports/sample.ofx"), "application/x-ofx", true, original_filename: "statement.ofx.bak"
+    )
+
+    assert_no_difference [ "AccountStatement.count", "Import::Row.count" ] do
+      patch import_upload_url(import), params: {
+        import: { import_file: disallowed, account_id: accounts(:depository).id }
+      }
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "Must be a valid OFX/QFX file", flash[:alert]
+  end
 end

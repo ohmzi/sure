@@ -24,7 +24,14 @@ class AccountStatement < ApplicationRecord
   ALLOWED_EXTENSION_CONTENT_TYPES = {
     ".pdf" => %w[application/pdf],
     ".csv" => %w[text/csv text/plain application/csv application/vnd.ms-excel],
-    ".xlsx" => %w[application/vnd.openxmlformats-officedocument.spreadsheetml.sheet]
+    ".xlsx" => %w[application/vnd.openxmlformats-officedocument.spreadsheetml.sheet],
+    # OFX/QFX archive in the Statement Vault for provenance (spec §8.2). marcel
+    # has no `ofx` entry, but 1.2.1 maps `qfx => application/vnd.intu.qfx`, so a
+    # .qfx whose OS/declared type is absent or octet-stream resolves to that and
+    # must be listed here or allowed_upload? raises InvalidUploadError. The set
+    # spans the declared and sniffed possibilities for both extensions.
+    ".ofx" => %w[application/vnd.intu.qfx application/x-ofx text/xml application/xml text/plain application/octet-stream],
+    ".qfx" => %w[application/vnd.intu.qfx application/x-ofx text/xml application/xml text/plain application/octet-stream]
   }.freeze
   ALLOWED_CONTENT_TYPES = ALLOWED_EXTENSION_CONTENT_TYPES.values.flatten.uniq.freeze
   ACCEPTED_FILE_EXTENSIONS = ALLOWED_EXTENSION_CONTENT_TYPES.keys.freeze
@@ -359,6 +366,11 @@ class AccountStatement < ApplicationRecord
 
   def xlsx?
     content_type.in?(ALLOWED_EXTENSION_CONTENT_TYPES[".xlsx"])
+  end
+
+  def ofx?
+    content_type.in?(ALLOWED_EXTENSION_CONTENT_TYPES[".ofx"]) ||
+      content_type.in?(ALLOWED_EXTENSION_CONTENT_TYPES[".qfx"])
   end
 
   def latest_reusable_pdf_import

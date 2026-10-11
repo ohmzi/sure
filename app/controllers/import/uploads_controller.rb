@@ -16,6 +16,8 @@ class Import::UploadsController < ApplicationController
   def update
     if @import.is_a?(QifImport)
       handle_qif_upload
+    elsif @import.is_a?(OfxImport)
+      handle_ofx_upload
     elsif @import.is_a?(SureImport)
       update_sure_import_upload
     elsif csv_valid?(csv_str)
@@ -88,6 +90,60 @@ class Import::UploadsController < ApplicationController
       end
 
       redirect_to import_qif_category_selection_path(@import), notice: t(".qif_uploaded")
+    end
+
+    def handle_ofx_upload
+      unless Ofx::Parser.valid?(csv_str)
+        flash.now[:alert] = t(".ofx_invalid")
+        return render :show, status: :unprocessable_entity
+      end
+
+      unless import_account_id.present?
+        flash.now[:alert] = t(".ofx_account_required")
+        return render :show, status: :unprocessable_entity
+      end
+
+      account = accessible_accounts.find(import_account_id)
+      uploaded_file = upload_params[:import_file]
+      normalized = Ofx::Parser.normalize_encoding(csv_str)
+      duplicate = false
+
+      ActiveRecord::Base.transaction do
+        @import.account = account
+        @import.raw_file_str = normalized
+        statement, duplicate = archive_ofx_statement(uploaded_file, account)
+        @import.account_statement = statement
+        @import.save!(validate: false)
+        @import.generate_rows_from_csv
+        @import.sync_mappings
+      end
+
+      notice = duplicate ? t(".ofx_duplicate_notice") : t(".ofx_uploaded")
+      redirect_to import_clean_path(@import), notice: notice
+    rescue AccountStatement::InvalidUploadError
+      # Empty, oversize, or a content type outside the extension allow-list:
+      # create_from_upload! raises before anything is archived (the transaction
+      # rolls back). Match the CSV branch's flash + 422 pattern rather than 500.
+      flash.now[:alert] = t(".ofx_invalid")
+      render :show, status: :unprocessable_entity
+    end
+
+    # The raw OFX file is archived in the Statement Vault for provenance. SHA-256
+    # dedup is AccountStatement's own: a duplicate reuses the existing row and is
+    # reported by the caller (spec §8.1 "a duplicate warns, never silently
+    # re-adds"), never swallowed.
+    def archive_ofx_statement(uploaded_file, account)
+      return [ nil, false ] unless uploaded_file.respond_to?(:original_filename)
+
+      uploaded_file.rewind if uploaded_file.respond_to?(:rewind)
+      statement = AccountStatement.create_from_upload!(
+        family: Current.family,
+        account: account,
+        file: uploaded_file
+      )
+      [ statement, false ]
+    rescue AccountStatement::DuplicateUploadError => e
+      [ e.statement, true ]
     end
 
     def csv_str

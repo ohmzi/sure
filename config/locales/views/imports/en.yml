@@ -208,6 +208,15 @@ en:
         qif_account_required: Please select an account for the QIF import
       update:
         qif_uploaded: "QIF file uploaded successfully."
+        ofx_uploaded: "OFX file uploaded successfully."
+        ofx_duplicate_notice: "That OFX file is already archived — reusing the stored statement and re-importing its rows."
+        ofx_account_required: Please select an account for the OFX import
+        ofx_invalid: Must be a valid OFX/QFX file
+      handle_ofx_upload:      # optional mirror, parity with handle_qif_upload (never the resolving copy)
+        ofx_uploaded: "OFX file uploaded successfully."
+        ofx_duplicate_notice: "That OFX file is already archived — reusing the stored statement and re-importing its rows."
+        ofx_account_required: Please select an account for the OFX import
+        ofx_invalid: Must be a valid OFX/QFX file
       show:
         csv_invalid: "Must be valid CSV with headers and at least one row of data"
         drop_csv_title: Drop CSV to upload
