@@ -15,10 +15,15 @@ class Budget::ReadyToAssign
     income - assigned
   end
 
-  # Money that arrived: income-category entries in the period, on
-  # family-visible included_in_reports accounts, converted to the budget
-  # currency. Transfers of ANY kind never count (they move money the user
-  # already has -- funds_movement, cc_payment, loan_payment,
+  # Money that arrived: income-category entries from the chain's first budget
+  # month through this month's end, on family-visible included_in_reports
+  # accounts, converted to the budget currency. Income is CUMULATIVE through
+  # the viewed month (Ruling M4-L1, 2026-10-10 close-out): spec 9.1 defines
+  # RTA(month) = income through month-end - assigned through month, and
+  # `assigned` already sums the whole chain, so a period-scoped income read
+  # one month's income against every month's assignments from the chain's
+  # second month onward. Transfers of ANY kind never count (they move money
+  # the user already has -- funds_movement, cc_payment, loan_payment,
   # investment_contribution), and provider-pending entries never count
   # (the money has not arrived yet; Ruling M4a-L1). A one_time entry DOES
   # count: it is real, categorizable money, excluded only from Sure's
@@ -50,11 +55,26 @@ class Budget::ReadyToAssign
     def income_category_ids
       @income_category_ids ||= begin
         statement = family.income_statement(user: budget.user, accounts: account_scope)
-        statement.net_category_totals(period: period)
+        statement.net_category_totals(period: income_period)
                  .net_income_categories
                  .map { |ct| ct.category.id }
                  .compact
       end
+    end
+
+    # Ruling M4-L1 (2026-10-10 close-out): the income window is the chain's
+    # first budget start_date through the viewed month's end_date -- cumulative,
+    # like `assigned`. The lower bound is the chain's own first month so income
+    # posted before the family ever opened a budget cannot inflate RTA.
+    def income_window
+      @income_window ||= (budget_chain.minimum(:start_date) || budget.start_date)..period.end_date
+    end
+
+    # The income categories are read over the same window the income is
+    # counted in: a Salary category whose only entry sits in an earlier chain
+    # month is still this month's income category.
+    def income_period
+      Period.custom(start_date: income_window.begin, end_date: income_window.end)
     end
 
     def account_scope
@@ -68,7 +88,7 @@ class Budget::ReadyToAssign
         .where(entryable_type: "Transaction")
         .where(excluded: false)
         .where(reconciled_at: nil)
-        .where(date: period.start_date..period.end_date)
+        .where(date: income_window)
         .where(accounts: {
           family_id: family.id,
           status: Account::VISIBLE_STATUSES,
