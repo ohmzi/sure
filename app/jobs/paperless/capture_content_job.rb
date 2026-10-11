@@ -20,7 +20,13 @@ class Paperless::CaptureContentJob < ApplicationJob
     return if link.paperless_document_id.blank? || link.extracted_text.present?
 
     document = Paperless.client.document(link.paperless_document_id)
-    link.record_content!(document.content)
+    if link.record_content!(document.content)
+      # The other side of the draft/snapshot race (M7 Task 6): a receipt draft
+      # committed before this snapshot landed cannot see the text by polling,
+      # so kick its understanding now. A draft created after the snapshot was
+      # written is kicked by ReceiptImport.create_from_document_link! instead.
+      link.receipt_imports.find_each { |draft| ReceiptImport::UnderstandJob.perform_later(draft.id) }
+    end
   rescue Paperless::Error => e
     # A 401 is a rotation event, not a retry loop (spec §8.6): note it and give
     # up. Every other error is retried a bounded number of times; the row keeps

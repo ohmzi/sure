@@ -1,6 +1,10 @@
 require "test_helper"
 
 class ReceiptImportTest < ActiveSupport::TestCase
+  # assert_enqueued_with lives in ActiveJob::TestHelper (the repo convention —
+  # Task 1's recorded deviation: the plan's fences assume the helper is present).
+  include ActiveJob::TestHelper
+
   setup do
     @family = families(:dylan_family)
     @link = document_links(:unlinked_receipt)
@@ -32,5 +36,15 @@ class ReceiptImportTest < ActiveSupport::TestCase
 
   test "a document link exposes its receipt drafts" do
     assert_includes @link.receipt_imports, imports(:receipt_draft)
+  end
+
+  test "capturing content kicks the linked draft" do
+    Paperless::Client.any_instance.stubs(:document).returns(
+      Paperless::Document.new(id: 9001, title: "Receipt", created: Date.current, tag_ids: [], content: "TOTAL 1.00")
+    )
+
+    assert_enqueued_with(job: ReceiptImport::UnderstandJob, args: [ imports(:receipt_draft).id ]) do
+      Paperless::CaptureContentJob.perform_now(document_links(:unlinked_receipt).id)
+    end
   end
 end
