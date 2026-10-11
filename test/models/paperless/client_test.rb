@@ -221,4 +221,20 @@ class Paperless::ClientTest < ActiveSupport::TestCase
       end
     end
   end
+
+  # M8 Task 6: the settle-time snapshot resolves every PK in ONE call. The
+  # document payload carries `tags` as PKs only, and a per-document detail GET
+  # per tag is the shape the browser refuses.
+  test "tag_names resolves ids in one id__in call" do
+    with_paperless do
+      stub_request(:get, "http://paperless.test:8000/api/tags/")
+        .with(query: { "id__in" => "1,2" })
+        .to_return(status: 200,
+                   body: '{"count":2,"results":[{"id":1,"name":"ohmzbudget"},{"id":2,"name":"statement"}]}',
+                   headers: { "Content-Type" => "application/json" })
+
+      assert_equal({ 1 => "ohmzbudget", 2 => "statement" }, Paperless::Client.new.tag_names([ 1, 2 ]))
+      assert_equal({}, Paperless::Client.new.tag_names([]))
+    end
+  end
 end

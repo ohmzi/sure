@@ -25,11 +25,14 @@ namespace :paperless do
     puts key.plain_key
   end
 
-  desc "Enqueue an OCR-text snapshot for every settled document link that has none (re-runnable)"
+  desc "Enqueue an OCR-text and tag snapshot for every settled document link missing one (re-runnable)"
   task backfill_extracted_text: :environment do
-    # Scope lives on the model so the scheduled sweep (SyncCleanerJob) and this
-    # task can never drift (Ruling M7-L9, 2026-10-11 close-out).
-    count = DocumentLink.capture_pending_content
-    puts "Enqueued #{count} document(s) for content capture."
+    # (M8 Task 6, locked decision 6) The scope extends M7's content scope with
+    # the tag snapshot: a settled row missing either is re-driven here. The
+    # scope itself still lives on the model (Ruling M7-L9's no-drift rule) —
+    # SyncCleanerJob deliberately keeps the narrower content-only sweep, see
+    # DocumentLink.capture_pending_snapshot.
+    count = DocumentLink.capture_pending_snapshot
+    puts "Enqueued #{count} document(s) for content and tag capture."
   end
 end

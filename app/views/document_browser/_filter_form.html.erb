@@ -17,6 +17,24 @@
     </div>
   <% end %>
 
+  <%# The Tags facet (M8 Task 6): the choices are the stored snapshot names, so
+      the facet renders and filters with paperless down (locked decisions 4/6).
+      No tags stored yet renders the honest empty line, never a dead box. %>
+  <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
+    <span class="text-sm text-secondary"><%= t("document_browser.filters.tags") %></span>
+    <% if tag_choices.any? %>
+      <% tag_choices.each do |tag| %>
+        <label class="flex items-center gap-1.5 text-sm text-primary">
+          <%= check_box_tag "q[tags][]", tag, Array(filters[:tags]).include?(tag),
+                class: "checkbox checkbox--light", data: { "auto-submit-form-target": "auto" } %>
+          <%= tag %>
+        </label>
+      <% end %>
+    <% else %>
+      <span class="text-sm text-secondary"><%= t("document_browser.filters.no_tags") %></span>
+    <% end %>
+  </div>
+
   <%# (repaired 2026-10-11, re-verifier: F9 residual) DS::SearchInput renders no
       id of its own, so the acceptance step's `find("#q_search")` cannot resolve -
       pin the id here (and the blur still goes through the auto-submit controller). %>

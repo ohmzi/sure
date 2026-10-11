@@ -5,15 +5,47 @@ class Paperless::CaptureContentJobTest < ActiveSupport::TestCase
     @link = document_links(:unlinked_receipt)
   end
 
-  test "records the paperless document content once and is a no-op afterwards" do
-    Paperless::Client.any_instance.expects(:document).with(9001).once.returns(
+  test "records the paperless document content once, and a tag-less document re-fetches on a later run" do
+    # (M8 Task 6) `tag_ids: []` cannot be stored — record_tags! refuses blank
+    # names — so the row keeps needing a tag snapshot and the second run
+    # fetches the document again. That is the recorded, bounded re-fetch (the
+    # backfill task is the refresh path; the content snapshot itself is still
+    # written once and never overwritten). tag_names is never called for a
+    # document with no tag PKs.
+    Paperless::Client.any_instance.expects(:tag_names).never
+    Paperless::Client.any_instance.expects(:document).with(9001).twice.returns(
       Paperless::Document.new(id: 9001, title: "Receipt", created: Date.current, tag_ids: [], content: "TOTAL 12.00")
     )
 
     Paperless::CaptureContentJob.perform_now(@link.id)
     assert_equal "TOTAL 12.00", @link.reload.extracted_text
 
-    Paperless::CaptureContentJob.perform_now(@link.id) # snapshot exists: no client call
+    Paperless::CaptureContentJob.perform_now(@link.id)
+    assert_equal "TOTAL 12.00", @link.reload.extracted_text
+    assert_equal [], @link.paperless_tags
+  end
+
+  test "records the tag snapshot once when the document carries tags" do
+    Paperless::Client.any_instance.expects(:document).with(9001).once.returns(
+      Paperless::Document.new(id: 9001, title: "Receipt", created: Date.current, tag_ids: [ 1, 3 ], content: "TOTAL 12.00")
+    )
+    Paperless::Client.any_instance.expects(:tag_names).with([ 1, 3 ]).once.returns({ 1 => "ohmzbudget", 3 => "receipt" })
+
+    Paperless::CaptureContentJob.perform_now(@link.id)
+
+    assert_equal %w[ohmzbudget receipt], @link.reload.paperless_tags
+    Paperless::CaptureContentJob.perform_now(@link.id) # both snapshots exist: no fetch
+  end
+
+  test "a document that already has its content snapshots only the tags" do
+    @link.update!(extracted_text: "TOTAL 12.00")
+    Paperless::Client.any_instance.expects(:document).with(9001).once.returns(
+      Paperless::Document.new(id: 9001, title: "Receipt", created: Date.current, tag_ids: [ 3 ], content: "TOTAL 12.00")
+    )
+    Paperless::Client.any_instance.expects(:tag_names).with([ 3 ]).once.returns({ 3 => "receipt" })
+
+    Paperless::CaptureContentJob.perform_now(@link.id)
+    assert_equal %w[receipt], @link.reload.paperless_tags
   end
 
   test "a link without a paperless document id is a silent no-op" do

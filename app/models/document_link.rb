@@ -47,12 +47,27 @@ class DocumentLink < ApplicationRecord
     # (Ruling M7-L9, 2026-10-11 close-out) The re-drive for a lost snapshot
     # enqueue: `finish_processing!` rescues the raise and leaves the row
     # settled-but-snapshotless, which is exactly this scope. SyncCleanerJob
-    # sweeps it hourly; the paperless:backfill_extracted_text rake task is the
-    # operator-driven form. Idempotent — CaptureContentJob no-ops when the
-    # snapshot already exists, so neither path can overwrite a good snapshot or
-    # double-apply. Returns the scanned count, for the task's output.
+    # sweeps it hourly; the paperless:backfill_extracted_text rake task's scope
+    # is the wider `capture_pending_snapshot` below (M8 Task 6). Idempotent —
+    # CaptureContentJob no-ops when the snapshot already exists, so neither path
+    # can overwrite a good snapshot or double-apply. Returns the scanned count,
+    # for the task's output.
     def capture_pending_content
       scope = where.not(paperless_document_id: nil).where(extracted_text: nil)
+      count = scope.count
+      scope.find_each { |link| Paperless::CaptureContentJob.perform_later(link.id) }
+      count
+    end
+
+    # The operator-driven backfill's scope (M8 locked decision 6): a settled row
+    # is re-driven when its OCR snapshot OR its tag snapshot is missing. Kept
+    # separate from capture_pending_content on purpose — a genuinely tag-less
+    # document can never leave the tag scope (record_tags! refuses blank names),
+    # so sweeping tags hourly would re-fetch it from paperless forever; the
+    # backfill is the documented refresh path and its re-fetch is bounded to
+    # its runs (M8 self-review). Returns the scanned count.
+    def capture_pending_snapshot
+      scope = where.not(paperless_document_id: nil).where("extracted_text IS NULL OR paperless_tags = '{}'")
       count = scope.count
       scope.find_each { |link| Paperless::CaptureContentJob.perform_later(link.id) }
       count
@@ -67,6 +82,13 @@ class DocumentLink < ApplicationRecord
 
       pattern = "%#{ActiveRecord::Base.sanitize_sql_like(term)}%"
       where("extracted_text ILIKE :p OR title ILIKE :p OR original_filename ILIKE :p", p: pattern)
+    end
+
+    # The tag facet's vocabulary (M8 Task 6): the distinct names stored in the
+    # snapshot, so the choices render and filter with paperless down (locked
+    # decision 4). Callers pass the scope whose tags they may show.
+    def tag_snapshot_names(scope = all)
+      scope.distinct.pluck(Arel.sql("unnest(paperless_tags)")).compact.sort
     end
   end
 
@@ -129,6 +151,20 @@ class DocumentLink < ApplicationRecord
 
     self.class.where(id: id, extracted_text: nil)
         .update_all(extracted_text: text.to_s.first(EXTRACTED_TEXT_LIMIT), updated_at: Time.current) == 1
+  end
+
+  # The settle-time tag snapshot (M8 locked decision 6), idempotent like
+  # record_content!: it fills only while the column is empty, so a replayed job
+  # or a backfill run can never overwrite names already resolved. A blank list
+  # is a deliberate no-write — a genuinely tag-less document cannot record that
+  # fact, so it stays in the backfill's scope and is re-fetched on a later run
+  # (bounded; recorded in M8's self-review).
+  def record_tags!(names)
+    names = Array(names).map(&:to_s).reject(&:blank?).uniq
+    return false if names.empty?
+
+    self.class.where(id: id, paperless_tags: [])
+        .update_all(paperless_tags: names, updated_at: Time.current) == 1
   end
 
   def fail!(message)

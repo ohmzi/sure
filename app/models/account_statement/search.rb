@@ -37,12 +37,25 @@ class AccountStatement::Search
     scope = scope.merge(AccountStatement.search(@filters[:search])) if @filters[:search].present?
     scope = scope.where("#{DOCUMENT_DATE_SQL} >= ?", date_from.iso8601) if date_from
     scope = scope.where("#{DOCUMENT_DATE_SQL} <= ?", date_to.iso8601) if date_to
+    scope = scope.where(id: tagged_statement_ids) if tag_filters.any?
     scope.order(order_clause)
   end
 
   private
     def extraction_filters = Array(@filters[:extraction]) & EXTRACTION_FILTERS
     def review_filters = Array(@filters[:review]) & REVIEW_FILTERS
+
+    # The tag facet on statements (M8 Task 6): statements carry no tags of
+    # their own, so the filter is a subquery over their archived document
+    # links' stored snapshots — never a paperless call (locked decisions 4/6).
+    def tag_filters = Array(@filters[:tags]).map(&:to_s).reject(&:blank?).uniq
+
+    def tagged_statement_ids
+      DocumentLink.where(source: "statement")
+                  .where("paperless_tags && ARRAY[?]::text[]", tag_filters)
+                  .where.not(account_statement_id: nil)
+                  .select(:account_statement_id)
+    end
 
     # Invalid dates are ignored (M8 Task 5): a half-typed or junk value drops
     # the bound instead of raising out of the page.

@@ -2,6 +2,8 @@ en:
   document_browser:
     filters:
       search_placeholder: Search by text, title or file name
+      tags: Tags
+      no_tags: No tags yet
       sorts:
         newest: Newest first
         oldest: Oldest first

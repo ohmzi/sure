@@ -37,6 +37,9 @@ class DocumentLinksController < ApplicationController
     # The viewer URL carries the page's query string (M8 locked decision 3), so
     # the modal's prev/next recompute over the same filtered list.
     @rows = @links.map { |link| DocumentBrowser::Row.for_document_link(link, viewer_url: viewer_document_path(link, document_browser_viewer_params)) }
+    # The tag facet's choices come from the stored snapshot (M8 Task 6), never
+    # a live paperless call.
+    @tag_choices = DocumentLink.tag_snapshot_names(Current.family.document_links)
     @token_invalid_at = Paperless.token_invalid_at
     @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("documents.index.receipts_bills_title"), documents_path ] ]
     # Ruling 4: explicit view path — implicit render under this controller would

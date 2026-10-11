@@ -205,4 +205,38 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     get documents_path(q: { date_from: "2026-10-01" })
     assert_no_match "Dated receipt", response.body
   end
+
+  # -- the tag facet (M8 Task 6) ----------------------------------------------
+
+  test "the tag facet filters by the stored snapshot" do
+    document_links(:unlinked_receipt).update!(paperless_tags: %w[ohmzbudget receipt])
+    document_links(:held_bill).update!(paperless_tags: %w[ohmzbudget bill])
+
+    get documents_path(q: { tags: %w[bill] })
+    assert_response :success
+    assert_no_match document_links(:unlinked_receipt).title.to_s, response.body
+    assert_match document_links(:held_bill).title.to_s, response.body
+    assert_select "input[name='q[tags][]'][checked='checked'][value='bill']" # the active choice stays checked
+  end
+
+  # The facet is only usable if its choices reach the form — the pinned
+  # controller -> component -> filter_form relay (M8 Task 6, the plan's
+  # `tag_choices` flow; its Files list did not name the two index views).
+  test "the tag facet renders the stored snapshot names as choices" do
+    document_links(:held_bill).update!(paperless_tags: %w[ohmzbudget bill])
+
+    get documents_path
+    assert_select "input[name='q[tags][]'][value='bill']"
+    assert_select "input[name='q[tags][]'][value='ohmzbudget']"
+    assert_select "input[name='q[tags][]'][checked='checked'][value='bill']", count: 0
+  end
+
+  test "the tag facet states honestly when no tags are stored yet" do
+    get documents_path
+    assert_select "input[name='q[tags][]']", count: 0
+    # (verifier-F4 discipline) fail on the missing key, not on a matching
+    # "Translation missing: …" on both sides.
+    assert I18n.exists?("document_browser.filters.no_tags")
+    assert_match I18n.t("document_browser.filters.no_tags"), response.body
+  end
 end

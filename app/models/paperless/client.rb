@@ -104,6 +104,20 @@ class Paperless::Client
     parse_json(created)["id"]
   end
 
+  # Resolve tag PKs to names in ONE call (M8 locked decision 6). The document
+  # payload carries `tags` as PKs only, and per-document detail GETs are the
+  # shape the browser refuses. Probe-verified against paperless 3.3.0
+  # 2026-10-11 (`?id__in=1,2`).
+  def tag_names(ids)
+    ids = Array(ids).map(&:to_i).uniq
+    return {} if ids.empty?
+
+    response = with_errors { json_connection.get("/api/tags/", "id__in" => ids.join(",")) }
+    body = parse_json(response)
+    results = body.is_a?(Hash) ? Array(body["results"]) : Array(body)
+    results.to_h { |tag| [ tag["id"].to_i, tag["name"].to_s ] }
+  end
+
   private
 
     # R1 resolution order: dev env override, then the mounted token file.

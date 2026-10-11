@@ -41,10 +41,16 @@ class DocumentLink::Search
     scope = scope.merge(DocumentLink.search(@filters[:search])) if @filters[:search].present?
     scope = scope.where("#{DOCUMENT_DATE_SQL} >= ?", date_from.iso8601) if date_from
     scope = scope.where("#{DOCUMENT_DATE_SQL} <= ?", date_to.iso8601) if date_to
+    scope = scope.where("paperless_tags && ARRAY[?]::text[]", tag_filters) if tag_filters.any?
     scope.order(order_clause)
   end
 
   private
+    # The tag facet (M8 Task 6): array overlap against the stored snapshot —
+    # never a paperless call (locked decisions 4/6). Blank names filter nothing;
+    # a name no row carries yields an empty page, never a widened one.
+    def tag_filters = Array(@filters[:tags]).map(&:to_s).reject(&:blank?).uniq
+
     # Invalid dates are ignored (M8 Task 5): a half-typed or junk value drops
     # the bound instead of raising out of the page.
     def date_from = parsed_date(@filters[:date_from])

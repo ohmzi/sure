@@ -62,4 +62,23 @@ class DocumentLink::SearchTest < ActiveSupport::TestCase
     invalid = DocumentLink::Search.new(family: @family, filters: { date_from: "not-a-date" }).relation.pluck(:id)
     assert_includes invalid, link.id
   end
+
+  # -- the tag facet (M8 Task 6) ----------------------------------------------
+
+  test "the tag filter matches by array overlap on the stored snapshot" do
+    document_links(:unlinked_receipt).update!(paperless_tags: %w[ohmzbudget receipt])
+    document_links(:held_bill).update!(paperless_tags: %w[ohmzbudget bill])
+
+    bill_only = DocumentLink::Search.new(family: @family, filters: { tags: %w[bill] }).relation.pluck(:id)
+    assert_includes bill_only, document_links(:held_bill).id
+    assert_not_includes bill_only, document_links(:unlinked_receipt).id
+
+    # A blank / empty selection filters nothing (the facet's cleared state).
+    unfiltered = DocumentLink::Search.new(family: @family).relation.pluck(:id)
+    assert_equal unfiltered, DocumentLink::Search.new(family: @family, filters: { tags: [] }).relation.pluck(:id)
+    assert_equal unfiltered, DocumentLink::Search.new(family: @family, filters: { tags: [ "" ] }).relation.pluck(:id)
+
+    # A name no row carries is a real filter: an empty page, never a widened one.
+    assert_empty DocumentLink::Search.new(family: @family, filters: { tags: %w[nope] }).relation.pluck(:id)
+  end
 end

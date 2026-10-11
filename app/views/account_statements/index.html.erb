@@ -1,6 +1,6 @@
 <%= render DocumentBrowserComponent.new(
       family: :statements, title: t(".title"), url: account_statements_path,
-      rows: @rows, pagy: @pagy, filters: @filters
+      rows: @rows, pagy: @pagy, filters: @filters, tag_choices: @tag_choices
     ) do |browser| %>
   <% browser.with_upload do %>
     <%= render DS::Card.new do %>

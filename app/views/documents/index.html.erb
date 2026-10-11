@@ -7,7 +7,8 @@
 
 <%= render DocumentBrowserComponent.new(
       family: :documents, title: t(".receipts_bills_title"), url: documents_path,
-      rows: @rows, pagy: @pagy, filters: @filters, source_filter: @source_filter
+      rows: @rows, pagy: @pagy, filters: @filters, source_filter: @source_filter,
+      tag_choices: @tag_choices
     ) do |browser| %>
   <% browser.with_upload do %>
     <%= render DS::Card.new do %>

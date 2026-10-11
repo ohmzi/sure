@@ -150,6 +150,19 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert_nil link.reload.extracted_text
   end
 
+  # M8 Task 6: the settle-time tag snapshot is idempotent exactly like
+  # record_content! — it fills only a blank column, so a replayed job or a
+  # backfill run can never overwrite names already resolved.
+  test "record_tags! writes once and refuses to overwrite" do
+    link = document_links(:unlinked_receipt)
+    assert link.record_tags!(%w[ohmzbudget receipt])
+
+    assert_equal %w[ohmzbudget receipt], link.reload.paperless_tags
+    assert_not link.record_tags!(%w[other])
+    assert_equal %w[ohmzbudget receipt], link.reload.paperless_tags
+    assert_not link.record_tags!([])
+  end
+
   test "finish_processing! enqueues exactly one content capture when it settles the row" do
     link = document_links(:queued_receipt)
     assert link.mark_processing!
