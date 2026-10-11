@@ -45,6 +45,17 @@ class AccountStatement < ApplicationRecord
 
   enum :source, { manual_upload: "manual_upload" }, validate: true, default: "manual_upload"
   enum :upload_status, { stored: "stored", failed: "failed" }, validate: true, default: "stored"
+  # The outcome of the deterministic (paperless OCR + template) extraction path
+  # for scanned PDF statements (spec §8.6). The AI path never sets this, so it
+  # stays not_attempted there. `extraction_failed` avoids colliding with the
+  # upload_status `failed` helper.
+  enum :extraction_state, {
+    not_attempted: "not_attempted",
+    processing: "processing",
+    extracted: "extracted",
+    needs_template: "needs_template",
+    extraction_failed: "extraction_failed"
+  }, validate: true, default: "not_attempted", scopes: false
   enum :review_status, { unmatched: "unmatched", linked: "linked", rejected: "rejected" }, validate: true, default: "unmatched", scopes: false
 
   monetize :opening_balance, :closing_balance
