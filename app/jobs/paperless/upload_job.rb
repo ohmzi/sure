@@ -14,6 +14,10 @@ class Paperless::UploadJob < ApplicationJob
 
   def perform(document_link_id)
     link = DocumentLink.find(document_link_id)
+    # Ruling M4 (M1), 2026-10-10 close-out: a duplicate delivery (a Sidekiq
+    # retry, or a re-driven row) must not post the same bytes twice — the first
+    # run already recorded the task id, and the poll owns the row from there.
+    return if link.paperless_task_id.present?
     return if link.staged_path.blank?
 
     client = Paperless.client

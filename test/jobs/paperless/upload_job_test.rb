@@ -29,7 +29,11 @@ class Paperless::UploadJobTest < ActiveJob::TestCase
 
   test "posts the staged bytes, records the task id and schedules the poll" do
     stub_client
-    assert_enqueued_with(job: Paperless::TaskPollJob, args: [ @link.id ]) do
+    # Ruling M10 (M1), 2026-10-10 close-out: pin the hand-off delay, not just
+    # the job — the poll is scheduled `at` POLL_DELAY from now (assert_enqueued_with
+    # matches `at:` within one second, so the read is exact here).
+    assert_enqueued_with(job: Paperless::TaskPollJob, args: [ @link.id ],
+                         at: Paperless::UploadJob::POLL_DELAY.from_now) do
       Paperless::UploadJob.perform_now(@link.id)
     end
     @link.reload
@@ -106,5 +110,20 @@ class Paperless::UploadJobTest < ActiveJob::TestCase
     client.expects(:post_document).never
     Paperless::UploadJob.perform_now(@link.id)
     assert_equal "queued", @link.reload.status
+  end
+
+  test "a duplicate delivery is a no-op once the row holds a task id" do
+    # Ruling M4 (M1), 2026-10-10 close-out: Sidekiq may deliver the same job
+    # twice; the second delivery must not post the bytes again.
+    @link.update_columns(status: "processing", paperless_task_id: "task-1")
+    client = mock("paperless")
+    client.stubs(:configured?).returns(true)
+    client.expects(:post_document).never
+    Paperless.stubs(:client).returns(client)
+
+    Paperless::UploadJob.perform_now(@link.id)
+    @link.reload
+    assert_equal "processing", @link.status
+    assert_equal "task-1", @link.paperless_task_id
   end
 end

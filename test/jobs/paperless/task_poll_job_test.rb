@@ -88,6 +88,53 @@ class Paperless::TaskPollJobTest < ActiveJob::TestCase
     assert Setting["paperless_token_invalid_at"].present?
   end
 
+  test "a transport failure or a paperless 5xx reschedules instead of failing" do
+    # Ruling M10 (M1), 2026-10-10 close-out: pin the error routing.
+    [ :unreachable, :bad_response ].each do |code|
+      client = mock("paperless")
+      client.stubs(:task).raises(Paperless::Error.new(code.to_s, code: code))
+      Paperless.stubs(:client).returns(client)
+      assert_enqueued_with(job: Paperless::TaskPollJob, args: [ @link.id ]) do
+        Paperless::TaskPollJob.perform_now(@link.id)
+      end
+      assert_equal "processing", @link.reload.status
+    end
+  end
+
+  test "an unknown task id reschedules within the attempt budget" do
+    # Ruling M10 (M1), 2026-10-10 close-out: :not_found routes like the other
+    # transient codes; the attempt budget still bounds it.
+    client = mock("paperless")
+    client.stubs(:task).raises(Paperless::Error.new("no task", code: :not_found))
+    Paperless.stubs(:client).returns(client)
+    assert_enqueued_with(job: Paperless::TaskPollJob, args: [ @link.id ]) do
+      Paperless::TaskPollJob.perform_now(@link.id)
+    end
+  end
+
+  test "the backoff waits double from POLL_INTERVAL and cap at MAX_INTERVAL" do
+    # Ruling M10 (M1), 2026-10-10 close-out: pin the constants, the doubling
+    # curve and the exact attempt boundary (assert_enqueued_with matches `at:`
+    # within one second, so the read is exact here).
+    assert_equal 3.seconds, Paperless::TaskPollJob::POLL_INTERVAL
+    assert_equal 30.seconds, Paperless::TaskPollJob::MAX_INTERVAL
+    assert_equal 40, Paperless::TaskPollJob::MAX_ATTEMPTS
+
+    stub_task(status: :pending)
+    [ [ 1, 3.seconds ], [ 2, 6.seconds ], [ 3, 12.seconds ], [ 4, 24.seconds ], [ 5, 30.seconds ], [ 39, 30.seconds ] ].each do |attempt, expected|
+      @link.note_poll!(attempt - 1) # perform_now bumps the counter to `attempt`
+      assert_enqueued_with(job: Paperless::TaskPollJob, args: [ @link.id ], at: expected.from_now) do
+        Paperless::TaskPollJob.perform_now(@link.id)
+      end
+    end
+
+    @link.note_poll!(Paperless::TaskPollJob::MAX_ATTEMPTS - 1) # next attempt = 40: the cap
+    assert_no_enqueued_jobs do
+      Paperless::TaskPollJob.perform_now(@link.id)
+    end
+    assert_equal "queued", @link.reload.status
+  end
+
   test "exhausting attempts holds the row retryably instead of looping forever" do
     stub_task(status: :pending)
     @link.note_poll!(Paperless::TaskPollJob::MAX_ATTEMPTS)
