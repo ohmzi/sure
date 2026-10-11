@@ -63,6 +63,39 @@ class Budget::CreditEnvelopeCalculatorTest < ActiveSupport::TestCase
     assert_equal 100, envelope_for(budget, @card).funded_amount.to_d
   end
 
+  # Ruling M4-L3 (2026-10-10 close-out): a card refund is a negative entry on
+  # the card; it must reduce what the envelope set aside, not vanish. The old
+  # positive-only query kept the full purchase funded and overstated the
+  # payment envelope.
+  test "a card refund reduces the funded amount" do
+    budget = initialized_budget(Date.current)
+    allocate(budget, 100)
+    spend(budget, amount: 60, account: @card, category: @category)
+    create_transaction(account: @card, date: budget.start_date, amount: -20, category: @category)
+
+    recompute!(budget)
+
+    envelope = envelope_for(budget, @card)
+    assert_equal 40, envelope.funded_amount.to_d
+    assert_equal 40, envelope.payment_available.to_d
+  end
+
+  # Ruling M4-L3 (2026-10-10 close-out): netted at the envelope's per-card
+  # level and floored at zero -- a refund larger than the spending must never
+  # produce a negative envelope (or negative funding for the card).
+  test "a refund larger than the card spending floors at zero" do
+    budget = initialized_budget(Date.current)
+    allocate(budget, 100)
+    spend(budget, amount: 60, account: @card, category: @category)
+    create_transaction(account: @card, date: budget.start_date, amount: -80, category: @category)
+
+    recompute!(budget)
+
+    envelope = envelope_for(budget, @card)
+    assert_equal 0, envelope.funded_amount.to_d
+    assert_equal 0, envelope.payment_available.to_d
+  end
+
   test "a ring-fenced child's allocation is not also fundable from the parent (Ruling M4b-L4)" do
     # The parent's stored budgeted_spending is the GROUP total (500 = 300 own +
     # 200 child). Using it raw would let the child's 200 fund cards from BOTH

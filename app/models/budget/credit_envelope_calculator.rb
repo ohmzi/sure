@@ -205,6 +205,11 @@ class Budget::CreditEnvelopeCalculator
         category_ids.each do |category_id|
           card_by_category[category_id].each { |account_id, amount| per_card[account_id] += amount }
         end
+        # Ruling M4-L3 (2026-10-10 close-out): refunds net against the
+        # envelope's card spending, floored at zero -- a refund larger than the
+        # spending must never push the payment envelope (or another card's
+        # share of the same envelope) negative, and the excess is not funding.
+        per_card.transform_values! { |amount| [ amount, 0 ].max }
         card_total = per_card.values.sum
         next if card_total <= 0
 
@@ -216,10 +221,14 @@ class Budget::CreditEnvelopeCalculator
       [ funded, payments_by_account(range, target_currency) ]
     end
 
-    # Positive entries (expenses; a purchase is positive, an inflow negative)
-    # whose kind is not budget-excluded. Raw amounts come back with their own
-    # currency and date; conversion to the month's currency happens per row in
-    # Ruby so a missing rate can fail loud, not silently 1:1.
+    # Spending rows: positive entries (expenses; a purchase is positive, an
+    # inflow negative) whose kind is not budget-excluded, PLUS negative entries
+    # on credit-card accounts -- a card refund, which nets against that card's
+    # spending (Ruling M4-L3, 2026-10-10 close-out; a payment is already
+    # filtered out below by the budget-excluded kinds, so the sign tells
+    # refund from payment). Raw amounts come back with their own currency and
+    # date; conversion to the month's currency happens per row in Ruby so a
+    # missing rate can fail loud, not silently 1:1.
     def spending_rows(range)
       account_ids = included_accounts.pluck(:id)
       return [] if account_ids.empty?
@@ -240,7 +249,7 @@ class Budget::CreditEnvelopeCalculator
         WHERE ae.account_id IN (:account_ids)
           AND ae.excluded = false
           AND ae.date BETWEEN :start_date AND :end_date
-          AND ae.amount > 0
+          AND (ae.amount > 0 OR a.accountable_type = 'CreditCard')
           AND at.kind NOT IN (:kinds)
       SQL
         { start_date: range.begin, end_date: range.end,
