@@ -618,7 +618,10 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     get account_url(@account, tab: "statements")
 
     assert_response :success
-    assert_select "input[type=file][accept='.pdf,.csv,.xlsx']"
+    # (Ruling M2-C4, 2026-10-11 close-out): the view renders
+    # AccountStatement::ACCEPTED_FILE_EXTENSIONS, which Task 4a extended with
+    # .ofx/.qfx; the old hard-coded list could never match again.
+    assert_select "input[type=file][accept='.pdf,.csv,.xlsx,.ofx,.qfx']"
     assert_select "select[name='statement_year']"
     assert_select "p", text: I18n.l(Date.current.prev_month.beginning_of_month, format: "%b %Y")
   end
