@@ -822,6 +822,56 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", retry_statement_ocr_import_path(import), count: 1
   end
 
+  # Ruling M2-L4: the statement sits on credit_card, which the member holds
+  # read_only (account_shares.yml) - a viewer who cannot manage it.
+  test "retry_statement_ocr refuses a viewer who cannot manage the statement (Ruling M2-L4)" do
+    import = imports(:pdf)
+    import.update!(account: accounts(:credit_card))
+    statement = AccountStatement.create_from_upload!(
+      family: import.family,
+      account: import.account,
+      file: Rack::Test::UploadedFile.new(
+        file_fixture("imports/sample_bank_statement.pdf"),
+        "application/pdf", true, original_filename: "statement.pdf"
+      )
+    )
+    import.update!(account_statement: statement)
+
+    other = users(:family_member)
+    statement.update!(extraction_state: :extraction_failed)
+
+    sign_in other
+    assert_no_enqueued_jobs only: StatementOcrJob do
+      post retry_statement_ocr_import_path(import)
+    end
+
+    assert_response :redirect
+    assert_equal "extraction_failed", statement.reload.extraction_state
+  end
+
+  test "retry_statement_ocr refuses to reset an already-extracted statement (Ruling M2-L4)" do
+    import = imports(:pdf)
+    import.update!(account: accounts(:depository))
+    statement = AccountStatement.create_from_upload!(
+      family: import.family,
+      account: import.account,
+      file: Rack::Test::UploadedFile.new(
+        file_fixture("imports/sample_bank_statement.pdf"),
+        "application/pdf", true, original_filename: "statement.pdf"
+      )
+    )
+    import.update!(account_statement: statement)
+
+    statement.update!(extraction_state: :extracted)
+
+    assert_no_enqueued_jobs only: StatementOcrJob do
+      post retry_statement_ocr_import_path(import)
+    end
+
+    assert_response :redirect
+    assert_equal "extracted", statement.reload.extraction_state
+  end
+
   test "retry_statement_ocr clears the state and re-enqueues the job" do
     import = imports(:pdf)
     import.update!(account: accounts(:depository))

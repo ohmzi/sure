@@ -23,7 +23,9 @@
       <p class="text-sm text-secondary"><%= t(failed ? ".failed_fix_path" : ".fix_path") %></p>
     </div>
 
-    <% if failed %>
+    <%# Ruling M2-L4: the button matches the action's precondition - a read-only
+        viewer sees the explanation, not an action that would be refused. %>
+    <% if failed && statement.manageable_by?(Current.user) %>
       <%= button_to t(".retry"), retry_statement_ocr_import_path(import), method: :post,
             class: "w-full rounded-lg bg-container-inset px-4 py-2 text-sm font-medium text-primary" %>
     <% end %>

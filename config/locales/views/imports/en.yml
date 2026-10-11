@@ -555,6 +555,9 @@ en:
       back_to_imports: Back to imports
     retry_statement_ocr:
       retried: Statement OCR re-queued.
+      # Ruling M2-L4: the state guard's alert (only extraction_failed /
+      # needs_template may be re-driven).
+      not_retryable: This statement is not awaiting a re-read.
     pdf_import:
       processing_title: Processing your PDF
       processing_description: We're analyzing your document using AI. This may take a moment. You'll receive an email when the analysis is complete.

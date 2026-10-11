@@ -53,9 +53,22 @@ class ImportsController < ApplicationController
 
   def retry_statement_ocr
     import = Current.family.imports.find(params[:id])
-    return redirect_to import_path(import), alert: t("accounts.not_authorized") unless AccountStatement.statement_manager?(Current.user)
+    statement = import.account_statement
+    # Ruling M2-L4: this action MUTATES an existing, possibly restricted
+    # statement (it re-runs OCR and can re-POST the file to paperless), so it
+    # must enforce the same precondition as the sibling mutating actions -
+    # manageable_by? - not the family-level statement_manager? gate. Without
+    # this, any family member could reset the state of a statement they cannot
+    # even view (ImportsController#index is unfiltered, so the id is reachable).
+    return redirect_to import_path(import), alert: t("accounts.not_authorized") unless statement&.manageable_by?(Current.user)
 
-    import.account_statement&.update!(extraction_state: :not_attempted)
+    # And it only re-drives the two states that actually offer a retry - a
+    # direct POST must never reset an extracted or in-flight statement.
+    unless statement.extraction_state.in?(%w[extraction_failed needs_template])
+      return redirect_to import_path(import), alert: t(".not_retryable")
+    end
+
+    statement.update!(extraction_state: :not_attempted)
     StatementOcrJob.perform_later(import.id)
     redirect_to import_path(import), notice: t(".retried")
   end
