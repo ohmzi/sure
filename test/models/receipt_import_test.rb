@@ -182,3 +182,120 @@ class ReceiptImportTest < ActiveSupport::TestCase
     end
   end
 end
+
+# A genuine concurrent double-submit needs a second, concurrently-committing
+# connection to reproduce: with the unlocked `data_committed?` check, the
+# second caller read "not committed" while the first was mid-transaction and
+# re-ran the writer, doubling the split children (2 -> 4 — the Ruling M7-L8
+# close-out finding; the check-then-act race the sequential replay pins cannot
+# see). Runs without transactional fixtures so the writer thread's commit is
+# visible to the reader's separate connection (the FamilyMerchantConcurrency
+# Test precedent in test/models/family_merchant_test.rb).
+class ReceiptImportConcurrentPublishTest < ActiveSupport::TestCase
+  self.use_transactional_tests = false
+
+  setup do
+    # The test's main thread, writer thread and reader thread each hold their
+    # own checked-out connection at once. The default pool (RAILS_MAX_THREADS,
+    # 3) leaves zero headroom for that, so under CI's parallelized test load a
+    # thread's connection checkout can itself queue behind another test's use
+    # of the pool, throwing off the race entirely. Widen it for this test only.
+    @original_db_config = ActiveRecord::Base.connection_db_config
+    if @original_db_config.max_connections.to_i < 6
+      ActiveRecord::Base.establish_connection(@original_db_config.configuration_hash.except(:pool).merge(max_connections: 6))
+    else
+      @original_db_config = nil
+    end
+  end
+
+  teardown do
+    # This class commits (no transactional rollback), so remove exactly what
+    # the test wrote before the fixture set is reused. Destroying the parent
+    # takes its split children (dependent: :destroy); a child cannot be
+    # destroyed on its own (Entry#prevent_individual_child_deletion).
+    draft = imports(:receipt_understood)
+    draft.entries.where(parent_entry_id: nil).find_each(&:destroy)
+    draft.rows.destroy_all
+  ensure
+    ActiveRecord::Base.establish_connection(@original_db_config) if @original_db_config
+  end
+
+  test "a concurrent double-submit serializes on the draft's row lock and the children stay at 2" do
+    draft = imports(:receipt_understood)
+    draft.generate_rows_from_line_items!
+
+    writer_entered = Queue.new
+    release_writer = Queue.new
+    reader_pid = Queue.new
+
+    # The writer runs the real import!; its `line_items_split?` call sits INSIDE
+    # the locked section, after the entry write — pausing there parks the
+    # writer mid-transaction holding the draft's row lock with an uncommitted
+    # parent entry, exactly the window a second submit races.
+    writer_draft = ReceiptImport.find(draft.id)
+    writer_draft.define_singleton_method(:line_items_split?) do
+      writer_entered << true
+      release_writer.pop
+      super()
+    end
+
+    writer = nil
+    reader = nil
+
+    begin
+      writer = Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          writer_draft.import!
+        end
+      end
+
+      writer_entered.pop
+
+      reader = Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do |connection|
+          reader_pid << connection.select_value("SELECT pg_backend_pid()")
+
+          ReceiptImport.find(draft.id).import!
+        end
+      end
+
+      pid = reader_pid.pop.to_i
+
+      # Wait until Postgres itself reports the reader blocked on a lock — the
+      # writer's SELECT ... FOR UPDATE of the draft row — proving the two
+      # submits genuinely overlap. Only then is releasing the writer guaranteed
+      # to exercise the serialization rather than a sequential replay.
+      deadline = Time.current + 10.seconds
+      wait_event_type = nil
+      loop do
+        wait_event_type = ActiveRecord::Base.connection.select_value(
+          "SELECT wait_event_type FROM pg_stat_activity WHERE pid = #{pid}"
+        )
+        break if wait_event_type == "Lock" || Time.current > deadline || !reader.alive?
+        sleep 0.01
+      end
+
+      unless wait_event_type == "Lock"
+        diagnosis = reader.alive? ? "timed out waiting" : "the reader thread already finished (status: #{reader.status.inspect})"
+        flunk "reader never blocked on the draft's row lock (wait_event_type=#{wait_event_type.inspect}); #{diagnosis}; the race wasn't reproduced"
+      end
+
+      release_writer << true
+      writer.value # joins the writer and re-raises anything it raised
+      reader.value # likewise; the loser of the race must return, not raise
+
+      external_id = "paperless:#{draft.document_link.paperless_document_id}"
+      parent = Entry.find_by(account: accounts(:depository), external_id: external_id)
+      assert parent.present?, "the first submit must commit the expense"
+      assert_equal 2, parent.child_entries.count, "the second submit must not re-mint the split children"
+      assert_equal 1, Entry.where(account: accounts(:depository), external_id: external_id).count
+      assert_equal 3, draft.entries.reload.count # parent + 2 children, nothing more
+    ensure
+      # Unblocks the writer even if an assertion above failed, so its thread
+      # (and checked-out connection) don't leak past this test.
+      release_writer << true
+      writer&.join(2)
+      reader&.join(2)
+    end
+  end
+end

@@ -172,31 +172,40 @@ class ReceiptImport < Import
     # to failed after a partial write attempt): refuse here, explicitly.
     raise "A receipt needs a purchase date before it can be published" unless purchase_date.present?
     # (Ruling M7-L3, 2026-10-11 close-out) the writer is REPLAY-SAFE, not just
-    # guarded upstream: any route, retry or double-submit that reaches it twice
-    # must not post the money twice. The parent entry is claimed by its
-    # external_id (paperless:<docID>), so a replay finds it already present and
-    # must skip the split entirely rather than re-minting the children.
-    if data_committed?
-      Rails.logger.info("ReceiptImport #{id}: publish replayed; the entry already exists - nothing written")
-      return
-    end
+    # guarded upstream: any route or retry that reaches it twice must not post
+    # the money twice. The parent entry is claimed by its external_id
+    # (paperless:<docID>), so a replay finds it already present and must skip
+    # the split entirely rather than re-minting the children.
+    # (Ruling M7-L8, 2026-10-11 close-out) ...and the guard is ATOMIC, not a
+    # bare check-then-act: the unlocked `data_committed?` let two CONCURRENT
+    # submits both read "not committed" and both run the writer, doubling the
+    # split children (2 -> 4 under a forced overlap). The guard and the write
+    # now share the draft's row lock, so a double-submit serializes: the loser
+    # blocks on the lock, then sees the committed data and returns before the
+    # adapter is ever touched.
+    with_lock do
+      if data_committed?
+        Rails.logger.info("ReceiptImport #{id}: publish replayed; the entry already exists - nothing written")
+        return
+      end
 
-    transaction do
-      adapter = Account::ProviderImportAdapter.new(account)
-      entry = adapter.import_transaction(
-        external_id: "paperless:#{document_link.paperless_document_id}",
-        source: "paperless",
-        amount: total_amount,
-        currency: default_currency, # Import's helper: account&.currency || family.currency
-        date: purchase_date,
-        name: payee.presence || document_link.title.presence ||
-              document_link.original_filename.presence || "Receipt",
-        allow_heuristic_matching: false
-      )
-      # Attach to the import so Import#revert unwinds it (and so the entry is
-      # protected from provider syncs like every other import-written entry).
-      entry.update!(import: self, import_locked: true)
-      split_into_line_items!(entry) if line_items_split?
+      transaction do
+        adapter = Account::ProviderImportAdapter.new(account)
+        entry = adapter.import_transaction(
+          external_id: "paperless:#{document_link.paperless_document_id}",
+          source: "paperless",
+          amount: total_amount,
+          currency: default_currency, # Import's helper: account&.currency || family.currency
+          date: purchase_date,
+          name: payee.presence || document_link.title.presence ||
+                document_link.original_filename.presence || "Receipt",
+          allow_heuristic_matching: false
+        )
+        # Attach to the import so Import#revert unwinds it (and so the entry is
+        # protected from provider syncs like every other import-written entry).
+        entry.update!(import: self, import_locked: true)
+        split_into_line_items!(entry) if line_items_split?
+      end
     end
   end
 
