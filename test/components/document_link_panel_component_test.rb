@@ -4,7 +4,7 @@ class DocumentLinkPanelComponentTest < ViewComponent::TestCase
   # Ruling 7 (M1): ViewComponent::TestCase has no route helpers (and no
   # delegation to the view context) — resolve them through url_helpers, the
   # idiom the repo already uses (trade_republic/account_editor_component_test.rb).
-  test "renders a linked document with its thumbnail frame and unlink action" do
+  test "renders a linked document with its thumbnail and unlink action" do
     entry = entries(:transaction)
     link = document_links(:linked_receipt)
     routes = Rails.application.routes.url_helpers

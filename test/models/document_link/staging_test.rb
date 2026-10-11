@@ -33,6 +33,19 @@ class DocumentLink::StagingTest < ActiveSupport::TestCase
     end
   end
 
+  test "delete_staged! never moves the row's status (Ruling M3/M1 review finding 4)" do
+    with_env_overrides(@env) do
+      @link.stage!(io: StringIO.new("x"), filename: "a.pdf", content_type: "application/pdf")
+      # Move the row to a status the old implementation would have clobbered
+      # back to itself (the pre-ruling fence wrote `to: status`); update_columns
+      # bypasses callbacks so the fixture row really is `linked` here.
+      @link.update_columns(status: "linked")
+      assert @link.reload.delete_staged!
+      assert_equal "linked", @link.reload.status
+      assert_nil @link.staged_path
+    end
+  end
+
   test "delete_staged! removes the file and clears staged_path" do
     with_env_overrides(@env) do
       @link.stage!(io: StringIO.new("x"), filename: "a.pdf", content_type: "application/pdf")

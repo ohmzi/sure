@@ -21,6 +21,12 @@ class Paperless::ContractTest < ActiveSupport::TestCase
       assert client.configured?
       assert_kind_of Integer, client.tag_id("ohmzbudget")
       assert_raises(Paperless::Error) { client.task("00000000-0000-0000-0000-000000000000") }
+      # Ruling 12 (M1): the read endpoints, exercised cheaply - a nonexistent id
+      # must surface the pinned :not_found on both #document and #file. The happy
+      # path needs a document in the live container (none is guaranteed here), so
+      # those success shapes stay cassette-covered only - recorded narrow coverage.
+      assert_equal :not_found, assert_raises(Paperless::Error) { client.document(999_999_999) }.code
+      assert_equal :not_found, assert_raises(Paperless::Error) { client.file(999_999_999, kind: :original) }.code
     end
   ensure
     WebMock.disable_net_connect!
