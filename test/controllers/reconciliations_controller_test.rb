@@ -262,4 +262,47 @@ class ReconciliationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "suggested", link.reload.status
   end
+
+  # (Ruling M3-C2 R5, 2026-10-11 close-out) P-m3-1's controller fallbacks: the
+  # inbox renders from persisted state and both actions answer honestly when
+  # paperless is down.
+  test "the inbox still renders from persisted state when paperless is down" do
+    _entry, link = suggested_link
+    stub_paperless_outage
+
+    get reconciliations_url
+
+    assert_response :success
+    assert_select "turbo-frame##{ActionView::RecordIdentifier.dom_id(link)}", count: 1
+    assert_match I18n.t("reconciliations.result.candidates_unavailable"), response.body
+  end
+
+  test "linking answers honestly when paperless is down" do
+    entry, link = suggested_link
+    stub_paperless_outage
+
+    post link_reconciliation_url(link, entry_id: entry.id)
+
+    assert_redirected_to reconciliations_url
+    assert_equal I18n.t("reconciliations.link.paperless_unavailable"), flash[:alert]
+    assert_equal "suggested", link.reload.status
+    assert_nil link.entry
+  end
+
+  test "dismissing answers honestly when paperless is down" do
+    _entry, link = suggested_link
+    stub_paperless_outage
+
+    post dismiss_reconciliation_url(link)
+
+    assert_redirected_to reconciliations_url
+    assert_equal I18n.t("reconciliations.dismiss.paperless_unavailable"), flash[:alert]
+    assert_equal "suggested", link.reload.status
+  end
+
+  private
+    def stub_paperless_outage
+      Paperless::Client.any_instance.stubs(:document)
+        .raises(Paperless::Error.new("paperless unreachable", code: :unreachable))
+    end
 end

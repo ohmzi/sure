@@ -73,6 +73,32 @@ class ReceiptMatcherJobTest < ActiveJob::TestCase
     assert_nil link.confidence
   end
 
+  # (Ruling M3-C2 R5, 2026-10-11 close-out) P-m3-1's per-link rescue: one
+  # raising paperless call must not abort the remaining links.
+  test "a raising paperless call does not abort the remaining links" do
+    create_transaction(account: @account, date: Date.current, amount: 55, name: "Starbucks Coffee")
+    raising = DocumentLink.create!(
+      family: @family, source: "receipt", status: "unlinked",
+      paperless_document_id: 501, title: "Outage receipt"
+    )
+    healthy = DocumentLink.create!(
+      family: @family, source: "receipt", status: "unlinked",
+      paperless_document_id: 502, title: "Healthy receipt"
+    )
+
+    # The bare stub answers every other document (including the
+    # unlinked_receipt fixture, id 9001); the with-stub raises for 501 only.
+    Paperless::Client.any_instance.stubs(:document)
+      .returns(stub(content: RECEIPT, created: Date.current, id: 502))
+    Paperless::Client.any_instance.stubs(:document).with(501)
+      .raises(Paperless::Error.new("paperless unreachable", code: :unreachable))
+
+    ReceiptMatcherJob.perform_now(@family.id)
+
+    assert_equal "unlinked", raising.reload.status, "the raising link is left for the next tick"
+    assert_equal "suggested", healthy.reload.status, "one outage must not abort the remaining links"
+  end
+
   # (Ruling M3-C2 R1, 2026-10-11 close-out) the job carries no viewer; even with
   # a Current.user present in-process it must score the family-wide candidate
   # set (viewer: nil), not the ambient user's.
