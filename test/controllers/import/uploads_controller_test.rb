@@ -155,4 +155,14 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
     assert_equal "Must be a valid OFX/QFX file", flash[:alert]
   end
+
+  test "the OFX upload screen renders the OFX form" do
+    import = OfxImport.create!(family: users(:family_admin).family)
+
+    get import_upload_url(import)
+
+    assert_response :success
+    assert_select "input#import_import_file_ofx[accept='.ofx,.qfx']", count: 1
+    assert_select "select[name='import[account_id]']", count: 1
+  end
 end

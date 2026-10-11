@@ -30,7 +30,7 @@
     <% end %>
 
     <%
-      financial_tool_types = %w[MintImport ActualImport YnabImport QifImport SureImport DocumentImport PdfImport]
+      financial_tool_types = %w[MintImport ActualImport YnabImport QifImport OfxImport SureImport DocumentImport PdfImport]
       import_type = params[:type].presence || @pending_import&.type
       active_tab = import_type.present? && !import_type.in?(financial_tool_types) ? "raw_data" : "financial_tools"
     %>
@@ -117,6 +117,16 @@
                 icon_bg_class: "bg-teal-500/5",
                 icon_text_class: "text-teal-500",
                 label: t(".import_qif"),
+                enabled: true %>
+            <% end %>
+
+            <% if params[:type].nil? || params[:type] == "OfxImport" %>
+              <%= render "imports/import_option",
+                type: "OfxImport",
+                icon_name: "file-digit",
+                icon_bg_class: "bg-sky-500/5",
+                icon_text_class: "text-sky-500",
+                label: t(".import_ofx"),
                 enabled: true %>
             <% end %>
 
