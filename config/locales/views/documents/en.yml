@@ -14,11 +14,9 @@ en:
       unlinked: Document unlinked from the entry.
     retry:
       queued: Retrying the upload.
-      failed: The upload is held; retry once paperless is reachable.
     destroy:
       removed: Document removed.
     card:
-      loading: Loading…
       retry: Retry
       remove: Remove
     duplicate:
