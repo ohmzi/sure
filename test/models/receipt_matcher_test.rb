@@ -98,6 +98,15 @@ class ReceiptMatcherTest < ActiveSupport::TestCase
     assert_not_includes result.candidates.map(&:entry), foreign
   end
 
+  test "an entry exactly three days away is still a candidate (the window's edge is inclusive)" do
+    entry = create_transaction(account: @account, date: Date.current + 3, amount: 55, name: "Starbucks Coffee")
+    result = ReceiptMatcher.call(link_for("Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00"))
+
+    assert result.suggested?
+    assert_equal [ entry ], result.candidates.map(&:entry)
+    assert_equal 3, result.best.day_distance
+  end
+
   # (Ruling M3-C2 R3, 2026-10-11 close-out) spec 8.3 / §15.7 score precedence:
   # exact cents → date proximity → normalized-payee fuzzy. These two tests pin
   # candidate.rb's rank_key order across differing day distances; swapping the
