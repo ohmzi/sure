@@ -68,9 +68,29 @@ class ImportsController < ApplicationController
       return redirect_to import_path(import), alert: t(".not_retryable")
     end
 
+    previous_state = statement.extraction_state
     statement.update!(extraction_state: :not_attempted)
-    StatementOcrJob.perform_later(import.id)
-    redirect_to import_path(import), notice: t(".retried")
+
+    # (Ruling M2-C2, 2026-10-11 close-out) M1 Ruling 11's pattern: a transient
+    # enqueue failure (Redis/Sidekiq down) must not strand the statement at
+    # not_attempted, which the import page renders with no retry affordance.
+    # Hold it back to the state that offered the retry and surface the failure.
+    begin
+      StatementOcrJob.perform_later(import.id)
+    rescue => e
+      statement.update!(extraction_state: previous_state)
+      DebugLogEntry.capture(
+        category: "import",
+        level: "warn",
+        message: "StatementOcrJob enqueue failed: #{e.class}: #{e.message}",
+        source: "statement_ocr_job",
+        family: import.family,
+        metadata: { import_id: import.id, account_statement_id: statement.id, reason: "enqueue_failed" }
+      )
+      redirect_to import_path(import), alert: t(".retry_enqueue_failed")
+    else
+      redirect_to import_path(import), notice: t(".retried")
+    end
   end
 
   def cancel
@@ -239,7 +259,27 @@ class ImportsController < ApplicationController
         # (Ruling P-m2-2, 2026-10-10 pre-flight) On a duplicate, create_from_upload!
         # returns the reused persisted import — skip the enqueue so one PDF is never
         # posted to paperless twice.
-        StatementOcrJob.perform_later(pdf_import.id) if pdf_import.previously_new_record?
+        if pdf_import.previously_new_record?
+          begin
+            StatementOcrJob.perform_later(pdf_import.id)
+          rescue => e
+            # (Ruling M2-C2, 2026-10-11 close-out) M1 Ruling 11's pattern: a
+            # transient enqueue failure must not strand the new statement on a
+            # "Processing your PDF" screen with no retry. Hold it in the
+            # retryable, visible extraction_failed state - the import page then
+            # offers "Try again" - and surface the failure.
+            pdf_import.account_statement&.update!(extraction_state: :extraction_failed)
+            DebugLogEntry.capture(
+              category: "import",
+              level: "warn",
+              message: "StatementOcrJob enqueue failed: #{e.class}: #{e.message}",
+              source: "statement_ocr_job",
+              family: pdf_import.family,
+              metadata: { import_id: pdf_import.id, account_statement_id: pdf_import.account_statement_id, reason: "enqueue_failed" }
+            )
+            return redirect_to import_path(pdf_import), alert: t("imports.create.statement_ocr_enqueue_failed")
+          end
+        end
       end
 
       redirect_to import_path(pdf_import), notice: t("imports.create.pdf_processing")

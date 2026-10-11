@@ -779,6 +779,27 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   end
 
+  test "a statement OCR enqueue failure leaves the statement retryable, not stuck" do
+    # (Ruling M2-C2, 2026-10-11 close-out): a raising enqueue (Redis/Sidekiq
+    # down) must hold the statement in the visible, retryable extraction_failed
+    # state - the import page then offers "Try again" - instead of stranding it
+    # on the "Processing your PDF" screen.
+    Provider::Registry.stubs(:preferred_llm_provider).returns(nil)
+    StatementOcrJob.stubs(:perform_later).raises(StandardError, "redis down")
+
+    post imports_url, params: {
+      import: { import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf") }
+    }
+
+    import = PdfImport.order(:created_at).last
+    assert_equal "extraction_failed", import.account_statement.extraction_state
+    assert_equal I18n.t("imports.create.statement_ocr_enqueue_failed"), flash[:alert]
+
+    get import_url(import)
+    assert_response :success
+    assert_select "form[action=?]", retry_statement_ocr_import_path(import), count: 1
+  end
+
   test "a needs_template statement import shows the template banner" do
     import = imports(:pdf)
     import.update!(account: accounts(:depository))
@@ -892,6 +913,58 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to import_path(import)
     assert statement.reload.not_attempted?
+  end
+
+  test "a failing retry enqueue restores the retryable state and surfaces it" do
+    # (Ruling M2-C2, 2026-10-11 close-out): if the re-enqueue raises, the
+    # statement must hold back in the state that offered the retry (not
+    # not_attempted, which renders no retry affordance) and the failure must
+    # surface.
+    import = imports(:pdf)
+    import.update!(account: accounts(:depository))
+    statement = AccountStatement.create_from_upload!(
+      family: import.family,
+      account: import.account,
+      file: Rack::Test::UploadedFile.new(
+        file_fixture("imports/sample_bank_statement.pdf"),
+        "application/pdf", true, original_filename: "statement.pdf"
+      )
+    )
+    statement.update!(extraction_state: :extraction_failed)
+    import.update!(account_statement: statement)
+
+    StatementOcrJob.stubs(:perform_later).raises(StandardError, "redis down")
+
+    post retry_statement_ocr_import_path(import)
+
+    assert_redirected_to import_path(import)
+    assert_equal "extraction_failed", statement.reload.extraction_state
+    assert_equal I18n.t("imports.retry_statement_ocr.retry_enqueue_failed"), flash[:alert]
+  end
+
+  test "the extraction_failed banner hides the retry from a read-only viewer" do
+    # (Ruling M2-C8, 2026-10-11 close-out): the action refusals are pinned; this
+    # pins the view-level hiding - a viewer who cannot manage the statement
+    # sees the explanation, but no action that would be refused.
+    import = imports(:pdf)
+    import.update!(account: accounts(:credit_card))
+    statement = AccountStatement.create_from_upload!(
+      family: import.family,
+      account: import.account,
+      file: Rack::Test::UploadedFile.new(
+        file_fixture("imports/sample_bank_statement.pdf"),
+        "application/pdf", true, original_filename: "statement.pdf"
+      )
+    )
+    statement.update!(extraction_state: :extraction_failed)
+    import.update!(account_statement: statement)
+
+    sign_in users(:family_member)
+    get import_url(import)
+
+    assert_response :success
+    assert_select "##{dom_id(statement)}", count: 1
+    assert_select "form[action=?]", retry_statement_ocr_import_path(import), count: 0
   end
 
   private

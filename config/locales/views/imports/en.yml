@@ -464,6 +464,9 @@ en:
       ndjson_uploaded: NDJSON file uploaded successfully.
       pdf_too_large: PDF file is too large. Maximum size is %{max_size}MB.
       pdf_processing: Your PDF is being processed. You will receive an email when analysis is complete.
+      # (Ruling M2-C2, 2026-10-11 close-out): alert for a failed StatementOcrJob
+      # enqueue; the statement is held in the retryable extraction_failed state.
+      statement_ocr_enqueue_failed: We couldn't queue the OCR for this statement — it is archived and safe. You can try again.
       invalid_pdf: The uploaded file is not a valid PDF.
       missing_upload: We didn't receive your file. Please try uploading it again.
       duplicate_pdf_unavailable: This PDF is already stored as a statement you cannot access.
@@ -558,6 +561,9 @@ en:
       # Ruling M2-L4: the state guard's alert (only extraction_failed /
       # needs_template may be re-driven).
       not_retryable: This statement is not awaiting a re-read.
+      # (Ruling M2-C2, 2026-10-11 close-out): the failed enqueue's alert; the
+      # statement is held back in the state that offered the retry.
+      retry_enqueue_failed: We couldn't queue the OCR — the statement is still ready to retry.
     pdf_import:
       processing_title: Processing your PDF
       processing_description: We're analyzing your document using AI. This may take a moment. You'll receive an email when the analysis is complete.
