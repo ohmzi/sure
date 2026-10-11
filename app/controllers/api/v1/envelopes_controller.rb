@@ -69,10 +69,24 @@ class Api::V1::EnvelopesController < Api::V1::BaseController
 
   def destroy
     budget = @envelope.budget
+    # Ruling M4-L2 (2026-10-10 close-out): a parent whose children hold their
+    # own allocations is refused. Its stored figure already contains those
+    # children (M4a's Budget#assigned_total), so destroying it silently
+    # double-counts them -- RTA overstated -- and the row reappears at 0 on
+    # the month's next bootstrap, so the old 200 "deleted" contract was false.
+    # No cascade, no silent money moves: the caller must move or clear the
+    # children first.
+    if @envelope.subcategories.reject(&:inherits_parent_budget?).any?
+      return render_validation_error("Move or clear its children first")
+    end
+
     @envelope.destroy!
     Budget::Recalculate.call(family: budget.family, budget: budget)
     budget.sync_budgeted_spending!
-    render_json({ message: "Envelope deleted successfully" }, status: :ok)
+    # Ruling M4-L2: the family category is durable; only the month's derived
+    # row goes, and it returns at 0 on the month's next bootstrap. The message
+    # states the contract the response actually honours.
+    render_json({ message: "Envelope cleared for this month" }, status: :ok)
   end
 
   private

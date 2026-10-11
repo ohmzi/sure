@@ -40,6 +40,46 @@ class Api::V1::EnvelopesControllerTest < ActionDispatch::IntegrationTest
       delete api_v1_envelope_url(@envelope.id), headers: api_headers(@write_key), as: :json
     end
     assert_response :success
+    # Ruling M4-L2 (2026-10-10 close-out): the family category is durable; only
+    # the month's derived row goes, and it returns at 0 on the next bootstrap.
+    assert_equal "Envelope cleared for this month", JSON.parse(response.body)["message"]
+  end
+
+  # Ruling M4-L2 (2026-10-10 close-out): a parent whose children hold their
+  # own allocations is refused -- destroying it would silently double-count
+  # the children (RTA overstated), and the row returns at 0 on the next
+  # bootstrap anyway. No row may be destroyed and no money may move.
+  test "refuses to delete a parent with non-inheriting children" do
+    child = @budget.budget_categories.create!(
+      category: categories(:subcategory), budgeted_spending: 100, currency: "USD"
+    )
+
+    assert_no_difference "BudgetCategory.count" do
+      delete api_v1_envelope_url(@envelope.id), headers: api_headers(@write_key), as: :json
+    end
+
+    assert_response :unprocessable_entity
+    body = JSON.parse(response.body)
+    assert_equal "validation_failed", body["error"]
+    assert_equal "Move or clear its children first", body["message"]
+    assert BudgetCategory.exists?(@envelope.id)
+    assert_equal 300, @envelope.reload.budgeted_spending
+    assert_equal 100, child.reload.budgeted_spending
+  end
+
+  # Ruling M4-L2 (2026-10-10 close-out): the month envelope row is derived
+  # state -- the documented re-bootstrap behaviour the response message names.
+  test "a deleted envelope is re-bootstrapped at zero for the month" do
+    delete api_v1_envelope_url(@envelope.id), headers: api_headers(@write_key), as: :json
+
+    assert_response :success
+    assert_equal "Envelope cleared for this month", JSON.parse(response.body)["message"]
+    assert_nil BudgetCategory.find_by(budget_id: @budget.id, category_id: categories(:food_and_drink).id)
+
+    Budget.find_or_bootstrap(@family, start_date: @budget.start_date)
+
+    reborn = BudgetCategory.find_by!(budget_id: @budget.id, category_id: categories(:food_and_drink).id)
+    assert_equal 0, reborn.budgeted_spending
   end
 
   test "rejects a write with only read scope" do
