@@ -42,6 +42,16 @@ class ReceiptImport < Import
 
   def requires_csv_workflow? = false
 
+  # The wizard's step 2 stages the bytes on the DocumentLink, so the base
+  # `uploaded?` (raw_file_str.present?) is false for a receipt and
+  # ImportsController#show would take its non-CSV early return, bouncing every
+  # visit to the wizard's finish (import_path(draft)) into the CSV upload
+  # screen. The staged link IS the upload — the same override shape
+  # PdfImport#uploaded? and SureImport#uploaded? use.
+  # (M7 Task 5 deviation, recorded: the plan's file lists assign no task this
+  # unblock, and Task 7's Step 5 expects `GET import_path(draft)` to render.)
+  def uploaded? = document_link.present?
+
   # The clean screen edits these two per row; the receipt date is the draft's,
   # not each item's.
   def column_keys = %i[name amount]

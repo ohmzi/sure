@@ -1,6 +1,15 @@
 ---
 en:
   import:
+    accounts:
+      show:
+        title: "Which account is this from?"
+        subtitle: "Choose the account this document belongs to."
+        account_label: "Account"
+        placeholder: "Select an account"
+        finish: "Finish"
+        mandatory_hint: "Pick an account to file this document — there's no default yet."
+        step: "Step %{step} of %{total}"
     qif_category_selections:
       update:
         success: "Categories and tags saved."
@@ -394,6 +403,7 @@ en:
       map: Map
       confirm: Confirm
       select: Select
+      account: Account
       label: "Step %{step}"
       progress: "Step %{step} of %{total}"
     empty:

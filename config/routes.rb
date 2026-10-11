@@ -532,6 +532,9 @@ Rails.application.routes.draw do
     resource :confirm, only: :show, module: :import
     resource :qif_category_selection, only: %i[show update], module: :import
 
+    # M7: the document wizard's account-confirm step (screen 3).
+    resource :account, only: %i[show update], module: :import
+
     resources :rows, only: %i[show update], module: :import
     resources :mappings, only: :update, module: :import
   end

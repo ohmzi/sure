@@ -7,11 +7,12 @@
   ]
 elsif import.is_a?(ReceiptImport)
   # The receipt/bill draft: upload is step 2 of the wizard, so its step list
-  # starts at the upload that already happened. Interim until Task 5 inserts the
-  # account step ahead of Confirm.
+  # starts at the upload that already happened; the account confirm (step 3)
+  # sits between it and Confirm.
   [
     { name: t("imports.steps.upload", default: "Upload"), path: nil, is_complete: import.document_link.present?, step_number: 1 },
-    { name: t("imports.steps.confirm", default: "Confirm"), path: import_path(import), is_complete: import.complete?, step_number: 2 }
+    { name: t("imports.steps.account", default: "Account"), path: import.account ? nil : import_account_path(import), is_complete: import.account.present?, step_number: 2 },
+    { name: t("imports.steps.confirm", default: "Confirm"), path: import_path(import), is_complete: import.complete?, step_number: 3 }
   ]
 elsif import.is_a?(PdfImport)
   # PDF imports have a simplified flow: Upload -> Confirm

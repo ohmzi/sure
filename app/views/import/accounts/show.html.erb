@@ -1,0 +1,28 @@
+<%# Step 3 of the wizard (the account confirm). The labels inside the container's
+    block use absolute i18n keys: a relative t() there resolves against
+    accounts.new.container (the layout partial being rendered), not
+    import.accounts.show — see the same note on document_wizards/new.html.erb.
+    The title IS in the locals hash, which is evaluated before the layout is
+    entered, so its relative key is correct. %>
+<%= render layout: "accounts/new/container", locals: { title: t(".title"), back_path: new_document_wizard_path(source: params[:source].presence || "receipt_or_bill") } do %>
+  <div class="text-sm p-2 space-y-4">
+    <p class="text-secondary"><%= t("import.accounts.show.subtitle") %></p>
+    <%# (repaired 2026-10-10, verifier F1) `model:` + `scope:` pin the param name
+        `import[account_id]` (a ReceiptImport's model_name would otherwise scope
+        to receipt_import); the native select is what the controller test's
+        `select[...] option[selected]` assertion and Task 11's Capybara `select`
+        both drive. The DS::Select combobox (collection_select) was rejected:
+        it renders a hidden input named `account_id` under this objectless form
+        and drops the pinned `name:` html option. %>
+    <%= styled_form_with model: @import, scope: :import, url: import_account_path(@import), method: :patch,
+                         data: { turbo_frame: :_top } do |form| %>
+      <%= form.select :account_id, @accounts.pluck(:name, :id),
+            { include_blank: t("import.accounts.show.placeholder"), selected: @prefill.selected_id, label: t("import.accounts.show.account_label") } %>
+      <% if @prefill.none? %>
+        <p class="text-xs text-secondary"><%= t("import.accounts.show.mandatory_hint") %></p>
+      <% end %>
+      <%= form.submit t("import.accounts.show.finish") %>
+    <% end %>
+    <p class="text-xs text-subdued"><%= t("import.accounts.show.step", step: 3, total: 3) %></p>
+  </div>
+<% end %>

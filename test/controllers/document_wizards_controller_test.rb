@@ -22,7 +22,7 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
     end
 
     draft = ReceiptImport.order(:created_at).last
-    assert_redirected_to import_path(draft)
+    assert_redirected_to import_account_path(draft)
     assert_equal "receipt", draft.document_link.source
     assert_equal "awaiting_ocr", draft.understanding_state
   end

@@ -44,7 +44,7 @@ class DocumentWizardsController < ApplicationController
       link = DocumentLink::Intake.call(family: Current.family, uploader: Current.user, file: file,
                                        source: receipt_bill_source(file))
       draft = ReceiptImport.create_from_document_link!(document_link: link)
-      redirect_to import_path(draft) # Task 5 re-points this at the account-confirm step
+      redirect_to import_account_path(draft) # step 3; the wizard ends there (locked decision 11)
     rescue DocumentLink::Intake::Duplicate
       redirect_to new_document_wizard_path(source: wizard_source), alert: t(".duplicate")
     rescue DocumentLink::Staging::TooLargeError
