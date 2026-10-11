@@ -523,6 +523,7 @@ Rails.application.routes.draw do
       put :apply_template
       post :cancel
       get :summary
+      post :retry_statement_ocr
     end
 
     resource :upload, only: %i[show update], module: :import

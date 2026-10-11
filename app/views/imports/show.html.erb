@@ -5,7 +5,7 @@
 <%= content_for :previous_path, @import.is_a?(PdfImport) ? imports_path : import_confirm_path(@import) %>
 
 <% if @import.is_a?(PdfImport) %>
-  <%= render "imports/pdf_import", import: @import %>
+  <%= render(@import.account_statement&.needs_template? || @import.account_statement&.extraction_failed? ? "imports/needs_template" : "imports/pdf_import", import: @import) %>
 <% elsif @import.importing? %>
   <%= render "imports/importing", import: @import %>
 <% elsif @import.complete? %>

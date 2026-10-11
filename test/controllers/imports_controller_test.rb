@@ -779,6 +779,71 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   end
 
+  test "a needs_template statement import shows the template banner" do
+    import = imports(:pdf)
+    import.update!(account: accounts(:depository))
+    statement = AccountStatement.create_from_upload!(
+      family: import.family,
+      account: import.account,
+      file: Rack::Test::UploadedFile.new(
+        file_fixture("imports/sample_bank_statement.pdf"),
+        "application/pdf", true, original_filename: "statement.pdf"
+      )
+    )
+    statement.update!(extraction_state: :needs_template)
+    import.update!(account_statement: statement)
+
+    get import_url(import)
+
+    assert_response :success
+    assert_select "##{dom_id(statement)}", count: 1
+    assert_select "a[href=?]", account_statement_path(statement), count: 1
+    assert_select "form[action=?]", retry_statement_ocr_import_path(import), count: 0
+  end
+
+  test "an extraction_failed statement import shows the banner and a retry" do
+    import = imports(:pdf)
+    import.update!(account: accounts(:depository))
+    statement = AccountStatement.create_from_upload!(
+      family: import.family,
+      account: import.account,
+      file: Rack::Test::UploadedFile.new(
+        file_fixture("imports/sample_bank_statement.pdf"),
+        "application/pdf", true, original_filename: "statement.pdf"
+      )
+    )
+    statement.update!(extraction_state: :extraction_failed)
+    import.update!(account_statement: statement)
+
+    get import_url(import)
+
+    assert_response :success
+    assert_select "##{dom_id(statement)}", count: 1
+    assert_select "form[action=?]", retry_statement_ocr_import_path(import), count: 1
+  end
+
+  test "retry_statement_ocr clears the state and re-enqueues the job" do
+    import = imports(:pdf)
+    import.update!(account: accounts(:depository))
+    statement = AccountStatement.create_from_upload!(
+      family: import.family,
+      account: import.account,
+      file: Rack::Test::UploadedFile.new(
+        file_fixture("imports/sample_bank_statement.pdf"),
+        "application/pdf", true, original_filename: "statement.pdf"
+      )
+    )
+    statement.update!(extraction_state: :extraction_failed)
+    import.update!(account_statement: statement)
+
+    assert_enqueued_with(job: StatementOcrJob, args: [ import.id ]) do
+      post retry_statement_ocr_import_path(import)
+    end
+
+    assert_redirected_to import_path(import)
+    assert statement.reload.not_attempted?
+  end
+
   private
     def qif_import_with_embedded_account(name)
       import = QifImport.create!(family: families(:dylan_family))

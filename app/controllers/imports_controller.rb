@@ -51,6 +51,15 @@ class ImportsController < ApplicationController
     raise ActiveRecord::RecordNotFound unless @import.is_a?(PdfImport)
   end
 
+  def retry_statement_ocr
+    import = Current.family.imports.find(params[:id])
+    return redirect_to import_path(import), alert: t("accounts.not_authorized") unless AccountStatement.statement_manager?(Current.user)
+
+    import.account_statement&.update!(extraction_state: :not_attempted)
+    StatementOcrJob.perform_later(import.id)
+    redirect_to import_path(import), notice: t(".retried")
+  end
+
   def cancel
     if @import.force_fail!
       redirect_to imports_path, notice: t(".cancelled")
