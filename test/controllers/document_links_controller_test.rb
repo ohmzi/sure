@@ -238,6 +238,72 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     DocumentLink::Staging.delete(path)
   end
 
+  # -- the viewer modal (M8 Task 4) -------------------------------------------
+
+  test "index rows link into the viewer carrying the page's filters" do
+    get documents_path(source: "bill")
+
+    assert_response :success
+    # `viewer_params` rides in the URL, so the modal's prev/next recompute over
+    # the same filtered list the index listed.
+    assert_select "a[href='#{viewer_document_path(document_links(:held_bill), source: "bill")}']"
+  end
+
+  test "the viewer renders a pdf iframe over the proxy for a settled pdf" do
+    link = document_links(:linked_receipt)
+    get viewer_document_path(link)
+
+    assert_response :success
+    assert_select "turbo-frame#modal"
+    assert_select "iframe[src='#{file_document_path(link, kind: "original")}']"
+  end
+
+  test "the viewer renders a lightbox image for a photo" do
+    get viewer_document_path(document_links(:unlinked_receipt))
+    assert_select "img[data-document-viewer-target='image'][src='#{file_document_path(document_links(:unlinked_receipt), kind: "original")}']"
+    assert_select "[data-action~='wheel->document-viewer#zoom']"
+  end
+
+  test "the viewer states a missing paperless copy honestly instead of framing it" do
+    get viewer_document_path(document_links(:queued_receipt))
+
+    assert_response :success
+    # (adapted 2026-10-11, Task 4) the fence's `assert_no_selector` / `assert_text`
+    # are Capybara helpers and do not exist in an ActionDispatch::IntegrationTest;
+    # the integration equivalents pin the same two things at equal strength.
+    assert_select "iframe", count: 0
+    assert_match I18n.t("document_browser.viewer.unavailable_title"), response.body
+  end
+
+  test "the viewer computes prev/next over the filtered list" do
+    # (repaired 2026-10-11, verifier F3) no fixture row pins created_at, so
+    # EVERY row the default receipt|bill filter can see is pinned here —
+    # pinning only the asserted pair left the load-time rows (held_bill,
+    # queued_receipt, understood_receipt_link) sorting ahead of `newer`, which
+    # made its "nothing newer" assertion false.
+    older = document_links(:unlinked_receipt)
+    newer = document_links(:linked_receipt)
+    document_links(:held_bill).update_columns(created_at: 3.days.ago)
+    document_links(:queued_receipt).update_columns(created_at: 4.days.ago)
+    document_links(:understood_receipt_link).update_columns(created_at: 5.days.ago)
+    older.update_columns(created_at: 2.days.ago)
+    newer.update_columns(created_at: 1.day.ago)
+
+    get viewer_document_path(newer)
+    assert_select "a[data-viewer-next][href='#{viewer_document_path(older)}']"
+    assert_select "a[data-viewer-previous]", count: 0 # newest row: nothing newer
+
+    # The mirror makes the walk discriminating in both directions.
+    get viewer_document_path(older)
+    assert_select "a[data-viewer-previous][href='#{viewer_document_path(newer)}']"
+    assert_select "a[data-viewer-next][href='#{viewer_document_path(document_links(:held_bill))}']"
+  end
+
+  test "an id outside the family's links is a 404, never a leak" do
+    get viewer_document_path(SecureRandom.uuid) # set_link scopes to Current.family; a stale/foreign id dies there
+    assert_response :not_found
+  end
+
   test "destroy removes the row and its staged bytes" do
     DocumentLink::Staging.write(io: StringIO.new("x"), id: @link.id)
     @link.update_columns(staged_path: DocumentLink::Staging.root.join(@link.id).to_s)

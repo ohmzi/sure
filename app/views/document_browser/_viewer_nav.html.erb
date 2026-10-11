@@ -1,0 +1,24 @@
+<%# locals: (direction:, url: nil, title: nil) %>
+<%# The plan pins absolute i18n keys here: a relative t() inside this partial
+    resolves under document_browser.viewer_nav, not document_browser.viewer
+    (the M7 Task 3 gotcha). `title:` and `aria: { label: }` carry the direction
+    so the affordance reads the same however it is reached; the neighbour's own
+    title shows beside the chevron on wide screens. %>
+<% label = t("document_browser.viewer.#{direction}") %>
+<% chevron = direction == :previous ? "chevron-left" : "chevron-right" %>
+<% if url.present? %>
+  <%= link_to url,
+        class: "flex min-w-0 items-center gap-1.5 rounded-lg border border-secondary px-2 py-1.5 text-sm text-primary hover:bg-container-inset-hover",
+        title: label,
+        aria: { label: label },
+        data: { turbo_frame: "modal", "viewer-#{direction}": true } do %>
+    <%= icon(chevron, size: "sm") %>
+    <span class="hidden max-w-[12rem] truncate lg:inline"><%= title.presence || label %></span>
+  <% end %>
+<% else %>
+  <span class="flex items-center gap-1.5 rounded-lg border border-secondary px-2 py-1.5 text-sm opacity-50"
+        aria-hidden="true">
+    <%= icon(chevron, size: "sm") %>
+    <span class="hidden lg:inline"><%= label %></span>
+  </span>
+<% end %>

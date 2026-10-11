@@ -3,13 +3,15 @@
 class AccountStatementsController < ApplicationController
   include DocumentBrowser
 
-  before_action :set_statement, only: %i[show update destroy link unlink reject]
+  before_action :set_statement, only: %i[show viewer update destroy link unlink reject]
   before_action :ensure_statement_manager!, only: %i[index create update destroy link unlink reject]
 
   def index
     @filters = document_browser_filters
     @pagy, @statements = pagy(account_statement_search.relation, limit: safe_per_page(20))
-    @rows = @statements.map { |statement| DocumentBrowser::Row.for_account_statement(statement) }
+    # The viewer URL carries the page's query string (M8 locked decision 3), so
+    # the modal's prev/next recompute over the same filtered list.
+    @rows = @statements.map { |statement| DocumentBrowser::Row.for_account_statement(statement, viewer_url: viewer_account_statement_path(statement, document_browser_viewer_params)) }
     @total_storage_bytes = visible_storage_scope.sum(:byte_size)
     @accounts = Current.user.accessible_accounts.visible.alphabetically
     @breadcrumbs = [
@@ -20,6 +22,22 @@ class AccountStatementsController < ApplicationController
     # 1): default layout, no settings chrome. One list over the vault's
     # per-user visible scope — the unmatched/linked split is replaced by the
     # review/extraction facets (locked decision 9).
+  end
+
+  # GET /account_statements/:id/viewer — the modal (M8 Task 4). Prev/next
+  # recompute over the SAME filtered visible relation the index listed, so the
+  # walk can never desync from the list.
+  def viewer
+    # The modal does not link to itself: the row presenter is built without a
+    # viewer_url here (that field exists for the index rows).
+    @row = DocumentBrowser::Row.for_account_statement(@statement)
+    previous_statement, next_statement = document_browser_neighbours(@statement)
+    @previous_url = previous_statement && viewer_account_statement_path(previous_statement, document_browser_viewer_params)
+    @previous_title = previous_statement && statement_display_title(previous_statement)
+    @next_url = next_statement && viewer_account_statement_path(next_statement, document_browser_viewer_params)
+    @next_title = next_statement && statement_display_title(next_statement)
+    # The view lives with the rest of the page (see the index note above).
+    render "account_statements/viewer"
   end
 
   def show
@@ -131,8 +149,24 @@ class AccountStatementsController < ApplicationController
   private
 
     def account_statement_search
-      AccountStatement::Search.new(user: Current.user, family: Current.family, filters: @filters)
+      AccountStatement::Search.new(user: Current.user, family: Current.family, filters: document_browser_filters)
     end
+
+    # The walk is recomputed server-side over the same filtered visible
+    # relation the index listed (M8 locked decision 3): pagination can never
+    # desync it. A stale URL whose row is not visible renders no neighbours.
+    def document_browser_neighbours(statement)
+      ids = account_statement_search.relation.pluck(:id)
+      position = ids.index(statement.id)
+      return [ nil, nil ] unless position
+
+      [
+        (Current.family.account_statements.find(ids[position - 1]) if position.positive?),
+        (Current.family.account_statements.find(ids[position + 1]) if ids[position + 1])
+      ]
+    end
+
+    def statement_display_title(statement) = statement.filename
 
     # The vault's per-user visible scope (M8 Task 3): the storage figure covers
     # exactly the statements the signed-in user may see.

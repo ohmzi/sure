@@ -25,7 +25,7 @@ class DocumentLinksController < ApplicationController
   # is how M1's unfiltered archive stays reachable.
   DEFAULT_SOURCES = %w[receipt bill].freeze
 
-  before_action :set_link, only: %i[file link unlink retry destroy]
+  before_action :set_link, only: %i[file viewer link unlink retry destroy]
   before_action :require_document_copy!, only: %i[link unlink]
   before_action :require_non_guest!, only: %i[create link unlink retry destroy]
   rescue_from ActionController::ParameterMissing, with: :bad_request
@@ -34,13 +34,33 @@ class DocumentLinksController < ApplicationController
     @source_filter = archive_source_filter
     @filters = document_browser_filters
     @pagy, @links = pagy(document_browser_search.relation, limit: safe_per_page(20))
-    @rows = @links.map { |link| DocumentBrowser::Row.for_document_link(link) }
+    # The viewer URL carries the page's query string (M8 locked decision 3), so
+    # the modal's prev/next recompute over the same filtered list.
+    @rows = @links.map { |link| DocumentBrowser::Row.for_document_link(link, viewer_url: viewer_document_path(link, document_browser_viewer_params)) }
     @token_invalid_at = Paperless.token_invalid_at
     @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("documents.index.receipts_bills_title"), documents_path ] ]
     # Ruling 4: explicit view path — implicit render under this controller would
     # resolve to document_links/index, but spec §6 and Task 8 pin the views at
     # app/views/documents/.
     render "documents/index" # main chrome: this page is a first-class destination
+  end
+
+  # GET /documents/:id/viewer — the modal. Prev/next recompute over the SAME
+  # relation the index listed (M8 locked decision 3), so the walk is correct
+  # across pagination and filters.
+  def viewer
+    # The modal does not link to itself: the row presenter is built without a
+    # viewer_url here (that field exists for the index rows).
+    @row = DocumentBrowser::Row.for_document_link(@link)
+    previous_link, next_link = document_browser_neighbours(@link)
+    @previous_url = previous_link && viewer_document_path(previous_link, document_browser_viewer_params)
+    @previous_title = previous_link && link_display_title(previous_link)
+    @next_url = next_link && viewer_document_path(next_link, document_browser_viewer_params)
+    @next_title = next_link && link_display_title(next_link)
+    # Ruling 4 (M8 Task 2, restated): the implicit render under this controller
+    # would resolve to document_links/viewer; the view lives at
+    # app/views/documents/ with the rest of the page.
+    render "documents/viewer"
   end
 
   def create
@@ -172,8 +192,25 @@ class DocumentLinksController < ApplicationController
     end
 
     def document_browser_search
-      DocumentLink::Search.new(family: Current.family, filters: @filters, sources: @source_filter)
+      DocumentLink::Search.new(family: Current.family, filters: document_browser_filters,
+                               sources: archive_source_filter)
     end
+
+    # The walk is recomputed server-side over the same filtered relation the
+    # index listed (M8 locked decision 3): pagination can never desync it. A
+    # stale URL whose row is not in the relation renders no neighbours.
+    def document_browser_neighbours(link)
+      ids = document_browser_search.relation.pluck(:id)
+      position = ids.index(link.id)
+      return [ nil, nil ] unless position
+
+      [
+        (Current.family.document_links.find(ids[position - 1]) if position.positive?),
+        (Current.family.document_links.find(ids[position + 1]) if ids[position + 1])
+      ]
+    end
+
+    def link_display_title(link) = link.title.presence || link.original_filename
 
     def set_link
       @link = Current.family.document_links.find(params[:id])

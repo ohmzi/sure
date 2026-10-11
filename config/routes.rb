@@ -550,6 +550,7 @@ Rails.application.routes.draw do
   resources :documents, controller: "document_links", only: %i[index create destroy] do
     member do
       get :file
+      get :viewer
       post :link
       post :unlink
       post :retry
@@ -720,6 +721,7 @@ Rails.application.routes.draw do
 
   resources :account_statements, only: %i[index show create update destroy] do
     member do
+      get :viewer
       patch :link
       patch :unlink
       patch :reject

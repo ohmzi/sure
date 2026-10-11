@@ -1,0 +1,39 @@
+<%# locals: (row:, previous_url: nil, previous_title: nil, next_url: nil, next_title: nil) %>
+<%= render DS::Dialog.new(width: "expanded", scrollable: false, content_class: "h-[85vh]") do |dialog| %>
+  <% dialog.with_header(title: row.title, subtitle: row.doc_type_label) %>
+  <div class="flex h-full min-h-0 flex-col gap-3"
+       data-controller="document-viewer"
+       data-action="keydown.left@window->document-viewer#previous keydown.right@window->document-viewer#next">
+    <div class="flex items-center justify-between gap-2">
+      <%= render "document_browser/viewer_nav", direction: :previous, url: previous_url, title: previous_title %>
+      <div class="flex items-center gap-2">
+        <% row.statuses.each do |status| %>
+          <%= render DS::Pill.new(label: status.label, tone: status.tone, marker: false) %>
+        <% end %>
+      </div>
+      <%= render "document_browser/viewer_nav", direction: :next, url: next_url, title: next_title %>
+    </div>
+
+    <% if row.file_url.present? && row.kind == :pdf %>
+      <iframe src="<%= row.file_url %>" title="<%= row.title %>" class="grow w-full rounded-lg border border-secondary bg-container-inset"></iframe>
+    <% elsif row.file_url.present? && row.kind == :image %>
+      <div class="grow min-h-0 overflow-auto rounded-lg bg-container-inset flex items-center justify-center"
+           data-action="wheel->document-viewer#zoom click->document-viewer#toggleZoom">
+        <img src="<%= row.file_url %>" alt="<%= row.title %>" data-document-viewer-target="image"
+             class="max-h-full max-w-full object-contain transition-transform">
+      </div>
+    <% else %>
+      <% copy = row.kind == :unsupported ? [ t(".unsupported_title"), t(".unsupported_description") ] : [ t(".unavailable_title"), t(".unavailable_description") ] %>
+      <%= render DS::EmptyState.new(icon: row.icon, title: copy[0], description: copy[1]) do |es| %>
+        <% es.with_action do %>
+          <% if row.download_url.present? %>
+            <%= render DS::Link.new(text: t(".download"), href: row.download_url, variant: "primary") %>
+          <% elsif (action = row.actions.find { |a| a.url }) %>
+            <%# (repaired 2026-10-11, verifier F8) an awaiting_ocr "Reading…" action carries a nil url and is skipped here — it renders as the row's disabled affordance, never as this CTA. %>
+            <%= render DS::Button.new(text: action.label, href: action.url, method: action.method, variant: "primary") %>
+          <% end %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>

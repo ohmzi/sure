@@ -63,7 +63,8 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "tr[id='account_statement_#{statement.id}'], div[id='account_statement_#{statement.id}']" # the row
-    assert_select "a[href='#{account_statement_path(statement)}']" # the Details action; Task 4 adds the viewer link beside it
+    assert_select "a[href='#{account_statement_path(statement)}']" # the Details action
+    assert_select "a[href='#{viewer_account_statement_path(statement)}']" # the viewer link beside it (Task 4)
     assert_match I18n.t("account_statements.status.linked"), response.body
     # the upload card survives (vault parity)
     assert_select "input[type='file'][name='account_statement[files][]']"
@@ -510,6 +511,22 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_redirected_to account_url(@account, tab: "statements")
+  end
+
+  # -- the viewer modal (M8 Task 4) -------------------------------------------
+
+  test "a csv statement's viewer offers a download instead of a broken preview" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "viewer.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+
+    get viewer_account_statement_path(statement)
+    assert_response :success
+    assert_select "a[href=?]", rails_blob_path(statement.original_file, disposition: "attachment")
+    # (adapted 2026-10-11, Task 4) `assert_text` is a Capybara helper and does not
+    # exist in an ActionDispatch::IntegrationTest; this pins the same string.
+    assert_match I18n.t("document_browser.viewer.unsupported_title"), response.body
   end
 
   test "destroy reports failure when statement cannot be deleted" do

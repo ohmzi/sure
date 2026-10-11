@@ -15,3 +15,11 @@ en:
         processing: Extracting…
         needs_template: Needs a template
         extraction_failed: Extraction failed
+    viewer:
+      previous: Previous
+      next: Next
+      download: Download
+      unavailable_title: No preview yet
+      unavailable_description: This document has no copy in the app yet. Open it again once processing has finished.
+      unsupported_title: No in-page preview for this file
+      unsupported_description: This file type cannot be previewed in the browser. Download it to open it in an app.
