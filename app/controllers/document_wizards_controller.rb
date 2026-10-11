@@ -65,12 +65,37 @@ class DocumentWizardsController < ApplicationController
       end
 
       file = wizard_file or return
+      # (Ruling M7-L6, 2026-10-11 Task 8) the wizard's statement leg reads PDFs and
+      # photos. A CSV/OFX/XLSX is VAULT-legal but not wizard-legal - there is no
+      # scan to OCR and no template to match - and
+      # PdfImport#account_statement_matches_import rightly refuses it, so refuse it
+      # HERE, before anything is archived, and point the user at the Import flow
+      # instead of raising RecordInvalid (which surfaced as a 500 with the file
+      # already archived, and crashed identically on retry).
+      unless statement_wizard_upload?(file)
+        return redirect_to new_document_wizard_path(source: "statement"), alert: t(".unsupported_type")
+      end
+
       pdf_import = PdfImport.create_from_upload!(family: Current.family, file: file, user: Current.user)
-      PdfImport.route_processing_later!(pdf_import, file: file)
+      outcome = PdfImport.route_processing_later!(pdf_import, file: file)
+      # (Ruling M7-L6) the seam reports a failed OCR enqueue; the wizard must
+      # surface it honestly rather than pretend the read started.
+      return redirect_to import_path(pdf_import), alert: t(".statement_ocr_enqueue_failed") if outcome == :ocr_enqueue_failed
+
       redirect_to import_account_path(pdf_import), notice: t(".statement_processing") # step 3; OCR settles asynchronously (Ruling M7-L5, 2026-10-11 Task 8)
     rescue AccountStatement::DuplicateUploadError
       redirect_to new_document_wizard_path(source: "statement"), alert: t(".duplicate")
     rescue AccountStatement::InvalidUploadError
       redirect_to new_document_wizard_path(source: "statement"), alert: t(".invalid_file")
+    rescue ActiveRecord::RecordInvalid
+      # (Ruling M7-L6) backstop: if the vault's allow-list and the wizard's set ever
+      # diverge, the user gets the honest refusal, never a 500 over a half-written row.
+      redirect_to new_document_wizard_path(source: "statement"), alert: t(".unsupported_type")
+    end
+
+    # The statement wizard accepts exactly what the OCR path can read.
+    def statement_wizard_upload?(file)
+      type = file.respond_to?(:content_type) ? file.content_type.to_s : ""
+      type == "application/pdf" || type.start_with?("image/")
     end
 end

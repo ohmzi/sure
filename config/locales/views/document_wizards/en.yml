@@ -16,3 +16,6 @@ en:
       too_large: That file is too large to upload.
       invalid_file: That file can't be uploaded. Try a PDF or an image.
       statement_processing: Your statement is archived. We'll read it in the background.
+      # (Ruling M7-L6, 2026-10-11 Task 8)
+      unsupported_type: That file isn't a statement scan. Upload CSV, OFX or XLSX files through the Import flow instead.
+      statement_ocr_enqueue_failed: Your statement is archived, but we couldn't start reading it. Retry from the import page.
