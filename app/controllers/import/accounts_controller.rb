@@ -30,7 +30,12 @@ class Import::AccountsController < ApplicationController
     saved = @import.is_a?(PdfImport) ? @import.assign_account!(account) : @import.update(account: account)
     return redirect_back_or_to import_path(@import), alert: t("imports.update.account_locked") unless saved
 
-    redirect_to import_path(@import), notice: t("imports.update.account_saved")
+    # (Owner decision 2026-10-11, hotfix) the intake is fire-and-forget: land the
+    # user on the archive, where the document appears immediately with its live
+    # status, instead of the blocking "Reading your document" screen. A statement
+    # lands on the statements-filtered archive so it is visible there too.
+    destination = @import.is_a?(PdfImport) ? documents_path(source: "statement") : documents_path
+    redirect_to destination, notice: t("imports.update.reading_in_background")
   end
 
   private
