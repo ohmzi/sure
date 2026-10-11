@@ -242,7 +242,7 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
   test "duplicate pdf import does not enqueue processing twice for reused import" do
     assert_difference "AccountStatement.count", 1 do
       assert_difference "Import.where(type: 'PdfImport').count", 1 do
-        assert_enqueued_jobs 1, only: ProcessPdfJob do
+        assert_enqueued_jobs 1, only: StatementOcrJob do
           post imports_url, params: {
             import: {
               import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf")
@@ -259,7 +259,7 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     end
 
     created_import = PdfImport.order(:created_at).last
-    assert_equal "importing", created_import.status
+    assert_equal "pending", created_import.status
     assert_redirected_to import_url(created_import)
   end
 
@@ -700,6 +700,64 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     get import_clean_url(import)
 
     assert_response :success
+  end
+
+  test "a text-layer PDF with a PDF-capable provider uses the AI path" do
+    Provider::Registry.stubs(:preferred_llm_provider).returns(OpenStruct.new(supports_pdf_processing?: true))
+    ImportsController.any_instance.stubs(:text_layer_pdf?).returns(true)
+
+    assert_enqueued_with(job: ProcessPdfJob) do
+      assert_no_enqueued_jobs only: StatementOcrJob do
+        post imports_url, params: {
+          import: { import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf") }
+        }
+      end
+    end
+
+    assert_response :redirect
+  end
+
+  test "a scanned PDF with a PDF-capable provider uses the paperless OCR path" do
+    Provider::Registry.stubs(:preferred_llm_provider).returns(OpenStruct.new(supports_pdf_processing?: true))
+    ImportsController.any_instance.stubs(:text_layer_pdf?).returns(false)
+
+    assert_enqueued_with(job: StatementOcrJob) do
+      assert_no_enqueued_jobs only: ProcessPdfJob do
+        post imports_url, params: {
+          import: { import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf") }
+        }
+      end
+    end
+
+    assert_response :redirect
+  end
+
+  test "a provider without PDF support uses the paperless OCR path" do
+    Provider::Registry.stubs(:preferred_llm_provider).returns(OpenStruct.new(supports_pdf_processing?: false))
+
+    assert_enqueued_with(job: StatementOcrJob) do
+      assert_no_enqueued_jobs only: ProcessPdfJob do
+        post imports_url, params: {
+          import: { import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf") }
+        }
+      end
+    end
+
+    assert_response :redirect
+  end
+
+  test "no provider uses the paperless OCR path" do
+    Provider::Registry.stubs(:preferred_llm_provider).returns(nil)
+
+    assert_enqueued_with(job: StatementOcrJob) do
+      assert_no_enqueued_jobs only: ProcessPdfJob do
+        post imports_url, params: {
+          import: { import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf") }
+        }
+      end
+    end
+
+    assert_response :redirect
   end
 
   private

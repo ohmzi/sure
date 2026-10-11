@@ -1,3 +1,5 @@
+require "stringio"
+
 class ImportsController < ApplicationController
   include SettingsHelper
 
@@ -202,12 +204,39 @@ class ImportsController < ApplicationController
       return redirect_to new_import_path, alert: t("imports.create.pdf_too_large", max_size: Import::MAX_PDF_SIZE / 1.megabyte) if file.size > Import::MAX_PDF_SIZE
 
       pdf_import = PdfImport.create_from_upload!(family: Current.family, file: file, user: Current.user)
-      pdf_import.process_with_ai_later
+
+      # Both extraction paths (spec §8.2, resolved in Architecture): a text-layer
+      # PDF with a PDF-capable provider goes to the AI path; a scanned/image-only
+      # PDF, a provider that cannot do PDFs, or no provider takes the paperless-OCR
+      # + template path. `process_with_ai` itself raises when the provider cannot do
+      # PDFs, so gating on supports_pdf_processing? avoids a dead ProcessPdfJob.
+      provider = Provider::Registry.preferred_llm_provider
+      if provider&.supports_pdf_processing? && text_layer_pdf?(file)
+        pdf_import.process_with_ai_later
+      else
+        # (Ruling P-m2-2, 2026-10-10 pre-flight) On a duplicate, create_from_upload!
+        # returns the reused persisted import — skip the enqueue so one PDF is never
+        # posted to paperless twice.
+        StatementOcrJob.perform_later(pdf_import.id) if pdf_import.previously_new_record?
+      end
+
       redirect_to import_path(pdf_import), notice: t("imports.create.pdf_processing")
     rescue AccountStatement::DuplicateUploadError
       redirect_to new_import_path, alert: t("imports.create.duplicate_pdf_unavailable")
     rescue AccountStatement::InvalidUploadError
       redirect_to new_import_path, alert: t("imports.create.invalid_pdf")
+    end
+
+    # A PDF has a usable text layer when pdf-reader extracts text from any of its
+    # first few pages; a scanned/image-only PDF reads blank and routes to paperless.
+    def text_layer_pdf?(file)
+      file.rewind if file.respond_to?(:rewind)
+      reader = PDF::Reader.new(StringIO.new(file.read))
+      reader.pages.first(3).any? { |page| page.text.to_s.strip.present? }
+    rescue PDF::Reader::Error, ArgumentError, IOError
+      false
+    ensure
+      file.rewind if file.respond_to?(:rewind)
     end
 
     def create_document_import(file)
