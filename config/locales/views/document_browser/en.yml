@@ -11,3 +11,7 @@ en:
     row:
       retry: Retry
       remove: Remove
+      extraction:
+        processing: Extracting…
+        needs_template: Needs a template
+        extraction_failed: Extraction failed

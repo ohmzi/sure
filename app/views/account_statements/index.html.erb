@@ -1,10 +1,9 @@
-<header class="flex justify-between items-center text-primary font-medium pb-4">
-  <h1 class="text-xl"><%= t(".title") %></h1>
-</header>
-
-<%= settings_section title: t(".title") do %>
-  <div class="space-y-4">
-    <div class="rounded-xl bg-container-inset p-4">
+<%= render DocumentBrowserComponent.new(
+      family: :statements, title: t(".title"), url: account_statements_path,
+      rows: @rows, pagy: @pagy, filters: @filters
+    ) do |browser| %>
+  <% browser.with_upload do %>
+    <%= render DS::Card.new do %>
       <div class="flex items-start justify-between gap-3 mb-4">
         <div>
           <p class="text-sm font-medium text-primary"><%= t(".upload_title") %></p>
@@ -35,138 +34,6 @@
           <%= form.submit t("account_statements.form.inbox_upload") %>
         </div>
       <% end %>
-    </div>
-
-    <div class="rounded-xl bg-container-inset space-y-1 p-1">
-      <div class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-secondary uppercase">
-        <p><%= t(".unmatched_title") %></p>
-        <span class="text-subdued">&middot;</span>
-        <p><%= @unmatched_pagy.count %></p>
-      </div>
-
-      <div class="bg-container rounded-lg shadow-border-xs overflow-x-auto">
-        <% if @unmatched_statements.any? %>
-          <table class="w-full">
-            <thead>
-              <tr class="text-xs uppercase font-medium text-secondary border-b border-divider">
-                <th class="px-3 py-3 text-left min-w-56"><%= t("account_statements.table.file") %></th>
-                <th class="px-3 py-3 text-left min-w-44"><%= t("account_statements.table.period") %></th>
-                <th class="px-3 py-3 text-left min-w-48"><%= t("account_statements.table.suggestion") %></th>
-                <th class="px-3 py-3 text-right min-w-24"><%= t("account_statements.table.actions") %></th>
-              </tr>
-            </thead>
-            <tbody>
-              <% @unmatched_statements.each do |statement| %>
-                <tr id="<%= dom_id(statement) %>" class="border-b border-subdued hover:bg-surface-hover">
-                  <td class="px-3 py-3">
-                    <%= link_to account_statement_path(statement), class: "flex items-center gap-2 min-w-0 text-sm font-medium text-primary hover:underline" do %>
-                      <%= icon(account_statement_file_icon(statement), size: "sm") %>
-                      <span class="truncate"><%= statement.filename %></span>
-                    <% end %>
-                    <p class="text-xs text-secondary"><%= number_to_human_size(statement.byte_size) %></p>
-                  </td>
-                  <td class="px-3 py-3 text-sm text-secondary"><%= account_statement_period(statement) %></td>
-                  <td class="px-3 py-3">
-                    <% if statement.suggested_account.present? %>
-                      <div class="flex flex-col gap-1">
-                        <p class="text-sm font-medium text-primary"><%= statement.suggested_account.name %></p>
-                        <p class="text-xs text-secondary"><%= t(".confidence", confidence: number_to_percentage(statement.match_confidence.to_d * 100, precision: 0)) %></p>
-                      </div>
-                    <% else %>
-                      <span class="text-sm text-secondary"><%= t(".no_suggestion") %></span>
-                    <% end %>
-                  </td>
-                  <td class="px-3 py-3">
-                    <div class="flex items-center justify-end gap-3">
-                      <% if statement.suggested_account.present? %>
-                        <%= button_to link_account_statement_path(statement),
-                                      method: :patch,
-                                      params: { account_id: statement.suggested_account_id },
-                                      class: "flex items-center",
-                                      aria: { label: t("account_statements.table.link_suggestion") } do %>
-                          <%= icon("link", class: "w-5 h-5 text-primary") %>
-                        <% end %>
-                        <%= button_to reject_account_statement_path(statement),
-                                      method: :patch,
-                                      class: "flex items-center",
-                                      aria: { label: t("account_statements.table.reject") } do %>
-                          <%= icon("x", class: "w-5 h-5 text-secondary") %>
-                        <% end %>
-                      <% end %>
-                      <%= link_to account_statement_path(statement), aria: { label: t("account_statements.table.view") } do %>
-                        <%= icon("eye", class: "w-5 h-5 text-primary") %>
-                      <% end %>
-                    </div>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        <% else %>
-          <p class="text-sm text-secondary text-center py-8 font-medium"><%= t(".empty_unmatched") %></p>
-        <% end %>
-      </div>
-      <% if @unmatched_pagy.pages > 1 %>
-        <div class="px-3 py-2">
-          <%= render "shared/pagination", pagy: @unmatched_pagy %>
-        </div>
-      <% end %>
-    </div>
-
-    <div class="rounded-xl bg-container-inset space-y-1 p-1">
-      <div class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-secondary uppercase">
-        <p><%= t(".linked_title") %></p>
-        <span class="text-subdued">&middot;</span>
-        <p><%= @linked_pagy.count %></p>
-      </div>
-
-      <div class="bg-container rounded-lg shadow-border-xs overflow-x-auto">
-        <% if @linked_statements.any? %>
-          <table class="w-full">
-            <thead>
-              <tr class="text-xs uppercase font-medium text-secondary border-b border-divider">
-                <th class="px-3 py-3 text-left min-w-56"><%= t("account_statements.table.file") %></th>
-                <th class="px-3 py-3 text-left min-w-44"><%= t("account_statements.table.account") %></th>
-                <th class="px-3 py-3 text-left min-w-44"><%= t("account_statements.table.period") %></th>
-                <th class="px-3 py-3 text-right min-w-24"><%= t("account_statements.table.actions") %></th>
-              </tr>
-            </thead>
-            <tbody>
-              <% @linked_statements.each do |statement| %>
-                <tr id="<%= dom_id(statement) %>" class="border-b border-subdued hover:bg-surface-hover">
-                  <td class="px-3 py-3">
-                    <%= link_to account_statement_path(statement), class: "flex items-center gap-2 min-w-0 text-sm font-medium text-primary hover:underline" do %>
-                      <%= icon(account_statement_file_icon(statement), size: "sm") %>
-                      <span class="truncate"><%= statement.filename %></span>
-                    <% end %>
-                  </td>
-                  <td class="px-3 py-3 text-sm text-secondary"><%= statement.account&.name %></td>
-                  <td class="px-3 py-3 text-sm text-secondary"><%= account_statement_period(statement) %></td>
-                  <td class="px-3 py-3">
-                    <div class="flex items-center justify-end gap-3">
-                      <%= link_to account_statement_path(statement), aria: { label: t("account_statements.table.view") } do %>
-                        <%= icon("eye", class: "w-5 h-5 text-primary") %>
-                      <% end %>
-                      <% if statement.original_file.attached? %>
-                        <%= link_to rails_blob_path(statement.original_file, disposition: "attachment"), aria: { label: t("account_statements.table.download") } do %>
-                          <%= icon("download", class: "w-5 h-5 text-primary") %>
-                        <% end %>
-                      <% end %>
-                    </div>
-                  </td>
-                </tr>
-              <% end %>
-            </tbody>
-          </table>
-        <% else %>
-          <p class="text-sm text-secondary text-center py-8 font-medium"><%= t(".empty_linked") %></p>
-        <% end %>
-      </div>
-      <% if @linked_pagy.pages > 1 %>
-        <div class="px-3 py-2">
-          <%= render "shared/pagination", pagy: @linked_pagy %>
-        </div>
-      <% end %>
-    </div>
-  </div>
+    <% end %>
+  <% end %>
 <% end %>

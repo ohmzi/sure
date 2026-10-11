@@ -14,6 +14,18 @@ class DocumentBrowser::Row
     "dismissed" => :neutral, "failed" => :error
   }.freeze
 
+  # The vault's review badge tones (M8 Task 3): the statement vocabulary is its
+  # own enum, so it gets its own map rather than a reuse of STATUS_TONES.
+  REVIEW_TONES = {
+    "linked" => :success, "rejected" => :warning, "unmatched" => :neutral
+  }.freeze
+
+  # Extraction badges render only for the states a reader must see: an
+  # extracted (or not-attempted) statement carries no second badge.
+  EXTRACTION_TONES = {
+    "processing" => :info, "needs_template" => :warning, "extraction_failed" => :error
+  }.freeze
+
   attr_reader :record, :key, :title, :doc_type_label, :kind, :thumb_url, :icon,
               :statuses, :date, :tags, :merchant, :amount, :file_url, :download_url,
               :viewer_url, :details_url, :actions, :failure_message
@@ -72,6 +84,45 @@ class DocumentBrowser::Row
       )
     end
 
+    def for_account_statement(statement, viewer_url: nil)
+      routes = Rails.application.routes.url_helpers
+      link = statement.archived_document_link
+      ready = link&.paperless_document_id.present?
+      # The vault's own bytes when the archive copy is not there yet (CSV/XLSX/
+      # OFX always take this branch); a settled link's bytes come from M1's
+      # proxy so the browser never talks to paperless (locked decision 4).
+      content_type = if ready && link.content_type.present?
+        link.content_type
+      else
+        statement.content_type
+      end
+      attached = statement.original_file.attached?
+
+      new(
+        record: statement,
+        key: "account_statement_#{statement.id}",
+        title: statement.filename,
+        doc_type_label: I18n.t("account_statements.type.statement"),
+        kind: viewer_kind(content_type),
+        # No statement thumbnail (vault parity: file-type icons); Task 4's
+        # viewer reads file_url and the factory signature stays fixed.
+        thumb_url: nil,
+        icon: icon_for(content_type),
+        statuses: statement_statuses(statement),
+        date: statement.period_end_on || statement.created_at.to_date,
+        tags: link&.paperless_tags || [],
+        merchant: statement.institution_name_hint,
+        amount: nil, # statements carry no extracted total (M8 locked decision 7)
+        file_url: statement_file_url(statement, link, ready, attached, routes),
+        # Active Storage's helper demands a host unless only_path is pinned; a
+        # model-side call has no request context (account.rb's logo-path precedent).
+        download_url: (routes.rails_blob_path(statement.original_file, disposition: "attachment", only_path: true) if attached),
+        viewer_url: viewer_url,
+        details_url: routes.account_statement_path(statement),
+        actions: statement_actions(statement, attached, routes)
+      )
+    end
+
     def viewer_kind(content_type)
       return :image if content_type.to_s.start_with?("image/")
       return :pdf if content_type.to_s == "application/pdf"
@@ -107,6 +158,45 @@ class DocumentBrowser::Row
         actions << Action.new(label: I18n.t("document_browser.row.retry"), icon: "refresh-cw", url: routes.retry_document_path(link), method: :post, tone: :neutral) if link.status.in?(%w[failed queued])
         actions << Action.new(label: I18n.t("document_browser.row.remove"), icon: "trash-2", url: routes.document_path(link), method: :delete, tone: :destructive)
         actions
+      end
+
+      # The vault's icon-button set as data (vault parity; the ERB twin is
+      # account_statements/_row_actions.html.erb — one rendering path, locked
+      # decision 2): suggestion link/reject while unmatched, then Details and
+      # Download. The link action carries no account_id param — the controller
+      # falls back to the stored suggestion, so the button's URL stays bare.
+      def statement_actions(statement, attached, routes)
+        actions = []
+        if statement.unmatched? && statement.suggested_account.present?
+          actions << Action.new(label: I18n.t("account_statements.table.link_suggestion"), icon: "link",
+                                url: routes.link_account_statement_path(statement), method: :patch, tone: :neutral)
+          actions << Action.new(label: I18n.t("account_statements.table.reject"), icon: "x",
+                                url: routes.reject_account_statement_path(statement), method: :patch, tone: :neutral)
+        end
+        actions << Action.new(label: I18n.t("account_statements.table.view"), icon: "eye",
+                              url: routes.account_statement_path(statement), method: :get, tone: :neutral)
+        if attached
+          actions << Action.new(label: I18n.t("account_statements.table.download"), icon: "download",
+                                url: routes.rails_blob_path(statement.original_file, disposition: "attachment", only_path: true),
+                                method: :get, tone: :neutral)
+        end
+        actions
+      end
+
+      def statement_statuses(statement)
+        statuses = [ Status.new(label: I18n.t("account_statements.status.#{statement.review_status}"),
+                                tone: REVIEW_TONES.fetch(statement.review_status, :neutral)) ]
+        if (tone = EXTRACTION_TONES[statement.extraction_state])
+          statuses << Status.new(label: I18n.t("document_browser.row.extraction.#{statement.extraction_state}"), tone: tone)
+        end
+        statuses
+      end
+
+      def statement_file_url(statement, link, ready, attached, routes)
+        return routes.file_document_path(link, kind: "original") if ready
+        return nil unless attached
+
+        routes.rails_blob_path(statement.original_file, disposition: "inline", only_path: true)
       end
   end
 end

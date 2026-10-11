@@ -112,6 +112,8 @@ en:
       suggestion: Suggestion
       unlink: Unlink
       view: View
+    type:
+      statement: Statement
     unlink:
       success: Statement moved back to the unmatched inbox.
     update:

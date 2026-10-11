@@ -1,22 +1,15 @@
 # frozen_string_literal: true
 
 class AccountStatementsController < ApplicationController
+  include DocumentBrowser
+
   before_action :set_statement, only: %i[show update destroy link unlink reject]
   before_action :ensure_statement_manager!, only: %i[index create update destroy link unlink reject]
 
   def index
-    accessible_account_ids = Current.user.accessible_accounts.select(:id)
-    account_statements = Current.family.account_statements
-      .with_attached_original_file
-      .includes(:account, :suggested_account)
-      .ordered
-    visible_storage_scope = Current.family.account_statements
-      .where(account_id: nil)
-      .or(Current.family.account_statements.where(account_id: accessible_account_ids))
-    linked_statement_scope = account_statements.with_account.where(account_id: accessible_account_ids)
-
-    @unmatched_pagy, @unmatched_statements = pagy(account_statements.unmatched, limit: safe_per_page, page_param: :unmatched_page)
-    @linked_pagy, @linked_statements = pagy(linked_statement_scope, limit: safe_per_page, page_param: :linked_page)
+    @filters = document_browser_filters
+    @pagy, @statements = pagy(account_statement_search.relation, limit: safe_per_page(20))
+    @rows = @statements.map { |statement| DocumentBrowser::Row.for_account_statement(statement) }
     @total_storage_bytes = visible_storage_scope.sum(:byte_size)
     @accounts = Current.user.accessible_accounts.visible.alphabetically
     @breadcrumbs = [
@@ -24,7 +17,9 @@ class AccountStatementsController < ApplicationController
       [ t("account_statements.index.title"), account_statements_path ]
     ]
     # The Statements page is a first-class destination now (M8 locked decision
-    # 1): default layout, no settings chrome. Task 3 replaces the body.
+    # 1): default layout, no settings chrome. One list over the vault's
+    # per-user visible scope — the unmatched/linked split is replaced by the
+    # review/extraction facets (locked decision 9).
   end
 
   def show
@@ -134,6 +129,18 @@ class AccountStatementsController < ApplicationController
   end
 
   private
+
+    def account_statement_search
+      AccountStatement::Search.new(user: Current.user, family: Current.family, filters: @filters)
+    end
+
+    # The vault's per-user visible scope (M8 Task 3): the storage figure covers
+    # exactly the statements the signed-in user may see.
+    def visible_storage_scope
+      Current.family.account_statements
+        .where(account_id: nil)
+        .or(Current.family.account_statements.where(account_id: Current.user.accessible_accounts.select(:id)))
+    end
 
     def set_statement
       @statement = Current.family.account_statements

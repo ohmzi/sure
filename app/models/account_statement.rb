@@ -51,6 +51,12 @@ class AccountStatement < ApplicationRecord
 
   has_many :pdf_imports, -> { where(type: "PdfImport").ordered }, class_name: "PdfImport", dependent: :restrict_with_error
   has_one_attached :original_file, dependent: :purge_later
+  # The statement's archived document copy (M8): StatementOcrJob creates it for
+  # paperless-extracted statements; CSV/XLSX/OFX rows have none. The viewer and
+  # the tag facet read through it (never destroyed with the statement — the
+  # link's history outlives the vault row).
+  has_one :archived_document_link, -> { where(source: "statement") }, class_name: "DocumentLink",
+          foreign_key: :account_statement_id, dependent: nil
 
   enum :source, { manual_upload: "manual_upload" }, validate: true, default: "manual_upload"
   enum :upload_status, { stored: "stored", failed: "failed" }, validate: true, default: "stored"

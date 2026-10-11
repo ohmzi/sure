@@ -53,6 +53,35 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, private_account.name
   end
 
+  test "the vault browser renders the statement with its review badge and a viewer link" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "browser_statement.pdf", content_type: "application/pdf", content: "%PDF-1.4 x")
+    )
+
+    get account_statements_path
+
+    assert_response :success
+    assert_select "tr[id='account_statement_#{statement.id}'], div[id='account_statement_#{statement.id}']" # the row
+    assert_select "a[href='#{account_statement_path(statement)}']" # the Details action; Task 4 adds the viewer link beside it
+    assert_match I18n.t("account_statements.status.linked"), response.body
+    # the upload card survives (vault parity)
+    assert_select "input[type='file'][name='account_statement[files][]']"
+  end
+
+  test "an unmatched statement keeps its suggestion actions in the browser" do
+    suggestion = accounts(:other_asset)
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: "suggested.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    statement.update!(suggested_account: suggestion)
+
+    get account_statements_path
+    assert_select "form[action='#{link_account_statement_path(statement)}']"
+    assert_select "form[action='#{reject_account_statement_path(statement)}']"
+  end
+
   test "non manager cannot open statement vault" do
     sign_in family_guest
 

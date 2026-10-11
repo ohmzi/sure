@@ -1,0 +1,36 @@
+<%# locals: (statement:, download_url: nil) %>
+<%#
+  The vault's icon-button set for one statement row (M8 Task 3, "vault
+  parity"): the suggestion link/reject while unmatched, then Details and
+  Download. The browser renders the SAME set as data —
+  DocumentBrowser::Row.for_account_statement builds it as Actions and
+  document_browser/_row.html.erb draws them (one rendering path, locked
+  decision 2); this partial is the ERB reference the factory mirrors. The
+  browser's link action carries no account_id param (the controller falls
+  back to the stored suggestion), so the rendered form matches either way.
+%>
+<div class="flex items-center justify-end gap-3">
+  <% if statement.unmatched? && statement.suggested_account.present? %>
+    <%= button_to link_account_statement_path(statement),
+                  method: :patch,
+                  params: { account_id: statement.suggested_account_id },
+                  class: "flex items-center",
+                  aria: { label: t("account_statements.table.link_suggestion") } do %>
+      <%= icon("link", class: "w-5 h-5 text-primary") %>
+    <% end %>
+    <%= button_to reject_account_statement_path(statement),
+                  method: :patch,
+                  class: "flex items-center",
+                  aria: { label: t("account_statements.table.reject") } do %>
+      <%= icon("x", class: "w-5 h-5 text-secondary") %>
+    <% end %>
+  <% end %>
+  <%= link_to account_statement_path(statement), aria: { label: t("account_statements.table.view") } do %>
+    <%= icon("eye", class: "w-5 h-5 text-primary") %>
+  <% end %>
+  <% if download_url.present? %>
+    <%= link_to download_url, aria: { label: t("account_statements.table.download") } do %>
+      <%= icon("download", class: "w-5 h-5 text-primary") %>
+    <% end %>
+  <% end %>
+</div>
