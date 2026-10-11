@@ -30,6 +30,7 @@ class Ingest::PaperlessController < ApplicationController
 
     if status.nil? || status == "consumed"
       link.finish_processing!(document_id: document_id) # guarded: only a processing row
+      ReceiptMatcherJob.perform_later(link.family_id)   # §8.5: kick the matcher (cron is the fallback)
     else
       link.fail!("paperless reported the document failed") # guarded: only a processing row
     end

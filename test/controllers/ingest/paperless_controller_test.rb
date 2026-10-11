@@ -108,4 +108,21 @@ class Ingest::PaperlessControllerTest < ActionDispatch::IntegrationTest
     post ingest_paperless_path, params: { documentId: 2**63 }, headers: headers, as: :json
     assert_response :bad_request
   end
+
+  test "a consumed document kicks the matcher for the link's family" do
+    link = DocumentLink.create!(
+      family: families(:dylan_family), source: "receipt", status: "processing",
+      paperless_document_id: 4242, title: "Webhook receipt"
+    )
+
+    assert_enqueued_with(job: ReceiptMatcherJob, args: [ link.family_id ]) do
+      post ingest_paperless_path,
+           params: { documentId: 4242, status: "consumed" },
+           headers: headers,
+           as: :json
+    end
+
+    assert_response :ok
+    assert_equal "unlinked", link.reload.status
+  end
 end
