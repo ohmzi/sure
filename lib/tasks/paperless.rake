@@ -24,4 +24,12 @@ namespace :paperless do
     puts "Minted API key id=#{key.id}. COPY IT NOW — it is not shown again:"
     puts key.plain_key
   end
+
+  desc "Enqueue an OCR-text snapshot for every settled document link that has none (re-runnable)"
+  task backfill_extracted_text: :environment do
+    scope = DocumentLink.where.not(paperless_document_id: nil).where(extracted_text: nil)
+    count = scope.count
+    scope.find_each { |link| Paperless::CaptureContentJob.perform_later(link.id) }
+    puts "Enqueued #{count} document(s) for content capture."
+  end
 end

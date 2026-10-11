@@ -1,6 +1,11 @@
 require "test_helper"
 
 class DocumentLinkTest < ActiveSupport::TestCase
+  # assert_enqueued_with lives in ActiveJob::TestHelper (the repo convention —
+  # the same include Task 1's finish_processing! enqueue pin needs, see
+  # test/models/ofx_import_test.rb and its Ruling M2-L2 note).
+  include ActiveJob::TestHelper
+
   setup do
     @family = families(:dylan_family)
     @entry = entries(:transaction)
@@ -120,5 +125,39 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert link.persisted?
     assert_equal "queued", link.status
     assert_equal @family.id, link.family_id
+  end
+
+  test "record_content! writes the snapshot once and refuses to overwrite it" do
+    link = document_links(:unlinked_receipt)
+    assert link.record_content!("COFFEE BAR\nTOTAL 4.75")
+
+    link.reload
+    assert_equal "COFFEE BAR\nTOTAL 4.75", link.extracted_text
+
+    assert_not link.record_content!("different text")
+    assert_equal "COFFEE BAR\nTOTAL 4.75", link.reload.extracted_text
+  end
+
+  test "record_content! truncates very long OCR bodies at the pinned limit" do
+    link = document_links(:unlinked_receipt)
+    assert link.record_content!("x" * (DocumentLink::EXTRACTED_TEXT_LIMIT + 50))
+    assert_equal DocumentLink::EXTRACTED_TEXT_LIMIT, link.reload.extracted_text.length
+  end
+
+  test "record_content! writes nothing for blank text" do
+    link = document_links(:unlinked_receipt)
+    assert_not link.record_content!("")
+    assert_nil link.reload.extracted_text
+  end
+
+  test "finish_processing! enqueues exactly one content capture when it settles the row" do
+    link = document_links(:queued_receipt)
+    assert link.mark_processing!
+
+    assert_enqueued_with(job: Paperless::CaptureContentJob, args: [ link.id ]) do
+      assert link.finish_processing!(document_id: 4242)
+    end
+
+    assert_not link.finish_processing!(document_id: 4243)
   end
 end

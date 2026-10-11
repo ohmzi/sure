@@ -29,6 +29,9 @@ class DocumentBridgeTest < ApplicationSystemTestCase
     Paperless::Client.any_instance.stubs(:task).returns(
       Paperless::Task.new(status: :success, document_id: 6001, duplicate_of: nil, error_message: nil)
     )
+    Paperless::Client.any_instance.stubs(:document).returns(
+      Paperless::Document.new(id: 6001, title: "receipt.png", created: Date.current, tag_ids: [], content: "TOTAL 4.75")
+    )
     Paperless::Client.any_instance.stubs(:file).yields(
       "", OpenStruct.new(status: 200, response_headers: { "content-type" => "image/png" })
     )

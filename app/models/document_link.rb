@@ -17,6 +17,9 @@ class DocumentLink < ApplicationRecord
   # The only statuses `record_match!` may write (R4). `:no_match` is a deliberate
   # no-write on M3's side, so it is not a writable outcome here.
   MATCHER_OUTCOMES = %w[suggested pending_review].freeze
+  # The snapshot size bound (M7 decision 8): long statements are truncated so
+  # one OCR body cannot bloat the row or slow the ILIKE scans unboundedly.
+  EXTRACTED_TEXT_LIMIT = 100_000
 
   belongs_to :family
   belongs_to :entry, optional: true
@@ -61,8 +64,23 @@ class DocumentLink < ApplicationRecord
   end
 
   def finish_processing!(document_id:)
-    transition!(from: "processing", to: "unlinked",
-                paperless_document_id: document_id, paperless_task_id: nil, failure_message: nil)
+    settled = transition!(from: "processing", to: "unlinked",
+                          paperless_document_id: document_id, paperless_task_id: nil, failure_message: nil)
+    # One choke point for the OCR-text snapshot: polling, the ingest webhook and
+    # statement OCR all settle through this method. Idempotent and bounded.
+    Paperless::CaptureContentJob.perform_later(id) if settled
+    settled
+  end
+
+  # The OCR-text snapshot, written once when the link settles. Deliberately NOT
+  # a status transition: a `transition!` in progress must not be clobbered by
+  # content capture, and the write is idempotent — it fills only a blank column
+  # so a replayed job or a backfill can never overwrite a good snapshot.
+  def record_content!(text)
+    return false if text.blank?
+
+    self.class.where(id: id, extracted_text: nil)
+        .update_all(extracted_text: text.to_s.first(EXTRACTED_TEXT_LIMIT), updated_at: Time.current) == 1
   end
 
   def fail!(message)
