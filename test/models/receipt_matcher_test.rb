@@ -98,6 +98,44 @@ class ReceiptMatcherTest < ActiveSupport::TestCase
     assert_not_includes result.candidates.map(&:entry), foreign
   end
 
+  # (Ruling M3-C2 R3, 2026-10-11 close-out) spec 8.3 / §15.7 score precedence:
+  # exact cents → date proximity → normalized-payee fuzzy. These two tests pin
+  # candidate.rb's rank_key order across differing day distances; swapping the
+  # date and payee rank keys fails both.
+  test "the nearer date outranks a higher payee similarity across different days" do
+    nearer = create_transaction(account: @account, date: Date.current, amount: 55, name: "Shell Gas")
+    farther = create_transaction(account: @account, date: Date.current - 2, amount: 55, name: "Starbucks Coffee")
+
+    result = ReceiptMatcher.call(link_for("Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00"))
+
+    assert_equal [ nearer, farther ], result.candidates.map(&:entry)
+    assert_equal nearer, result.best.entry
+    assert result.suggested?
+  end
+
+  test "the nearer date also wins when it carries the better payee (reverse arrangement)" do
+    nearer = create_transaction(account: @account, date: Date.current, amount: 55, name: "Starbucks Coffee")
+    farther = create_transaction(account: @account, date: Date.current - 2, amount: 55, name: "Shell Gas")
+
+    result = ReceiptMatcher.call(link_for("Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00"))
+
+    assert_equal [ nearer, farther ], result.candidates.map(&:entry)
+    assert_equal nearer, result.best.entry
+  end
+
+  test "on the same day the payee similarity decides the order" do
+    worse = create_transaction(account: @account, date: Date.current, amount: 55, name: "Shell Gas")
+    better = create_transaction(account: @account, date: Date.current, amount: 55, name: "Starbucks Coffee")
+
+    result = ReceiptMatcher.call(link_for("Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00"))
+
+    # Dates tie, so the -payee_similarity key must decide; without it the
+    # created_at tiebreak would surface the older, worse match first.
+    assert_equal [ better, worse ], result.candidates.map(&:entry)
+    assert_equal better, result.best.entry
+    assert result.suggested?
+  end
+
   # (Ruling M3-C2 R1, 2026-10-11 close-out) candidate gathering enforces the
   # same account-visibility model as the accounts/transactions surfaces
   # (Account.accessible_by): a viewer only sees entries on accounts they own or
