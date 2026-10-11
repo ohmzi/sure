@@ -1185,12 +1185,23 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the New popup lists the two document options in every variant" do
+    receipt_href = new_document_wizard_path(source: "receipt_or_bill")
+    statement_href = new_document_wizard_path(source: "statement")
+
     [ {}, { classification: "asset" }, { classification: "liability" }, { return_to: accounts_path } ].each do |params|
       get new_account_path(params)
       assert_response :success
-      assert_match I18n.t("accounts.new.receipt_or_bill"), response.body
-      assert_match I18n.t("accounts.new.statement"), response.body
-      assert_operator response.body.index(I18n.t("accounts.new.receipt_or_bill")), :<, response.body.index(I18n.t("accounts.new.statement"))
+
+      # Scope the ordering assertion to the POPUP's own rows. Comparing the offsets of
+      # the translated labels over the whole body is brittle: any other page text that
+      # contains "Statement" (a sidebar entry, a nav label) renders earlier and shifts
+      # the offsets, failing this test for a reason unrelated to the popup.
+      rows = Nokogiri::HTML(response.body).css("turbo-frame#modal a[href]")
+                   .map { |a| a["href"] }
+                   .select { |href| [ receipt_href, statement_href ].include?(href) }
+
+      assert_equal [ receipt_href, statement_href ], rows,
+                   "the popup lists Receipt or Bill then Statement, in every variant"
     end
   end
 
