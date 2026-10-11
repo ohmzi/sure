@@ -73,6 +73,29 @@ class ReceiptMatcherJobTest < ActiveJob::TestCase
     assert_nil link.confidence
   end
 
+  # (Ruling M3-C2 R1, 2026-10-11 close-out) the job carries no viewer; even with
+  # a Current.user present in-process it must score the family-wide candidate
+  # set (viewer: nil), not the ambient user's.
+  test "scores family-wide even when a current user is present (viewer: nil, not Current.user)" do
+    create_transaction(account: accounts(:connected), date: Date.current, amount: 55, name: "Starbucks Coffee")
+    link = DocumentLink.create!(
+      family: @family, source: "receipt", status: "unlinked",
+      paperless_document_id: 503, title: "Connected receipt"
+    )
+    Paperless::Client.any_instance.stubs(:document)
+      .returns(stub(content: RECEIPT, created: Date.current, id: 503))
+
+    # family_member has no AccountShare on :connected; a Current.user-scoped
+    # sweep would see no candidate and leave this link unlinked.
+    Current.session = users(:family_member).sessions.create!
+
+    ReceiptMatcherJob.perform_now(@family.id)
+
+    assert_equal "suggested", link.reload.status
+  ensure
+    Current.session = nil
+  end
+
   test "the cron entry fans out one job per family with matchable links" do
     make_link(status: "unlinked", text: RECEIPT)
 

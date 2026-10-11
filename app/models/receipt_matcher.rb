@@ -6,12 +6,19 @@ class ReceiptMatcher
   # ±3 days, matching PdfImport::RECONCILIATION_DATE_WINDOW (app/models/pdf_import.rb:461).
   DATE_WINDOW = 3
 
-  def self.call(document_link)
-    new(document_link).call
+  # `viewer` scopes candidate gathering to the accounts that viewer can access
+  # (Account.accessible_by — the same model the accounts and transactions
+  # surfaces use); it defaults to Current.user, so an inbox render can never
+  # return candidates the current user cannot see. The cron job runs with no
+  # Current.user and passes `viewer: nil` explicitly, keeping its family-wide
+  # sweep. (Ruling M3-C2, 2026-10-11 close-out)
+  def self.call(document_link, viewer: Current.user)
+    new(document_link, viewer: viewer).call
   end
 
-  def initialize(document_link)
+  def initialize(document_link, viewer: nil)
     @document_link = document_link
+    @viewer = viewer
   end
 
   def call
@@ -50,15 +57,21 @@ class ReceiptMatcher
 
     # Candidates: transaction entries on the family's active accounts, in each
     # account's own currency, for the exact extracted amount, dated within the
-    # ±3-day window.
+    # ±3-day window. A viewer narrows the accounts to those they can access
+    # (owner or AccountShare) — the same merge Current#accessible_entries uses
+    # (app/models/current.rb:31-34); nil (the cron job, which runs with no
+    # Current.user) keeps the family-wide sweep.
+    # (Ruling M3-C2, 2026-10-11 close-out)
     def gather(extraction, date)
-      Entry
+      scope = Entry
         .joins(:account)
         .where(accounts: { family_id: @document_link.family_id, status: %w[active draft] })
         .where(entryable_type: "Transaction")
         .where("entries.currency = accounts.currency")
         .where(amount: extraction.amount)
         .where(date: (date - DATE_WINDOW)..(date + DATE_WINDOW))
+
+      @viewer ? scope.merge(Account.accessible_by(@viewer)) : scope
     end
 
     def rank(entries, extraction, date)

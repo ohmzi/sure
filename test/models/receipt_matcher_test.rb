@@ -97,4 +97,37 @@ class ReceiptMatcherTest < ActiveSupport::TestCase
     assert result.no_match?
     assert_not_includes result.candidates.map(&:entry), foreign
   end
+
+  # (Ruling M3-C2 R1, 2026-10-11 close-out) candidate gathering enforces the
+  # same account-visibility model as the accounts/transactions surfaces
+  # (Account.accessible_by): a viewer only sees entries on accounts they own or
+  # hold a share on; nil keeps the cron job's family-wide sweep.
+  test "a viewer only gathers candidates on accounts they can access" do
+    entry = create_transaction(account: accounts(:connected), date: Date.current, amount: 55, name: "Starbucks Coffee")
+    link = link_for("Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00")
+
+    family_wide = ReceiptMatcher.call(link, viewer: nil)
+    assert_equal [ entry ], family_wide.candidates.map(&:entry)
+
+    member = ReceiptMatcher.call(link, viewer: users(:family_member))
+    assert member.no_match?, "a member without a share on the account sees no candidates"
+    assert_empty member.candidates
+
+    owner = ReceiptMatcher.call(link, viewer: users(:family_admin))
+    assert owner.suggested?, "the account owner still matches"
+    assert_equal [ entry ], owner.candidates.map(&:entry)
+  end
+
+  test "candidate gathering defaults to the current user (viewer: Current.user)" do
+    create_transaction(account: accounts(:connected), date: Date.current, amount: 55, name: "Starbucks Coffee")
+    link = link_for("Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00")
+
+    Current.session = users(:family_member).sessions.create!
+    assert ReceiptMatcher.call(link).no_match?, "the signed-in member cannot see the connected account"
+
+    Current.session = users(:family_admin).sessions.create!
+    assert ReceiptMatcher.call(link).suggested?, "the owner sees their own account's candidate"
+  ensure
+    Current.session = nil
+  end
 end

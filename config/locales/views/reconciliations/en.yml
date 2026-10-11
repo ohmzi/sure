@@ -20,3 +20,6 @@ en:
       paperless_unavailable: Paperless is unreachable right now, so the receipt was not changed.
     dismiss:
       success: Receipt dismissed. It will not be suggested again.
+      # (Ruling M3-C2 R1c, 2026-10-11 close-out) dismiss attempt during a paperless outage
+      # (the viewer-scoped visibility check reads the document)
+      paperless_unavailable: Paperless is unreachable right now, so the receipt was not changed.
