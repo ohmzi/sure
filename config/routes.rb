@@ -549,6 +549,11 @@ Rails.application.routes.draw do
     end
   end
 
+  # M7: the New popup's document wizard (step 2 here; step 3 is
+  # Import::AccountsController under the imports resource).
+  get  "documents/new",    to: "document_wizards#new",    as: :new_document_wizard
+  post "documents/intake", to: "document_wizards#create", as: :document_wizard_intake
+
   resources :holdings, only: %i[index new show update destroy] do
     member do
       post :unlock_cost_basis

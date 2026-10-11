@@ -1181,6 +1181,16 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", edit_plaid_item_path(item, add_accounts: true), count: 0
   end
 
+  test "the New popup lists the two document options in every variant" do
+    [ {}, { classification: "asset" }, { classification: "liability" }, { return_to: accounts_path } ].each do |params|
+      get new_account_path(params)
+      assert_response :success
+      assert_match I18n.t("accounts.new.receipt_or_bill"), response.body
+      assert_match I18n.t("accounts.new.statement"), response.body
+      assert_operator response.body.index(I18n.t("accounts.new.receipt_or_bill")), :<, response.body.index(I18n.t("accounts.new.statement"))
+    end
+  end
+
   private
     # #3630. Links a shared and an unshared account to +item+ through two fresh
     # provider rows built by the block, and returns them in that order. Shares

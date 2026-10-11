@@ -1,0 +1,28 @@
+<%# Step 2 of the wizard. The labels inside the container's block use absolute
+    i18n keys: a relative t() there resolves against accounts.new.container (the
+    layout partial being rendered), not document_wizards.new — see the same note
+    on accounts/new.html.erb. The title IS in the locals hash, which is
+    evaluated before the layout is entered, so its relative key is correct. %>
+<%= render layout: "accounts/new/container", locals: { title: t(".title_#{@source}"), back_path: new_account_path } do %>
+  <div class="text-sm">
+    <%= styled_form_with url: document_wizard_intake_path(source: @source), multipart: true,
+                         data: { turbo_frame: "modal" } do |form| %>
+      <label class="group flex items-center gap-4 w-full cursor-pointer text-primary hover:bg-surface-hover focus-within:bg-surface-hover border border-transparent px-2 rounded-lg p-2">
+        <%= render DS::FilledIcon.new(icon: "camera", hex_color: "#12B76A") %>
+        <span class="grow"><%= t("document_wizards.new.capture") %></span>
+        <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
+        <%= form.file_field :document_camera, accept: "image/*", capture: "environment", class: "hidden", onchange: "this.form.requestSubmit()" %>
+      </label>
+
+      <label class="group flex items-center gap-4 w-full cursor-pointer text-primary hover:bg-surface-hover focus-within:bg-surface-hover border border-transparent px-2 rounded-lg p-2">
+        <%= render DS::FilledIcon.new(icon: "upload", hex_color: "#F79009") %>
+        <span class="grow"><%= t("document_wizards.new.upload") %></span>
+        <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
+        <%= form.file_field :document_file, accept: "application/pdf,image/*", class: "hidden", onchange: "this.form.requestSubmit()" %>
+      </label>
+
+      <p class="px-2 pt-2 text-xs text-secondary"><%= t("document_wizards.new.hint", max_size: DocumentLink::Staging::MAX_BYTES / 1.megabyte) %></p>
+      <%= form.submit t("document_wizards.new.submit") %>
+    <% end %>
+  </div>
+<% end %>

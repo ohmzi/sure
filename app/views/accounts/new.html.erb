@@ -3,6 +3,26 @@
        <% if @provider_configs.any? { |c| c[:key] == "lunchflow" } %>
          data-controller="lunchflow-preload"
        <% end %>>
+    <%# M7 locked decisions 10 and 12: the two document rows are always visible
+        (they are not account rows), receipt first, then statement — anchors, so
+        the popup's list-keyboard-navigation picks them up. The labels use
+        absolute i18n keys like the Import row below: inside the container
+        layout's block a relative t() would resolve against
+        accounts.new.container, not accounts.new. %>
+    <%= link_to new_document_wizard_path(source: "receipt_or_bill"),
+                class: "group flex items-center gap-4 w-full text-center focus:outline-hidden hover:bg-surface-hover focus:bg-surface-hover text-primary border border-transparent block px-2 rounded-lg p-2" do %>
+      <%= render DS::FilledIcon.new(icon: "receipt-text", hex_color: "#12B76A") %>
+      <%= t("accounts.new.receipt_or_bill") %>
+      <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
+    <% end %>
+
+    <%= link_to new_document_wizard_path(source: "statement"),
+                class: "group flex items-center gap-4 w-full text-center focus:outline-hidden hover:bg-surface-hover focus:bg-surface-hover text-primary border border-transparent block px-2 rounded-lg p-2" do %>
+      <%= render DS::FilledIcon.new(icon: "file-text", hex_color: "#0BA5EC") %>
+      <%= t("accounts.new.statement") %>
+      <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
+    <% end %>
+
     <% unless params[:classification] == "liability" %>
       <%= render "account_type", accountable: Depository.new %>
       <%= render "account_type", accountable: Investment.new %>

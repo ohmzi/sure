@@ -66,6 +66,8 @@ en:
     sync_all:
       syncing: "Syncing accounts..."
     new:
+      receipt_or_bill: Receipt or Bill
+      statement: Statement
       import_accounts: Import accounts
       container:
         select: Select

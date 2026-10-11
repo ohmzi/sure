@@ -1,0 +1,15 @@
+---
+en:
+  document_wizards:
+    new:
+      title_receipt_or_bill: Receipt or Bill
+      title_statement: Statement
+      capture: Take a photo
+      upload: Upload a file
+      hint: "Up to %{max_size}MB. Your documents stay private to your household."
+      submit: Continue
+    create:
+      duplicate: This file is already in your documents.
+      too_large: That file is too large to upload.
+      invalid_file: That file can't be uploaded. Try a PDF or an image.
+      statement_queued: Your statement is archived. We'll read it in the background.

@@ -7,13 +7,15 @@ class DocumentLinksController < ApplicationController
   include ActionController::Live
 
   FILE_KINDS = { "original" => :original, "preview" => :preview, "thumb" => :thumb }.freeze
-  # document_links.original_filename is varchar(255) (db/schema.rb). A longer
-  # value would raise PG::StringDataRightTruncation inside stage!'s guarded
-  # UPDATE — after the bytes were already written.
-  MAX_FILENAME_LENGTH = 255
+  # The filename guard moved into DocumentLink::Intake (M7 — the archive form and
+  # the wizard share one intake path); this alias keeps M1's constant name
+  # resolving for any caller.
+  MAX_FILENAME_LENGTH = DocumentLink::Intake::MAX_FILENAME_LENGTH
   # Ruling M6 (M1), 2026-10-10 close-out: title (500) and content_type (100) are
   # column-limited the same way; a longer value would abort inside stage!'s
-  # guarded UPDATE after the bytes were already written.
+  # guarded UPDATE after the bytes were already written. Both checks stay in this
+  # controller: the archive form is the only caller that accepts a title, and
+  # Intake's pinned interface carries neither.
   MAX_TITLE_LENGTH = 500
   MAX_CONTENT_TYPE_LENGTH = 100
 
@@ -38,66 +40,37 @@ class DocumentLinksController < ApplicationController
     # a hand-rolled POST can send a plain string, which has no #tempfile /
     # #original_filename, so the param's shape is checked before anything reads it.
     return render(plain: "invalid document", status: :bad_request) unless file.respond_to?(:tempfile) && file.respond_to?(:original_filename)
-    source = params[:source].presence ||
-             DocumentLink::SourceGuesser.guess(filename: file.original_filename, content_type: file.content_type).to_s
-    return render(plain: "invalid source", status: :unprocessable_entity) unless DocumentLink::SOURCES.include?(source)
     # Ruling M6 (M1), 2026-10-10 close-out: the column-limited params are checked
-    # up front (filename 255, title 500, content_type 100) — none may reach
-    # stage!'s UPDATE, and none may leave a row or bytes behind.
-    return render(plain: "filename too long", status: :unprocessable_entity) if file.original_filename.to_s.length > MAX_FILENAME_LENGTH
+    # up front (title 500, content_type 100 — filename 255 and the size cap live
+    # in DocumentLink::Intake, which runs before anything is written) — none may
+    # reach stage!'s UPDATE, and none may leave a row or bytes behind.
     return render(plain: "title too long", status: :unprocessable_entity) if params[:title].to_s.length > MAX_TITLE_LENGTH
     return render(plain: "content type too long", status: :unprocessable_entity) if file.content_type.to_s.length > MAX_CONTENT_TYPE_LENGTH
-    # Cap before the digest read: an over-cap upload must never be buffered in
-    # memory, create a row that can never progress, or leave a partial file.
-    return render(plain: "file too large", status: :payload_too_large) if file.tempfile.size > DocumentLink::Staging::MAX_BYTES
 
-    digest = Digest::SHA256.digest(file.tempfile.read).unpack1("H*")
-    file.tempfile.rewind
-    if Current.family.document_links.exists?(content_sha256: digest)
-      @duplicate_digest = digest
-      # Ruling 4: explicit view path (see #index) — spec §6 pins app/views/documents/.
-      return render "documents/duplicate", status: :conflict
-    end
-
-    link = DocumentLink.link_from_upload!(family: Current.family, uploader: Current.user,
-                                          source: source, title: params[:title].presence)
-    begin
-      # Savepoint: a failed stage! (a lost unique-index race, a rejected value)
-      # aborts the surrounding transaction, which would poison the cleanup below.
-      DocumentLink.transaction(requires_new: true) do
-        link.stage!(io: file.tempfile, filename: file.original_filename, content_type: file.content_type)
-      end
-    rescue StandardError
-      # stage! failed after the row existed: reclaim the bytes it wrote and drop
-      # the row — a queued row with no staged_path can never progress or retry.
-      DocumentLink::Staging.delete(link.id.to_s)
-      link.destroy!
-      raise
-    end
-    link.mark_processing!
-    # Ruling 11 (M1): an enqueue failure must not strand the row in `processing`
-    # — no poll would ever pick it up (the poll is scheduled by the job), the
-    # webhook cannot match a nil document id, the retry route accepts only
-    # failed/queued, and the unfiltered (family, sha256) unique index blocks a
-    # re-upload. On a raise (production: Sidekiq/Redis down) hold the row back to
-    # `queued` with its staged bytes so the retry route can re-drive it. The repo
-    # compensates for this exact class elsewhere (destroyable_later.rb, sync_cleaner_job).
-    begin
-      Paperless::UploadJob.perform_later(link.id)
-    rescue => e
-      link.hold!(message: "enqueue failed: #{e.class}")
+    # Pure extraction (M7 Task 3): source resolution, the filename/size caps, the
+    # digest-first dedup, savepoint staging and the upload enqueue now live in
+    # DocumentLink::Intake, shared with the wizard. This action only maps the
+    # PORO's errors onto M1's statuses and bodies.
+    link = DocumentLink::Intake.call(family: Current.family, uploader: Current.user,
+                                     file: file, source: params[:source].presence, title: params[:title].presence)
+    # Ruling 11 (M1): Intake holds the row back to `queued` (with its staged
+    # bytes) when the enqueue raises — a `processing` row is in flight.
+    if link.status == "queued"
       redirect_to documents_path, alert: t("documents.create.held")
     else
       redirect_to documents_path, notice: t("documents.create.queued")
     end
+  rescue DocumentLink::Intake::Duplicate
+    # Covers both the digest pre-check and the lost unique-index race in one
+    # class. (repaired 2026-10-10, verifier F16) No digest ivar: documents/duplicate
+    # never reads @duplicate_digest, so M1's template renders unchanged.
+    render "documents/duplicate", status: :conflict
+  rescue DocumentLink::Intake::InvalidSource
+    render plain: "invalid source", status: :unprocessable_entity
+  rescue DocumentLink::Intake::FilenameTooLong
+    render plain: "filename too long", status: :unprocessable_entity
   rescue DocumentLink::Staging::TooLargeError
     render plain: "file too large", status: :payload_too_large
-  rescue ActiveRecord::RecordNotUnique
-    # The digest check above is check-then-act: two concurrent uploads of the
-    # same bytes (a double-click submit) can both pass it, and the loser hits
-    # the (family_id, content_sha256) unique index inside stage!. It has been
-    # cleaned up; answer 409 like the duplicate it is, never a 500.
-    render plain: "duplicate document", status: :conflict
   end
 
   # Streams paperless bytes with Range/Content-Range passthrough. We forward the

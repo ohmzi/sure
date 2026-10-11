@@ -1,0 +1,14 @@
+<%# locals: (import:) %>
+
+<div class="h-full flex flex-col justify-center items-center">
+  <div class="space-y-6 max-w-lg w-full">
+    <div class="mx-auto bg-gray-tint-5 h-8 w-8 rounded-full flex items-center justify-center">
+      <%= icon "loader", class: "animate-pulse" %>
+    </div>
+    <div class="text-center space-y-2">
+      <h1 class="font-medium text-primary text-center text-3xl"><%= t("imports.receipt_import.pending_title") %></h1>
+      <p class="text-sm text-secondary"><%= t("imports.receipt_import.pending_description") %></p>
+    </div>
+    <%= render DS::Link.new(text: t("imports.receipt_import.back_to_archive"), href: documents_path(source: "receipt,bill"), variant: "secondary", full_width: true) %>
+  </div>
+</div>
