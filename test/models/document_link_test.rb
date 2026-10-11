@@ -13,6 +13,9 @@ class DocumentLinkTest < ActiveSupport::TestCase
   end
 
   test "link_to_entry! links the row and never touches the entry's money" do
+    # Ruling M1 (M1), 2026-10-10 close-out: capture the date BEFORE the call —
+    # asserting it against itself (@entry.date == @entry.date) is vacuous.
+    date_before = @entry.date
     assert @link.link_to_entry!(@entry, confidence: 88)
     @link.reload
     assert_equal "linked", @link.status
@@ -22,7 +25,7 @@ class DocumentLinkTest < ActiveSupport::TestCase
     @entry.reload
     assert_equal 10, @entry.amount
     assert_equal "Starbucks", @entry.name
-    assert_equal @entry.date, @entry.date # unchanged
+    assert_equal date_before, @entry.date
   end
 
   test "unlink! clears the entry AND the confidence" do
