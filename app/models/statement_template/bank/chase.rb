@@ -43,8 +43,13 @@ class StatementTemplate
           match = line.strip.match(ROW_PATTERN)
           next unless match
 
+          date = date_for(match, period)
+          # (Ruling M2-C5, 2026-10-11 close-out): an impossible MM/DD (for
+          # example 02/31) is skipped, never guessed at.
+          next unless date
+
           Row.new(
-            date:   date_for(match, period),
+            date:   date,
             amount: BigDecimal(match[:amount].delete(",")),
             payee:  match[:description].strip,
             memo:   nil
@@ -54,11 +59,20 @@ class StatementTemplate
 
       private
 
+        # (Ruling M2-C5, 2026-10-11 close-out): a period line whose start month
+        # does not name a real month (OCR garble) leaves the year inference
+        # unusable, so return no period and `rows` emits nothing rather than
+        # guessing years (the "never a guess" rule). Before this guard a nil
+        # month_number raised ArgumentError from date_for at a year-boundary
+        # period line.
         def period_for(text)
           match = text.to_s.match(PERIOD_PATTERN)
           return nil unless match
 
-          { start_month: month_number(match[:month]), start_year: match[:year].to_i, end_year: match[:end_year].to_i }
+          start_month = month_number(match[:month])
+          return nil unless start_month
+
+          { start_month: start_month, start_year: match[:year].to_i, end_year: match[:end_year].to_i }
         end
 
         # A statement spanning a year boundary lists December after January;
@@ -72,6 +86,10 @@ class StatementTemplate
           end
 
           Date.new(year, month, match[:day].to_i)
+        rescue Date::Error
+          # (Ruling M2-C5, 2026-10-11 close-out): an impossible date is not a
+          # transaction line; skip it rather than crash the read.
+          nil
         end
 
         def month_number(name)
