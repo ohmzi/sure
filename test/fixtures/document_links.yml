@@ -38,3 +38,13 @@ held_bill:
   original_filename: water.pdf
   content_type: application/pdf
   staged_path: staged/held-water.pdf
+
+understood_receipt_link:
+  family: dylan_family
+  created_by: family_admin
+  paperless_document_id: 9003
+  status: unlinked
+  source: receipt
+  title: Latte Lane
+  original_filename: latte.png
+  content_type: image/png

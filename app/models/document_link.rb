@@ -26,6 +26,10 @@ class DocumentLink < ApplicationRecord
   belongs_to :account_statement, optional: true
   belongs_to :created_by, class_name: "User", optional: true
 
+  # Receipt/bill drafts created by the M7 wizard. Nullified (never destroyed)
+  # when a link is removed: the draft's history outlives the bytes.
+  has_many :receipt_imports, class_name: "ReceiptImport", foreign_key: :document_link_id, dependent: :nullify
+
   enum :source, { receipt: "receipt", bill: "bill", statement: "statement", other: "other" }, validate: true
 
   validates :status, inclusion: { in: STATUSES }

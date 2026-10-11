@@ -39,7 +39,7 @@ class Import < ApplicationRecord
 
   DOCUMENT_TYPES = %w[bank_statement credit_card_statement investment_statement financial_document contract other].freeze
 
-  TYPES = %w[TransactionImport TradeImport AccountImport MintImport ActualImport YnabImport CategoryImport RuleImport MerchantImport PdfImport QifImport OfxImport SureImport].freeze
+  TYPES = %w[TransactionImport TradeImport AccountImport MintImport ActualImport YnabImport CategoryImport RuleImport MerchantImport PdfImport ReceiptImport QifImport OfxImport SureImport].freeze
   SIGNAGE_CONVENTIONS = %w[inflows_positive inflows_negative]
   SEPARATORS = [ [ "Comma (,)", "," ], [ "Semicolon (;)", ";" ] ].freeze
 
@@ -78,6 +78,8 @@ class Import < ApplicationRecord
   belongs_to :family
   belongs_to :account, optional: true
   belongs_to :account_statement, optional: true
+  # ReceiptImport only (M7): the spine row this draft's document lives on.
+  belongs_to :document_link, optional: true
   belongs_to :import_session, optional: true
 
   before_validation :set_default_number_format

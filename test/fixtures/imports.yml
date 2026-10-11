@@ -50,3 +50,30 @@ sure:
   family: dylan_family
   type: SureImport
   status: pending
+
+receipt_draft:
+  family: dylan_family
+  type: ReceiptImport
+  status: pending
+  understanding_state: awaiting_ocr
+  document_link: unlinked_receipt
+  signage_convention: inflows_negative
+
+receipt_understood:
+  family: dylan_family
+  type: ReceiptImport
+  account: depository
+  status: pending
+  understanding_state: understood
+  document_link: understood_receipt_link
+  date_format: "%m/%d/%Y"
+  signage_convention: inflows_negative
+  extracted_data:
+    total: "12.00"
+    date: "2026-09-14"
+    payee: "Starbucks"
+    line_items:
+      - description: "Latte"
+        amount: "4.75"
+      - description: "Sandwich"
+        amount: "7.25"
