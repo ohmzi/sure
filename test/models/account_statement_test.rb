@@ -908,6 +908,15 @@ class AccountStatementTest < ActiveSupport::TestCase
     assert statement.extraction_failed?
   end
 
+  test "the extraction_state column is non-null and defaults to not_attempted in the database" do
+    # (Ruling M2-C8, 2026-10-11 close-out): the enum default masks the column's
+    # own default/null contract, so pin the migration's guarantee directly.
+    column = AccountStatement.columns_hash.fetch("extraction_state")
+
+    assert_equal "not_attempted", column.default
+    assert_equal false, column.null
+  end
+
   private
 
     def create_pdf_statement
