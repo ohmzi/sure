@@ -12,11 +12,17 @@ class Paperless::ContractTest < ActiveSupport::TestCase
     # Without turned_off the suite-wide VCR config intercepts the request
     # (unhandled-http error) and the test could only ever SKIP, never pass -
     # so spec 12's "contract tests green" was unreachable by construction.
+    # Ruling 13 (M1): the suite disables real connections TWICE (VCR with no
+    # cassette, and WebMock.disable_net_connect!) - both gates must open for the
+    # one test whose whole point is talking to a live paperless.
+    WebMock.allow_net_connect!
     VCR.turned_off do
       client = Paperless::Client.new(base_url: ENV["PAPERLESS_CONTRACT_URL"])
       assert client.configured?
       assert_kind_of Integer, client.tag_id("ohmzbudget")
       assert_raises(Paperless::Error) { client.task("00000000-0000-0000-0000-000000000000") }
     end
+  ensure
+    WebMock.disable_net_connect!
   end
 end
