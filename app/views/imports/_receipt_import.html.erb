@@ -2,13 +2,159 @@
 
 <div class="h-full flex flex-col justify-center items-center">
   <div class="space-y-6 max-w-lg w-full">
-    <div class="mx-auto bg-gray-tint-5 h-8 w-8 rounded-full flex items-center justify-center">
-      <%= icon "loader", class: "animate-pulse" %>
-    </div>
-    <div class="text-center space-y-2">
-      <h1 class="font-medium text-primary text-center text-3xl"><%= t("imports.receipt_import.pending_title") %></h1>
-      <p class="text-sm text-secondary"><%= t("imports.receipt_import.pending_description") %></p>
-    </div>
-    <%= render DS::Link.new(text: t("imports.receipt_import.back_to_archive"), href: documents_path(source: "receipt,bill"), variant: "secondary", full_width: true) %>
+    <% if import.awaiting_ocr? %>
+      <div class="mx-auto bg-gray-tint-5 h-8 w-8 rounded-full flex items-center justify-center">
+        <%= icon "loader", class: "animate-pulse" %>
+      </div>
+      <div class="text-center space-y-2">
+        <h1 class="font-medium text-primary text-center text-3xl"><%= t("imports.receipt_import.pending_title") %></h1>
+        <p class="text-sm text-secondary"><%= t("imports.receipt_import.pending_description") %></p>
+      </div>
+      <%= render DS::Link.new(text: t("imports.receipt_import.back_to_archive"), href: documents_path(source: "receipt,bill"), variant: "secondary", full_width: true) %>
+    <% else %>
+      <%# The reviewed receipt/bill (locked decision 11): parsed details, the
+          item lines, the account and the ONE money writer — the publish button
+          — behind this screen (D8). Everything here is read-only money-wise. %>
+      <div class="mx-auto <%= import.understood? ? "bg-success/10" : "bg-warning/10" %> h-8 w-8 rounded-full flex items-center justify-center">
+        <%= import.understood? ? icon("check", class: "text-success") : icon("alert-triangle", class: "text-warning") %>
+      </div>
+
+      <div class="text-center space-y-2">
+        <h1 class="font-medium text-primary text-center text-3xl">
+          <%= import.understood? ? t("imports.receipt_import.understood_title") : t("imports.receipt_import.needs_understanding_title") %>
+        </h1>
+        <% if import.needs_understanding? %>
+          <p class="text-sm text-secondary"><%= t("imports.receipt_import.needs_understanding_description") %></p>
+        <% end %>
+        <% if import.error.present? %>
+          <p class="text-sm text-destructive"><%= import.error %></p>
+        <% end %>
+      </div>
+
+      <div class="bg-container border border-primary rounded-xl p-4 space-y-4">
+        <% link = import.document_link %>
+        <% if link.present? && link.paperless_document_id.present? %>
+          <%# Ruling 6 (M1): only rows with a paperless copy have a file — #file
+              404s for queued/held rows, so they get no thumbnail or link. %>
+          <% if link.content_type.to_s.start_with?("image/") %>
+            <%= image_tag file_document_path(link, kind: "thumb"),
+                  alt: link.title.presence || link.original_filename,
+                  loading: "lazy", class: "mx-auto h-32 w-auto rounded-lg object-cover" %>
+          <% else %>
+            <p class="text-center">
+              <%= render DS::Link.new(text: link.title.presence || link.original_filename, href: file_document_path(link, kind: "preview")) %>
+            </p>
+          <% end %>
+        <% end %>
+
+        <dl class="space-y-2">
+          <%= render DS::DetailRow.new(label: t("imports.receipt_import.total"), value: import.total_amount ? format_money(import.total_amount) : "—") %>
+          <%= render DS::DetailRow.new(label: t("imports.receipt_import.date"), value: import.purchase_date ? format_date(import.purchase_date) : "—") %>
+          <%= render DS::DetailRow.new(label: t("imports.receipt_import.payee"), value: import.payee.presence || "—") %>
+        </dl>
+
+        <% if import.line_items.any? %>
+          <div class="space-y-2">
+            <h2 class="font-medium text-primary"><%= t("imports.receipt_import.items_title") %></h2>
+            <%= render DS::Table.new(rows: import.line_items, inset: true) do |table| %>
+              <% table.with_column(t("imports.receipt_import.item_description"), row_header: true) { |item| item["description"].to_s } %>
+              <% table.with_column(t("imports.receipt_import.item_amount"), numeric: true) { |item| format_money(item["amount"].to_d) } %>
+            <% end %>
+            <%# Only an exact sum ever becomes splits (never a guess): a partial
+                parse stays on this screen for display and publishes unsplit. %>
+            <% if import.total_amount.present? && import.line_items.sum { |item| item["amount"].to_d } != import.total_amount %>
+              <p class="text-xs text-warning"><%= t("imports.receipt_import.items_mismatch") %></p>
+            <% end %>
+          </div>
+        <% end %>
+
+        <% if link.present? %>
+          <div class="space-y-2">
+            <h2 class="font-medium text-primary"><%= t("imports.receipt_import.source_label") %></h2>
+            <%# The one-tap receipt<->bill override (locked decision 12) — writes
+                document_link.source, never money. %>
+            <div class="flex items-center gap-2">
+              <% %w[receipt bill].each do |source| %>
+                <%= render DS::Button.new(
+                      text: t("imports.receipt_import.source_#{source}"),
+                      href: receipt_import_path(import),
+                      method: :patch,
+                      params: { receipt_import: { source: source } },
+                      variant: link.source == source ? :primary : :outline,
+                      size: :sm
+                    ) %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
+        <div class="space-y-2">
+          <h2 id="receipt-import-select-account" class="font-medium text-primary"><%= t("imports.receipt_import.account_label") %></h2>
+          <%= styled_form_with model: import, scope: :import, url: import_path(import), method: :patch, class: "space-y-2" do |f| %>
+            <%# The same account select as the statement review screen
+                (imports/_pdf_import.html.erb), so both imports read alike. %>
+            <% accounts = Current.user.accessible_accounts.alphabetically.pluck(:name, :id) %>
+            <% if accounts.any? %>
+              <%= f.select :account_id, accounts,
+                           { include_blank: t("imports.pdf_import.select_account_placeholder"), selected: import.account_id, label: false },
+                           { "aria-labelledby": "receipt-import-select-account" } %>
+              <% if import.account.nil? %>
+                <p class="text-xs text-secondary"><%= t("imports.pdf_import.select_account_hint") %></p>
+              <% end %>
+            <% else %>
+              <p class="text-sm text-secondary px-3 py-2 bg-warning/10 rounded-lg">
+                <%= t("imports.pdf_import.no_accounts") %>
+              </p>
+              <%= render DS::Link.new(text: t("imports.pdf_import.create_account"), href: new_account_path(return_to: import_path(import)), variant: "primary", full_width: true, frame: :modal) %>
+            <% end %>
+            <% if accounts.any? %>
+              <%= f.submit t("imports.receipt_import.save_account") %>
+            <% end %>
+          <% end %>
+          <% if import.account.nil? %>
+            <%= render DS::Link.new(text: t("imports.receipt_import.account_link"), href: import_account_path(import), full_width: true) %>
+          <% end %>
+        </div>
+
+        <% if import.needs_understanding? %>
+          <div class="space-y-2">
+            <h2 class="font-medium text-primary"><%= t("imports.receipt_import.manual_title") %></h2>
+            <%= styled_form_with url: receipt_import_path(import), scope: :receipt_import, method: :patch, class: "space-y-2" do |f| %>
+              <%= f.text_field :total_amount, value: import.total_amount, label: t("imports.receipt_import.manual_total") %>
+              <%= f.text_field :purchase_date, value: import.purchase_date, label: t("imports.receipt_import.manual_date") %>
+              <%= f.text_field :payee, value: import.payee, label: t("imports.receipt_import.manual_payee") %>
+              <%= f.submit t("imports.receipt_import.save_details") %>
+            <% end %>
+            <% if link.present? %>
+              <%= render DS::Button.new(
+                    text: t("imports.receipt_import.retry_reading"),
+                    href: retry_document_path(link),
+                    method: :post,
+                    variant: :secondary,
+                    full_width: true
+                  ) %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+
+      <div class="space-y-2 flex flex-col">
+        <% if import.publishable? %>
+          <%= render DS::Button.new(
+                text: t("imports.receipt_import.publish"),
+                href: publish_import_path(import),
+                method: :post,
+                variant: :primary,
+                full_width: true
+              ) %>
+        <% else %>
+          <p class="text-center text-sm text-secondary"><%= t("imports.receipt_import.publish_hint") %></p>
+        <% end %>
+        <% if import.duplicate_candidate.present? %>
+          <p class="text-center text-sm text-warning"><%= t("imports.receipt_import.duplicate_hint") %></p>
+        <% end %>
+        <%= render DS::Link.new(text: t("imports.receipt_import.back_to_archive"), href: documents_path(source: "receipt,bill"), variant: "secondary", full_width: true) %>
+      </div>
+    <% end %>
   </div>
 </div>

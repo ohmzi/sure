@@ -278,6 +278,31 @@ en:
       pending_title: Reading your document
       pending_description: We're checking the details on your receipt or bill. This runs in the background — you can leave this page.
       back_to_archive: "Back to Receipts & Bills"
+      understood_title: Review your document
+      needs_understanding_title: Add the missing details
+      needs_understanding_description: We couldn't read everything on this document, and we never guess. Enter the total and date below, or try reading it again.
+      total: Total
+      date: Date
+      payee: Payee
+      items_title: Items
+      item_description: Item
+      item_amount: Amount
+      items_mismatch: These items don't add up to the total, so they won't be published as separate splits.
+      source_label: Type
+      source_receipt: Receipt
+      source_bill: Bill
+      account_label: Account
+      account_link: Choose an account
+      save_account: Save account
+      publish: Publish expense
+      publish_hint: An account, a total and a date are required before this can be published.
+      manual_title: Missing details
+      manual_total: Total
+      manual_date: Date
+      manual_payee: Payee
+      save_details: Save details
+      retry_reading: Try reading again
+      duplicate_hint: A matching transaction may already exist on this account — publishing adds a new one.
     mapping_labels:
       account_type: "Account Type"
       account: "Account"

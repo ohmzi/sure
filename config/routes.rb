@@ -539,6 +539,10 @@ Rails.application.routes.draw do
     resources :mappings, only: :update, module: :import
   end
 
+  # M7: a receipt draft's editable details (manual entry + the receipt/bill
+  # override). Publishing stays on imports#publish.
+  resources :receipt_imports, only: %i[update]
+
   namespace :ingest do
     post "paperless", to: "paperless#create"
   end

@@ -132,4 +132,117 @@ class ReceiptImport < Import
   # The clean screen edits these two per row; the receipt date is the draft's,
   # not each item's.
   def column_keys = %i[name amount]
+
+  # --- publish gate ---------------------------------------------------------
+
+  def configured?
+    total_amount.present?
+  end
+
+  # (repaired 2026-10-10, verifier F8) The purchase date is part of the gate:
+  # Entry validates date presence, and a date-less publish would otherwise die
+  # inside import! and flip the draft to failed. Understanding never marks a
+  # date-less receipt `understood` (Task 6), so this term is the belt-and-braces
+  # pin on the affordance; import!'s guard below is the enforcement.
+  def publishable?
+    account.present? && total_amount.present? && purchase_date.present? &&
+      cleaned? && mappings.all?(&:valid?)
+  end
+
+  # --- the money writer (D8) ------------------------------------------------
+  #
+  # The ONLY entry writer in M7, reached only through Import#publish (the
+  # reviewed publish button). Identity is the spec's reserved idempotency
+  # pattern (§7 errata): external_id "paperless:<docID>" + source "paperless",
+  # so a replayed or redelivered publish finds the same entry. Heuristic
+  # claiming is OFF: publishing never edits or adopts a user's existing entry —
+  # linking a receipt to an existing expense is M3's link-only path.
+  def import!
+    raise "Account required for a receipt import" unless account.present?
+    raise "A receipt needs a total before it can be published" unless total_amount.present?
+    # (repaired 2026-10-10, verifier F8) Never let Entry's date-presence
+    # validation raise from deep inside the adapter (which would flip the draft
+    # to failed after a partial write attempt): refuse here, explicitly.
+    raise "A receipt needs a purchase date before it can be published" unless purchase_date.present?
+
+    transaction do
+      adapter = Account::ProviderImportAdapter.new(account)
+      entry = adapter.import_transaction(
+        external_id: "paperless:#{document_link.paperless_document_id}",
+        source: "paperless",
+        amount: total_amount,
+        currency: default_currency, # Import's helper: account&.currency || family.currency
+        date: purchase_date,
+        name: payee.presence || document_link.title.presence ||
+              document_link.original_filename.presence || "Receipt",
+        allow_heuristic_matching: false
+      )
+      # Attach to the import so Import#revert unwinds it (and so the entry is
+      # protected from provider syncs like every other import-written entry).
+      entry.update!(import: self, import_locked: true)
+      split_into_line_items!(entry) if line_items_split?
+    end
+  end
+
+  # Splits only on an exact sum — the QIF split precedent (Entry#split! itself
+  # raises unless the parts sum to the parent). A partial parse is kept on the
+  # draft for display and never becomes money.
+  def line_items_split?
+    rows.reload.count > 1 && rows.sum(&:signed_amount) == total_amount
+  end
+
+  # Read-only hint for the review screen: same amount/date on the target
+  # account already recorded manually. Never blocks, never claims.
+  def duplicate_candidate
+    return nil unless account.present? && total_amount.present? && purchase_date.present?
+
+    Account::ProviderImportAdapter.new(account).find_duplicate_transaction(
+      date: purchase_date, amount: total_amount, currency: default_currency
+    )
+  end
+
+  def apply_manual_details!(total: nil, date: nil, payee: nil)
+    updated = extracted_data&.deep_dup || {}
+    if total.present?
+      parsed_total = begin
+        BigDecimal(total.to_s.delete(","))
+      rescue ArgumentError
+        nil
+      end
+      return false if parsed_total.nil? || !parsed_total.positive?
+
+      updated["total"] = parsed_total.to_s("F")
+    end
+    if date.present?
+      parsed_date = begin
+        Date.parse(date.to_s)
+      rescue Date::Error
+        nil
+      end
+      return false if parsed_date.nil? || parsed_date > Date.current || parsed_date < Entry.min_supported_date
+
+      updated["date"] = parsed_date.iso8601
+    end
+    updated["payee"] = payee.to_s if payee.present?
+
+    transaction do
+      update!(extracted_data: updated)
+      update!(understanding_state: :understood, error: nil) if total_amount.present? && purchase_date.present?
+      generate_rows_from_line_items!
+    end
+    true
+  end
+
+  private
+    def split_into_line_items!(entry)
+      splits = rows.ordered.map do |row|
+        {
+          name: row.name.presence || payee.presence || "Item",
+          amount: row.signed_amount,
+          category_id: nil,
+          excluded: false
+        }
+      end
+      entry.split!(splits) # children inherit import/import_locked from the parent
+    end
 end

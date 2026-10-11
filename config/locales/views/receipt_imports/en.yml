@@ -1,0 +1,8 @@
+---
+en:
+  receipt_imports:
+    update:
+      locked: This receipt has already been published.
+      invalid_source: Only receipt or bill is allowed here.
+      invalid_details: Those details could not be read — check the total and date.
+      saved: Details saved.
