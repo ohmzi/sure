@@ -8,6 +8,7 @@ en:
       token_invalid_description: "The last paperless call was rejected (401) at %{time}. Rotate the token in settings."
     create:
       queued: Document queued for processing.
+      held: The upload is held on this server; retry it once paperless is reachable.
     link:
       linked: Document linked to the entry.
       unlinked: Document unlinked from the entry.

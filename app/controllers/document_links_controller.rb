@@ -11,6 +11,11 @@ class DocumentLinksController < ApplicationController
   # value would raise PG::StringDataRightTruncation inside stage!'s guarded
   # UPDATE — after the bytes were already written.
   MAX_FILENAME_LENGTH = 255
+  # Ruling M6 (M1), 2026-10-10 close-out: title (500) and content_type (100) are
+  # column-limited the same way; a longer value would abort inside stage!'s
+  # guarded UPDATE after the bytes were already written.
+  MAX_TITLE_LENGTH = 500
+  MAX_CONTENT_TYPE_LENGTH = 100
 
   before_action :set_link, only: %i[file link unlink retry destroy]
   before_action :require_document_copy!, only: %i[link unlink]
@@ -29,10 +34,19 @@ class DocumentLinksController < ApplicationController
 
   def create
     file = params.require(:document)
+    # Ruling M6 (M1), 2026-10-10 close-out: params.require proves presence only —
+    # a hand-rolled POST can send a plain string, which has no #tempfile /
+    # #original_filename, so the param's shape is checked before anything reads it.
+    return render(plain: "invalid document", status: :bad_request) unless file.respond_to?(:tempfile) && file.respond_to?(:original_filename)
     source = params[:source].presence ||
              DocumentLink::SourceGuesser.guess(filename: file.original_filename, content_type: file.content_type).to_s
     return render(plain: "invalid source", status: :unprocessable_entity) unless DocumentLink::SOURCES.include?(source)
+    # Ruling M6 (M1), 2026-10-10 close-out: the column-limited params are checked
+    # up front (filename 255, title 500, content_type 100) — none may reach
+    # stage!'s UPDATE, and none may leave a row or bytes behind.
     return render(plain: "filename too long", status: :unprocessable_entity) if file.original_filename.to_s.length > MAX_FILENAME_LENGTH
+    return render(plain: "title too long", status: :unprocessable_entity) if params[:title].to_s.length > MAX_TITLE_LENGTH
+    return render(plain: "content type too long", status: :unprocessable_entity) if file.content_type.to_s.length > MAX_CONTENT_TYPE_LENGTH
     # Cap before the digest read: an over-cap upload must never be buffered in
     # memory, create a row that can never progress, or leave a partial file.
     return render(plain: "file too large", status: :payload_too_large) if file.tempfile.size > DocumentLink::Staging::MAX_BYTES
@@ -61,8 +75,21 @@ class DocumentLinksController < ApplicationController
       raise
     end
     link.mark_processing!
-    Paperless::UploadJob.perform_later(link.id)
-    redirect_to documents_path, notice: t("documents.create.queued")
+    # Ruling 11 (M1): an enqueue failure must not strand the row in `processing`
+    # — no poll would ever pick it up (the poll is scheduled by the job), the
+    # webhook cannot match a nil document id, the retry route accepts only
+    # failed/queued, and the unfiltered (family, sha256) unique index blocks a
+    # re-upload. On a raise (production: Sidekiq/Redis down) hold the row back to
+    # `queued` with its staged bytes so the retry route can re-drive it. The repo
+    # compensates for this exact class elsewhere (destroyable_later.rb, sync_cleaner_job).
+    begin
+      Paperless::UploadJob.perform_later(link.id)
+    rescue => e
+      link.hold!(message: "enqueue failed: #{e.class}")
+      redirect_to documents_path, alert: t("documents.create.held")
+    else
+      redirect_to documents_path, notice: t("documents.create.queued")
+    end
   rescue DocumentLink::Staging::TooLargeError
     render plain: "file too large", status: :payload_too_large
   rescue ActiveRecord::RecordNotUnique
@@ -122,7 +149,11 @@ class DocumentLinksController < ApplicationController
   end
 
   def retry
-    unless @link.status.in?(%w[failed queued]) &&
+    # Ruling M4 (M1), 2026-10-10 close-out: refuse to re-enqueue a row whose
+    # upload is already in flight — a processing row, or a row that still holds
+    # its paperless task id. Together with UploadJob's task-id guard, a
+    # double-submitted retry cannot post the same bytes twice.
+    unless @link.status.in?(%w[failed queued]) && @link.paperless_task_id.blank? &&
            @link.staged_path.present? && DocumentLink::Staging.exists?(@link.staged_path)
       return render(plain: "no held upload to retry", status: :conflict)
     end

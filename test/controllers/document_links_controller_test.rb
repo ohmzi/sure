@@ -37,6 +37,45 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     DocumentLink::Staging.delete(link&.staged_path)
   end
 
+  test "create holds the row back to queued with its bytes when the enqueue raises" do
+    # Ruling 11 (M1), 2026-10-10 close-out: without this fence a raise between
+    # stage! and enqueue strands the row in `processing` — no poll is ever
+    # scheduled (the job schedules it), the retry route refuses `processing`,
+    # and the (family, sha256) unique index blocks re-uploading the same bytes.
+    file = uploaded_file(filename: "r.png", content_type: "image/png", content: "png-bytes")
+    Paperless::UploadJob.stubs(:perform_later).raises(StandardError, "redis down")
+    assert_difference "DocumentLink.count", 1 do
+      post documents_path, params: { document: file, source: "receipt" }
+    end
+    assert_response :redirect
+    link = DocumentLink.order(:created_at).last
+    assert_equal "queued", link.status
+    assert link.staged_path.present?
+    assert File.exist?(link.staged_path), "the held row keeps its staged bytes for the retry route"
+    assert_equal I18n.t("documents.create.held"), flash[:alert]
+  ensure
+    DocumentLink::Staging.delete(link&.staged_path)
+  end
+
+  test "create refuses a non-file document, an over-long title and an over-long content type without writing" do
+    # Ruling M6 (M1), 2026-10-10 close-out: one test, three refusals — each runs
+    # before any row or bytes are written.
+    assert_no_difference "DocumentLink.count" do
+      assert_no_difference -> { Dir.children(@tmp).size } do
+        post documents_path, params: { document: "not-a-file", source: "receipt" }
+        assert_response :bad_request
+
+        post documents_path, params: { document: uploaded_file(filename: "r.png", content_type: "image/png", content: "x"),
+                                       source: "receipt", title: "t" * (DocumentLinksController::MAX_TITLE_LENGTH + 1) }
+        assert_response :unprocessable_entity
+
+        post documents_path, params: { document: uploaded_file(filename: "r.png", content_type: "image/#{"x" * (DocumentLinksController::MAX_CONTENT_TYPE_LENGTH + 1)}", content: "y"),
+                                       source: "receipt" }
+        assert_response :unprocessable_entity
+      end
+    end
+  end
+
   test "create rejects an over-cap upload before writing anything" do
     file = uploaded_file(filename: "big.png", content_type: "image/png", content: "x" * 64)
     stub_const(DocumentLink::Staging, :MAX_BYTES, 32) do
@@ -164,6 +203,27 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     @link.update_columns(status: "failed", staged_path: nil)
     post retry_document_path(@link)
     assert_response :conflict
+  end
+
+  test "retry refuses a row whose upload is already in flight" do
+    # Ruling M4 (M1), 2026-10-10 close-out: staged bytes alone are not enough —
+    # a row in `processing`, or one still holding its task id (the poll is
+    # scheduled), must not be re-enqueued.
+    path = DocumentLink::Staging.write(io: StringIO.new("x"), id: @link.id)
+    @link.update_columns(status: "processing", paperless_task_id: "task-1", staged_path: path)
+    assert_no_enqueued_jobs do
+      post retry_document_path(@link)
+    end
+    assert_response :conflict
+
+    @link.update_columns(status: "queued", paperless_task_id: "task-1")
+    assert_no_enqueued_jobs do
+      post retry_document_path(@link)
+    end
+    assert_response :conflict
+    assert_equal "queued", @link.reload.status
+  ensure
+    DocumentLink::Staging.delete(path)
   end
 
   test "destroy removes the row and its staged bytes" do
