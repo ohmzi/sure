@@ -621,7 +621,10 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     # (Ruling M2-C4, 2026-10-11 close-out): the view renders
     # AccountStatement::ACCEPTED_FILE_EXTENSIONS, which Task 4a extended with
     # .ofx/.qfx; the old hard-coded list could never match again.
-    assert_select "input[type=file][accept='.pdf,.csv,.xlsx,.ofx,.qfx']"
+    # (M7 Task 8, Ruling M7-L5) Task 8 extends the same constant with the
+    # camera-image entries (locked decision 9), so the derived list moves with
+    # it again — same pin shape, new value.
+    assert_select "input[type=file][accept='.pdf,.csv,.xlsx,.ofx,.qfx,.jpg,.jpeg,.png,.heic,.heif']"
     assert_select "select[name='statement_year']"
     assert_select "p", text: I18n.l(Date.current.prev_month.beginning_of_month, format: "%b %Y")
   end

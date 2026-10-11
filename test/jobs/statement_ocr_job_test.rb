@@ -187,4 +187,50 @@ class StatementOcrJobTest < ActiveJob::TestCase
     assert @statement.reload.needs_template?
     assert_equal 0, @import.reload.rows.count
   end
+
+  test "an image statement posts its own content type to paperless" do
+    statement = AccountStatement.create_from_upload!(
+      family: @import.family,
+      account: @import.account,
+      file: Rack::Test::UploadedFile.new(file_fixture("statements/scan.png"), "image/png")
+    )
+    @import.update!(account_statement: statement)
+
+    client = mock("paperless")
+    client.stubs(:configured?).returns(true)
+    client.stubs(:tag_id).returns(101)
+    client.expects(:post_document)
+          .with(has_entries(content_type: "image/png", filename: "scan.png", title: "scan.png"))
+          .returns("task-uuid-1")
+    client.stubs(:task).returns(OpenStruct.new(status: :success, document_id: 778, error_message: nil))
+    client.stubs(:document).returns(OpenStruct.new(content: "First National Bank of Nowhere\nnothing to parse"))
+    Paperless::Client.stubs(:new).returns(client)
+
+    StatementOcrJob.perform_now(@import.id)
+
+    assert_equal 778, DocumentLink.find_by!(account_statement_id: statement.id, source: "statement").paperless_document_id
+    assert statement.reload.needs_template?
+  end
+
+  test "a blank paperless read for an image statement skips the pdf-reader fallback" do
+    statement = AccountStatement.create_from_upload!(
+      family: @import.family,
+      account: @import.account,
+      file: Rack::Test::UploadedFile.new(file_fixture("statements/scan.png"), "image/png")
+    )
+    @import.update!(account_statement: statement)
+
+    client = mock("paperless")
+    client.stubs(:configured?).returns(true)
+    client.stubs(:tag_id).returns(101)
+    client.stubs(:post_document).returns("task-uuid-1")
+    client.stubs(:task).returns(OpenStruct.new(status: :success, document_id: 779, error_message: nil))
+    client.stubs(:document).returns(OpenStruct.new(content: ""))
+    client.expects(:file).never
+    Paperless::Client.stubs(:new).returns(client)
+
+    StatementOcrJob.perform_now(@import.id)
+
+    assert statement.reload.needs_template?
+  end
 end

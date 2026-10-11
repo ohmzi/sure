@@ -1,6 +1,8 @@
 require "test_helper"
 
 class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   setup { sign_in users(:family_admin) }
 
   test "step 2 renders the camera row above the upload row for both sources" do
@@ -46,14 +48,26 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   end
 
-  test "the statement tile files a statement link (interim — Task 8 replaces this branch)" do
+  test "the statement tile creates the vault statement and hands off to step 3" do
     file = Rack::Test::UploadedFile.new(file_fixture("receipts/statement.pdf"), "application/pdf")
-    post document_wizard_intake_path(source: "statement"), params: { document_file: file }
 
-    assert_equal "statement", DocumentLink.order(:created_at).last.source
-    assert_redirected_to documents_path(source: "statement")
-    assert_no_difference -> { ReceiptImport.count } do
-      post document_wizard_intake_path(source: "statement"), params: { document_file: Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png") }
+    assert_difference -> { AccountStatement.count } => 1, -> { PdfImport.count } => 1 do
+      post document_wizard_intake_path(source: "statement"), params: { document_file: file }
     end
+
+    pdf_import = PdfImport.order(:created_at).last
+    assert_redirected_to import_account_path(pdf_import)
+    assert pdf_import.account_statement.present?
+  end
+
+  test "a statement photo is archived and routed to the OCR path" do
+    file = Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png")
+
+    assert_enqueued_with(job: StatementOcrJob) do
+      post document_wizard_intake_path(source: "statement"), params: { document_file: file }
+    end
+
+    statement = AccountStatement.order(:created_at).last
+    assert_equal "image/png", statement.content_type
   end
 end

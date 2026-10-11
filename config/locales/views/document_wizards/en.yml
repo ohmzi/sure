@@ -4,12 +4,15 @@ en:
     new:
       title_receipt_or_bill: Receipt or Bill
       title_statement: Statement
+      description_receipt_or_bill: A photo or PDF of a receipt or bill — we'll keep it in your documents.
+      description_statement: A PDF or photo of a bank statement — we'll file it in your vault and read it in the background.
       capture: Take a photo
       upload: Upload a file
       hint: "Up to %{max_size}MB. Your documents stay private to your household."
       submit: Continue
     create:
+      not_authorized: You don't have permission to manage statements.
       duplicate: This file is already in your documents.
       too_large: That file is too large to upload.
       invalid_file: That file can't be uploaded. Try a PDF or an image.
-      statement_queued: Your statement is archived. We'll read it in the background.
+      statement_processing: Your statement is archived. We'll read it in the background.

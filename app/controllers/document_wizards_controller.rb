@@ -59,17 +59,18 @@ class DocumentWizardsController < ApplicationController
       RECEIPT_BILL_SOURCES.include?(guess) ? guess : "receipt"
     end
 
-    # INTERIM (Task 8 replaces this branch): the statement file takes M1's
-    # document path as a statement. Task 8 creates the vault AccountStatement +
-    # PdfImport (image-capable, locked decision 9) and hands off to M2's
-    # StatementOcrJob instead.
     def create_statement
+      unless AccountStatement.statement_manager?(Current.user)
+        return redirect_to new_document_wizard_path(source: "statement"), alert: t(".not_authorized")
+      end
+
       file = wizard_file or return
-      DocumentLink::Intake.call(family: Current.family, uploader: Current.user, file: file, source: "statement")
-      redirect_to documents_path(source: "statement"), notice: t(".statement_queued")
-    rescue DocumentLink::Intake::Duplicate
+      pdf_import = PdfImport.create_from_upload!(family: Current.family, file: file, user: Current.user)
+      PdfImport.route_processing_later!(pdf_import, file: file)
+      redirect_to import_account_path(pdf_import), notice: t(".statement_processing") # step 3; OCR settles asynchronously (Ruling M7-L5, 2026-10-11 Task 8)
+    rescue AccountStatement::DuplicateUploadError
       redirect_to new_document_wizard_path(source: "statement"), alert: t(".duplicate")
-    rescue DocumentLink::Staging::TooLargeError
-      redirect_to new_document_wizard_path(source: "statement"), alert: t(".too_large")
+    rescue AccountStatement::InvalidUploadError
+      redirect_to new_document_wizard_path(source: "statement"), alert: t(".invalid_file")
     end
 end

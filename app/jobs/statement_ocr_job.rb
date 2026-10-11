@@ -40,7 +40,7 @@ class StatementOcrJob < ApplicationJob
       task_id = client.post_document(
         io: StringIO.new(import.pdf_file_content),
         filename: import.pdf_filename,
-        content_type: "application/pdf",
+        content_type: import.account_statement&.content_type.presence || "application/pdf",
         title: import.pdf_filename,
         created: Time.current,
         tags: [ Paperless.tag_id("statement") ]
@@ -80,7 +80,7 @@ class StatementOcrJob < ApplicationJob
       end
     end
 
-    text = ocr_text(document_id)
+    text = ocr_text(document_id, import)
     template = StatementTemplate.detect(text)
 
     if template.nil?
@@ -117,9 +117,17 @@ class StatementOcrJob < ApplicationJob
 
     # R2: the paperless document's OCR `content` is the primary text source; the
     # archive PDF's text layer is read only when that content is blank.
-    def ocr_text(document_id)
+    def ocr_text(document_id, import)
       content = client.document(document_id).content.to_s
       return content if content.present?
+
+      # The archived-text fallback only exists for PDFs; an image statement
+      # with blank paperless content returns nil and lands the visible
+      # needs_template state (StatementTemplate.detect(nil) is nil) instead
+      # of raising from PDF::Reader. (Ruling M7-L5, 2026-10-11 Task 8: the
+      # earlier comment said extraction_failed; the nil template is what the
+      # job actually sets.)
+      return if import.account_statement&.content_type != "application/pdf"
 
       chunks = +""
       client.file(document_id, kind: :preview) { |chunk, _env| chunks << chunk }

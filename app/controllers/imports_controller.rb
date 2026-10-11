@@ -246,40 +246,9 @@ class ImportsController < ApplicationController
       return redirect_to new_import_path, alert: t("imports.create.pdf_too_large", max_size: Import::MAX_PDF_SIZE / 1.megabyte) if file.size > Import::MAX_PDF_SIZE
 
       pdf_import = PdfImport.create_from_upload!(family: Current.family, file: file, user: Current.user)
-
-      # Both extraction paths (spec §8.2, resolved in Architecture): a text-layer
-      # PDF with a PDF-capable provider goes to the AI path; a scanned/image-only
-      # PDF, a provider that cannot do PDFs, or no provider takes the paperless-OCR
-      # + template path. `process_with_ai` itself raises when the provider cannot do
-      # PDFs, so gating on supports_pdf_processing? avoids a dead ProcessPdfJob.
-      provider = Provider::Registry.preferred_llm_provider
-      if provider&.supports_pdf_processing? && text_layer_pdf?(file)
-        pdf_import.process_with_ai_later
-      else
-        # (Ruling P-m2-2, 2026-10-10 pre-flight) On a duplicate, create_from_upload!
-        # returns the reused persisted import — skip the enqueue so one PDF is never
-        # posted to paperless twice.
-        if pdf_import.previously_new_record?
-          begin
-            StatementOcrJob.perform_later(pdf_import.id)
-          rescue => e
-            # (Ruling M2-C2, 2026-10-11 close-out) M1 Ruling 11's pattern: a
-            # transient enqueue failure must not strand the new statement on a
-            # "Processing your PDF" screen with no retry. Hold it in the
-            # retryable, visible extraction_failed state - the import page then
-            # offers "Try again" - and surface the failure.
-            pdf_import.account_statement&.update!(extraction_state: :extraction_failed)
-            DebugLogEntry.capture(
-              category: "import",
-              level: "warn",
-              message: "StatementOcrJob enqueue failed: #{e.class}: #{e.message}",
-              source: "statement_ocr_job",
-              family: pdf_import.family,
-              metadata: { import_id: pdf_import.id, account_statement_id: pdf_import.account_statement_id, reason: "enqueue_failed" }
-            )
-            return redirect_to import_path(pdf_import), alert: t("imports.create.statement_ocr_enqueue_failed")
-          end
-        end
+      routing = PdfImport.route_processing_later!(pdf_import, file: file, text_layer: text_layer_pdf?(file))
+      if routing == :ocr_enqueue_failed
+        return redirect_to import_path(pdf_import), alert: t("imports.create.statement_ocr_enqueue_failed")
       end
 
       redirect_to import_path(pdf_import), notice: t("imports.create.pdf_processing")
@@ -289,24 +258,12 @@ class ImportsController < ApplicationController
       redirect_to new_import_path, alert: t("imports.create.invalid_pdf")
     end
 
-    # A PDF has a usable text layer when pdf-reader extracts text from any of its
-    # first few pages; a scanned/image-only PDF reads blank and routes to paperless.
-    def text_layer_pdf?(file)
-      file.rewind if file.respond_to?(:rewind)
-      reader = PDF::Reader.new(StringIO.new(file.read))
-      reader.pages.first(3).any? { |page| page.text.to_s.strip.present? }
-    # Ruling M2-L3: pdf-reader 2.15.1 has NO `PDF::Reader::Error` exception -
-    # that constant is an internal assertion utility (lib/pdf/reader/error.rb:32).
-    # Its real failure classes are MalformedPDFError (and its subclass
-    # InvalidObjectError), UnsupportedFeatureError (and its subclass
-    # EncryptedPDFError) and InvalidPageError < ArgumentError. Rescuing the wrong
-    # constant let a malformed/truncated/encrypted PDF raise straight out of this
-    # helper and 500 the upload instead of taking the paperless-OCR fallback.
-    rescue PDF::Reader::MalformedPDFError, PDF::Reader::UnsupportedFeatureError, ArgumentError, IOError
-      false
-    ensure
-      file.rewind if file.respond_to?(:rewind)
-    end
+    # (Ruling M7-L5, 2026-10-11 Task 8) A thin delegate kept for M2's pins:
+    # the routing tests stub this helper by name
+    # (test/controllers/imports_controller_test.rb:682, :697) and the
+    # Ruling-M2-L3 probe calls it directly (:716). The logic is
+    # PdfImport.text_layer?; the name must survive the move.
+    def text_layer_pdf?(file) = PdfImport.text_layer?(file)
 
     def create_document_import(file)
       adapter = VectorStore.adapter

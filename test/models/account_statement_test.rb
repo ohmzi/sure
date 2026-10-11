@@ -917,6 +917,28 @@ class AccountStatementTest < ActiveSupport::TestCase
     assert_equal false, column.null
   end
 
+  test "a camera photo of a statement is a legal vault upload" do
+    prepared = AccountStatement.prepare_upload!(
+      Rack::Test::UploadedFile.new(file_fixture("statements/scan.png"), "image/png")
+    )
+    assert_equal "image/png", prepared.content_type
+  end
+
+  test "a jpg camera photo is a legal vault upload too" do
+    # The Files block's scan.jpg fixture (M7 Task 8); the map's .jpg entry is
+    # the whole difference from the png case, so pin it directly.
+    prepared = AccountStatement.prepare_upload!(
+      Rack::Test::UploadedFile.new(file_fixture("statements/scan.jpg"), "image/jpeg")
+    )
+    assert_equal "image/jpeg", prepared.content_type
+  end
+
+  test "heic and heif are accepted with the types Task 1 probed" do
+    assert_includes AccountStatement::ALLOWED_EXTENSION_CONTENT_TYPES.keys, ".heic"
+    assert_equal [ "image/heic" ], AccountStatement::ALLOWED_EXTENSION_CONTENT_TYPES[".heic"]
+    assert_equal [ "image/heif" ], AccountStatement::ALLOWED_EXTENSION_CONTENT_TYPES[".heif"]
+  end
+
   private
 
     def create_pdf_statement

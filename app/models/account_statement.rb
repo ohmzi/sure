@@ -31,7 +31,16 @@ class AccountStatement < ApplicationRecord
     # must be listed here or allowed_upload? raises InvalidUploadError. The set
     # spans the declared and sniffed possibilities for both extensions.
     ".ofx" => %w[application/vnd.intu.qfx application/x-ofx text/xml application/xml text/plain application/octet-stream],
-    ".qfx" => %w[application/vnd.intu.qfx application/x-ofx text/xml application/xml text/plain application/octet-stream]
+    ".qfx" => %w[application/vnd.intu.qfx application/x-ofx text/xml application/xml text/plain application/octet-stream],
+    # M7 (locked decision 9): a camera photo of a statement is a first-class
+    # vault upload. Types are the Task-1 probe's Marcel results (real magic
+    # bytes: JPEG/PNG signatures, ISO-BMFF `ftypheic`/`ftypmif1`); paperless
+    # decodes HEIC (M1 R12 heic-ok), so the wizard posts the bytes unchanged.
+    ".jpg" => %w[image/jpeg],
+    ".jpeg" => %w[image/jpeg],
+    ".png" => %w[image/png],
+    ".heic" => %w[image/heic],
+    ".heif" => %w[image/heif]
   }.freeze
   ALLOWED_CONTENT_TYPES = ALLOWED_EXTENSION_CONTENT_TYPES.values.flatten.uniq.freeze
   ACCEPTED_FILE_EXTENSIONS = ALLOWED_EXTENSION_CONTENT_TYPES.keys.freeze
@@ -382,6 +391,14 @@ class AccountStatement < ApplicationRecord
   def ofx?
     content_type.in?(ALLOWED_EXTENSION_CONTENT_TYPES[".ofx"]) ||
       content_type.in?(ALLOWED_EXTENSION_CONTENT_TYPES[".qfx"])
+  end
+
+  def image?
+    content_type.in?(ALLOWED_EXTENSION_CONTENT_TYPES[".jpg"]) ||
+      content_type.in?(ALLOWED_EXTENSION_CONTENT_TYPES[".jpeg"]) ||
+      content_type.in?(ALLOWED_EXTENSION_CONTENT_TYPES[".png"]) ||
+      content_type.in?(ALLOWED_EXTENSION_CONTENT_TYPES[".heic"]) ||
+      content_type.in?(ALLOWED_EXTENSION_CONTENT_TYPES[".heif"])
   end
 
   def latest_reusable_pdf_import

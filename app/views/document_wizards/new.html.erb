@@ -7,6 +7,8 @@
   <div class="text-sm">
     <%= styled_form_with url: document_wizard_intake_path(source: @source), multipart: true,
                          data: { turbo_frame: "modal" } do |form| %>
+      <p class="px-2 pb-2 text-xs text-secondary"><%= t("document_wizards.new.description_#{@source}") %></p>
+
       <label class="group flex items-center gap-4 w-full cursor-pointer text-primary hover:bg-surface-hover focus-within:bg-surface-hover border border-transparent px-2 rounded-lg p-2">
         <%= render DS::FilledIcon.new(icon: "camera", hex_color: "#12B76A") %>
         <span class="grow"><%= t("document_wizards.new.capture") %></span>
