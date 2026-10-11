@@ -109,6 +109,22 @@ class AccountStatement < ApplicationRecord
       user&.admin? || user&.member?
     end
 
+    # Statement search over the statement's own filename OR the OCR snapshot of
+    # its linked document (a statement without a link still matches by name —
+    # the fallback). Local only: paperless is never queried (M8 locked
+    # decision 4 / M7 Task 10's pin, kept verbatim in behaviour).
+    def search(query)
+      term = query.to_s.strip
+      return all if term.blank?
+
+      pattern = "%#{sanitize_sql_like(term)}%"
+      matching_links = DocumentLink.where(source: "statement")
+                                   .where("extracted_text ILIKE :p OR title ILIKE :p OR original_filename ILIKE :p", p: pattern)
+                                   .where.not(account_statement_id: nil)
+      where("account_statements.filename ILIKE :p", p: pattern)
+        .or(where(id: matching_links.select(:account_statement_id)))
+    end
+
     def create_from_upload!(family:, account:, file:)
       prepared_upload = prepare_upload!(file)
       create_from_prepared_upload!(family: family, account: account, prepared_upload: prepared_upload)

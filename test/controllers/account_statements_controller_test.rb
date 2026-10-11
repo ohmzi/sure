@@ -544,4 +544,22 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to account_url(@account, tab: "statements")
     assert_equal I18n.t("account_statements.destroy.failure"), flash[:alert]
   end
+
+  # -- search (M8 Task 5; the moved M7 Task 10 fence) --------------------------
+
+  test "vault search matches a statement's linked OCR snapshot and the filename fallback" do
+    statement = AccountStatement.create_from_upload!(
+      family: families(:dylan_family), account: accounts(:depository),
+      file: Rack::Test::UploadedFile.new(file_fixture("receipts/statement.pdf"), "application/pdf")
+    )
+    link = DocumentLink.link_from_upload!(family: statement.family, uploader: users(:family_admin), source: "statement")
+    link.update!(account_statement: statement, status: "unlinked")
+    link.record_content!("ACME BANK STATEMENT\nTOTAL 1,234.00")
+
+    get account_statements_path(q: { search: "acme bank" })
+    assert_match statement.filename, response.body
+
+    get account_statements_path(q: { search: statement.filename })
+    assert_match statement.filename, response.body
+  end
 end

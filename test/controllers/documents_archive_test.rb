@@ -128,4 +128,81 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     link = DocumentLink.order(:created_at).last
     assert_equal "statement", link.source
   end
+
+  # -- full-text search, sort and the document-date range (M8 Task 5; the moved
+  #    M7 Task 10 fences, adapted to the browser) -------------------------------
+
+  test "search matches the OCR snapshot as well as title and filename" do
+    document_links(:unlinked_receipt).update!(title: "Weekly shop", extracted_text: "LATTE LANE CAFE\nTOTAL 12.00")
+
+    get documents_path(q: { search: "latte lane" })
+    assert_match "Weekly shop", response.body
+
+    get documents_path(q: { search: "weekly" }) # title fallback
+    assert_match "Weekly shop", response.body
+
+    get documents_path(q: { search: "nothing-here" })
+    assert_no_match "Weekly shop", response.body
+  end
+
+  test "a literal percent sign matches only rows that contain one" do
+    document_links(:unlinked_receipt).update!(title: "5% cashback receipt")
+    document_links(:queued_receipt).update!(title: "New receipt")
+
+    get documents_path(q: { search: "%" })
+
+    assert_response :success
+    assert_match "5% cashback receipt", response.body
+    assert_no_match "New receipt", response.body
+  end
+
+  test "search applies within the source filter" do
+    held = document_links(:held_bill)
+    held.update!(extracted_text: "WATER UTILITY DISTRICT")
+    document_links(:unlinked_receipt).update!(extracted_text: "WATER", title: "Water receipt")
+
+    get documents_path(source: "receipt,bill", q: { search: "water" })
+    assert_response :success # both rows are in receipt|bill
+
+    get documents_path(source: "bill", q: { search: "water" })
+    assert_no_match "Water receipt", response.body
+  end
+
+  test "the archive and its search never call paperless" do
+    Paperless::Client.any_instance.expects(:document).never
+    Paperless::Client.any_instance.expects(:post_document).never
+
+    get documents_path(source: "receipt,bill", q: { search: "coffee" })
+    assert_response :success
+  end
+
+  test "sort orders by document date and by name" do
+    old = document_links(:unlinked_receipt)
+    old.update!(title: "Alpha receipt")
+    # The understood draft's link (understood_receipt_link, title "Latte Lane")
+    # gets a parsed date NEWER than every fallback (created_at ~ now), so the
+    # two orders can differ: document_date puts Latte Lane first, name puts
+    # Alpha first.
+    imports(:receipt_understood).update!(
+      extracted_data: imports(:receipt_understood).extracted_data.merge("date" => 1.day.from_now.to_date.iso8601)
+    )
+
+    get documents_path(q: { sort: "document_date" })
+    assert_operator response.body.index("Latte Lane"), :<, response.body.index("Alpha receipt")
+
+    get documents_path(q: { sort: "name" })
+    assert_operator response.body.index("Alpha receipt"), :<, response.body.index("Latte Lane")
+  end
+
+  test "date range filters on the derived document date" do
+    document_links(:unlinked_receipt).update!(title: "Dated receipt")
+    document_links(:unlinked_receipt).receipt_imports.destroy_all
+    document_links(:unlinked_receipt).update_columns(created_at: Time.zone.parse("2026-09-15 12:00"))
+
+    get documents_path(q: { date_from: "2026-09-01", date_to: "2026-09-30" })
+    assert_match "Dated receipt", response.body
+
+    get documents_path(q: { date_from: "2026-10-01" })
+    assert_no_match "Dated receipt", response.body
+  end
 end

@@ -57,6 +57,17 @@ class DocumentLink < ApplicationRecord
       scope.find_each { |link| Paperless::CaptureContentJob.perform_later(link.id) }
       count
     end
+
+    # Local OCR-context search (M8 locked decision 4 / M7 Task 10's pin): the
+    # snapshot, the title and the filename — never paperless. sanitize_sql_like
+    # keeps a typed % or _ literal (the EntrySearch idiom).
+    def search(query)
+      term = query.to_s.strip
+      return all if term.blank?
+
+      pattern = "%#{ActiveRecord::Base.sanitize_sql_like(term)}%"
+      where("extracted_text ILIKE :p OR title ILIKE :p OR original_filename ILIKE :p", p: pattern)
+    end
   end
 
   # The single write path for status changes. Moves the row only while it is

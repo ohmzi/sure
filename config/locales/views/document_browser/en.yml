@@ -1,5 +1,14 @@
 en:
   document_browser:
+    filters:
+      search_placeholder: Search by text, title or file name
+      sorts:
+        newest: Newest first
+        oldest: Oldest first
+        document_date: Document date
+        name: Name
+      date_from: From date
+      date_to: To date
     empty:
       title: Nothing matches these filters
       description: Try widening or clearing the filters.
