@@ -171,52 +171,68 @@ class PdfImport < Import
   def import!
     raise "Account required for PDF import" unless account.present?
 
-    transaction do
-      mappings.each(&:create_mappable!)
-
-      # Rows were already filtered against existing records when they were
-      # generated, but a provider sync can land in between, so check again here
-      # the way TransactionImport#import! does.
-      adapter = Account::ProviderImportAdapter.new(account)
-      # Entries this statement already consumed during row generation are spoken
-      # for. Without excluding them, a statement carrying two same-amount
-      # transactions where the account held only one would re-match the surviving
-      # row against that same entry and silently drop a genuinely new
-      # transaction. Newly synced entries are still caught, because only the
-      # already-reconciled ones are excluded.
-      claimed = reconciled_entries.pluck(:id)
-      reconciled_now = []
-      reconciled_at = Time.current
-
-      new_transactions = rows.filter_map do |row|
-        if (existing = already_recorded_entry(adapter, row, claimed))
-          claimed << existing.id
-          reconciled_now << existing
-          next
-        end
-
-        Transaction.new(
-          category: mappings.categories.mappable_for(row.category),
-          entry: Entry.new(
-            account: account,
-            date: row.date_iso,
-            amount: row.signed_amount,
-            name: row.name,
-            currency: row.currency,
-            notes: row.notes,
-            import: self,
-            import_locked: true,
-            # Born reconciled: the statement being imported is the evidence.
-            # Set by id rather than association so activerecord-import writes the
-            # column directly on the recursive insert.
-            reconciled_at: reconciled_at,
-            reconciled_by_statement_id: account_statement&.id
-          )
-        )
+    # (Ruling M2-C10, 2026-10-11: the M7-L8 atomic-guard pattern, deferred by
+    # M7's close-out review and closed here) The committed check and the entry
+    # write share the import's row lock, so two CONCURRENT publishes of one
+    # statement serialize: the loser blocks on the lock, then sees the entries
+    # the winner committed and returns before the adapter is ever touched.
+    # Without the lock, both submits passed Import#publish's already-published
+    # check - a bare check-then-act on the status - and both ran this writer,
+    # double-posting the statement (the class Ruling M7-L8 closed for
+    # ReceiptImport).
+    with_lock do
+      if data_committed?
+        Rails.logger.info("PdfImport #{id}: publish replayed; the statement's entries already exist - nothing written")
+        return
       end
 
-      Transaction.import!(new_transactions, recursive: true) if new_transactions.any?
-      reconcile_entries!(reconciled_now, at: reconciled_at)
+      transaction do
+        mappings.each(&:create_mappable!)
+
+        # Rows were already filtered against existing records when they were
+        # generated, but a provider sync can land in between, so check again here
+        # the way TransactionImport#import! does.
+        adapter = Account::ProviderImportAdapter.new(account)
+        # Entries this statement already consumed during row generation are spoken
+        # for. Without excluding them, a statement carrying two same-amount
+        # transactions where the account held only one would re-match the surviving
+        # row against that same entry and silently drop a genuinely new
+        # transaction. Newly synced entries are still caught, because only the
+        # already-reconciled ones are excluded.
+        claimed = reconciled_entries.pluck(:id)
+        reconciled_now = []
+        reconciled_at = Time.current
+
+        new_transactions = rows.filter_map do |row|
+          if (existing = already_recorded_entry(adapter, row, claimed))
+            claimed << existing.id
+            reconciled_now << existing
+            next
+          end
+
+          Transaction.new(
+            category: mappings.categories.mappable_for(row.category),
+            entry: Entry.new(
+              account: account,
+              date: row.date_iso,
+              amount: row.signed_amount,
+              name: row.name,
+              currency: row.currency,
+              notes: row.notes,
+              import: self,
+              import_locked: true,
+              # Born reconciled: the statement being imported is the evidence.
+              # Set by id rather than association so activerecord-import writes the
+              # column directly on the recursive insert.
+              reconciled_at: reconciled_at,
+              reconciled_by_statement_id: account_statement&.id
+            )
+          )
+        end
+
+        Transaction.import!(new_transactions, recursive: true) if new_transactions.any?
+        reconcile_entries!(reconciled_now, at: reconciled_at)
+      end
     end
   end
 

@@ -324,3 +324,139 @@ class PdfImportTest < ActiveSupport::TestCase
       )
     end
 end
+
+# A genuine concurrent double-submit needs a second, concurrently-committing
+# connection to reproduce: with the committed check and the write unshared by
+# any lock (the pre-M2-C10 shape), the second submit ran the writer while the
+# first was mid-publish and double-posted the statement's entries (the
+# Ruling-M7-L8 class, closed for M2's money writer by Ruling M2-C10). Runs
+# without transactional fixtures so the writer thread's commit is visible to
+# the reader's separate connection (the ReceiptImportConcurrentPublishTest /
+# FamilyMerchantConcurrencyTest precedent in test/models/family_merchant_test.rb).
+class PdfImportConcurrentPublishTest < ActiveSupport::TestCase
+  self.use_transactional_tests = false
+
+  setup do
+    # The test's main thread, writer thread and reader thread each hold their
+    # own checked-out connection at once. The default pool (RAILS_MAX_THREADS,
+    # 3) leaves zero headroom for that, so under CI's parallelized test load a
+    # thread's connection checkout can itself queue behind another test's use
+    # of the pool, throwing off the race entirely. Widen it for this test only.
+    @original_db_config = ActiveRecord::Base.connection_db_config
+    if @original_db_config.max_connections.to_i < 6
+      ActiveRecord::Base.establish_connection(@original_db_config.configuration_hash.except(:pool).merge(max_connections: 6))
+    else
+      @original_db_config = nil
+    end
+
+    # Each publish closes through Import#publish's family.sync_later, which
+    # creates a Sync row for the family (no transactional rollback here);
+    # remember the pre-existing ones so the teardown removes only this test's.
+    @family = imports(:pdf_with_rows).family
+    @existing_sync_ids = @family.syncs.pluck(:id)
+  end
+
+  teardown do
+    # This class commits (no transactional rollback), so remove exactly what
+    # the test wrote before the fixture set is reused: the statement's entries
+    # (each destroys with its transaction), the generated rows, and any sync
+    # row the publishes created.
+    import = imports(:pdf_with_rows)
+    import.entries.destroy_all
+    import.rows.destroy_all
+    @family.syncs.where.not(id: @existing_sync_ids).destroy_all
+  ensure
+    ActiveRecord::Base.establish_connection(@original_db_config) if @original_db_config
+  end
+
+  test "a concurrent double-submit serializes on the statement's row lock and the entries post exactly once" do
+    import = imports(:pdf_with_rows)
+    # The fixture's own account reference is dangling (there is no `checking`
+    # accounts fixture), so assign the depository the way this file's other
+    # publish-shaped tests do, then build the reviewable rows a statement
+    # would carry.
+    import.update!(account: accounts(:depository))
+    import.generate_rows_from_extracted_data
+    assert_equal 2, import.reload.rows_count
+
+    writer_entered = Queue.new
+    release_writer = Queue.new
+    reader_pid = Queue.new
+
+    # The writer runs the real publish -> import!; its `reconcile_entries!`
+    # call sits INSIDE the locked section, after the entry write — pausing
+    # there parks the writer mid-transaction holding the statement's row lock
+    # with an uncommitted entry batch, exactly the window a second submit
+    # races.
+    writer_import = PdfImport.find(import.id)
+    writer_import.define_singleton_method(:reconcile_entries!) do |entries, at: Time.current|
+      writer_entered << true
+      release_writer.pop
+      super(entries, at: at)
+    end
+
+    writer = nil
+    reader = nil
+
+    begin
+      writer = Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do
+          writer_import.publish
+        end
+      end
+
+      writer_entered.pop
+
+      reader = Thread.new do
+        ActiveRecord::Base.connection_pool.with_connection do |connection|
+          reader_pid << connection.select_value("SELECT pg_backend_pid()")
+
+          PdfImport.find(import.id).publish
+        end
+      end
+
+      pid = reader_pid.pop.to_i
+
+      # Wait until Postgres itself reports the reader blocked on a lock — the
+      # writer's SELECT ... FOR UPDATE of the statement row — proving the two
+      # submits genuinely overlap. Only then is releasing the writer
+      # guaranteed to exercise the serialization rather than a sequential
+      # replay.
+      deadline = Time.current + 10.seconds
+      wait_event_type = nil
+      loop do
+        wait_event_type = ActiveRecord::Base.connection.select_value(
+          "SELECT wait_event_type FROM pg_stat_activity WHERE pid = #{pid}"
+        )
+        break if wait_event_type == "Lock" || Time.current > deadline || !reader.alive?
+        sleep 0.01
+      end
+
+      release_writer << true
+      writer.value # joins the writer and re-raises anything it raised
+      reader.value # likewise; the loser of the race must return, not raise
+
+      # Without the row lock the reader never blocks; both submits run the
+      # writer unsupervised and the statement posts every entry twice. This is
+      # the failure the test exists to catch (RED: the count reads 4 for 2
+      # rows here).
+      unless wait_event_type == "Lock"
+        flunk "reader never blocked on the statement's row lock (wait_event_type=#{wait_event_type.inspect}); " \
+              "the two submits ran unsupervised and the statement posted #{import.entries.reload.count} entries " \
+              "for #{import.rows_count} rows; the race wasn't serialized"
+      end
+
+      import.reload
+      assert_equal 2, import.entries.count, "the statement's entries must be posted exactly once"
+      assert_equal 1, import.entries.where(name: "Coffee Shop").count, "the second submit must add zero entries"
+      assert_equal 1, import.entries.where(name: "Salary").count, "the second submit must add zero entries"
+      assert_equal "complete", import.status, "the import must end in its terminal published state"
+    ensure
+      # Unblocks the writer even if an assertion above failed, so its thread
+      # (and checked-out connection) don't leak past this test.
+      release_writer << true
+      writer&.join(2)
+      reader&.join(2)
+    end
+  end
+end
