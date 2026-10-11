@@ -1,0 +1,70 @@
+<%# locals: (row:) %>
+<div id="<%= row.key %>" class="flex items-start gap-3 p-3">
+  <% thumbnail = if row.thumb_url.present?
+       image_tag(row.thumb_url, alt: row.title, loading: "lazy", class: "h-12 w-12 rounded object-cover")
+     else
+       content_tag(:div, icon(row.icon, size: "md"),
+                   class: "h-12 w-12 rounded bg-container-inset flex items-center justify-center",
+                   "aria-hidden": "true")
+     end %>
+  <% if row.viewer_url.present? %>
+    <%# The viewer link (Task 4): the thumbnail and title open the modal frame. %>
+    <%= link_to row.viewer_url, data: { turbo_frame: "modal" }, class: "shrink-0", aria: { label: row.title } do %>
+      <%= thumbnail %>
+    <% end %>
+  <% else %>
+    <div class="shrink-0"><%= thumbnail %></div>
+  <% end %>
+
+  <div class="grow min-w-0 space-y-1">
+    <div class="flex flex-wrap items-center gap-2">
+      <% if row.viewer_url.present? %>
+        <%= link_to row.title, row.viewer_url, data: { turbo_frame: "modal" },
+              class: "text-primary font-medium truncate" %>
+      <% else %>
+        <p class="text-primary font-medium truncate"><%= row.title %></p>
+      <% end %>
+      <% row.statuses.each do |status| %>
+        <%= render DS::Pill.new(label: status.label, tone: status.tone, marker: false) %>
+      <% end %>
+    </div>
+    <% if row.failure_message.present? %>
+      <p class="text-destructive text-xs"><%= row.failure_message %></p>
+    <% end %>
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-secondary">
+      <span><%= row.doc_type_label %></span>
+      <% if row.merchant.present? %><span><%= row.merchant %></span><% end %>
+      <% if row.amount.present? %>
+        <span><%= row.amount.is_a?(BigDecimal) ? row.amount.to_s("F") : row.amount %></span>
+      <% end %>
+      <% row.tags.first(3).each do |tag| %>
+        <%= render DS::Pill.new(label: tag, tone: :neutral, marker: false) %>
+      <% end %>
+      <% if row.tags.size > 3 %>
+        <%= render DS::Pill.new(label: "+#{row.tags.size - 3}", tone: :neutral, marker: false) %>
+      <% end %>
+      <% if row.date.present? %><span><%= format_date(row.date) %></span><% end %>
+    </div>
+  </div>
+
+  <div class="flex shrink-0 items-center gap-3">
+    <% row.actions.each do |action| %>
+      <% if action.url.blank? %>
+        <%# (repaired 2026-10-11, verifier F8) an action with a nil url is a
+            VISIBLE-but-disabled affordance (the awaiting_ocr "Reading…"): the
+            label stays on screen, no href, so the state is never dropped. %>
+        <%= render DS::Button.new(text: action.label, variant: :outline, size: :sm,
+                                  disabled: true, title: action.label) %>
+      <% elsif action.method == :get %>
+        <%= link_to action.url, class: "flex items-center", aria: { label: action.label }, title: action.label do %>
+          <%= icon(action.icon, class: "w-5 h-5 text-primary") %>
+        <% end %>
+      <% else %>
+        <%= button_to action.url, method: action.method, class: "flex items-center",
+              aria: { label: action.label }, title: action.label do %>
+          <%= icon(action.icon, class: "w-5 h-5 text-secondary") %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

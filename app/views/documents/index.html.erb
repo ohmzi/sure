@@ -1,7 +1,3 @@
-<header class="flex justify-between items-center text-primary font-medium pb-4">
-  <h1 class="text-xl"><%= t(".receipts_bills_title") %></h1>
-</header>
-<% content_for :page_title, t(".title") %>
 <% content_for :system_alerts do %>
   <% if @token_invalid_at.present? %>
     <%= render DS::Alert.new(variant: :warning, title: t(".token_invalid_title"),
@@ -9,20 +5,21 @@
   <% end %>
 <% end %>
 
-<%= render DS::Card.new do %>
-  <div data-controller="receipt-dropzone"
-       data-action="dragover->receipt-dropzone#dragover drop->receipt-dropzone#drop">
-    <%= styled_form_with url: documents_path, multipart: true,
-          data: { "receipt-dropzone-target": "form" } do |form| %>
-      <%= form.file_field :document, data: { "receipt-dropzone-target": "input" }, accept: "application/pdf,image/*" %>
-      <%= form.select :source, [ [ t(".source_auto"), "" ] ] + DocumentLink::SOURCES.map { |s| [ t("documents.source.#{s}"), s ] }, selected: "" %>
-      <%= form.submit t(".upload") %>
+<%= render DocumentBrowserComponent.new(
+      family: :documents, title: t(".receipts_bills_title"), url: documents_path,
+      rows: @rows, pagy: @pagy, filters: @filters, source_filter: @source_filter
+    ) do |browser| %>
+  <% browser.with_upload do %>
+    <%= render DS::Card.new do %>
+      <div data-controller="receipt-dropzone"
+           data-action="dragover->receipt-dropzone#dragover drop->receipt-dropzone#drop">
+        <%= styled_form_with url: documents_path, multipart: true,
+              data: { "receipt-dropzone-target": "form" } do |form| %>
+          <%= form.file_field :document, data: { "receipt-dropzone-target": "input" }, accept: "application/pdf,image/*" %>
+          <%= form.select :source, [ [ t(".source_auto"), "" ], [ t("documents.source.receipt"), "receipt" ], [ t("documents.source.bill"), "bill" ] ], selected: "" %>
+          <%= form.submit t(".upload") %>
+        <% end %>
+      </div>
     <% end %>
-  </div>
-<% end %>
-
-<div class="space-y-2">
-  <% @documents.each do |document| %>
-    <%= render "documents/card", document: document %>
   <% end %>
-</div>
+<% end %>

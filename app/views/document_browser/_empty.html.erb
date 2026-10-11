@@ -1,0 +1,15 @@
+<%# locals: (filtered:, url:, documents:) %>
+<% if filtered %>
+  <%= render DS::EmptyState.new(icon: "search", title: t("document_browser.empty.title"),
+                                description: t("document_browser.empty.description")) do |es| %>
+    <% es.with_action do %>
+      <%= render DS::Link.new(text: t("document_browser.empty.clear_filters"), href: url) %>
+    <% end %>
+  <% end %>
+<% elsif documents %>
+  <%= render DS::EmptyState.new(icon: "receipt-text", title: t("document_browser.empty.documents_title"),
+                                description: t("document_browser.empty.documents_description")) %>
+<% else %>
+  <%= render DS::EmptyState.new(icon: "file-text", title: t("document_browser.empty.statements_title"),
+                                description: t("document_browser.empty.statements_description")) %>
+<% end %>

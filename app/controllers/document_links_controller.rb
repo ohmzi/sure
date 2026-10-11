@@ -5,6 +5,7 @@
 # link table; an arbitrary URL is never echoed.
 class DocumentLinksController < ApplicationController
   include ActionController::Live
+  include DocumentBrowser
 
   FILE_KINDS = { "original" => :original, "preview" => :preview, "thumb" => :thumb }.freeze
   # The filename guard moved into DocumentLink::Intake (M7 — the archive form and
@@ -31,8 +32,9 @@ class DocumentLinksController < ApplicationController
 
   def index
     @source_filter = archive_source_filter
-    @documents = Current.family.document_links.ordered
-    @documents = @documents.where(source: @source_filter) if @source_filter
+    @filters = document_browser_filters
+    @pagy, @links = pagy(document_browser_search.relation, limit: safe_per_page(20))
+    @rows = @links.map { |link| DocumentBrowser::Row.for_document_link(link) }
     @token_invalid_at = Paperless.token_invalid_at
     @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("documents.index.receipts_bills_title"), documents_path ] ]
     # Ruling 4: explicit view path — implicit render under this controller would
@@ -89,6 +91,12 @@ class DocumentLinksController < ApplicationController
     kind = FILE_KINDS[params[:kind].presence || "preview"]
     return render(plain: "invalid kind", status: :bad_request) unless kind
 
+    # The in-page viewer keeps fetching inline; the row/viewer Download
+    # affordance passes `download: true` so the disposition is an attachment
+    # (repaired 2026-10-11, verifier F11 — the proxy forced inline for every
+    # kind before).
+    disposition = ActiveModel::Type::Boolean.new.cast(params[:download]) ? "attachment" : "inline"
+
     started = false
     Paperless.client.file(@link.paperless_document_id, kind: kind, range: request.headers["Range"]) do |chunk, env|
       unless started
@@ -98,7 +106,7 @@ class DocumentLinksController < ApplicationController
           value = env.response_headers[header]
           response.headers[header.split("-").map(&:capitalize).join("-")] = value if value
         end
-        response.headers["Content-Disposition"] = "inline"
+        response.headers["Content-Disposition"] = disposition
       end
       response.stream.write(chunk)
     end
@@ -161,6 +169,10 @@ class DocumentLinksController < ApplicationController
       sources = Array(raw).flat_map { |value| value.to_s.split(",") }.map(&:strip).uniq
                       .select { |source| DocumentLink::SOURCES.include?(source) }
       sources.presence
+    end
+
+    def document_browser_search
+      DocumentLink::Search.new(family: Current.family, filters: @filters, sources: @source_filter)
     end
 
     def set_link

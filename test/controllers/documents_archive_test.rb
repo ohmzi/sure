@@ -46,6 +46,45 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     assert_match I18n.t("documents.status.linked"), response.body
   end
 
+  test "the browser lists rows with thumbnails, statuses and the draft affordances" do
+    get documents_path
+    assert_select "img[src=?]", file_document_path(document_links(:linked_receipt), kind: "thumb")
+    assert_match I18n.t("documents.status.linked"), response.body
+    # (repaired 2026-10-11, verifier F8) receipt_draft is awaiting_ocr: its row
+    # must keep the VISIBLE disabled "Reading…" affordance (the old `if enabled`
+    # dropped it and left the label dead). "Review details" comes from
+    # receipt_understood's row (Latte Lane), not from receipt_draft's — and the
+    # I18n.exists? pins make the test fail on a missing key instead of matching
+    # "Translation missing: …" on both sides (verifier F4).
+    assert I18n.exists?("imports.receipt_import.reading")
+    assert I18n.exists?("imports.receipt_import.review_details")
+    # add_details is the needs_understanding row's label (no fixture reaches that
+    # state here); pin it explicitly so dropping the key cannot go unnoticed.
+    assert I18n.exists?("imports.receipt_import.add_details")
+    assert_select "button[disabled]"                                       # the Reading… affordance renders
+    assert_select "a[href='#{import_path(imports(:receipt_understood))}']" # the enabled Review details link
+  end
+
+  test "pagination pages the list" do
+    family = families(:dylan_family)
+    11.times do |i|
+      DocumentLink.create!(family: family, created_by: users(:family_admin), source: "receipt",
+                           title: "Paged receipt #{i}", original_filename: "paged-#{i}.png",
+                           status: "unlinked", content_sha256: format("%064d", i + 1))
+    end
+
+    get documents_path(per_page: 10)
+    assert_response :success
+    assert_select "#document-browser [id^='document_link_']", count: 10 # page 1 is full
+    assert_select "nav a[href*='page=2']"                               # the shared pagination partial renders
+
+    get documents_path(per_page: 10, page: 2)
+    assert_response :success
+    # The remainder: every visible row (11 created above + the receipt/bill
+    # fixtures) minus the 10 page 1 carried — computed, not hard-coded.
+    assert_select "#document-browser [id^='document_link_']", count: family.document_links.count - 10
+  end
+
   test "the archive is readable by guests" do
     sign_in family_guest
     get documents_path

@@ -1,0 +1,17 @@
+<%# locals: (url:, filters:, source_filter:, documents:, tag_choices:) %>
+<%= form_with url: url, method: :get, data: { controller: "auto-submit-form" },
+      class: "flex flex-wrap items-center gap-2" do |form| %>
+  <%# `q` is only used from Task 5 on; the source boxes stay top-level (the
+      M7-pinned shape the wizard redirect writes). %>
+  <% if documents %>
+    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
+      <% DocumentLink::SOURCES.each do |source| %>
+        <label class="flex items-center gap-1.5 text-sm text-primary">
+          <%= check_box_tag "source[]", source, source_filter&.include?(source),
+                class: "checkbox checkbox--light", data: { "auto-submit-form-target": "auto" } %>
+          <%= t("documents.source.#{source}") %>
+        </label>
+      <% end %>
+    </div>
+  <% end %>
+<% end %>

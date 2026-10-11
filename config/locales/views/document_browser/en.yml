@@ -1,0 +1,13 @@
+en:
+  document_browser:
+    empty:
+      title: Nothing matches these filters
+      description: Try widening or clearing the filters.
+      clear_filters: Clear filters
+      documents_title: No documents yet
+      documents_description: Upload a receipt or bill above and it will appear here once processed.
+      statements_title: No statements yet
+      statements_description: Upload a statement above and it will appear here once processed.
+    row:
+      retry: Retry
+      remove: Remove

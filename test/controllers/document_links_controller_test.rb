@@ -139,6 +139,18 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "%PDF", response.body
   end
 
+  test "file serves inline for viewing and an attachment for a download request" do
+    Paperless::Client.any_instance.stubs(:file).yields(
+      "%PDF", OpenStruct.new(status: 200, response_headers: { "content-type" => "application/pdf" })
+    )
+
+    get file_document_path(@link, kind: "original")
+    assert_equal "inline", response.headers["Content-Disposition"]
+
+    get file_document_path(@link, kind: "original", download: true)
+    assert_equal "attachment", response.headers["Content-Disposition"]
+  end
+
   test "file refuses a kind paperless does not serve" do
     get file_document_path(@link, kind: "weird")
     assert_response :bad_request

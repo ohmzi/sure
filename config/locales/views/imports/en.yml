@@ -303,6 +303,11 @@ en:
       save_details: Save details
       retry_reading: Try reading again
       duplicate_hint: A matching transaction may already exist on this account — publishing adds a new one.
+      # The browser row's draft affordances (M8 Task 2 — the moved M7 Task 9
+      # fence's labels; repaired 2026-10-11, verifier F4).
+      reading: Reading…
+      review_details: Review details
+      add_details: Add details
     mapping_labels:
       account_type: "Account Type"
       account: "Account"

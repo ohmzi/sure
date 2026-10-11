@@ -1,0 +1,25 @@
+<div id="document-browser" class="space-y-4 pb-6 lg:pb-12">
+  <header class="flex justify-between items-center text-primary font-medium">
+    <h1 class="text-xl"><%= title %></h1>
+  </header>
+
+  <%= upload %>
+
+  <%= render "document_browser/filter_form", url: url, filters: filters,
+        source_filter: source_filter, documents: documents?, tag_choices: tag_choices %>
+
+  <% if rows.any? %>
+    <div class="bg-container rounded-xl shadow-border-xs divide-y divide-subdued">
+      <% rows.each do |row| %>
+        <%= render "document_browser/row", row: row %>
+      <% end %>
+    </div>
+    <% if pagy.pages > 1 %>
+      <div class="px-3 py-2">
+        <%= render "shared/pagination", pagy: pagy %>
+      </div>
+    <% end %>
+  <% else %>
+    <%= render "document_browser/empty", filtered: active_filters?, url: url, documents: documents? %>
+  <% end %>
+</div>
