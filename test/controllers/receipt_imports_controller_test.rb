@@ -80,4 +80,65 @@ class ReceiptImportsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='receipt_import[purchase_date]']"
     assert_select "input[name='receipt_import[payee]']"
   end
+
+  # --- (Ruling M7-L3) terminal complete + replay-safe writer ------------------
+
+  # The review screen IS the post-publish redirect target, so a second click
+  # used to reach the writer again (publish_later flipped complete -> importing,
+  # defeating Import#publish's guard) and re-minted the split children 2 -> 4.
+  # After a successful publish the route replay must add zero rows and leave the
+  # children at 2.
+  test "the publish route replay after a successful publish writes no money" do
+    @draft.generate_rows_from_line_items!
+
+    post publish_import_path(@draft)
+    ImportJob.perform_now(@draft)
+    assert_equal "complete", @draft.reload.status
+    parent = @draft.entries.find_by(parent_entry_id: nil)
+    assert_equal 2, parent.child_entries.count
+
+    assert_no_difference [ -> { Entry.count }, -> { Transaction.count } ] do
+      # A completed draft is terminal: publish_later refuses the replay before
+      # it can enqueue anything (the same shape every non-publishable import
+      # gets). And even the first publish's redelivered job writes nothing —
+      # import! is replay-safe on its own.
+      assert_raises(RuntimeError) { post publish_import_path(@draft) }
+      ImportJob.perform_now(@draft)
+    end
+
+    assert_equal 2, parent.reload.child_entries.count
+  end
+
+  # The reviewer's post-commit-failure shape: Import#publish's status write can
+  # fail after the money already landed (status failed, data committed), leaving
+  # a still-publishable draft whose route replay must not re-mint the children.
+  test "a publish route replay with committed data leaves the children at 2" do
+    @draft.generate_rows_from_line_items!
+
+    post publish_import_path(@draft)
+    ImportJob.perform_now(@draft)
+    @draft.update!(status: :failed, error: "sync failed after the data landed")
+    parent = @draft.entries.find_by(parent_entry_id: nil)
+    assert_equal 2, parent.child_entries.count
+
+    assert_no_difference [ -> { Entry.count }, -> { Transaction.count } ] do
+      post publish_import_path(@draft)
+      ImportJob.perform_now(@draft)
+    end
+
+    assert_equal "complete", @draft.reload.status
+    assert_equal 2, parent.reload.child_entries.count
+  end
+
+  test "a completed draft renders no publish affordance" do
+    @draft.generate_rows_from_line_items!
+    post publish_import_path(@draft)
+    ImportJob.perform_now(@draft)
+    assert_equal "complete", @draft.reload.status
+
+    get import_path(@draft)
+
+    assert_response :success
+    assert_select "form[action=?]", publish_import_path(@draft), count: 0
+  end
 end

@@ -144,8 +144,15 @@ class ReceiptImport < Import
   # inside import! and flip the draft to failed. Understanding never marks a
   # date-less receipt `understood` (Task 6), so this term is the belt-and-braces
   # pin on the affordance; import!'s guard below is the enforcement.
+  # (Ruling M7-L3, 2026-10-11 close-out) a COMPLETED draft is terminal: it is
+  # never publishable again. Without this term the review screen (the very page
+  # the app redirects to after publishing) still rendered a publish button for a
+  # completed draft, and the user route publish_later (complete -> importing)
+  # defeated Import#publish's guard, so a second click silently re-ran the writer
+  # and doubled the split children.
   def publishable?
-    account.present? && total_amount.present? && purchase_date.present? &&
+    status != "complete" &&
+      account.present? && total_amount.present? && purchase_date.present? &&
       cleaned? && mappings.all?(&:valid?)
   end
 
@@ -164,6 +171,15 @@ class ReceiptImport < Import
     # validation raise from deep inside the adapter (which would flip the draft
     # to failed after a partial write attempt): refuse here, explicitly.
     raise "A receipt needs a purchase date before it can be published" unless purchase_date.present?
+    # (Ruling M7-L3, 2026-10-11 close-out) the writer is REPLAY-SAFE, not just
+    # guarded upstream: any route, retry or double-submit that reaches it twice
+    # must not post the money twice. The parent entry is claimed by its
+    # external_id (paperless:<docID>), so a replay finds it already present and
+    # must skip the split entirely rather than re-minting the children.
+    if data_committed?
+      Rails.logger.info("ReceiptImport #{id}: publish replayed; the entry already exists - nothing written")
+      return
+    end
 
     transaction do
       adapter = Account::ProviderImportAdapter.new(account)

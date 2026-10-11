@@ -82,9 +82,30 @@ class ReceiptImportTest < ActiveSupport::TestCase
     draft = imports(:receipt_understood)
     draft.publish
     count = Entry.count
+    # (Ruling M7-L3) a completed draft is terminal: never publishable again.
+    assert_not draft.reload.publishable?, "a completed draft must not be publishable"
 
     draft.publish # Import#publish early-returns for a complete import
     assert_equal count, Entry.count
+  end
+
+  # (Ruling M7-L3) The writer is replay-safe on its own, not just behind the
+  # route: the reviewer's direct-call probe re-ran import! on already-committed
+  # data and doubled the split children (2 -> 4). The parent is claimed by its
+  # `paperless:<docID>` external_id, so a replay writes nothing.
+  test "a direct import! replay on committed data writes nothing" do
+    draft = imports(:receipt_understood)
+    draft.generate_rows_from_line_items!
+    draft.publish
+
+    parent = draft.reload.entries.find_by(parent_entry_id: nil)
+    assert_equal 2, parent.child_entries.count
+
+    assert_no_difference [ -> { Entry.count }, -> { Transaction.count } ] do
+      draft.import!
+    end
+
+    assert_equal 2, parent.reload.child_entries.count
   end
 
   test "a receipt with item lines that do not sum to the total publishes unsplit" do
