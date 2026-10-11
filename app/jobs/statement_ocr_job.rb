@@ -60,13 +60,22 @@ class StatementOcrJob < ApplicationJob
       when :failure # belt-and-braces; M1's #task raises :task_failed instead
         return fail_extraction(statement, link, :paperless_task_failed, detail: task.error_message)
       when :success
-        # (Ruling M2-C1, 2026-10-11 close-out) M1's TaskPollJob precedent
-        # (paperless/task_poll_job.rb:47): paperless reports a duplicate upload
-        # as success with a nil document_id and duplicate_of set. Reading only
-        # document_id stranded such a statement in extraction_failed with no
-        # way out; adopt the duplicate's document and settle the statement
-        # normally.
+        # (Ruling M2-C1 + C9, 2026-10-11 close-out) M1's TaskPollJob precedent
+        # (paperless/task_poll_job.rb:45-59) IN FULL: paperless reports a
+        # duplicate upload as success with a nil document_id and duplicate_of
+        # set, so read the duplicate's id - but a duplicate whose document is
+        # ALREADY filed on another link must fail the row (the global partial
+        # unique index would otherwise raise RecordNotUnique, which is not a
+        # Paperless::Error and would escape this job's rescue, wedging the
+        # statement at `processing`).
         document_id = task.document_id || task.duplicate_of
+        if document_id.blank?
+          return fail_extraction(statement, link, :paperless_task_failed, detail: "success with no document id")
+        end
+        if DocumentLink.where.not(id: link.id).exists?(paperless_document_id: document_id)
+          return fail_extraction(statement, link, :paperless_task_failed, detail: "duplicate of an already-filed document")
+        end
+
         link.finish_processing!(document_id: document_id)
       end
     end
@@ -80,6 +89,10 @@ class StatementOcrJob < ApplicationJob
     end
 
     apply_template(statement, import, template, text)
+  rescue ActiveRecord::RecordNotUnique
+    # Ruling M2-C9: the unique index can still fire on a concurrent insert; the
+    # row must fail visibly here rather than escape and wedge at `processing`.
+    fail_extraction(statement, link, :paperless_task_failed, detail: "duplicate of an already-filed document")
   rescue Paperless::Error => e
     handle_paperless_error(statement, link, e, pdf_import_id)
   end

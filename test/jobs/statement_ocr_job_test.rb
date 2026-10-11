@@ -143,6 +143,25 @@ class StatementOcrJobTest < ActiveJob::TestCase
     assert_equal 3, @import.reload.rows.count
   end
 
+  test "a duplicate-only success whose document is already filed fails the row instead of wedging (Ruling M2-C9)" do
+    # The global partial unique index would raise ActiveRecord::RecordNotUnique
+    # on finish_processing!; that is not a Paperless::Error, so without the
+    # precedent's guard it escaped the job and wedged the statement at
+    # `processing` with no retry affordance.
+    other = DocumentLink.create!(family: @statement.family, source: "receipt", status: "unlinked",
+                                 paperless_document_id: 777)
+
+    stub_paperless(
+      text: file_fixture("imports/chase_statement.txt").read,
+      task: OpenStruct.new(status: :success, document_id: nil, duplicate_of: other.paperless_document_id, error_message: nil)
+    )
+
+    StatementOcrJob.perform_now(@import.id)
+
+    assert @statement.reload.extraction_failed?, "the row must fail visibly, not wedge at processing"
+    assert_equal "failed", link.reload.status
+  end
+
   test "an unconfigured paperless client records extraction_failed without raising" do
     stub_paperless(configured: false)
 
