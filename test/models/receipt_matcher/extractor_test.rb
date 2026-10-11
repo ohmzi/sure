@@ -22,6 +22,23 @@ class ReceiptMatcher::ExtractorTest < ActiveSupport::TestCase
     assert_equal BigDecimal("42.10"), extraction.amount
   end
 
+  # (Ruling M3-C2 R4, 2026-10-11 close-out) the labelled total must win even
+  # when an unlabelled token is larger, so the TOTAL_LABEL branch is
+  # discriminated from the largest-token fallback.
+  test "prefers the labelled total over a larger unlabelled money token" do
+    extraction = extract("discounted_total.txt")
+
+    assert_equal BigDecimal("1234.56"), extraction.amount, "1,254.56 (catering) is larger but unlabelled"
+  end
+
+  test "parses a comma-grouped amount, with date and payee" do
+    extraction = extract("discounted_total.txt")
+
+    assert_equal BigDecimal("1234.56"), extraction.amount
+    assert_equal Date.new(2026, 9, 15), extraction.date
+    assert_equal "Corner Bakery", extraction.payee
+  end
+
   test "reads an ISO date" do
     extraction = extract("iso_date.txt")
 

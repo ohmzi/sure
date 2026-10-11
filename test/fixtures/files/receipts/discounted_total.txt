@@ -1,0 +1,5 @@
+Corner Bakery
+2026-09-15
+Catering     1,254.56
+Discount       -20.00
+TOTAL       $1,234.56
