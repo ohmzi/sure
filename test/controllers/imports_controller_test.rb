@@ -732,6 +732,25 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   end
 
+  test "text_layer_pdf? reads a real text-layer PDF and survives malformed input (Ruling M2-L3)" do
+    # The four routing tests above stub the helper away, so a broken rescue list
+    # (the pre-ruling fence rescued PDF::Reader::Error, which is not an exception
+    # in pdf-reader 2.15.1) passed them unchanged. Exercise the helper itself:
+    controller = ImportsController.new
+    text_layer = file_fixture("imports/sample_bank_statement.pdf").open
+    assert controller.send(:text_layer_pdf?, text_layer),
+           "a text-layer PDF must be recognized as extractable"
+
+    malformed = Tempfile.new([ "malformed", ".pdf" ])
+    malformed.binmode
+    malformed.write("%PDF-1.4 not really a pdf")
+    malformed.rewind
+    assert_not controller.send(:text_layer_pdf?, malformed),
+               "malformed input must fall back, never raise"
+  ensure
+    malformed&.close!
+  end
+
   test "a provider without PDF support uses the paperless OCR path" do
     Provider::Registry.stubs(:preferred_llm_provider).returns(OpenStruct.new(supports_pdf_processing?: false))
 

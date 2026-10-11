@@ -233,7 +233,14 @@ class ImportsController < ApplicationController
       file.rewind if file.respond_to?(:rewind)
       reader = PDF::Reader.new(StringIO.new(file.read))
       reader.pages.first(3).any? { |page| page.text.to_s.strip.present? }
-    rescue PDF::Reader::Error, ArgumentError, IOError
+    # Ruling M2-L3: pdf-reader 2.15.1 has NO `PDF::Reader::Error` exception -
+    # that constant is an internal assertion utility (lib/pdf/reader/error.rb:32).
+    # Its real failure classes are MalformedPDFError (and its subclass
+    # InvalidObjectError), UnsupportedFeatureError (and its subclass
+    # EncryptedPDFError) and InvalidPageError < ArgumentError. Rescuing the wrong
+    # constant let a malformed/truncated/encrypted PDF raise straight out of this
+    # helper and 500 the upload instead of taking the paperless-OCR fallback.
+    rescue PDF::Reader::MalformedPDFError, PDF::Reader::UnsupportedFeatureError, ArgumentError, IOError
       false
     ensure
       file.rewind if file.respond_to?(:rewind)
