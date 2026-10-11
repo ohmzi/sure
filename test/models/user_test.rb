@@ -850,6 +850,38 @@ class UserTest < ActiveSupport::TestCase
     assert_nil @user.default_account_for_transactions
   end
 
+  test "default_account_for_bills delegates to the same eligibility re-check" do
+    user = users(:family_admin)
+    account = accounts(:depository)
+    user.update!(default_account: account)
+
+    assert_equal account, user.default_account_for_bills
+    assert_equal account, user.default_account_for_transactions
+  end
+
+  test "an ineligible default resolves nil for bills too" do
+    user = users(:family_admin)
+    user.update!(default_account: accounts(:investment))
+
+    assert_nil user.default_account_for_bills
+    assert_nil user.default_account_for_transactions
+  end
+
+  test "clearing the default clears the bills default as well" do
+    user = users(:family_admin)
+    user.update!(default_account: nil)
+    assert_nil user.default_account_for_bills
+  end
+
+  test "the star menu and the preferences select feed the same bills default" do
+    user = users(:family_admin)
+    account = accounts(:depository)
+
+    # AccountsController#set_default ends in this write; both surfaces land here.
+    user.update!(default_account: account)
+    assert_equal account, user.default_account_for_bills
+  end
+
   test "transfer_to_family! clears a shared default account" do
     user = users(:family_member)
     user.update!(role: "admin", default_account: accounts(:depository))

@@ -574,12 +574,15 @@ class User < ApplicationRecord
   end
 
   def default_account_for_transactions
-    return nil unless default_account_id.present?
+    eligible_default_account
+  end
 
-    account = default_account
-    return nil unless account&.eligible_for_transaction_default? && account.family_id == family_id
-
-    account
+  # Locked decision 5 (M7): the bills default reuses users.default_account_id —
+  # no new column. It asks by its own name and runs the same eligibility
+  # re-check, so the wizard's prefill ladder and the transaction form cannot
+  # disagree about what a "default account" is.
+  def default_account_for_bills
+    eligible_default_account
   end
 
   # Release highlight ("What's new" popup) tracking. Account-level so every
@@ -754,6 +757,18 @@ class User < ApplicationRecord
   end
 
   private
+    # The one re-check behind both `default_account_for_transactions` and
+    # `default_account_for_bills` (M7 locked decision 5): the row must still
+    # point at a visible, eligible account in this user's family.
+    def eligible_default_account
+      return nil unless default_account_id.present?
+
+      account = default_account
+      return nil unless account&.eligible_for_transaction_default? && account.family_id == family_id
+
+      account
+    end
+
     def apply_ui_layout_defaults
       self.ui_layout = (ui_layout.presence || self.class.default_ui_layout)
     end

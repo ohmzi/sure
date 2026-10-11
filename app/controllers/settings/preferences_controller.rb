@@ -7,13 +7,19 @@ class Settings::PreferencesController < ApplicationController
     @budget_shares = @user.budget_shares_given.index_by(&:viewer_id)
   end
 
-  # Writes per-user boolean preferences stored in the JSONB `users.preferences`
-  # column. Mirrors Settings::AppearancesController#update so the toggle card on
-  # the Preferences page can submit directly without going through the broader
+  # Writes per-user preferences: the JSONB `users.preferences` booleans and the
+  # `users.default_account_id` FK (M7 locked decision 5 — the select card on the
+  # Preferences page). Mirrors Settings::AppearancesController#update so the
+  # toggle card can submit directly without going through the broader
   # UsersController#update flow (which expects a full user form payload).
   def update
     @user = Current.user
-    user_params = params.permit(user: [ :preview_features_enabled ]).fetch(:user, {})
+    user_params = params.permit(user: [ :preview_features_enabled, :default_account_id ]).fetch(:user, {})
+
+    if user_params.key?(:default_account_id)
+      account = default_account_param(user_params[:default_account_id])
+      return redirect_to settings_preferences_path, alert: t("accounts.set_default.depository_only") if account == :invalid
+    end
 
     @user.transaction do
       @user.lock!
@@ -22,8 +28,22 @@ class Settings::PreferencesController < ApplicationController
         updated_prefs["preview_features_enabled"] =
           ActiveModel::Type::Boolean.new.cast(user_params[:preview_features_enabled])
       end
-      @user.update!(preferences: updated_prefs)
+      @user.assign_attributes(preferences: updated_prefs)
+      @user.default_account = account if user_params.key?(:default_account_id)
+      @user.save!
     end
     redirect_to settings_preferences_path
   end
+
+  private
+    # nil clears; nil-return-with-:invalid refuses. Visibility + the same
+    # eligibility gate the star menu enforces (accounts_controller.rb:227-241).
+    def default_account_param(raw)
+      return nil if raw.blank?
+
+      account = Current.user.accessible_accounts.visible.find_by(id: raw)
+      return :invalid unless account&.eligible_for_transaction_default?
+
+      account
+    end
 end

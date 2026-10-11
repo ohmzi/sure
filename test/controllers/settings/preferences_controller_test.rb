@@ -51,6 +51,27 @@ class Settings::PreferencesControllerTest < ActionDispatch::IntegrationTest
     assert_not user.reload.preview_features_enabled?
   end
 
+  test "saves an eligible default account for transactions and bills" do
+    patch settings_preferences_path, params: { user: { default_account_id: accounts(:depository).id } }
+
+    assert_redirected_to settings_preferences_path
+    assert_equal accounts(:depository), users(:family_admin).reload.default_account_for_bills
+  end
+
+  test "refuses an ineligible default account" do
+    patch settings_preferences_path, params: { user: { default_account_id: accounts(:investment).id } }
+
+    assert_redirected_to settings_preferences_path
+    assert_nil users(:family_admin).reload.default_account_for_bills
+  end
+
+  test "clears the default with a blank value" do
+    users(:family_admin).update!(default_account: accounts(:depository))
+    patch settings_preferences_path, params: { user: { default_account_id: "" } }
+
+    assert_nil users(:family_admin).reload.default_account_id
+  end
+
   test "household budget toggle and sharing card only render once personal_budgets is on" do
     user = users(:family_admin)
     user.update!(preferences: (user.preferences || {}).merge("preview_features_enabled" => true))

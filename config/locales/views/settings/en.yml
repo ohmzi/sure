@@ -240,6 +240,10 @@ en:
         preview:
           title: Enable preview features
           description: Opt in to in-progress features tagged preview or canary.
+        default_account:
+          label: Default account
+          hint: New transactions start here, and photographed receipts and bills confirm here by default. Cash and credit-card accounts only.
+          none: No default
     budget_shares:
       update:
         success: Budget sharing settings updated

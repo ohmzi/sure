@@ -267,6 +267,24 @@
   <% end %>
 <% end %>
 
+<%# Default account — the account new transactions start in and the account the
+    M7 receipt/bill wizard confirms by default (Import::AccountPrefill reads it
+    through User#default_account_for_bills). Standalone auto-submit card, same
+    shape as the preview toggle below, so no UsersController#update change is
+    needed. The star menu on the account row stays a second setter. %>
+<%= settings_section do %>
+  <%= styled_form_with url: settings_preferences_path, method: :patch, scope: :user,
+        data: { controller: "auto-submit-form" } do |f| %>
+    <%= f.select :default_account_id,
+          Current.user.accessible_accounts.visible.alphabetically.select(&:eligible_for_transaction_default?).map { |a| [ a.name, a.id ] },
+          { selected: @user.default_account_for_bills&.id,
+            include_blank: t(".default_account.none"),
+            label: t(".default_account.label"),
+            help_text: t(".default_account.hint") },
+          { data: { auto_submit_form_target: "auto" } } %>
+  <% end %>
+<% end %>
+
 <%# Preview features toggle — visible to all users, not just admins. Lives at
     the bottom of Preferences as a standalone card (no section header) so the
     toggle row is the entire surface. Posts directly to
