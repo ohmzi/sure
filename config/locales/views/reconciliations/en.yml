@@ -1,0 +1,22 @@
+---
+en:
+  reconciliations:
+    index:
+      title: Reconciliations
+      empty_title: Nothing to match
+      empty_description: Receipts that match a transaction will appear here for review.
+      # (Ruling P-m3-1, 2026-10-10 pre-flight) paperless-unreachable fallback alert
+      paperless_unavailable: Paperless is unreachable right now, so candidates could not be recomputed.
+    result:
+      receipt_for: "Receipt: %{title}"
+      link: Link
+      dismiss: Dismiss
+      # (Ruling P-m3-1, 2026-10-10 pre-flight) shown when candidates could not be recomputed
+      candidates_unavailable: Candidates are unavailable right now.
+    link:
+      success: Receipt linked to the transaction.
+      no_candidate: That transaction is not a match for this receipt.
+      # (Ruling P-m3-1, 2026-10-10 pre-flight) link attempt during a paperless outage
+      paperless_unavailable: Paperless is unreachable right now, so the receipt was not changed.
+    dismiss:
+      success: Receipt dismissed. It will not be suggested again.

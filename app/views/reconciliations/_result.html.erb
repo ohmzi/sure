@@ -1,0 +1,47 @@
+<% result = results.fetch(link) %>
+
+<%= turbo_frame_tag dom_id(link) do %>
+  <%= render DS::Card.new do %>
+    <div class="flex gap-4">
+      <div class="w-32 shrink-0">
+        <%= image_tag file_document_path(link, kind: :preview), alt: link.title.to_s, class: "rounded-lg" %>
+      </div>
+
+      <div class="flex-1 space-y-2">
+        <p class="text-sm text-secondary"><%= t(".receipt_for", title: link.title) %></p>
+
+        <% if result.nil? %>
+          <%# (Ruling P-m3-1, 2026-10-10 pre-flight) paperless unreachable: candidates could not be recomputed %>
+          <p class="text-sm text-secondary"><%= t(".candidates_unavailable") %></p>
+        <% else %>
+          <% result.candidates.each do |candidate| %>
+            <%= render DS::ReviewRow.new do |row| %>
+              <% row.with_actions do %>
+                <%= render DS::Link.new(
+                      text: t(".link"),
+                      href: link_reconciliation_path(link, entry_id: candidate.entry.id),
+                      method: :post,
+                      variant: "primary"
+                    ) %>
+              <% end %>
+              <p class="text-sm text-primary">
+                <%= candidate.entry.name %> &middot;
+                <%= candidate.entry.amount_money.format %> &middot;
+                <%= l(candidate.entry.date, format: :short) %>
+              </p>
+            <% end %>
+          <% end %>
+        <% end %>
+
+        <div class="pt-2">
+          <%= render DS::Link.new(
+                text: t(".dismiss"),
+                href: dismiss_reconciliation_path(link),
+                method: :post,
+                variant: "outline"
+              ) %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+<% end %>

@@ -714,6 +714,13 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :reconciliations, only: %i[index] do
+    member do
+      post :link
+      post :dismiss
+    end
+  end
+
   # Convenience routes for polymorphic paths
   # Example: account_path(Account.new(accountable: Depository.new)) => /depositories/123
   direct :edit_account do |model, options|
