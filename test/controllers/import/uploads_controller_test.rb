@@ -165,4 +165,45 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input#import_import_file_ofx[accept='.ofx,.qfx']", count: 1
     assert_select "select[name='import[account_id]']", count: 1
   end
+
+  test "uploads a valid QFX file, archives it, and generates rows" do
+    # (Ruling M2-C8, 2026-10-11 close-out): the spec names OFX/QFX, but only the
+    # .ofx half of the allow-list was exercised.
+    import = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
+    qfx = Rack::Test::UploadedFile.new(
+      file_fixture("imports/sample.ofx"), "application/vnd.intu.qfx", true, original_filename: "statement.qfx"
+    )
+
+    patch import_upload_url(import), params: {
+      import: { import_file: qfx, account_id: accounts(:depository).id }
+    }
+
+    assert_redirected_to import_clean_url(import)
+    import.reload
+    assert_equal 3, import.rows.count
+    assert import.account_statement.ofx?
+    assert_equal "application/vnd.intu.qfx", import.account_statement.content_type
+  end
+
+  test "a crafted entity-expansion OFX upload fails explicitly instead of crashing" do
+    # (Ruling M2-C3, 2026-10-11 close-out): the document passes
+    # Ofx::Parser.valid?, so it reaches the parse, where REXML's
+    # entity-expansion guard raises bare RuntimeError. The upload must end in
+    # the failed (422) state - the archive rolls back with the transaction -
+    # never a 500 and never a partial parse.
+    import = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
+
+    assert_no_difference [ "AccountStatement.count", "Import::Row.count" ] do
+      patch import_upload_url(import), params: {
+        import: {
+          import_file: file_fixture_upload("imports/crafted_entity.ofx", "application/x-ofx"),
+          account_id: accounts(:depository).id
+        }
+      }
+    end
+
+    assert_response :unprocessable_entity
+    assert_equal "Must be a valid OFX/QFX file", flash[:alert]
+    assert_nil import.reload.account_statement
+  end
 end

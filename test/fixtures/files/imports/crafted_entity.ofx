@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!DOCTYPE OFX [
+  <!ENTITY a "lol">
+  <!ENTITY b "&a;&a;&a;&a;&a;&a;&a;&a;&a;&a;">
+  <!ENTITY c "&b;&b;&b;&b;&b;&b;&b;&b;&b;&b;">
+  <!ENTITY d "&c;&c;&c;&c;&c;&c;&c;&c;&c;&c;">
+  <!ENTITY e "&d;&d;&d;&d;&d;&d;&d;&d;&d;&d;">
+  <!ENTITY f "&e;&e;&e;&e;&e;&e;&e;&e;&e;&e;">
+  <!ENTITY g "&f;&f;&f;&f;&f;&f;&f;&f;&f;&f;">
+]>
+<OFX>
+  <BANKMSGSRSV1>
+    <STMTTRNRS><STMTRS><BANKTRANLIST>
+      <STMTTRN>
+        <TRNTYPE>DEBIT</TRNTYPE>
+        <DTPOSTED>20241015120000</DTPOSTED>
+        <TRNAMT>-45.99</TRNAMT>
+        <FITID>&g;</FITID>
+        <NAME>GROCERY STORE</NAME>
+      </STMTTRN>
+    </BANKTRANLIST></STMTRS></STMTTRNRS>
+  </BANKMSGSRSV1>
+</OFX>

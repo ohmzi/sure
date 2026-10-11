@@ -12,6 +12,12 @@ module Ofx
   # Mirrors QifParser's structure (namespace module, self.parse/self.valid?,
   # encoding normalization, private class helpers).
   module Parser
+    # (Ruling M2-C3, 2026-10-11 close-out): raised when a document passes
+    # `valid?` but the XML parser refuses it. REXML's entity-expansion/security
+    # guards raise bare RuntimeError, which the upload controller maps to the
+    # invalid-file response - never a 500 and never a silent partial parse.
+    class ParseError < StandardError; end
+
     FALLBACK_ENCODINGS = %w[Windows-1252 Windows-1250].freeze
 
     # OFX date fields are YYYYMMDD[HHMMSS[.sss]][tz]; only the date matters.
@@ -88,6 +94,15 @@ module Ofx
     rescue REXML::ParseException
       # Fall back to the tolerant SGML extractor rather than losing the file.
       parse_sgml_transactions(content)
+    # (Ruling M2-C3, 2026-10-11 close-out): REXML's entity-expansion/security
+    # guards raise bare RuntimeError (e.g. "entity expansion has grown too
+    # large"), which the ParseException rescue above does not cover. Never fall
+    # back to the SGML extractor for these - that would silently re-parse a
+    # document the XML parser refused - and never let the raw RuntimeError
+    # escape to 500 the upload: raise the explicit parse failure the upload
+    # controller maps to the failed (422) state.
+    rescue RuntimeError => e
+      raise ParseError, e.message
     end
     private_class_method :parse_xml_transactions
 

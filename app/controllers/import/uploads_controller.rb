@@ -120,10 +120,14 @@ class Import::UploadsController < ApplicationController
 
       notice = duplicate ? t(".ofx_duplicate_notice") : t(".ofx_uploaded")
       redirect_to import_clean_path(@import), notice: notice
-    rescue AccountStatement::InvalidUploadError
+    rescue Ofx::Parser::ParseError, AccountStatement::InvalidUploadError
       # Empty, oversize, or a content type outside the extension allow-list:
       # create_from_upload! raises before anything is archived (the transaction
       # rolls back). Match the CSV branch's flash + 422 pattern rather than 500.
+      # (Ruling M2-C3, 2026-10-11 close-out): a crafted document that passes
+      # valid? but trips REXML's entity-expansion/security guards raises
+      # ParseError from generate_rows_from_csv; the archive rolls back with the
+      # rest of the transaction and the upload fails here too.
       flash.now[:alert] = t(".ofx_invalid")
       render :show, status: :unprocessable_entity
     end

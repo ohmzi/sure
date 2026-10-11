@@ -10,6 +10,9 @@ class Ofx::ParserTest < ActiveSupport::TestCase
   # instance context and stays as-is.
   SGML = -> { File.read(File.join(file_fixture_path, "imports/sample.ofx")) }
   XML  = -> { File.read(File.join(file_fixture_path, "imports/sample_v2.ofx")) }
+  # (Ruling M2-C3, 2026-10-11 close-out): a crafted document that passes
+  # `valid?` but trips REXML's entity-expansion/security guards.
+  CRAFTED = -> { File.read(File.join(file_fixture_path, "imports/crafted_entity.ofx")) }
 
   test "valid? recognizes OFX 1.x SGML" do
     assert Ofx::Parser.valid?(SGML.call)
@@ -52,6 +55,10 @@ class Ofx::ParserTest < ActiveSupport::TestCase
                  rows.map(&:date)
     assert_equal [ BigDecimal("-45.99"), BigDecimal("1500.00"), BigDecimal("-12.50") ],
                  rows.map(&:amount)
+    # (Ruling M2-C6, 2026-10-11 close-out): the Close-out claims both dialects
+    # parse to identical golden rows, so the XML dialect pins payee and memo too.
+    assert_equal [ "GROCERY STORE", "PAYROLL DEPOSIT", "COFFEE SHOP" ], rows.map(&:payee)
+    assert_equal [ "Weekly shop", "Salary", "Coffee" ], rows.map(&:memo)
     assert_equal [ "2024101500001", "2024101600002", "2024101700003" ], rows.map(&:fitid)
   end
 
@@ -76,6 +83,19 @@ class Ofx::ParserTest < ActiveSupport::TestCase
 
     assert_equal 3, rows.size
     assert_equal [ "2024101500001", "2024101600002", "2024101700003" ], rows.map(&:fitid)
+  end
+
+  test "a crafted entity-expansion document fails explicitly instead of crashing" do
+    # (Ruling M2-C3, 2026-10-11 close-out): REXML's security guard raises bare
+    # RuntimeError ("entity expansion has grown too large"), which the
+    # ParseException rescue does not cover. The parse must surface it as the
+    # explicit ParseError - the upload controller's failed state - and never
+    # fall back to the SGML extractor, which would silently emit the rows the
+    # XML parser refused.
+    crafted = CRAFTED.call
+
+    assert Ofx::Parser.valid?(crafted), "the crafted document still looks like OFX"
+    assert_raises(Ofx::Parser::ParseError) { Ofx::Parser.parse(crafted) }
   end
 
   test "normalize_encoding transcodes Windows-1252 bytes to valid UTF-8" do
