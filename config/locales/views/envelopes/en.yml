@@ -13,6 +13,8 @@ en:
     move:
       button_title: "Move money from this envelope"
       dialog_title: "Move money"
+      amount_label: "Amount"
+      to_label: "To"
       cancel: "Cancel"
       submit: "Move"
       no_destination: "This is the only envelope money can move between right now — a category cannot send to its own parent or child."

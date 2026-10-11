@@ -163,6 +163,19 @@ class EnvelopesControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='month_year']"
   end
 
+  # Ruling M4-L5 (2026-10-10 close-out): the cloned dialog had lost the
+  # upstream accessible names — the amount field and the destination select
+  # rendered without labels. This pins the restored labels and the amount's
+  # min bound.
+  test "the move dialog carries the upstream accessible names" do
+    get envelope_url(@budget.to_param)
+
+    assert_response :success
+    assert_select "label[for='budget_category_move_amount']", text: I18n.t("envelopes.move.amount_label")
+    assert_select "label[for='to_id']", text: I18n.t("envelopes.move.to_label")
+    assert_select "input#budget_category_move_amount[min]"
+  end
+
   test "breadcrumbs include the Plan hub for preview users" do
     users(:family_admin).update!(preferences: (users(:family_admin).preferences || {}).merge("preview_features_enabled" => true))
 
