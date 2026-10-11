@@ -17,8 +17,11 @@ class StatementOcrJobTest < ActiveJob::TestCase
     @import.update!(account_statement: @statement)
   end
 
-  # The paperless boundary the test controls: stub the OCR text so the job's
-  # spine + template routing is exercised, not pdf-reader.
+  # The paperless boundary the test controls: the client's `document` read
+  # backs the job's real `ocr_text` (Ruling M2-C8, 2026-10-11 close-out; the
+  # job method itself is no longer stubbed), so the spine, the R2 content read
+  # and the template routing are all exercised. Only the blank-content preview
+  # fallback (`client.file` + pdf-reader) stays a recorded coverage gap.
   def stub_paperless(text: "", configured: true, post: "task-uuid-1", post_error: nil,
                      task: OpenStruct.new(status: :success, document_id: 777, error_message: nil), task_error: nil)
     client = mock
@@ -27,7 +30,7 @@ class StatementOcrJobTest < ActiveJob::TestCase
       client.stubs(:tag_id).returns(101) # (Ruling P-m2-1, 2026-10-10 pre-flight)
       post_error ? client.stubs(:post_document).raises(post_error) : client.stubs(:post_document).returns(post)
       task_error ? client.stubs(:task).raises(task_error) : client.stubs(:task).returns(task)
-      StatementOcrJob.any_instance.stubs(:ocr_text).returns(text)
+      client.stubs(:document).returns(OpenStruct.new(content: text))
     end
     Paperless::Client.stubs(:new).returns(client)
     client
@@ -120,6 +123,23 @@ class StatementOcrJobTest < ActiveJob::TestCase
     StatementOcrJob.perform_now(@import.id)
 
     assert_equal 777, link.reload.paperless_document_id
+    assert_equal 3, @import.reload.rows.count
+  end
+
+  test "a duplicate-only success settles the statement normally" do
+    # (Ruling M2-C1, 2026-10-11 close-out): paperless reports a duplicate upload
+    # as success with document_id nil and duplicate_of set; the job must adopt
+    # the duplicate's document (M1 TaskPollJob precedent) instead of stranding
+    # the statement in extraction_failed.
+    stub_paperless(
+      text: file_fixture("imports/chase_statement.txt").read,
+      task: OpenStruct.new(status: :success, document_id: nil, duplicate_of: 777, error_message: nil)
+    )
+
+    StatementOcrJob.perform_now(@import.id)
+
+    assert_equal 777, link.reload.paperless_document_id
+    assert @statement.reload.extracted?
     assert_equal 3, @import.reload.rows.count
   end
 

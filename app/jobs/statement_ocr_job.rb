@@ -60,8 +60,14 @@ class StatementOcrJob < ApplicationJob
       when :failure # belt-and-braces; M1's #task raises :task_failed instead
         return fail_extraction(statement, link, :paperless_task_failed, detail: task.error_message)
       when :success
-        link.finish_processing!(document_id: task.document_id)
-        document_id = task.document_id
+        # (Ruling M2-C1, 2026-10-11 close-out) M1's TaskPollJob precedent
+        # (paperless/task_poll_job.rb:47): paperless reports a duplicate upload
+        # as success with a nil document_id and duplicate_of set. Reading only
+        # document_id stranded such a statement in extraction_failed with no
+        # way out; adopt the duplicate's document and settle the statement
+        # normally.
+        document_id = task.document_id || task.duplicate_of
+        link.finish_processing!(document_id: document_id)
       end
     end
 
