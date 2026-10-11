@@ -3,6 +3,8 @@
 require "test_helper"
 
 class Api::V1::EnvelopesControllerTest < ActionDispatch::IntegrationTest
+  include EntriesTestHelper
+
   setup do
     @user = users(:family_admin)
     @family = @user.family
@@ -223,5 +225,24 @@ class Api::V1::EnvelopesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 500, later_envelope.reload[:rolled_over_amount]
     body = JSON.parse(response.body)
     assert_equal "$500.00", body["rolled_over_amount"]
+  end
+
+  # Ruling M4-L7 (2026-10-10 close-out): the read refresh routes through
+  # Budget::Recalculate like the sibling budget-categories API, so it
+  # recomputes credit envelopes too — the fourth legacy RolloverCalculator
+  # caller is gone, and a new direct constructor now fails
+  # test/models/budget/recalculate_test.rb.
+  test "show recomputes credit envelopes through the seam" do
+    card = @family.accounts.create!(
+      accountable: CreditCard.new, name: "Ruling card", currency: "USD", balance: 0, status: "active"
+    )
+    create_transaction(account: card, date: @budget.start_date, amount: 60,
+                       category: categories(:food_and_drink))
+    CreditEnvelope.where(budget_id: @budget.id).delete_all
+
+    get api_v1_envelope_url(@envelope.id), headers: api_headers(@write_key), as: :json
+
+    assert_response :success
+    assert_equal 60, CreditEnvelope.find_by!(budget_id: @budget.id, account_id: card.id).funded_amount.to_d
   end
 end

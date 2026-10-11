@@ -100,12 +100,20 @@ class Api::V1::EnvelopesController < Api::V1::BaseController
 
     # Ruling M4a-L3: the sibling budget_categories API's exact refresh, so the
     # API never serves a stale rolled_over_amount/available_to_spend.
+    # Ruling M4-L7 (2026-10-10 close-out): the fourth and last legacy
+    # RolloverCalculator caller now routes through Budget::Recalculate like the
+    # sibling's swap, so this read also recomputes credit envelopes and no
+    # direct construction of the calculator remains outside the seam (pinned by
+    # test/models/budget/recalculate_test.rb).
     def refresh_rollover_chains
       visible_owner_ids.each do |owner_id|
-        Budget::RolloverCalculator.new(
-          family: current_resource_owner.family,
-          user: owner_id && User.find_by(id: owner_id)
-        ).recompute!
+        budget = Budget
+          .where(family: current_resource_owner.family, user_id: owner_id)
+          .order(start_date: :desc)
+          .first
+        next unless budget
+
+        Budget::Recalculate.call(family: current_resource_owner.family, budget: budget)
       end
     end
 
