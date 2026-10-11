@@ -130,4 +130,22 @@ class StatementOcrJobTest < ActiveJob::TestCase
 
     assert @statement.reload.extraction_failed?
   end
+
+  test "a detected bank produces a publishable, reviewable import" do
+    stub_paperless(text: file_fixture("imports/chase_statement.txt").read)
+
+    StatementOcrJob.perform_now(@import.id)
+
+    assert @import.reload.publishable?
+    assert @import.cleaned?
+  end
+
+  test "a matched template that emits zero rows lands in needs_template" do
+    stub_paperless(text: "JPMorgan Chase Bank, N.A.\nNovember 01, 2024 through November 30, 2024\nACCOUNT ACTIVITY\nDate  Description  Amount  Balance\n")
+
+    StatementOcrJob.perform_now(@import.id)
+
+    assert @statement.reload.needs_template?
+    assert_equal 0, @import.reload.rows.count
+  end
 end

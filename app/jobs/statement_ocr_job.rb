@@ -109,8 +109,20 @@ class StatementOcrJob < ApplicationJob
 
     def apply_template(statement, import, template, text)
       rows = template.rows(text)
+
+      # A detected template that matches no line is still "we could not read
+      # this": never report success with zero rows (spec §8.6).
+      if rows.empty?
+        statement.update!(extraction_state: :needs_template)
+        return
+      end
+
       import.update!(
         document_type: "bank_statement",
+        # The publish gate (PdfImport#configured? = ai_processed? && rows_count > 0)
+        # reads ai_summary; setting it deterministically makes the template path
+        # reviewable instead of dead-ending on the clean screen.
+        ai_summary: I18n.t("imports.statement_ocr.summary", bank: template.bank_key, version: template.version),
         extracted_data: {
           "transactions" => rows.map do |row|
             { "date" => row.date.to_s, "amount" => row.amount.to_s("F"), "name" => row.payee.to_s, "notes" => row.memo.to_s, "category" => "" }

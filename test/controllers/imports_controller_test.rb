@@ -689,6 +689,19 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_select 'select[name="import[account_id]"] option', text: "Plaid Depository Account", count: 0
   end
 
+  test "the clean screen renders for a configured statement import" do
+    import = imports(:pdf)
+    import.update!(account: accounts(:depository), date_format: "%Y-%m-%d",
+                   document_type: "bank_statement", ai_summary: "Read by the template")
+    import.rows.create!(source_row_number: 1, date: "2024-11-04", amount: "-84.12",
+                        currency: accounts(:depository).currency, name: "WHOLE FOODS")
+    import.sync_mappings
+
+    get import_clean_url(import)
+
+    assert_response :success
+  end
+
   private
     def qif_import_with_embedded_account(name)
       import = QifImport.create!(family: families(:dylan_family))

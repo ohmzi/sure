@@ -541,6 +541,8 @@ en:
       contract: Contract
       other: Other Document
       unknown: Unknown Document
+    statement_ocr:
+      summary: "Read by the %{bank} statement template v%{version} (paperless OCR)."
     pdf_import:
       processing_title: Processing your PDF
       processing_description: We're analyzing your document using AI. This may take a moment. You'll receive an email when the analysis is complete.
