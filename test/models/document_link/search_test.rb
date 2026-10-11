@@ -81,4 +81,45 @@ class DocumentLink::SearchTest < ActiveSupport::TestCase
     # A name no row carries is a real filter: an empty page, never a widened one.
     assert_empty DocumentLink::Search.new(family: @family, filters: { tags: %w[nope] }).relation.pluck(:id)
   end
+
+  # -- the merchant / amount facet (M8 Task 7) ---------------------------------
+
+  test "merchant and amount filter on the understood draft's extracted data" do
+    imports(:receipt_understood).update!(
+      extracted_data: imports(:receipt_understood).extracted_data.merge("payee" => "Starbucks", "total" => "12.00")
+    )
+    link = document_links(:understood_receipt_link)
+
+    found = DocumentLink::Search.new(family: @family, filters: { merchant: "starb" }).relation.pluck(:id)
+    assert_includes found, link.id
+
+    found = DocumentLink::Search.new(family: @family, filters: { amount_min: "10", amount_max: "15" }).relation.pluck(:id)
+    assert_includes found, link.id
+
+    # A max-only bound is reachable from the form (fill one box): the named-bind
+    # carrier must tolerate the unbound half (the Task 7 repair pin).
+    assert_includes DocumentLink::Search.new(family: @family, filters: { amount_max: "15" }).relation.pluck(:id), link.id
+
+    assert_not_includes DocumentLink::Search.new(family: @family, filters: { amount_min: "20" }).relation.pluck(:id), link.id
+    assert_empty DocumentLink::Search.new(family: @family, filters: { merchant: "nobody" }).relation.pluck(:id)
+  end
+
+  test "a non-numeric extracted total never matches an amount filter and never raises" do
+    imports(:receipt_understood).update!(extracted_data: imports(:receipt_understood).extracted_data.merge("total" => "n/a"))
+    assert_empty DocumentLink::Search.new(family: @family, filters: { amount_min: "0" }).relation.pluck(:id)
+
+    # (repair pin 2026-10-11, Task 7) "12x34" is the near-numeric value only a
+    # wildcard-dot regex would admit: it must fail the guard (NULL) and never
+    # reach ::numeric (PG::InvalidTextRepresentation — the cast-guard's whole
+    # point). The fence's "n/a" alone cannot catch the lost-backslash class.
+    imports(:receipt_understood).update!(extracted_data: imports(:receipt_understood).extracted_data.merge("total" => "12x34"))
+    assert_empty DocumentLink::Search.new(family: @family, filters: { amount_min: "0" }).relation.pluck(:id)
+  end
+
+  test "a junk amount bound is ignored instead of raising" do
+    unfiltered = DocumentLink::Search.new(family: @family).relation.pluck(:id)
+
+    assert_equal unfiltered,
+                 DocumentLink::Search.new(family: @family, filters: { amount_min: "abc", amount_max: "1..2" }).relation.pluck(:id)
+  end
 end

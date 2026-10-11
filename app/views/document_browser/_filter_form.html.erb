@@ -35,6 +35,40 @@
     <% end %>
   </div>
 
+  <%# The Merchant / Amount facet (M8 Task 7, locked decision 7). Documents
+      read the understood draft's extracted payee/total; statements read the
+      institution hint and carry no extracted total, so their amount fields are
+      replaced by one honest note — the degradation is explicit, never silent. %>
+  <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
+    <span class="text-sm text-secondary">
+      <%= documents ? t("document_browser.filters.merchant") : t("document_browser.filters.institution") %>
+    </span>
+    <%= text_field_tag "q[merchant]", filters[:merchant],
+          placeholder: documents ? t("document_browser.filters.merchant_placeholder") : t("document_browser.filters.institution_placeholder"),
+          autocomplete: "off",
+          data: { "auto-submit-form-target": "auto" },
+          aria: { label: documents ? t("document_browser.filters.merchant") : t("document_browser.filters.institution") },
+          class: "form-field__input w-auto" %>
+    <% if documents %>
+      <%= number_field_tag "q[amount_min]", filters[:amount_min],
+            placeholder: t("document_browser.filters.amount_min"),
+            min: 0, step: "any",
+            autocomplete: "off",
+            data: { "auto-submit-form-target": "auto" },
+            aria: { label: t("document_browser.filters.amount_min") },
+            class: "form-field__input w-auto" %>
+      <%= number_field_tag "q[amount_max]", filters[:amount_max],
+            placeholder: t("document_browser.filters.amount_max"),
+            min: 0, step: "any",
+            autocomplete: "off",
+            data: { "auto-submit-form-target": "auto" },
+            aria: { label: t("document_browser.filters.amount_max") },
+            class: "form-field__input w-auto" %>
+    <% else %>
+      <span class="text-sm text-secondary"><%= t("document_browser.filters.statements_amount_note") %></span>
+    <% end %>
+  </div>
+
   <%# (repaired 2026-10-11, re-verifier: F9 residual) DS::SearchInput renders no
       id of its own, so the acceptance step's `find("#q_search")` cannot resolve -
       pin the id here (and the blur still goes through the auto-submit controller). %>

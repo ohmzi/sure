@@ -4,6 +4,13 @@ en:
       search_placeholder: Search by text, title or file name
       tags: Tags
       no_tags: No tags yet
+      merchant: Merchant
+      merchant_placeholder: Name
+      institution: Institution
+      institution_placeholder: Institution name
+      amount_min: Min amount
+      amount_max: Max amount
+      statements_amount_note: "No amount filter: statements have no extracted total."
       sorts:
         newest: Newest first
         oldest: Oldest first

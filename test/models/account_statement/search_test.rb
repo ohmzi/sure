@@ -46,4 +46,29 @@ class AccountStatement::SearchTest < ActiveSupport::TestCase
     assert_equal [ statement.id ], AccountStatement::Search.new(user: users(:family_admin), family: @family, filters: { search: statement.filename }).relation.pluck(:id)
     assert_empty AccountStatement::Search.new(user: users(:family_admin), family: @family, filters: { search: "no-such-text" }).relation.pluck(:id)
   end
+
+  # -- the institution facet (M8 Task 7) ---------------------------------------
+
+  test "the merchant filter matches the institution hint and blank filters nothing" do
+    statement = AccountStatement.create_from_upload!(
+      family: @family, account: @account,
+      file: Rack::Test::UploadedFile.new(file_fixture("receipts/statement.pdf"), "application/pdf")
+    )
+    statement.update!(institution_name_hint: "Acme Bank")
+
+    found = AccountStatement::Search.new(user: users(:family_admin), family: @family, filters: { merchant: "acme" }).relation.pluck(:id)
+    assert_includes found, statement.id
+
+    assert_not_includes AccountStatement::Search.new(user: users(:family_admin), family: @family, filters: { merchant: "nobody" }).relation.pluck(:id), statement.id
+
+    unfiltered = AccountStatement::Search.new(user: users(:family_admin), family: @family).relation.pluck(:id)
+    assert_equal unfiltered, AccountStatement::Search.new(user: users(:family_admin), family: @family, filters: { merchant: "  " }).relation.pluck(:id)
+  end
+
+  test "a crafted amount param is ignored: statements have no amount facet" do
+    unfiltered = AccountStatement::Search.new(user: users(:family_admin), family: @family).relation.count
+
+    assert_equal unfiltered,
+                 AccountStatement::Search.new(user: users(:family_admin), family: @family, filters: { amount_min: "10", amount_max: "15" }).relation.count
+  end
 end

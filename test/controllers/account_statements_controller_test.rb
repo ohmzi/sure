@@ -562,4 +562,32 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     get account_statements_path(q: { search: statement.filename })
     assert_match statement.filename, response.body
   end
+
+  # -- the institution facet and the honest amount degradation (M8 Task 7) -----
+
+  test "the statements browser offers the institution facet and explains the missing amount facet" do
+    get account_statements_path
+    assert_select "input[name='q[merchant]']"
+    assert_select "input[name='q[amount_min]']", count: 0
+    assert_select "input[name='q[amount_max]']", count: 0
+    # (verifier-F4 discipline) fail on the missing key, not on a matching
+    # "Translation missing: …" on both sides.
+    assert I18n.exists?("document_browser.filters.statements_amount_note")
+    assert_match I18n.t("document_browser.filters.statements_amount_note"), response.body
+  end
+
+  test "the institution facet narrows the vault list end to end" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "hinted.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    statement.update!(institution_name_hint: "Acme Bank")
+
+    get account_statements_path(q: { merchant: "acme" })
+    assert_match statement.filename, response.body
+    assert_match "Acme Bank", response.body # the row shows the institution, never an amount
+
+    get account_statements_path(q: { merchant: "nobody" })
+    assert_no_match statement.filename, response.body
+  end
 end

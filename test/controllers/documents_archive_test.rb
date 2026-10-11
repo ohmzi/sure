@@ -239,4 +239,31 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     assert I18n.exists?("document_browser.filters.no_tags")
     assert_match I18n.t("document_browser.filters.no_tags"), response.body
   end
+
+  # -- the merchant / amount facet (M8 Task 7) --------------------------------
+
+  test "the browser renders the merchant/amount facet fields for documents only" do
+    get documents_path
+    assert_select "input[name='q[merchant]']"
+    assert_select "input[name='q[amount_min]']"
+    assert_select "input[name='q[amount_max]']"
+    # The statements note belongs to the other family: documents DO offer the
+    # amount fields, so the degradation line must not appear here.
+    assert I18n.exists?("document_browser.filters.statements_amount_note")
+    assert_no_match I18n.t("document_browser.filters.statements_amount_note"), response.body
+  end
+
+  test "the merchant and amount facets narrow the list end to end" do
+    # The understood draft's fixture extracted data (payee "Starbucks", total
+    # "12.00") drives both predicates — and both render on the row.
+    get documents_path(q: { merchant: "starb" })
+    assert_match document_links(:understood_receipt_link).title.to_s, response.body
+    assert_match "Starbucks", response.body
+    assert_match imports(:receipt_understood).total_amount.to_s("F"), response.body
+    assert_no_match document_links(:held_bill).title.to_s, response.body
+
+    get documents_path(q: { amount_min: "10", amount_max: "15" })
+    assert_match document_links(:understood_receipt_link).title.to_s, response.body
+    assert_no_match document_links(:held_bill).title.to_s, response.body
+  end
 end

@@ -28,22 +28,37 @@ class AccountStatement::Search
   end
 
   def relation
-    scope = @family.account_statements
+    @scope = @family.account_statements
       .where(account_id: nil)
       .or(@family.account_statements.where(account_id: @user.accessible_accounts.select(:id)))
       .includes(:account, :suggested_account, :archived_document_link)
-    scope = scope.where(extraction_state: extraction_filters) if extraction_filters.any?
-    scope = scope.where(review_status: review_filters) if review_filters.any?
-    scope = scope.merge(AccountStatement.search(@filters[:search])) if @filters[:search].present?
-    scope = scope.where("#{DOCUMENT_DATE_SQL} >= ?", date_from.iso8601) if date_from
-    scope = scope.where("#{DOCUMENT_DATE_SQL} <= ?", date_to.iso8601) if date_to
-    scope = scope.where(id: tagged_statement_ids) if tag_filters.any?
-    scope.order(order_clause)
+    @scope = @scope.where(extraction_state: extraction_filters) if extraction_filters.any?
+    @scope = @scope.where(review_status: review_filters) if review_filters.any?
+    @scope = @scope.merge(AccountStatement.search(@filters[:search])) if @filters[:search].present?
+    @scope = @scope.where("#{DOCUMENT_DATE_SQL} >= ?", date_from.iso8601) if date_from
+    @scope = @scope.where("#{DOCUMENT_DATE_SQL} <= ?", date_to.iso8601) if date_to
+    @scope = institution_matching(@filters[:merchant])
+    @scope = @scope.where(id: tagged_statement_ids) if tag_filters.any?
+    @scope.order(order_clause)
   end
 
   private
+    attr_reader :scope
+
     def extraction_filters = Array(@filters[:extraction]) & EXTRACTION_FILTERS
     def review_filters = Array(@filters[:review]) & REVIEW_FILTERS
+
+    # The institution facet (M8 Task 7, locked decision 7): statements have no
+    # extracted payee — the "merchant" column is the upload-time institution
+    # hint. There is NO amount predicate here: statements carry no extracted
+    # total anywhere, so the form renders the honest note instead of dead
+    # fields, and a hand-crafted amount param is ignored by construction.
+    def institution_matching(term)
+      return scope if term.blank?
+
+      pattern = "%#{ActiveRecord::Base.sanitize_sql_like(term.to_s.strip)}%"
+      scope.where("institution_name_hint ILIKE :p", p: pattern)
+    end
 
     # The tag facet on statements (M8 Task 6): statements carry no tags of
     # their own, so the filter is a subquery over their archived document

@@ -29,6 +29,22 @@ class DocumentLink::Search
     )
   SQL
 
+  # The understood draft's total, castable-only (the regex is the cast guard:
+  # a non-numeric value must never raise mid-query). Latest draft wins.
+  # (M8 Task 7, locked decision 7) A refund/negative total does not match any
+  # amount filter — the guard admits digits only — and a row with no draft at
+  # all yields NULL, so an amount filter can never return it.
+  # (deviation 2026-10-11, Task 7) the source writes `\\.` because the
+  # unquoted heredoc would otherwise eat the backslash and leave a wildcard
+  # dot — the same repair the repo's DOCUMENT_DATE_SQL needed.
+  EXTRACTED_TOTAL_SQL = <<~SQL.squish.freeze
+    (SELECT ri.extracted_data->>'total' FROM imports ri
+      WHERE ri.document_link_id = document_links.id
+        AND ri.type = 'ReceiptImport'
+        AND ri.extracted_data->>'total' ~ '^[0-9]+(\\.[0-9]+)?$'
+      ORDER BY ri.created_at DESC LIMIT 1)
+  SQL
+
   def initialize(family:, filters: {}, sources: nil)
     @family = family
     @filters = filters.symbolize_keys
@@ -36,16 +52,62 @@ class DocumentLink::Search
   end
 
   def relation
-    scope = @family.document_links.includes(:account_statement, :receipt_imports)
-    scope = scope.where(source: @sources) if @sources
-    scope = scope.merge(DocumentLink.search(@filters[:search])) if @filters[:search].present?
-    scope = scope.where("#{DOCUMENT_DATE_SQL} >= ?", date_from.iso8601) if date_from
-    scope = scope.where("#{DOCUMENT_DATE_SQL} <= ?", date_to.iso8601) if date_to
-    scope = scope.where("paperless_tags && ARRAY[?]::text[]", tag_filters) if tag_filters.any?
-    scope.order(order_clause)
+    @scope = @family.document_links.includes(:account_statement, :receipt_imports)
+    @scope = @scope.where(source: @sources) if @sources
+    @scope = @scope.merge(DocumentLink.search(@filters[:search])) if @filters[:search].present?
+    @scope = @scope.where("#{DOCUMENT_DATE_SQL} >= ?", date_from.iso8601) if date_from
+    @scope = @scope.where("#{DOCUMENT_DATE_SQL} <= ?", date_to.iso8601) if date_to
+    @scope = merchant_matching(@filters[:merchant])
+    @scope = amount_between(@filters[:amount_min], @filters[:amount_max])
+    @scope = @scope.where("paperless_tags && ARRAY[?]::text[]", tag_filters) if tag_filters.any?
+    @scope.order(order_clause)
   end
 
   private
+    attr_reader :scope
+
+    # The Merchant / Amount facet (M8 Task 7, locked decision 7): documents
+    # read the understood draft's extracted payee/total — never a paperless
+    # call (locked decision 4). Local, like every other filter here.
+    def merchant_matching(term)
+      return scope if term.blank?
+
+      pattern = "%#{ActiveRecord::Base.sanitize_sql_like(term.to_s.strip)}%"
+      scope.where(<<~SQL.squish, p: pattern)
+        EXISTS (SELECT 1 FROM imports ri
+                 WHERE ri.document_link_id = document_links.id
+                   AND ri.type = 'ReceiptImport'
+                   AND ri.extracted_data->>'payee' ILIKE :p)
+      SQL
+    end
+
+    # The amount range casts only through EXTRACTED_TOTAL_SQL's regex guard,
+    # so a junk or absent total never reaches ::numeric (never a 500 on a bad
+    # cast). A bound that does not parse is dropped; both junk means the
+    # amount filter is ignored entirely.
+    # (deviation 2026-10-11, Task 7) the pins ride on NAMED binds: the guard
+    # regex's `?` quantifier is otherwise counted as a `?` bind placeholder by
+    # sanitize_sql_array ("wrong number of bind variables"), so the fence's
+    # positional form cannot work alongside the pinned regex.
+    def amount_between(min, max)
+      min, max = parse_amount(min), parse_amount(max)
+      return scope if min.nil? && max.nil?
+
+      sql = "#{EXTRACTED_TOTAL_SQL}"
+      conditions = [ "#{sql} IS NOT NULL" ]
+      conditions << "#{sql}::numeric >= :min" if min
+      conditions << "#{sql}::numeric <= :max" if max
+      scope.where(conditions.join(" AND "), min: min, max: max)
+    end
+
+    def parse_amount(raw)
+      return nil if raw.blank?
+
+      BigDecimal(raw.to_s.strip)
+    rescue ArgumentError, TypeError
+      nil
+    end
+
     # The tag facet (M8 Task 6): array overlap against the stored snapshot —
     # never a paperless call (locked decisions 4/6). Blank names filter nothing;
     # a name no row carries yields an empty page, never a widened one.
