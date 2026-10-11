@@ -11,7 +11,7 @@ class DocumentBridgeTest < ApplicationSystemTestCase
 
     # Run jobs inline and stub only the paperless egress, so the whole bridge
     # (upload -> post -> poll -> unlinked -> link) runs in this process. The
-    # thumbnail Turbo frames hit DocumentLinksController#file, so #file must be
+    # thumbnail <img> tags hit DocumentLinksController#file (Ruling M11 (M1): plain img, not a Turbo frame), so #file must be
     # stubbed too (yielded, not returned — Mocha `.returns` never invokes a
     # passed block).
     @previous_adapter = ActiveJob::Base.queue_adapter

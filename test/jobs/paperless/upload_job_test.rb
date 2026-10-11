@@ -126,4 +126,21 @@ class Paperless::UploadJobTest < ActiveJob::TestCase
     assert_equal "processing", @link.status
     assert_equal "task-1", @link.paperless_task_id
   end
+
+  test "a duplicate delivery still schedules the poll (close-out review finding 2)" do
+    # The first delivery can commit the task id and then die before its
+    # perform_later (transient Redis/Sidekiq error). If the redelivery returned
+    # early, nothing would ever poll the row: stranded in `processing`, no
+    # webhook match, and the retry route refuses task-id rows. So the duplicate
+    # delivery must skip only the POST and still hand off.
+    @link.update_columns(status: "processing", paperless_task_id: "task-1")
+    client = mock("paperless")
+    client.stubs(:configured?).returns(true)
+    client.expects(:post_document).never
+    Paperless.stubs(:client).returns(client)
+
+    assert_enqueued_with(job: Paperless::TaskPollJob, args: [ @link.id ]) do
+      Paperless::UploadJob.perform_now(@link.id)
+    end
+  end
 end
