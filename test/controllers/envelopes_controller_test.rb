@@ -176,6 +176,17 @@ class EnvelopesControllerTest < ActionDispatch::IntegrationTest
     assert_select "input#budget_category_move_amount[min]"
   end
 
+  # Ruling M4-L6 (2026-10-10 close-out): the step nav used a content_for slot
+  # the application layout never yields, so it was dead markup. It renders
+  # in-page now; this pins the links.
+  test "the surface renders the setup and categories step nav" do
+    get envelope_url(@budget.to_param)
+
+    assert_response :success
+    assert_select "[data-testid='budget-steps'] a", text: /Setup/
+    assert_select "[data-testid='budget-steps'] a", text: /Categories/
+  end
+
   test "breadcrumbs include the Plan hub for preview users" do
     users(:family_admin).update!(preferences: (users(:family_admin).preferences || {}).merge("preview_features_enabled" => true))
 

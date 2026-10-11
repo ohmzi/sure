@@ -1,8 +1,12 @@
-<% content_for :header_nav do %>
-  <%= render "budgets/budget_nav", budget: @budget %>
-<% end %>
-
+<%# Ruling M4-L6 (2026-10-10 close-out): the plan carried this nav via
+    `content_for :header_nav`, but the application layout never yields that
+    slot (only the wizard/imports layouts do), so the Setup/Categories step
+    nav was dead markup. It is rendered in-page instead. %>
 <div class="pb-6 lg:pb-12" data-controller="envelope budget-move">
+  <nav class="mb-4" data-testid="budget-steps">
+    <%= render "budgets/budget_nav", budget: @budget %>
+  </nav>
+
   <%# _budget_header declares four strict locals; pass the rest as nil. %>
   <%= render "budgets/budget_header", budget: @budget,
         previous_budget: nil, next_budget: nil, latest_budget: nil %>
