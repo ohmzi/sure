@@ -11,7 +11,9 @@ class DocumentLink < ApplicationRecord
   STATUSES  = %w[queued processing unlinked suggested pending_review linked verified dismissed failed].freeze
   SOURCES   = %w[receipt bill statement other].freeze
   LINKABLE  = %w[unlinked suggested pending_review linked].freeze
-  SETTLEABLE = %w[processing].freeze
+  # Ruling M2 (M1), 2026-10-10 close-out: a `SETTLEABLE` constant was deleted —
+  # no task, and no shipped code path, ever consumed it; every `transition!`
+  # carries its own inline `from:` list.
   # The only statuses `record_match!` may write (R4). `:no_match` is a deliberate
   # no-write on M3's side, so it is not a writable outcome here.
   MATCHER_OUTCOMES = %w[suggested pending_review].freeze
@@ -95,9 +97,14 @@ class DocumentLink < ApplicationRecord
     DocumentLink::Staging.open(staged_path, &block)
   end
 
+  # Ruling M3 (M1), 2026-10-10 close-out: clearing the staged bytes must NOT
+  # move the row's status. The previous form re-asserted the in-memory status as
+  # the transition's target (`to: status`), so a row that had changed state
+  # after it was loaded could be written back to a stale status. This clears
+  # only the one column, in a direct update guarded by id.
   def delete_staged!
     DocumentLink::Staging.delete(staged_path)
-    transition!(from: STATUSES, to: status, staged_path: nil)
+    self.class.where(id: id).update_all(staged_path: nil, updated_at: Time.current)
   end
 
   # M3's matcher writes only through this guarded primitive (R4), so a cron tick
