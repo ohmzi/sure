@@ -19,19 +19,26 @@ class DocumentLinksController < ApplicationController
   MAX_TITLE_LENGTH = 500
   MAX_CONTENT_TYPE_LENGTH = 100
 
+  # The page IS "Receipts & Bills" (M8 locked decision 1): with no source param
+  # it shows receipt|bill. The source facet can widen to any of SOURCES, which
+  # is how M1's unfiltered archive stays reachable.
+  DEFAULT_SOURCES = %w[receipt bill].freeze
+
   before_action :set_link, only: %i[file link unlink retry destroy]
   before_action :require_document_copy!, only: %i[link unlink]
   before_action :require_non_guest!, only: %i[create link unlink retry destroy]
   rescue_from ActionController::ParameterMissing, with: :bad_request
 
   def index
+    @source_filter = archive_source_filter
     @documents = Current.family.document_links.ordered
+    @documents = @documents.where(source: @source_filter) if @source_filter
     @token_invalid_at = Paperless.token_invalid_at
-    @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("documents.index.title"), documents_path ] ]
+    @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("documents.index.receipts_bills_title"), documents_path ] ]
     # Ruling 4: explicit view path — implicit render under this controller would
     # resolve to document_links/index, but spec §6 and Task 8 pin the views at
     # app/views/documents/.
-    render "documents/index", layout: "settings"
+    render "documents/index" # main chrome: this page is a first-class destination
   end
 
   def create
@@ -142,6 +149,19 @@ class DocumentLinksController < ApplicationController
   end
 
   private
+
+    # M7 Task 9's pinned shape, kept (Ruling M7-L4): comma-joined String (the
+    # wizard's redirect, the hidden form field) or Array (the filter popover's
+    # checkboxes). Unknown tokens are dropped; an all-invalid value filters
+    # nothing; absent/blank means the Receipts & Bills default.
+    def archive_source_filter
+      raw = params[:source]
+      return DEFAULT_SOURCES if raw.blank?
+
+      sources = Array(raw).flat_map { |value| value.to_s.split(",") }.map(&:strip).uniq
+                      .select { |source| DocumentLink::SOURCES.include?(source) }
+      sources.presence
+    end
 
     def set_link
       @link = Current.family.document_links.find(params[:id])

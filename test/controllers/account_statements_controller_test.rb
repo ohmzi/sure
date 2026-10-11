@@ -13,6 +13,24 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", text: I18n.t("account_statements.index.title")
   end
 
+  test "the vault renders in the main chrome, never the settings chrome" do
+    get account_statements_path
+    assert_response :success
+    assert_select "#settings-nav-container", count: 0
+    assert_select "div[data-controller~='app-layout']"
+    assert_select "h1", text: I18n.t("account_statements.index.title") # still the pinned title key
+  end
+
+  test "the statements nav entry is gated to statement managers" do
+    sign_in users(:family_member)
+    get documents_path
+    assert_select "a[href='#{account_statements_path}']"
+
+    sign_in family_guest
+    get documents_path
+    assert_select "a[href='#{account_statements_path}']", count: 0
+  end
+
   test "statement vault only lists linked statements for accessible accounts" do
     accessible_statement = AccountStatement.create_from_upload!(
       family: @account.family,

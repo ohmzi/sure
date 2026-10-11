@@ -23,7 +23,8 @@ class AccountStatementsController < ApplicationController
       [ t("breadcrumbs.home"), root_path ],
       [ t("account_statements.index.title"), account_statements_path ]
     ]
-    render layout: "settings"
+    # The Statements page is a first-class destination now (M8 locked decision
+    # 1): default layout, no settings chrome. Task 3 replaces the body.
   end
 
   def show

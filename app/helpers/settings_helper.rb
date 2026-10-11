@@ -14,7 +14,8 @@ module SettingsHelper
     { name: -> { t("settings.settings_nav.rules_label") }, path: :rules_path },
     { name: -> { t("settings.settings_nav.merchants_label") }, path: :family_merchants_path },
     { name: -> { t("settings.settings_nav.recurring_transactions_label") }, path: :recurring_transactions_path },
-    { name: -> { t("settings.settings_nav.statement_vault_label") }, path: :account_statements_path, condition: :admin_user? },
+    { name: -> { t("settings.settings_nav.statement_vault_label") }, path: :account_statements_path, condition: :current_user_statement_manager? },
+    { name: -> { t("settings.settings_nav.documents_label") }, path: :documents_path },
     # Advanced section
     { name: -> { t("settings.settings_nav.ai_prompts_label") }, path: :settings_ai_prompts_path, condition: :admin_user? },
     { name: -> { t("settings.settings_nav.llm_usage_label") }, path: :settings_llm_usage_path, condition: :admin_user? },
@@ -290,6 +291,12 @@ module SettingsHelper
     # Helper used by SETTINGS_ORDER conditions
     def admin_user?
       Current.user&.admin?
+    end
+
+    # M8 locked decision 8: the vault admits admin OR member, so the settings
+    # entry must not gate a member out (the known M1 omission).
+    def current_user_statement_manager?
+      AccountStatement.statement_manager?(Current.user)
     end
 
     def self_hosted_and_admin?

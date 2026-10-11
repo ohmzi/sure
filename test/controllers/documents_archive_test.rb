@@ -13,6 +13,32 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     FileUtils.remove_entry(@tmp) if @tmp.exist?
   end
 
+  test "the receipts and bills page renders in the main chrome, never the settings chrome" do
+    get documents_path
+    assert_response :success
+    assert_select "#settings-nav-container", count: 0                     # settings layout absent
+    assert_select "div[data-controller~='app-layout']"                    # main chrome present
+    assert_select "a[href='#{transactions_path}']"                        # and the main nav with it
+    assert_select "h1", text: I18n.t("documents.index.receipts_bills_title") # the page owns its title now
+  end
+
+  test "the page defaults to receipt and bill, and the source filter narrows and widens" do
+    other = document_links(:queued_receipt)
+    other.update!(source: "statement") # a source outside the default pair
+
+    get documents_path
+    assert_match document_links(:held_bill).title.to_s, response.body
+    assert_no_match other.title.to_s, response.body
+
+    get documents_path(source: "statement")
+    assert_match other.title.to_s, response.body
+    assert_no_match document_links(:held_bill).title.to_s, response.body
+
+    get documents_path(source: "receipt,nope") # unknown tokens are dropped
+    assert_response :success
+    assert_no_match document_links(:held_bill).title.to_s, response.body
+  end
+
   test "the archive lists the family's documents with status pills" do
     get documents_path
     assert_response :success

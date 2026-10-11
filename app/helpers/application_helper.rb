@@ -111,6 +111,21 @@ module ApplicationHelper
     )
   end
 
+  # The Statements slot (M8 locked decision 8): the vault admits admin OR
+  # member (AccountStatement.statement_manager?), so the entry must too — a
+  # guest never sees a door that only redirects them away.
+  def statement_vault_nav_item
+    return nil unless Current.family && AccountStatement.statement_manager?(Current.user)
+
+    {
+      name: t("layouts.application.nav.statements"),
+      path: account_statements_path,
+      icon: "file-text",
+      icon_custom: false,
+      active: page_active?(account_statements_path)
+    }
+  end
+
   # Budgets and Goals share one nav slot. Preview users get the "Plan" hub
   # entry fronting both (it stays lit while browsing either subpage, since
   # page_active? is a path-prefix match and /budgets · /goals don't share

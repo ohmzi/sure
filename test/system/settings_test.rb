@@ -24,10 +24,11 @@ class SettingsTest < ApplicationSystemTestCase
       [ "Feedback", feedback_path ]
     ]
 
-    # Add admin settings if user is admin
+    # (repaired 2026-10-11, verifier F5) "Statement Vault" left this sequential
+    # loop: its page renders in the MAIN chrome now, so the loop's next
+    # click_link would find no settings sidebar. The entry itself stays (Ruling
+    # M7-L2's no-churn) and is pinned by its own test beside this one.
     if @user.admin?
-      merchants_index = @settings_links.index([ "Merchants", family_merchants_path ])
-      @settings_links.insert(merchants_index + 1, [ "Statement Vault", account_statements_path ])
       @settings_links += [
         [ "AI Prompts", settings_ai_prompts_path ],
         [ "API Keys", settings_api_keys_path ]
@@ -47,6 +48,16 @@ class SettingsTest < ApplicationSystemTestCase
         assert_current_path path
       end
     end
+  end
+
+  test "the settings sidebar keeps the Statement Vault entry and it leads out of the settings chrome" do
+    open_settings_from_sidebar
+    assert_selector "a[href='#{account_statements_path}']"
+
+    click_link "Statement Vault", match: :first
+    assert_current_path account_statements_path
+    assert_selector "h1", text: I18n.t("account_statements.index.title") # the pinned title key
+    assert_no_selector "#settings-nav-container"                        # main chrome now
   end
 
   test "can update self hosting settings" do
@@ -105,6 +116,13 @@ class SettingsTest < ApplicationSystemTestCase
         click_on "Log in"
       end
 
+      # Wait for the login's Turbo redirect before the next visit: without this
+      # wait the pending navigation can override it and land on "/" (observed
+      # ~1-in-6 flake once this task's member-parity assertion surfaced the
+      # wrong page; the pre-existing refutes could not see it). The same
+      # waiting intent as application_system_test_case#sign_in.
+      assert_current_path root_path
+
       # Go directly to accounts (settings) page
       visit accounts_path
 
@@ -112,7 +130,10 @@ class SettingsTest < ApplicationSystemTestCase
       assert_no_selector "li", text: "AI Prompts"
       assert_no_selector "li", text: "API Keys"
       assert_no_selector "li", text: "Bank sync"
-      assert_no_selector "li", text: "Statement Vault"
+      # (repaired 2026-10-11, verifier F5) the vault's gate is admin OR member
+      # (AccountStatement.statement_manager? — Task 1's parity), so a member
+      # SEES this entry now; the admin-only entries above stay hidden.
+      assert_selector "li", text: "Statement Vault"
     end
   end
 

@@ -2,6 +2,7 @@ en:
   documents:
     index:
       title: Documents
+      receipts_bills_title: Receipts & Bills
       upload: Upload
       source_auto: Detect automatically
       token_invalid_title: paperless token needs rotation

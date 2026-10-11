@@ -1,3 +1,6 @@
+<header class="flex justify-between items-center text-primary font-medium pb-4">
+  <h1 class="text-xl"><%= t(".receipts_bills_title") %></h1>
+</header>
 <% content_for :page_title, t(".title") %>
 <% content_for :system_alerts do %>
   <% if @token_invalid_at.present? %>
