@@ -944,4 +944,40 @@ class AccountTest < ActiveSupport::TestCase
     accounts(:credit_card).account_shares.find_by!(user: member).update!(permission: "read_write")
     assert_includes Account.annotatable_by(member).pluck(:id), accounts(:credit_card).id, "read_write share"
   end
+
+  test "last4 is at most four digits and network is from the known set" do
+    account = accounts(:depository)
+
+    account.last4 = "12345"
+    assert_not account.valid?
+
+    account.last4 = "1234"
+    account.account_network = "visa"
+    assert account.valid?
+
+    account.account_network = "diners"
+    assert_not account.valid?
+  end
+
+  test "card_identity? is true only when a last4 is present" do
+    account = accounts(:depository)
+    account.last4 = nil
+    assert_not account.card_identity?
+    account.last4 = "4242"
+    assert account.card_identity?
+  end
+
+  test "a blank last4 and network normalize to nil so a non-card account stays valid" do
+    # The form always submits these two fields, empty for a non-card account.
+    # A blank text field arrives as "", which the `allow_nil` validations below
+    # would reject -- so the writer normalizes it to nil.
+    account = accounts(:depository)
+    account.last4 = ""
+    account.account_network = ""
+
+    assert_nil account.last4
+    assert_nil account.account_network
+    assert account.valid?
+    assert_not account.card_identity?
+  end
 end

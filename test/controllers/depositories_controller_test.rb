@@ -66,6 +66,37 @@ class DepositoriesControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='account[enable_category_matcher]']", 0
   end
 
+  test "update persists card last4 and network through the shared update action" do
+    patch depository_path(@account), params: {
+      account: { last4: "4242", account_network: "visa" }
+    }
+
+    @account.reload
+    assert_equal "4242", @account.last4
+    assert_equal "visa", @account.account_network
+  end
+
+  test "edit form renders the card identity fields" do
+    get edit_account_url(@account)
+    assert_response :success
+
+    assert_select "input[name='account[last4]'][maxlength='4'][inputmode='numeric']", 1
+    assert_select "select[name='account[account_network]'] option[value='visa']", 1
+  end
+
+  test "update accepts blank card identity fields" do
+    # The form always submits both fields, empty for a non-card account; a
+    # blank submission must not 422 the whole account update.
+    patch depository_path(@account), params: {
+      account: { name: @account.name, last4: "", account_network: "" }
+    }
+
+    assert_response :redirect
+    assert_nil @account.reload.last4
+    assert_nil @account.account_network
+    assert_not @account.card_identity?
+  end
+
   # --- member-owned connections (issue #3579) ------------------------------
 
   test "a member sees only member-connectable providers in the method selector" do

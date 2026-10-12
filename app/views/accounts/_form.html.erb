@@ -49,6 +49,16 @@
             label: t(".institution_domain_label"),
             placeholder: account.provider&.institution_domain || t(".institution_domain_placeholder") %>
 
+        <%= form.text_field :last4,
+            label: t(".last4_label"),
+            placeholder: t(".last4_placeholder"),
+            maxlength: 4,
+            inputmode: "numeric" %>
+
+        <%= form.select :account_network,
+            Account::CARD_NETWORKS,
+            { include_blank: true, label: t(".account_network_label") } %>
+
         <%= form.text_area :notes,
             label: t(".notes_label"),
             placeholder: t(".notes_placeholder"),

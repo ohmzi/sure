@@ -8,7 +8,21 @@ class Account < ApplicationRecord
 
   after_destroy_commit :move_account_statements_to_inbox
 
+  # Card networks an account may identify with. The document resolver (Task 10)
+  # matches a card by `last4` only when the network is one of these, so this
+  # list is a cross-task contract: do not rename it or change its members.
+  CARD_NETWORKS = %w[visa mastercard amex discover].freeze
+
+  # Both fields are optional form inputs: an account that is not a card leaves
+  # them empty, and a blank text field submits "". Coerce that back to nil so
+  # the `allow_nil` validations below accept a non-card account -- without it,
+  # every account edit (blank last4/network) failed validation.
+  normalizes :last4, :account_network, with: ->(value) { value.presence }
+
   validates :name, :balance, :currency, presence: true
+  validates :last4, length: { maximum: 4 }, allow_nil: true
+  validates :last4, format: { with: /\A\d+\z/ }, allow_nil: true
+  validates :account_network, inclusion: { in: CARD_NETWORKS }, allow_nil: true
   validate :owner_belongs_to_family, if: -> { owner_id.present? && family_id.present? }
 
   belongs_to :family
@@ -574,6 +588,10 @@ class Account < ApplicationRecord
   def institution_domain
     read_attribute(:institution_domain).presence || provider&.institution_domain
   end
+
+  # The resolver (Task 10) can only match a card when this is true; an account
+  # with no last4 resolves by institution and name alone.
+  def card_identity? = last4.present?
 
   def manual_crypto_exchange?
     accountable_type == "Crypto" &&
