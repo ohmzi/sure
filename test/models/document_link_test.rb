@@ -150,6 +150,18 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert_nil link.reload.extracted_text
   end
 
+  # The native-read escape hatch (Task 7): a reprocess after a model or engine
+  # change MUST be able to replace a bad snapshot, which the write-once default
+  # refuses.
+  test "record_content! with refresh: true replaces a snapshot the default refuses" do
+    link = document_links(:unlinked_receipt)
+    assert link.record_content!("FIRST READ")
+    assert_not link.record_content!("SECOND READ")
+
+    assert link.record_content!("SECOND READ", refresh: true)
+    assert_equal "SECOND READ", link.reload.extracted_text
+  end
+
   # M8 Task 6: the settle-time tag snapshot is idempotent exactly like
   # record_content! — it fills only a blank column, so a replayed job or a
   # backfill run can never overwrite names already resolved.

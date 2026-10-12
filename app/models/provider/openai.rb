@@ -114,6 +114,10 @@ class Provider::Openai < Provider
     custom_provider? ? "Custom OpenAI-compatible (#{@uri_base})" : "OpenAI"
   end
 
+  # The model this provider was constructed with. Recorded on every
+  # DocumentExtraction so a bad read can be traced to the model that made it.
+  def llm_model = @default_model
+
   def supported_models_description
     if custom_provider?
       @default_model.present? ? "configured model: #{@default_model}" : "any model"

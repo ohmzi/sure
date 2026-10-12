@@ -162,15 +162,34 @@ class DocumentLink < ApplicationRecord
     settled
   end
 
-  # The OCR-text snapshot, written once when the link settles. Deliberately NOT
-  # a status transition: a `transition!` in progress must not be clobbered by
-  # content capture, and the write is idempotent — it fills only a blank column
-  # so a replayed job or a backfill can never overwrite a good snapshot.
-  def record_content!(text)
+  # The OCR-text snapshot. Deliberately NOT a status transition: a `transition!`
+  # in progress must not be clobbered by content capture. By default it is
+  # idempotent — it fills only a blank column, so a replayed job or a backfill
+  # can never overwrite a good snapshot. `refresh: true` is the native-read
+  # escape hatch: a reprocess after a model (or engine) change MUST be able to
+  # replace a bad snapshot; the paperless-era write-once contract existed only
+  # because the snapshot arrived from someone else's engine, which is no longer
+  # true.
+  def record_content!(text, refresh: false)
     return false if text.blank?
 
-    self.class.where(id: id, extracted_text: nil)
-        .update_all(extracted_text: text.to_s.first(EXTRACTED_TEXT_LIMIT), updated_at: Time.current) == 1
+    scope = self.class.where(id: id)
+    scope = scope.where(extracted_text: nil) unless refresh
+    scope.update_all(extracted_text: text.to_s.first(EXTRACTED_TEXT_LIMIT), updated_at: Time.current) == 1
+  end
+
+  # The native read settled: the row is read and ready to be classified, routed
+  # (Task 8/9) or linked. Moves only this row's status — never money.
+  def settle! = transition!(from: "processing", to: "unlinked", failure_message: nil)
+
+  # The AI's class, written once the read settles. `source` was chosen by the user
+  # in the paperless era (SourceGuesser or a wizard tile); it is now a fact about
+  # the document.
+  def classify!(document_class:, confidence:, classified_by:)
+    self.class.where(id: id).update_all(
+      source: document_class, classified_by: classified_by,
+      classification_confidence: confidence, updated_at: Time.current
+    )
   end
 
   # The settle-time tag snapshot (M8 locked decision 6), idempotent like
