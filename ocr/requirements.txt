@@ -1,0 +1,21 @@
+# Every package is pinned — that is the constraint. If a pin fails to resolve
+# on the host, record the resolved version here from `pip freeze` and say so in
+# the task report; do not leave anything floating.
+#
+# paddlepaddle-gpu 3.x is published on PaddlePaddle's own wheel index, not on
+# PyPI (PyPI's `paddlepaddle-gpu` stops at 2.6.2). The extra index below is that
+# official cu126 index; it supplies the GPU wheel for the CUDA 12.6 base image
+# while every other pin still resolves from PyPI.
+--extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu126/
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+paddleocr==3.0.0
+paddlepaddle-gpu==3.0.0
+pdf2image==1.17.0
+pillow==11.0.0
+# numpy is 1.24.4, not the 2.x the brief first sketched. paddlex 3.0.0 (pulled in
+# by paddleocr 3.0.0) pins `numpy==1.24.4; python_version < "3.12"` and
+# `numpy==1.26.4; python_version >= "3.12"`; the image runs Python 3.10 because
+# paddlex also pins `pandas<=1.5.3`, which has no cp312 wheel. See ocr/Dockerfile.
+numpy==1.24.4

@@ -18,6 +18,9 @@ x-app-env: &app_env
   OHMZBUDGET_PAPERLESS_URL: "${OHMZBUDGET_PAPERLESS_URL:-http://paperless:8000}"
   OHMZBUDGET_PAPERLESS_TOKEN_FILE: "${OHMZBUDGET_PAPERLESS_TOKEN_FILE:-/run/secrets/paperless_token}"
   OHMZBUDGET_PAPERLESS_STAGING_DIR: "${OHMZBUDGET_PAPERLESS_STAGING_DIR:-/rails/storage/paperless-staged}"
+  # The OCR sidecar contract (M-A owns producing it; M1 consumes it). The
+  # sidecar is internal-only, so web/worker must join its network to reach it.
+  OCR_SERVICE_URL: "${OCR_SERVICE_URL:-http://ocr:9000}"
 
 # Hardening shared by the stateless services.
 x-app-hardening: &app_hardening
@@ -95,6 +98,7 @@ services:
     mem_limit: 1g
     networks:
       - default
+      - internal
 
   worker:
     image: ohmzbudget:local
@@ -117,6 +121,7 @@ services:
     mem_limit: 1g
     networks:
       - default
+      - internal
 
   db:
     image: postgres:16
@@ -152,6 +157,33 @@ services:
     mem_limit: 256m
     networks:
       - default
+
+  # --- OCR sidecar (M-A): PaddleOCR behind a small HTTP contract ---
+  # Internal-only: no `ports:` block, exactly like the paperless services it
+  # replaces. web/worker join the `internal` network to reach it.
+  ocr:
+    build:
+      context: ../ocr
+    container_name: ocr
+    restart: unless-stopped
+    environment:
+      OCR_LANG: ${OCR_LANG:-en}
+      OCR_DPI: ${OCR_DPI:-300}
+    networks:
+      - internal
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:9000/healthz')"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 120s   # the first model load is slow
 
   # --- paperless-ngx sidecar (unmodified image; re-adopted) ---
   paperless:
