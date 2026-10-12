@@ -18,7 +18,10 @@ export default class extends Controller {
   zoom(event) {
     if (!this.hasImageTarget) return;
     event.preventDefault();
-    this.#setZoom(this.#zoom() + (event.deltaY < 0 ? this.zoomStepValue : -this.zoomStepValue));
+    this.#setZoom(
+      this.#zoom() +
+        (event.deltaY < 0 ? this.zoomStepValue : -this.zoomStepValue),
+    );
   }
 
   toggleZoom() {
