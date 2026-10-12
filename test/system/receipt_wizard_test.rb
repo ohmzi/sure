@@ -204,10 +204,12 @@ class ReceiptWizardTest < ApplicationSystemTestCase
 
     entry = nil
     page.document.synchronize do
-      entry = Entry.find_by(external_id: "paperless:#{draft.document_link.paperless_document_id}")
+      # (Task 8) The reviewed publish mints the DOCUMENT identity — the link id,
+      # not paperless_document_id (a column Task 12 deletes).
+      entry = Entry.find_by(external_id: "document:#{draft.document_link.id}")
       raise Capybara::ElementNotFound, "the reviewed publish is not saved yet" unless entry
     end
 
-    assert_equal "paperless", entry.source
+    assert_equal "document", entry.source
   end
 end

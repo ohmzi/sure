@@ -24,10 +24,12 @@ class Paperless::CaptureContentJob < ApplicationJob
     client = Paperless.client
     document = client.document(link.paperless_document_id)
     if link.record_content!(document.content)
-      # The other side of the draft/snapshot race (M7 Task 6): a receipt draft
-      # committed before this snapshot landed cannot see the text by polling,
-      # so kick its understanding now. A draft created after the snapshot was
-      # written is kicked by ReceiptImport.create_from_document_link! instead.
+      # The paperless-era kick of a linked draft's understanding (M7 Task 6's
+      # settle race). Task 8 moved draft creation to the native read —
+      # DocumentUnderstandingJob#route now builds the draft from the verdict and
+      # no longer enqueues ReceiptImport::UnderstandJob — so on the wizard path
+      # there is no draft here for this loop to kick. It stays live only for
+      # rows that already have one and goes with the paperless path in Task 12.
       link.receipt_imports.find_each { |draft| ReceiptImport::UnderstandJob.perform_later(draft.id) }
     end
     # The tag snapshot rides the same single document fetch (M8 Task 6): PKs

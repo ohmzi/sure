@@ -223,7 +223,13 @@ class ReceiptImportTest < ActiveSupport::TestCase
     assert_equal "linked", draft.document_link.status
   end
 
-  test "a replayed publish finds its own entry instead of minting a second" do
+  # (Task 8) The brief's name for this case claimed identity dedup, but the
+  # second call never reaches the adapter: `data_committed?` (the M7-L3/L8
+  # guard, pinned by the tests above) short-circuits it. What this case actually
+  # adds is that the guard holds for a FRESH instance — `ReceiptImport.find`
+  # re-reads the row rather than reusing the in-memory object that just wrote.
+  # Named for what it pins.
+  test "a replayed import! on a fresh instance returns at the committed-data guard" do
     draft = imports(:receipt_draft)
     draft.update!(account: accounts(:depository), extracted_data: {
       "total" => "12.34", "date" => "2026-10-01", "payee" => "Acme", "line_items" => []
