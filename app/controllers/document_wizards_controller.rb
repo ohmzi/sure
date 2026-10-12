@@ -96,12 +96,17 @@ class DocumentWizardsController < ApplicationController
     # applies it and finishes on the archive (the 2026-10-11 hotfix's shape);
     # only the ambiguous case asks at step 3. A refusal from the move itself
     # (assign_account!'s guards) also falls back to the ask, never a 500.
-    # (Task 8) Reached only by the statement leg then; (Task 9) NOT reached at
-    # all now — the statement leg no longer builds an import synchronously, so
-    # there is nothing to prefill or to ask about yet. Kept deliberately, not
-    # deleted: the step-3 ask route is still live (`import_account_path`), and
-    # the ladder returns to the pipeline in Task 10, which is where this method
-    # gets its statement caller back.
+    #
+    # STILL DEAD CODE, and Task 10 confirmed it stays so. Its old comment
+    # predicted the ladder would "return to the pipeline" here, but Task 10 put
+    # the account resolver INSIDE DocumentUnderstandingJob
+    # (Account::DocumentMatcher + resolve_account), where the draft is made and
+    # the AI hints are in hand — not in the controller, which no longer holds an
+    # import at drop time (Task 9 removed the statement leg's synchronous
+    # import). So no caller came back and none was added just to have one.
+    # Retained deliberately, not deleted silently: the step-3 ask route this
+    # redirects to (`import_account_path`) is live, and Import::AccountPrefill is
+    # still the ladder that step-2's `#new` and that ask screen's select ride on.
     def finish_or_ask(import, destination:, notice:)
       account = Import::AccountPrefill.call(user: Current.user).account
       applied = account && (import.is_a?(PdfImport) ? import.assign_account!(account) : import.update(account: account))

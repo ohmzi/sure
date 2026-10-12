@@ -435,6 +435,42 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal 1, PdfImport.where(account_statement: statement_for(@link)).count
   end
 
+  # --- Task 10: the account resolver ------------------------------------------
+
+  test "a confidently matched account is prefilled without asking" do
+    accounts(:credit_card).update!(institution_name: "Chase", last4: "4242", account_network: "visa")
+    stub_ocr_success(pages: [ { page: 1, text: "ACME\nTOTAL 12.34", confidence: 0.97 } ])
+    stub_provider(FakeProvider.new(RECEIPT.merge("institution_name" => "Chase")))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    # The brief reads ReceiptImport.last, but imports have UUID primary keys and
+    # test/fixtures/imports.yml holds two ReceiptImports (one of them
+    # account-bearing), so `.last` orders by a random uuid and can return a
+    # fixture. Find the draft the job read by its document link instead.
+    assert_equal accounts(:credit_card).id, ReceiptImport.find_by!(document_link_id: @link.id).account_id
+  end
+
+  test "a below-bar match leaves the account blank for the step-3 ask" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME\nTOTAL 12.34", confidence: 0.97 } ])
+    stub_provider(FakeProvider.new(RECEIPT.merge("institution_name" => "Nothing Like Any Account")))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_nil ReceiptImport.find_by!(document_link_id: @link.id).account_id
+  end
+
+  test "a confidently matched statement prefills on the statement-backed draft" do
+    accounts(:depository).update!(institution_name: "Chase", last4: "1234")
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal accounts(:depository).id, import.account_id
+  end
+
   def statement_for(link)
     AccountStatement.find_by(id: link.reload.account_statement_id)
   end

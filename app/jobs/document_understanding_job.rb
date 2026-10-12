@@ -193,6 +193,47 @@ class DocumentUnderstandingJob < ApplicationJob
         # answer for a warranty or a lease. Nothing to route.
         nil
       end
+
+      # Task 10: resolve the draft's account from the AI's hints, above the bar
+      # only. Runs for every class; a class with no draft resolves to nil.
+      resolve_account(link, understanding)
+    end
+
+    # Prefill only when the hints resolve to one account above the bar. Below it
+    # nothing is written and the wizard's step-3 screen asks — which stays the
+    # ONLY place a user is asked which account a document belongs to.
+    #
+    # The draft is found by whichever edge the leg created: a receipt/bill draft
+    # (ReceiptImport) hangs off the document link, while the statement leg's
+    # PdfImport is created against the vault row and its link to this document is
+    # the AccountStatement — `Imports` carries no document_link for it. Looking up
+    # only by document_link silently found nothing for every statement.
+    def resolve_account(link, understanding)
+      match = Account::DocumentMatcher.best_match(
+        family: link.family,
+        institution_hint: understanding.institution_name,
+        account_last4_hint: understanding.account_last4.presence || understanding.card_last4,
+        card_network: understanding.card_network,
+        currency: understanding.currency
+      )
+      return nil if match.nil? || match.confidence < Account::DocumentMatcher::AUTO_PREFILL_BAR
+
+      import = draft_for(link)
+      return nil unless import
+
+      # PdfImport#assign_account! runs its own reassignability guards and can
+      # refuse; ReceiptImport takes a plain update. Either refusing is "no
+      # prefill" — the step-3 ask picks it up — never an error.
+      applied = import.is_a?(PdfImport) ? import.assign_account!(match.account) : import.update(account: match.account)
+      applied ? match : nil
+    end
+
+    def draft_for(link)
+      by_document = Import.where(document_link: link).order(created_at: :desc).first
+      return by_document if by_document
+      return nil if link.account_statement_id.blank?
+
+      Import.where(account_statement_id: link.account_statement_id).order(created_at: :desc).first
     end
 
     # The statement seam: the document's own vault row plus a PdfImport holding
