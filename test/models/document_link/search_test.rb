@@ -96,8 +96,8 @@ class DocumentLink::SearchTest < ActiveSupport::TestCase
   # -- the tag facet (M8 Task 6) ----------------------------------------------
 
   test "the tag filter matches by array overlap on the stored snapshot" do
-    document_links(:unlinked_receipt).update!(paperless_tags: %w[ohmzbudget receipt])
-    document_links(:held_bill).update!(paperless_tags: %w[ohmzbudget bill])
+    document_links(:unlinked_receipt).update!(tags: %w[ohmzbudget receipt])
+    document_links(:held_bill).update!(tags: %w[ohmzbudget bill])
 
     bill_only = DocumentLink::Search.new(family: @family, filters: { tags: %w[bill] }).relation.pluck(:id)
     assert_includes bill_only, document_links(:held_bill).id

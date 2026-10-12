@@ -57,7 +57,7 @@ class DocumentLink::Intake
       end
     rescue StandardError
       # stage! failed after the row existed: reclaim the bytes it wrote and drop
-      # the row — a queued row with no staged_path can never progress or retry.
+      # the row — a queued row with no stored_path can never progress or retry.
       DocumentLink::Staging.delete(link.id.to_s)
       link.destroy!
       raise

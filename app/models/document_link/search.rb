@@ -60,7 +60,7 @@ class DocumentLink::Search
     @scope = @scope.where("#{DOCUMENT_DATE_SQL} <= ?", date_to.iso8601) if date_to
     @scope = merchant_matching(@filters[:merchant])
     @scope = amount_between(@filters[:amount_min], @filters[:amount_max])
-    @scope = @scope.where("paperless_tags && ARRAY[?]::text[]", tag_filters) if tag_filters.any?
+    @scope = @scope.where("tags && ARRAY[?]::text[]", tag_filters) if tag_filters.any?
     @scope.order(order_clause)
   end
 

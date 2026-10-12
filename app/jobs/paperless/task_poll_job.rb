@@ -50,7 +50,7 @@ class Paperless::TaskPollJob < ApplicationJob
       elsif DocumentLink.where.not(id: link.id).exists?(paperless_document_id: document_id)
         link.fail!("duplicate of an already-filed document #{document_id}")
       else
-        path = link.staged_path
+        path = link.stored_path
         if link.finish_processing!(document_id: document_id)
           DocumentLink::Staging.delete(path)
         end

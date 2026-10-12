@@ -39,7 +39,7 @@ class Paperless::UploadJobTest < ActiveJob::TestCase
     @link.reload
     assert_equal "processing", @link.status
     assert_equal "task-1", @link.paperless_task_id
-    assert File.exist?(@link.staged_path), "bytes must survive until the poll files the row"
+    assert File.exist?(@link.stored_path), "bytes must survive until the poll files the row"
   end
 
   test "resolves paperless tag PKs before posting" do
@@ -63,7 +63,7 @@ class Paperless::UploadJobTest < ActiveJob::TestCase
     @link.reload
     assert_equal "queued", @link.status
     assert_nil @link.paperless_task_id
-    assert File.exist?(@link.staged_path)
+    assert File.exist?(@link.stored_path)
   end
 
   test "holds the bytes on a rejected token (no retry loop)" do
@@ -76,7 +76,7 @@ class Paperless::UploadJobTest < ActiveJob::TestCase
     Paperless::UploadJob.perform_now(@link.id)
     @link.reload
     assert_equal "queued", @link.status
-    assert File.exist?(@link.staged_path)
+    assert File.exist?(@link.stored_path)
     assert Setting["paperless_token_invalid_at"].present?
   end
 
@@ -91,12 +91,12 @@ class Paperless::UploadJobTest < ActiveJob::TestCase
     @link.reload
     assert_equal "failed", @link.status
     assert_equal "no text layer", @link.failure_message
-    assert File.exist?(@link.staged_path)
+    assert File.exist?(@link.stored_path)
   end
 
   test "fails the row when the staged bytes have vanished" do
     stub_client
-    File.delete(@link.staged_path)
+    File.delete(@link.stored_path)
     Paperless::UploadJob.perform_now(@link.id)
     @link.reload
     assert_equal "failed", @link.status

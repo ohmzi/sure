@@ -14,7 +14,7 @@ class Paperless::UploadJob < ApplicationJob
 
   def perform(document_link_id)
     link = DocumentLink.find(document_link_id)
-    return if link.staged_path.blank?
+    return if link.stored_path.blank?
 
     # Ruling M4 (M1), revised by M1 review finding 2 (2026-10-10): a duplicate
     # delivery must not POST the same bytes twice, but it MUST still make sure
@@ -36,7 +36,7 @@ class Paperless::UploadJob < ApplicationJob
       link.mark_processing!
       tag_ids = [ Paperless.tag_id("ohmzbudget"), Paperless.tag_id(link.source) ].compact
 
-      task_id = link.staged_io do |io|
+      task_id = link.stored_io do |io|
         client.post_document(io: io, filename: link.original_filename, content_type: link.content_type,
                              title: link.title, created: link.created_at, tags: tag_ids)
       end

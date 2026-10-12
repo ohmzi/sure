@@ -72,7 +72,7 @@ class DocumentBrowser::Row
         # (Ruling M8-C3, 2026-10-11 close-out) the displayed date is the same
         # coerced date the range/sort SQL uses, never the newest draft's date.
         date: link.document_date,
-        tags: link.paperless_tags,
+        tags: link.tags,
         merchant: draft&.payee,
         amount: draft&.total_amount,
         # (Ruling M8-C1, 2026-10-11 close-out) the viewer's bytes follow the
@@ -116,7 +116,7 @@ class DocumentBrowser::Row
         icon: icon_for(content_type),
         statuses: statement_statuses(statement),
         date: statement.period_end_on || statement.created_at.to_date,
-        tags: link&.paperless_tags || [],
+        tags: link&.tags || [],
         merchant: statement.institution_name_hint,
         amount: nil, # statements carry no extracted total (M8 locked decision 7)
         file_url: statement_file_url(statement, link, ready, attached, file_kind, routes),

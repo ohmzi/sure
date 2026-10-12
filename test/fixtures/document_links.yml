@@ -37,7 +37,7 @@ held_bill:
   title: Water bill
   original_filename: water.pdf
   content_type: application/pdf
-  staged_path: staged/held-water.pdf
+  stored_path: staged/held-water.pdf
 
 understood_receipt_link:
   family: dylan_family

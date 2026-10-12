@@ -67,7 +67,7 @@ class AccountStatement::Search
 
     def tagged_statement_ids
       DocumentLink.where(source: "statement")
-                  .where("paperless_tags && ARRAY[?]::text[]", tag_filters)
+                  .where("tags && ARRAY[?]::text[]", tag_filters)
                   .where.not(account_statement_id: nil)
                   .select(:account_statement_id)
     end

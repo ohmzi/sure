@@ -80,6 +80,9 @@ class Import < ApplicationRecord
   belongs_to :account_statement, optional: true
   # ReceiptImport only (M7): the spine row this draft's document lives on.
   belongs_to :document_link, optional: true
+  # Native intake (Task 1): the read that produced this row, when it came from
+  # a document the pipeline read itself. Null for every non-document import.
+  belongs_to :document_extraction, optional: true
   belongs_to :import_session, optional: true
 
   before_validation :set_default_number_format

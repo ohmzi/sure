@@ -20,7 +20,7 @@ class DocumentLink::IntakeTest < ActiveSupport::TestCase
     assert link.persisted?
     assert_equal "processing", link.status
     assert_equal "receipt", link.source # SourceGuesser: images are receipts
-    assert link.staged_path.present?
+    assert link.stored_path.present?
   end
 
   test "refuses bytes the family already archived" do

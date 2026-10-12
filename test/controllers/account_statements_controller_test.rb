@@ -646,7 +646,7 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
       file: uploaded_file(filename: "tagged_statement.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
     )
     link = DocumentLink.link_from_upload!(family: tagged.family, uploader: users(:family_admin), source: "statement")
-    link.update!(account_statement: tagged, status: "unlinked", paperless_tags: %w[ohmzbudget statement])
+    link.update!(account_statement: tagged, status: "unlinked", tags: %w[ohmzbudget statement])
     untagged = AccountStatement.create_from_upload!(
       family: @account.family, account: @account,
       file: uploaded_file(filename: "untagged_statement.csv", content_type: "text/csv", content: "date,amount\n2024-01-02,2\n")

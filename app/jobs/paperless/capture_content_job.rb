@@ -19,7 +19,7 @@ class Paperless::CaptureContentJob < ApplicationJob
   def perform(document_link_id)
     link = DocumentLink.find(document_link_id)
     return if link.paperless_document_id.blank?
-    return if link.extracted_text.present? && link.paperless_tags.present?
+    return if link.extracted_text.present? && link.tags.present?
 
     client = Paperless.client
     document = client.document(link.paperless_document_id)
@@ -32,7 +32,7 @@ class Paperless::CaptureContentJob < ApplicationJob
     end
     # The tag snapshot rides the same single document fetch (M8 Task 6): PKs
     # resolve in ONE id__in call and are stored once — never per render.
-    if link.paperless_tags.blank? && document.tag_ids.any?
+    if link.tags.blank? && document.tag_ids.any?
       link.record_tags!(client.tag_names(document.tag_ids).values)
     end
   rescue Paperless::Error => e

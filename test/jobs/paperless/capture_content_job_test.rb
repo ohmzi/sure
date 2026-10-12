@@ -22,7 +22,7 @@ class Paperless::CaptureContentJobTest < ActiveSupport::TestCase
 
     Paperless::CaptureContentJob.perform_now(@link.id)
     assert_equal "TOTAL 12.00", @link.reload.extracted_text
-    assert_equal [], @link.paperless_tags
+    assert_equal [], @link.tags
   end
 
   test "records the tag snapshot once when the document carries tags" do
@@ -33,7 +33,7 @@ class Paperless::CaptureContentJobTest < ActiveSupport::TestCase
 
     Paperless::CaptureContentJob.perform_now(@link.id)
 
-    assert_equal %w[ohmzbudget receipt], @link.reload.paperless_tags
+    assert_equal %w[ohmzbudget receipt], @link.reload.tags
     Paperless::CaptureContentJob.perform_now(@link.id) # both snapshots exist: no fetch
   end
 
@@ -45,7 +45,7 @@ class Paperless::CaptureContentJobTest < ActiveSupport::TestCase
     Paperless::Client.any_instance.expects(:tag_names).with([ 3 ]).once.returns({ 3 => "receipt" })
 
     Paperless::CaptureContentJob.perform_now(@link.id)
-    assert_equal %w[receipt], @link.reload.paperless_tags
+    assert_equal %w[receipt], @link.reload.tags
   end
 
   test "a link without a paperless document id is a silent no-op" do

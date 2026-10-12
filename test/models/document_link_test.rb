@@ -157,9 +157,9 @@ class DocumentLinkTest < ActiveSupport::TestCase
     link = document_links(:unlinked_receipt)
     assert link.record_tags!(%w[ohmzbudget receipt])
 
-    assert_equal %w[ohmzbudget receipt], link.reload.paperless_tags
+    assert_equal %w[ohmzbudget receipt], link.reload.tags
     assert_not link.record_tags!(%w[other])
-    assert_equal %w[ohmzbudget receipt], link.reload.paperless_tags
+    assert_equal %w[ohmzbudget receipt], link.reload.tags
     assert_not link.record_tags!([])
   end
 

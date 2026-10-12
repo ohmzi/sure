@@ -34,9 +34,9 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     end
     link = DocumentLink.order(:created_at).last
     assert_equal "processing", link.status
-    assert link.staged_path.present?
+    assert link.stored_path.present?
   ensure
-    DocumentLink::Staging.delete(link&.staged_path)
+    DocumentLink::Staging.delete(link&.stored_path)
   end
 
   test "create holds the row back to queued with its bytes when the enqueue raises" do
@@ -52,11 +52,11 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
     link = DocumentLink.order(:created_at).last
     assert_equal "queued", link.status
-    assert link.staged_path.present?
-    assert File.exist?(link.staged_path), "the held row keeps its staged bytes for the retry route"
+    assert link.stored_path.present?
+    assert File.exist?(link.stored_path), "the held row keeps its staged bytes for the retry route"
     assert_equal I18n.t("documents.create.held"), flash[:alert]
   ensure
-    DocumentLink::Staging.delete(link&.staged_path)
+    DocumentLink::Staging.delete(link&.stored_path)
   end
 
   test "create refuses a non-file document, an over-long title and an over-long content type without writing" do
@@ -205,7 +205,7 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
 
   test "retry re-enqueues only a row with held bytes" do
     @link.update_columns(status: "failed", paperless_task_id: nil)
-    @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf") # -> queued with staged_path
+    @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf") # -> queued with stored_path
     assert_enqueued_with(job: Paperless::UploadJob) do
       post retry_document_path(@link)
     end
@@ -214,7 +214,7 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "retry refuses a row with no held upload" do
-    @link.update_columns(status: "failed", staged_path: nil)
+    @link.update_columns(status: "failed", stored_path: nil)
     post retry_document_path(@link)
     assert_response :conflict
   end
@@ -224,7 +224,7 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     # a row in `processing`, or one still holding its task id (the poll is
     # scheduled), must not be re-enqueued.
     path = DocumentLink::Staging.write(io: StringIO.new("x"), id: @link.id)
-    @link.update_columns(status: "processing", paperless_task_id: "task-1", staged_path: path)
+    @link.update_columns(status: "processing", paperless_task_id: "task-1", stored_path: path)
     assert_no_enqueued_jobs do
       post retry_document_path(@link)
     end
@@ -360,8 +360,8 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
 
   test "destroy removes the row and its staged bytes" do
     DocumentLink::Staging.write(io: StringIO.new("x"), id: @link.id)
-    @link.update_columns(staged_path: DocumentLink::Staging.root.join(@link.id).to_s)
-    path = @link.reload.staged_path
+    @link.update_columns(stored_path: DocumentLink::Staging.root.join(@link.id).to_s)
+    path = @link.reload.stored_path
     assert_difference "DocumentLink.count", -1 do
       delete document_path(@link)
     end

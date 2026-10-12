@@ -165,7 +165,7 @@ class DocumentLinksController < ApplicationController
     # its paperless task id. Together with UploadJob's task-id guard, a
     # double-submitted retry cannot post the same bytes twice.
     unless @link.status.in?(%w[failed queued]) && @link.paperless_task_id.blank? &&
-           @link.staged_path.present? && DocumentLink::Staging.exists?(@link.staged_path)
+           @link.stored_path.present? && DocumentLink::Staging.exists?(@link.stored_path)
       return render(plain: "no held upload to retry", status: :conflict)
     end
     @link.retry_upload!
@@ -174,7 +174,7 @@ class DocumentLinksController < ApplicationController
   end
 
   def destroy
-    @link.delete_staged!
+    @link.delete_stored!
     @link.destroy!
     redirect_back_or_to documents_path, notice: t("documents.destroy.removed")
   end

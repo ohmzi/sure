@@ -30,6 +30,13 @@ class DocumentLink < ApplicationRecord
   # when a link is removed: the draft's history outlives the bytes.
   has_many :receipt_imports, class_name: "ReceiptImport", foreign_key: :document_link_id, dependent: :nullify
 
+  # Every read of this document's bytes. Destroyed with the row: a read has no
+  # meaning without its document.
+  has_many :document_extractions, dependent: :destroy
+
+  # The "what I understood" read for the viewer and the review screen.
+  def extraction = document_extractions.order(created_at: :desc).first
+
   enum :source, { receipt: "receipt", bill: "bill", statement: "statement", other: "other" }, validate: true
 
   validates :status, inclusion: { in: STATUSES }
@@ -67,7 +74,7 @@ class DocumentLink < ApplicationRecord
     # backfill is the documented refresh path and its re-fetch is bounded to
     # its runs (M8 self-review). Returns the scanned count.
     def capture_pending_snapshot
-      scope = where.not(paperless_document_id: nil).where("extracted_text IS NULL OR paperless_tags = '{}'")
+      scope = where.not(paperless_document_id: nil).where("extracted_text IS NULL OR tags = '{}'")
       count = scope.count
       scope.find_each { |link| Paperless::CaptureContentJob.perform_later(link.id) }
       count
@@ -88,7 +95,7 @@ class DocumentLink < ApplicationRecord
     # snapshot, so the choices render and filter with paperless down (locked
     # decision 4). Callers pass the scope whose tags they may show.
     def tag_snapshot_names(scope = all)
-      scope.distinct.pluck(Arel.sql("unnest(paperless_tags)")).compact.sort
+      scope.distinct.pluck(Arel.sql("unnest(tags)")).compact.sort
     end
 
     # The sidebar's ready-to-review count (M8 Task 9, Ruling M8-L1 decision 3):
@@ -176,8 +183,8 @@ class DocumentLink < ApplicationRecord
     names = Array(names).map(&:to_s).reject(&:blank?).uniq
     return false if names.empty?
 
-    self.class.where(id: id, paperless_tags: [])
-        .update_all(paperless_tags: names, updated_at: Time.current) == 1
+    self.class.where(id: id, tags: [])
+        .update_all(tags: names, updated_at: Time.current) == 1
   end
 
   # The row's displayed "document date" MUST be the same coerced date the
@@ -232,13 +239,13 @@ class DocumentLink < ApplicationRecord
     path = DocumentLink::Staging.write(io: io, id: id)
     digest = Digest::SHA256.file(path).hexdigest
     transition!(from: %w[queued processing failed], to: "queued",
-                staged_path: path, content_sha256: digest,
+                stored_path: path, content_sha256: digest,
                 original_filename: filename, content_type: content_type)
   end
 
-  def staged_io(&block)
-    return nil if staged_path.blank?
-    DocumentLink::Staging.open(staged_path, &block)
+  def stored_io(&block)
+    return nil if stored_path.blank?
+    DocumentLink::Staging.open(stored_path, &block)
   end
 
   # Ruling M3 (M1), 2026-10-10 close-out: clearing the staged bytes must NOT
@@ -246,9 +253,9 @@ class DocumentLink < ApplicationRecord
   # the transition's target (`to: status`), so a row that had changed state
   # after it was loaded could be written back to a stale status. This clears
   # only the one column, in a direct update guarded by id.
-  def delete_staged!
-    DocumentLink::Staging.delete(staged_path)
-    self.class.where(id: id).update_all(staged_path: nil, updated_at: Time.current)
+  def delete_stored!
+    DocumentLink::Staging.delete(stored_path)
+    self.class.where(id: id).update_all(stored_path: nil, updated_at: Time.current)
   end
 
   # M3's matcher writes only through this guarded primitive (R4), so a cron tick

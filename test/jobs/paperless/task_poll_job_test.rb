@@ -29,7 +29,7 @@ class Paperless::TaskPollJobTest < ActiveJob::TestCase
 
   test "a success finishes the row unlinked and deletes the staged bytes" do
     stub_task(status: :success, document_id: 4242)
-    path = @link.staged_path
+    path = @link.stored_path
     Paperless::TaskPollJob.perform_now(@link.id)
     @link.reload
     assert_equal "unlinked", @link.status
@@ -66,7 +66,7 @@ class Paperless::TaskPollJobTest < ActiveJob::TestCase
     @link.reload
     assert_equal "failed", @link.status
     assert_equal "bad scan", @link.failure_message
-    assert File.exist?(@link.staged_path)
+    assert File.exist?(@link.stored_path)
   end
 
   test "a pending task reschedules with backoff" do
@@ -84,7 +84,7 @@ class Paperless::TaskPollJobTest < ActiveJob::TestCase
     Paperless::TaskPollJob.perform_now(@link.id)
     @link.reload
     assert_equal "queued", @link.status
-    assert File.exist?(@link.staged_path)
+    assert File.exist?(@link.stored_path)
     assert Setting["paperless_token_invalid_at"].present?
   end
 
@@ -144,7 +144,7 @@ class Paperless::TaskPollJobTest < ActiveJob::TestCase
     @link.reload
     assert_equal "queued", @link.status
     assert_nil @link.paperless_task_id
-    assert File.exist?(@link.staged_path)
+    assert File.exist?(@link.stored_path)
   end
 
   test "a retried row polls with a fresh attempt budget" do
