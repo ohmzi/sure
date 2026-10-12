@@ -1,33 +1,41 @@
 # OhmzBudget deploy
 
-Compose project `ohmzbudget`: the Rails app (`web`, `worker`) and the re-adopted
-paperless-ngx sidecar (`paperless`, `paperless-db`, `paperless-valkey`).
+Compose project `ohmzbudget`: the Rails app (`web`, `worker`, `worker-heavy`) and
+the internal OCR sidecar (`ocr`). paperless-ngx was removed in Milestone A — the
+app reads documents natively. Its named volumes are left on disk, undeclared by
+compose, until the owner removes them (see "Paperless removal").
 
-## Status (2026-10-10)
+## Stack
 
-**Done** — deployed and verified end to end. The seven services are up (`web`
-on `127.0.0.1:7300` answering `/up` 200, paperless on `127.0.0.1:7301`; nothing
-binds `0.0.0.0`). Secrets are bootstrapped (untracked, mode 400) and the
-paperless API token rotated; migrations have run, the first `super_admin`
-exists, and a real credential login works (a fresh admin is redirected to
-`/onboarding` until the wizard is completed once). Signup policy, the stable
-`SECRET_KEY_BASE` across `--force-recreate`, and the re-attached paperless
-volumes (baselines unchanged) were all verified. Nightly backups run from cron
-(03:17, verify-before-publish) and the restore drill has been proven against
-the newest dumps. The container local-dev loop is green (full suite
-`11046 runs, 0 failures`; smoke `92 runs, 0 failures`).
+- `web` — `./bin/rails server`, published on loopback `127.0.0.1:7300:3000`. Its
+  entrypoint runs `db:prepare`, so it applies pending migrations on boot.
+- `worker` — `bundle exec sidekiq` (the config/sidekiq.yml queue set).
+- `worker-heavy` — `bundle exec sidekiq -q heavy`, the lane for
+  `DocumentUnderstandingJob` (a 40-page statement runs for minutes), so a slow
+  read does not occupy a slot the mailer and the syncs need.
+- `db` — postgres:16.
+- `redis` — redis:7-alpine (Sidekiq broker / cache).
+- `ocr` — the PaddleOCR sidecar (Task 4). Internal-only (no published ports),
+  GPU device reservation; `web`/`worker`/`worker-heavy` join the `internal`
+  network to reach it at `OCR_SERVICE_URL`.
 
-**Left** — owner-gated only:
+The `app-storage` volume (`/rails/storage`) holds both the Active Storage
+attachments and the document store (`OHMZBUDGET_DOCUMENT_STORE_DIR` =
+`/rails/storage/paperless-staged`). That path is FIXED: document rows store
+absolute paths, so moving the root would strand every already-read document
+(Ruling R25). The directory rename is deferred to Milestone B.
 
-1. Set the cloudflared ingress for the live host and `TUNNEL_HOST` in untracked
-   `deploy/.env` (currently unset), then run the tunnel probes and the
-   credential login in "Tunnel (cloudflared)" below — expected `local 200`,
-   `tunnel 200`, `tunnel-login 302`.
-2. Complete the onboarding wizard once through the tunnel.
+## Paperless removal (Ruling R23)
 
-Nothing else is outstanding in this deployment; the non-blocking deferred
-review minors are recorded in the M0 ledger and per-task reports
-(`reports/2026-10-10-ohmzbudget-m0-foundation/` in the planning repo).
+`paperless`, `paperless-db` and `paperless-valkey` were deleted from
+`compose.yml` and their containers stopped. Their five named volumes are
+intentionally LEFT ON DISK (`ohmzbudget_paperless-{data,media,consume,export,db}`).
+Once the native read has been seen to work, remove them with:
+
+```bash
+docker volume rm ohmzbudget_paperless-data ohmzbudget_paperless-media \
+  ohmzbudget_paperless-consume ohmzbudget_paperless-export ohmzbudget_paperless-db
+```
 
 ## Files
 - `compose.yml` — services, volumes, secrets, networks, hardening.
@@ -41,17 +49,18 @@ review minors are recorded in the M0 ledger and per-task reports
 ## Hardening
 Every service runs `restart: unless-stopped`, `security_opt: ["no-new-privileges:true"]`,
 `cap_drop: ["ALL"]` and a `mem_limit`, with only the entrypoint caps each image needs
-re-added: `CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID` for the two postgres services,
-`SETGID, SETUID` for redis/valkey (they start as root and `setpriv` into their user),
-and the postgres set for `paperless` (its s6 init chowns/creates under the data volume).
-`redis` is additionally `read_only` with a `/tmp` tmpfs. The app root stays writable
-because the image writes several runtime paths; the isolation comes from dropped caps
-and `no-new-privileges`. `deploy/dc exec -T web` is the service name (`web`, never `app`).
+re-added: `CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID` for the postgres service, and
+`SETGID, SETUID` for redis (it starts as root and `setpriv` into its user). `ocr` gets
+the same app hardening — it is the one container parsing untrusted PDFs and images
+through native code. `redis` is additionally `read_only` with a `/tmp` tmpfs. The app
+root stays writable because the image writes several runtime paths; the isolation comes
+from dropped caps and `no-new-privileges`. `deploy/dc exec -T web` is the service name
+(`web`, never `app`).
 
 ## First-run order
 1. `cp -n .env.example .env`; edit `ADMIN_EMAIL` to the real owner address (blocking).
-2. `./bootstrap-secrets.sh` (Task 3), then rotate the paperless token — see
-   "Rotate the paperless API token" below.
+2. `./bootstrap-secrets.sh` (Task 3) — writes/re-homes `secret_key_base`,
+   `postgres_password` and `admin_password` into `secrets/` (never printed).
 3. `./dc up -d --build`, then create the first admin from the repo root:
    ```bash
    cd ~/StudioProjects/OhmzBudget
@@ -67,37 +76,22 @@ and `no-new-privileges`. `deploy/dc exec -T web` is the service name (`web`, nev
 
 ## Everyday commands
 - `./dc ps` / `./dc logs -f web` — status and logs.
-- `./dc build web worker && ./dc up -d web worker` — rebuild after a code change.
+- `./dc build web && ./dc up -d web worker worker-heavy` — rebuild after a code
+  change (the three app services share the `ohmzbudget:local` image).
 - Never run raw `./dc config` (or `docker compose … config`) against the live
   deployment — it renders the resolved secret values into its output. Validate
   with `./dc config --services` or `./dc config --quiet` instead.
 
-## Rotate the paperless API token
-The container-shell invocation is the historical M2 runbook of record
-(`reports/2026-10-10-ohmzbudget-m2-document-bridge/task-7-report.md`): inside
-the `paperless` container, `/command/with-contenv python3 manage.py shell -c
-"…"` re-mints the `ohmzbudget` account's DRF token and prints only the
-`TOKENKEY=` line. The capture pattern, run from the repo root:
-
-1. Rotate — write the minted key into `deploy/secrets/paperless_token` via a
-   temp file: `umask 077`, write `deploy/secrets/paperless_token.tmp.$$`,
-   `chmod 400`, then `mv -f` into place (a mode-400 file is not writable in
-   place).
-2. `deploy/dc up -d --force-recreate web worker` — the app reads the token file
-   at module load, and a changed secret file does not change the compose config
-   hash, so a plain `up -d` reports `Running` and both containers keep the old
-   token.
-3. Verify `200` (`401` = wrong token; `403` = the account lost its
-   permissions), from the repo root:
-
-   ```bash
-   curl -s -o /dev/null -w '%{http_code}\n' \
-     -H "Authorization: Token $(cat deploy/secrets/paperless_token)" \
-     http://127.0.0.1:7301/api/documents/
-   ```
-
-Never print the token; record only size and shape (`41 B` = 40 hex chars + a
-newline).
+## Rotate the app secrets
+`secret_key_base` and `postgres_password` live in untracked `deploy/secrets/`
+(mode 400). Rotating `secret_key_base` invalidates existing sessions and any
+Active Record encrypted columns, so treat it as a deliberate operation, not a
+routine one. `postgres_password` must match the `POSTGRES_PASSWORD` the `db`
+volume was initialised with — rotate it in the database (`ALTER USER … PASSWORD`)
+and in the secret file together, then `deploy/dc up -d --force-recreate web
+worker worker-heavy`. The paperless-era secrets (`paperless_*`) are dead — the
+services that read them are gone — but the files are kept so the archived
+volumes can still be opened by hand.
 
 ## Tunnel (cloudflared)
 The app is reached over a cloudflared tunnel; TLS terminates at the edge, so the
@@ -112,17 +106,17 @@ ingress:
     service: http://127.0.0.1:7300
 ```
 
-Both published ports are bound to loopback only — the app on `127.0.0.1:7300`
-and paperless on `127.0.0.1:7301`; nothing binds `0.0.0.0`, so the edge is the
-only way in. The owner sets the live hostname in untracked `deploy/.env` as
-`TUNNEL_HOST` (never a tracked file) for the probes:
+The app is the only published port, bound to loopback (`127.0.0.1:7300`); `ocr`,
+`db` and `redis` publish nothing, so the cloudflared edge is the only way in. The
+owner sets the live hostname in untracked `deploy/.env` as `TUNNEL_HOST` (never a
+tracked file) for the probes:
 
 ```bash
 cd ~/StudioProjects/OhmzBudget
 set -a; . deploy/.env; set +a          # TUNNEL_HOST is the untracked live value
 curl -fsS -o /dev/null -w 'local   %{http_code}\n' http://127.0.0.1:7300/up   # 200
 curl -fsS -o /dev/null -w 'tunnel  %{http_code}\n' "https://$TUNNEL_HOST/up"  # 200
-ss -ltn | grep -E '(0\.0\.0\.0|\[::\]):(7300|7301)\b' && echo "EXPOSED ON 0.0.0.0 — stop" || echo "loopback only"
+ss -ltn | grep -E '(0\.0\.0\.0|\[::\]):7300\b' && echo "EXPOSED ON 0.0.0.0 — stop" || echo "loopback only"
 ```
 
 A real credential login through the tunnel (cookie jar + CSRF from the sign-in
@@ -146,28 +140,28 @@ once (or `200` once onboarding is complete); `/up` answers `200` with no
 `http://` downgrade redirect.
 
 ## Backups
-`deploy/backup.sh` (mode 0755, cron-driven) writes four timestamped artifacts into
+`deploy/backup.sh` (mode 0755, cron-driven) writes two timestamped artifacts into
 `$BACKUP_DIR` and prunes the set:
 
 - `sure_db_<ts>.sql.gz` — `pg_dump` of the app database (`db` container, local socket).
-- `paperless_db_<ts>.sql.gz` — `pg_dump` of the paperless database (`paperless-db`).
-- `app-storage_<ts>.tgz` — the `ohmzbudget_app-storage` volume (Active Storage attachments, incl. the paperless staging dir).
-- `paperless-media_<ts>.tgz` — the `ohmzbudget_paperless-media` volume (document files).
+- `app-storage_<ts>.tgz` — the `ohmzbudget_app-storage` volume: the Active Storage
+  attachments **and** the document store (`/rails/storage/paperless-staged`). With
+  paperless gone this volume is the only copy of every uploaded original.
 
-`<ts>` is `date +%Y-%m-%d_%H%M%S`; the run uses one timestamp for all four files.
+`<ts>` is `date +%Y-%m-%d_%H%M%S`; the run uses one timestamp for both files.
 `BACKUP_DIR` must be set in the untracked `deploy/.env` — the script hard-requires
 it and aborts with `set BACKUP_DIR in deploy/.env` when it is unset; this
 deployment uses `/home/ohmz/ohmzbudget-backups/backups`. `BACKUP_KEEP_DAYS`
 (default `14`) comes from the same file; artifacts older than `BACKUP_KEEP_DAYS`
 are deleted (`find … -mtime +N -delete`, which also sweeps stray `*.part` files
-and the dot-named `.*.sql` dump temps). The four names are fixed (consumed by
-the restore drill and, later, the M5 monitor).
+and the dot-named `.*.sql` dump temps). Both names are fixed (consumed by the
+restore drill and the healthcheck monitor, which asserts both are fresh).
 
 Each database dump goes to a temp file, is verified (`pg_dump` exit status plus a
 `PostgreSQL database dump` marker) and only then published to the fixed name via
 a `.part` file and an atomic rename, so a failed `pg_dump` never leaves a
-valid-looking `.sql.gz` for the restore drill or the M5 monitor to trust. The two
-volume archives get the same verify-before-publish rule: each is written to a
+valid-looking `.sql.gz` for the restore drill or the healthcheck monitor to trust.
+The volume archive gets the same verify-before-publish rule: it is written to a
 `.part` name from a read-only mount, a non-zero `tar` exit or a failing `gzip -t`
 removes the `.part` and aborts the run, and only a verified archive is renamed
 into the fixed name — a `tar` that fails on an unreadable member still closes gzip
@@ -198,17 +192,17 @@ deploy/restore-drill.sh
 
 What it does, in order, and what fails the run (any mismatch exits non-zero):
 
-- Picks the newest `sure_db_*.sql.gz`, `app-storage_*.tgz`,
-  `paperless_db_*.sql.gz` and `paperless-media_*.tgz` from `$BACKUP_DIR`
+- Picks the newest `sure_db_*.sql.gz` and `app-storage_*.tgz` from `$BACKUP_DIR`
   (a missing app dump or storage archive aborts up front).
 - `DROP DATABASE IF EXISTS` / `CREATE DATABASE ohmzbudget_restore_drill`, then
   loads the gzipped dump into it with `psql`.
 - Compares `entries` **and** `users` row counts, live vs restored; they must be
   equal, and restored `users` must be `>= 1` (an empty dump cannot pass).
-- Lists the first 5 entries of the storage archive, and of the
-  paperless-media archive when one exists (`|| true` guards the `head` SIGPIPE
-  that would otherwise trip `set -euo pipefail` as archives grow).
-- `gunzip -t` verifies the paperless-db dump when one exists.
+- Lists the first 5 entries of the storage archive (`|| true` guards the `head`
+  SIGPIPE that would otherwise trip `set -euo pipefail` as archives grow).
+- Asserts the document store (`/paperless-staged/`) is present inside the
+  app-storage archive — with paperless gone that volume is the only copy of every
+  uploaded original, so a set without it is not a backup of the documents.
 - `DROP DATABASE ohmzbudget_restore_drill` — no scratch database is left behind.
 - Prints `restore drill OK` and exits `0`.
 
@@ -216,10 +210,6 @@ Each run writes only to `ohmzbudget_restore_drill`; the live `sure_production`
 database is read for the comparison counts and otherwise untouched. The drill is
 the verification for the backup set, so run it after enabling cron and after any
 schema or backup change.
-
-## §16.8 decision
-The paperless consume folder stays enabled (paperless default) on the
-`paperless-consume` named volume; it is unused — the M1 ingest path is the API.
 
 ## Local development loop (test suite)
 The host has no `ruby`/`bundle`, no `mise`/`asdf` and no `psql`/`redis-cli`, so

@@ -1,0 +1,6 @@
+JPMorgan Chase Bank, N.A.
+October 1, 2024 through October 31, 2024
+Account: CHECKING ****6789
+
+10/15 GROCERY STORE -45.99 6,541.51
+10/16 PAYROLL DEPOSIT 1,500.00 8,041.51

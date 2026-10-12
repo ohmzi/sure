@@ -1,5 +1,5 @@
-# OhmzBudget deploy stack — one compose project that also re-adopts the
-# existing paperless-ngx sidecar so its named volumes reattach.
+# OhmzBudget deploy stack — the Rails app plus the internal OCR sidecar. (The
+# paperless-ngx services were removed in Milestone A; their volumes stay on disk.)
 name: ohmzbudget
 
 x-app-env: &app_env
@@ -14,12 +14,15 @@ x-app-env: &app_env
   POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
   SECRET_KEY_BASE: "${SECRET_KEY_BASE}"
   REDIS_URL: "redis://redis:6379/1"
-  # Canonical paperless contract (M0 owns producing it; M1 consumes it).
-  OHMZBUDGET_PAPERLESS_URL: "${OHMZBUDGET_PAPERLESS_URL:-http://paperless:8000}"
-  OHMZBUDGET_PAPERLESS_TOKEN_FILE: "${OHMZBUDGET_PAPERLESS_TOKEN_FILE:-/run/secrets/paperless_token}"
-  OHMZBUDGET_PAPERLESS_STAGING_DIR: "${OHMZBUDGET_PAPERLESS_STAGING_DIR:-/rails/storage/paperless-staged}"
-  # The OCR sidecar contract (M-A owns producing it; M1 consumes it). The
-  # sidecar is internal-only, so web/worker must join its network to reach it.
+  # The document store (uploaded bytes held until a read consumes them).
+  # This MUST stay at the existing /rails/storage/paperless-staged: document
+  # rows store ABSOLUTE paths, so moving the root would strand every already-read
+  # document (Staging.resolve! rejects them, #file 404s). The directory rename is
+  # deferred to Milestone B, where the files and the stored paths move together
+  # (Ruling R25).
+  OHMZBUDGET_DOCUMENT_STORE_DIR: "${OHMZBUDGET_DOCUMENT_STORE_DIR:-/rails/storage/paperless-staged}"
+  # The OCR sidecar contract. The sidecar is internal-only, so web/worker must
+  # join its network to reach it.
   OCR_SERVICE_URL: "${OCR_SERVICE_URL:-http://ocr:9000}"
 
 # Hardening shared by the stateless services.
@@ -30,7 +33,7 @@ x-app-hardening: &app_hardening
   cap_drop:
     - ALL
 
-# Hardening for the postgres services: they still need these caps to chown
+# Hardening for the postgres service: it still needs these caps to chown
 # the data dir and drop to the postgres user during entrypoint init.
 x-db-hardening: &db_hardening
   restart: unless-stopped
@@ -46,7 +49,7 @@ x-db-hardening: &db_hardening
     - SETUID
 
 # Hardening for images that start as root and drop privileges inside their
-# entrypoint (redis, valkey): dropping ALL caps breaks them — verified:
+# entrypoint (redis): dropping ALL caps breaks them — verified:
 # `redis:7-alpine` exits with "setpriv: setresuid failed: Operation not
 # permitted" under `--cap-drop ALL`, so SETUID/SETGID must be re-added.
 x-drop-hardening: &drop_hardening
@@ -56,21 +59,6 @@ x-drop-hardening: &drop_hardening
   cap_drop:
     - ALL
   cap_add:
-    - SETGID
-    - SETUID
-
-# paperless runs an s6 supervision tree as root and drops to the paperless
-# user (uid 1000): beyond SETUID/SETGID its init chowns/creates directories
-# under the data volume, which needs CHOWN/DAC_OVERRIDE/FOWNER as well
-# (verified: a bare `--cap-drop ALL` boot fails with
-# "s6-applyuidgid: ... Operation not permitted" and
-# "mkdir: cannot create directory '/usr/src/paperless/data/index'").
-x-paperless-hardening: &paperless_hardening
-  <<: *drop_hardening
-  cap_add:
-    - CHOWN
-    - DAC_OVERRIDE
-    - FOWNER
     - SETGID
     - SETUID
 
@@ -87,13 +75,17 @@ services:
       - app-storage:/rails/storage
     environment:
       <<: *app_env
-    secrets:
-      - paperless_token
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/up"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     <<: *app_hardening
     mem_limit: 1g
     networks:
@@ -110,15 +102,49 @@ services:
       - app-storage:/rails/storage
     environment:
       <<: *app_env
-    secrets:
-      - paperless_token
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'sidekiq' > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     <<: *app_hardening
     mem_limit: 1g
+    networks:
+      - default
+      - internal
+
+  # The heavy lane: DocumentUnderstandingJob (OCR + one vision call per
+  # document) runs for minutes at a time. Its own worker keeps a 40-page
+  # statement from occupying a slot the mailer and the syncs need.
+  worker-heavy:
+    image: ohmzbudget:local
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    command: bundle exec sidekiq -q heavy
+    volumes:
+      - app-storage:/rails/storage
+    environment:
+      <<: *app_env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'sidekiq' > /dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    <<: *app_hardening
+    mem_limit: 2g
     networks:
       - default
       - internal
@@ -189,89 +215,10 @@ services:
       retries: 5
       start_period: 120s   # the first model load is slow
 
-  # --- paperless-ngx sidecar (unmodified image; re-adopted) ---
-  paperless:
-    image: ghcr.io/paperless-ngx/paperless-ngx:3.3.0
-    container_name: paperless
-    depends_on:
-      paperless-db:
-        condition: service_healthy
-      paperless-valkey:
-        condition: service_healthy
-    ports:
-      - "127.0.0.1:7301:8000"
-    volumes:
-      - paperless-data:/usr/src/paperless/data
-      - paperless-media:/usr/src/paperless/media
-      - paperless-consume:/usr/src/paperless/consume
-      - paperless-export:/usr/src/paperless/export
-    environment:
-      PAPERLESS_REDIS: "redis://paperless-valkey:6379"
-      PAPERLESS_DBENGINE: "postgresql"
-      PAPERLESS_DBHOST: "paperless-db"
-      PAPERLESS_DBNAME: "${PAPERLESS_DBNAME:-paperless}"
-      PAPERLESS_DBUSER: "${PAPERLESS_DBUSER:-paperless}"
-      PAPERLESS_DBPASS: "${PAPERLESS_DBPASS}"
-      PAPERLESS_SECRET_KEY_FILE: /run/secrets/paperless_secret_key
-      PAPERLESS_URL: "${PAPERLESS_URL:-http://localhost:7301}"
-      PAPERLESS_OCR_LANGUAGE: "${PAPERLESS_OCR_LANGUAGE:-eng}"
-      USERMAP_UID: "1000"
-      USERMAP_GID: "1000"
-    secrets:
-      - paperless_secret_key
-    <<: *paperless_hardening
-    mem_limit: 2g
-    networks:
-      - default
-      - internal
-
-  paperless-db:
-    image: postgres:17-alpine
-    container_name: paperless-db
-    environment:
-      POSTGRES_DB: "${PAPERLESS_DBNAME:-paperless}"
-      POSTGRES_USER: "${PAPERLESS_DBUSER:-paperless}"
-      POSTGRES_PASSWORD: "${PAPERLESS_DBPASS}"
-    volumes:
-      - paperless-db:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    <<: *db_hardening
-    mem_limit: 512m
-    networks:
-      - internal
-
-  paperless-valkey:
-    image: valkey/valkey:9-alpine
-    container_name: paperless-valkey
-    healthcheck:
-      test: [ "CMD", "valkey-cli", "ping" ]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    <<: *drop_hardening
-    mem_limit: 256m
-    networks:
-      - internal
-
 volumes:
   app-storage:
   postgres-data:
   redis-data:
-  paperless-data:
-  paperless-media:
-  paperless-db:
-  paperless-consume:
-  paperless-export:
-
-secrets:
-  paperless_secret_key:
-    file: ./secrets/paperless_secret_key
-  paperless_token:
-    file: ./secrets/paperless_token
 
 networks:
   default:

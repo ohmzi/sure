@@ -17,9 +17,8 @@ require_secret() {
 # and the script would press on with EMPTY secrets. A plain assignment to an
 # already-exported variable propagates the failure and trips `set -e` — the
 # property the R18 exemption above depends on.
-export SECRET_KEY_BASE POSTGRES_PASSWORD PAPERLESS_DBPASS
+export SECRET_KEY_BASE POSTGRES_PASSWORD
 SECRET_KEY_BASE="$(require_secret secret_key_base)"
 POSTGRES_PASSWORD="$(require_secret postgres_password)"
-PAPERLESS_DBPASS="$(require_secret paperless_db_password)"
 
 exec docker compose -f compose.yml -f docker-compose.override.yml "$@"

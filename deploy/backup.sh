@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
-# Nightly backup: Sure DB + paperless DB dumps + Active Storage + paperless media volumes.
+# Nightly backup: the Sure DB dump and the app-storage volume.
+#
+# The app-storage volume holds BOTH the Active Storage attachments AND the
+# document store (OHMZBUDGET_DOCUMENT_STORE_DIR = /rails/storage/paperless-staged).
+# With paperless-ngx removed it is the only copy of every original the app has
+# read, so it must stay in the set.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -9,8 +14,6 @@ set -a; . ./.env; set +a
 : "${BACKUP_DIR:?set BACKUP_DIR in deploy/.env}"
 : "${POSTGRES_USER:=sure_user}"
 : "${POSTGRES_DB:=sure_production}"
-: "${PAPERLESS_DBUSER:=paperless}"
-: "${PAPERLESS_DBNAME:=paperless}"
 : "${BACKUP_KEEP_DAYS:=14}"
 
 mkdir -p "$BACKUP_DIR"
@@ -39,9 +42,6 @@ dump_db() {   # dump_db <service> <user> <dbname> <target>
 # 1. Sure database (pg_dump inside the db container; local socket auth needs no password)
 dump_db db "$POSTGRES_USER" "$POSTGRES_DB" "$BACKUP_DIR/sure_db_$TS.sql.gz"
 
-# 2. paperless database (the document engine's metadata)
-dump_db paperless-db "$PAPERLESS_DBUSER" "$PAPERLESS_DBNAME" "$BACKUP_DIR/paperless_db_$TS.sql.gz"
-
 # Volume archives get the SAME verify-before-publish rule as the DB dumps:
 # a tar that fails on an unreadable member still closes gzip cleanly, so a
 # direct `tar czf` at the fixed name would leave a gzip-valid but INCOMPLETE
@@ -59,11 +59,9 @@ archive_volume() {   # archive_volume <volume> <target>
   mv -f "$part" "$target"
 }
 
-# 3. Active Storage volume (attached documents)
+# 2. app-storage volume: Active Storage attachments + the document store
+#    (/rails/storage/paperless-staged — the only copy of every original).
 archive_volume ohmzbudget_app-storage "$BACKUP_DIR/app-storage_$TS.tgz"
-
-# 4. paperless media volume (the document files)
-archive_volume ohmzbudget_paperless-media "$BACKUP_DIR/paperless-media_$TS.tgz"
 
 # Retention
 find "$BACKUP_DIR" -type f \( -name '*.sql.gz' -o -name '*.tgz' -o -name '*.part' -o -name '.*.sql' \) -mtime +"$BACKUP_KEEP_DAYS" -delete
