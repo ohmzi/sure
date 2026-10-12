@@ -16,6 +16,12 @@ module OcrTestHelper
     stub_request(:post, "#{Ocr.url}/ocr").to_return(status: 200, body: body.to_json,
                                                     headers: { "Content-Type" => "application/json" })
   end
+
+  def stub_openai_chat(body:, status: 200)
+    stub_request(:post, %r{/chat/completions\z}).to_return(
+      status: status, headers: { "Content-Type" => "application/json" }, body: body.to_json
+    )
+  end
 end
 
 class ActiveSupport::TestCase

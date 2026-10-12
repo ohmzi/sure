@@ -41,6 +41,16 @@ module Provider::LlmConcept
     raise NotImplementedError, "Provider does not support PDF processing"
   end
 
+  # One document read as a typed verdict. The images and the OCR text travel
+  # together (spec N4); a provider that cannot take images cannot honour this.
+  def understand_document(pages:, ocr_text:, family: nil, model: "")
+    raise NotImplementedError, "Provider does not support document understanding"
+  end
+
+  def supports_document_understanding?
+    false
+  end
+
   ChatMessage = Data.define(:id, :output_text)
   ChatStreamChunk = Data.define(:type, :data, :usage)
   ChatResponse = Data.define(:id, :model, :messages, :function_requests)

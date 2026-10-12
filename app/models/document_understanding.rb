@@ -1,0 +1,79 @@
+# frozen_string_literal: true
+
+# The AI's verdict on one document, as a typed view over the stored JSON.
+#
+# Every reader is defensive on purpose: a model returns validly-typed nonsense
+# routinely, and a raised Date::Error deep inside a job is a wedged document.
+# An unreadable field reads as nil, and nil is what the validators (Task 7) and
+# the classifier (Task 6) act on — never a guess.
+class DocumentUnderstanding
+  CLASSES = DocumentLink::SOURCES
+
+  attr_reader :verdict
+
+  def initialize(verdict)
+    @verdict = (verdict || {}).with_indifferent_access
+  end
+
+  def document_class
+    candidate = verdict[:document_class].presence&.to_s
+    CLASSES.include?(candidate) ? candidate : nil
+  end
+
+  def institution_name = verdict[:institution_name].presence&.to_s
+  def account_last4 = digits(verdict[:account_last4], 4)
+  def card_last4 = digits(verdict[:card_last4], 4)
+  def card_network = Account::CARD_NETWORKS.include?(verdict[:card_network].to_s) ? verdict[:card_network].to_s : nil
+  def currency = verdict[:currency].presence&.to_s&.upcase
+  def payee = verdict[:payee].presence&.to_s
+  def field_confidence = (verdict[:field_confidence] || {}).with_indifferent_access
+
+  def total
+    raw = verdict[:total].presence or return nil
+    text = raw.to_s.strip
+    # A thousands separator ("1,234.56") is fine; misplaced commas ("12,34,5")
+    # are unreadable nonsense and must read as nil, never as a guess like
+    # 12345. Require well-formed grouping before stripping the commas.
+    return nil unless text.match?(/\A-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\z/)
+
+    BigDecimal(text.delete(","))
+  rescue ArgumentError
+    nil
+  end
+
+  def date
+    raw = verdict[:date].presence or return nil
+    Date.parse(raw.to_s)
+  rescue Date::Error
+    nil
+  end
+
+  def period_start = parse_date(verdict.dig(:statement_period, :start))
+  def period_end = parse_date(verdict.dig(:statement_period, :end))
+
+  def line_items = Array(verdict[:line_items]).map { |i| i.with_indifferent_access }
+
+  # Statements carry rows; a receipt carries line items. Keeping them separate
+  # means neither can be mistaken for the other downstream.
+  def transactions
+    return [] unless document_class == "statement"
+
+    Array(verdict[:transactions]).map { |t| t.with_indifferent_access }
+  end
+
+  def to_verdict = verdict.to_h.deep_stringify_keys
+
+  def confidence_for(field) = field_confidence[field].to_f
+
+  private
+    def digits(value, length)
+      text = value.to_s.gsub(/\D/, "")
+      text.length == length ? text : nil
+    end
+
+    def parse_date(value)
+      Date.parse(value.to_s) if value.present?
+    rescue Date::Error
+      nil
+    end
+end

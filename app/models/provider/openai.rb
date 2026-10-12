@@ -358,6 +358,36 @@ class Provider::Openai < Provider
     end
   end
 
+  def supports_document_understanding? = true
+
+  # The reconciled read (spec N4): the page IMAGES and the OCR TEXT travel in one
+  # call, so the model can structure the layout and be checked against exact
+  # glyphs at the same time.
+  def understand_document(pages:, ocr_text:, family: nil, model: "")
+    with_provider_response do
+      effective_model = model.presence || @default_model
+
+      trace = create_langfuse_trace(
+        name: "openai.understand_document",
+        input: { page_count: Array(pages).size, ocr_chars: ocr_text.to_s.length }
+      )
+
+      result = DocumentReader.new(
+        client,
+        model: effective_model,
+        pages: pages,
+        ocr_text: ocr_text,
+        custom_provider: custom_provider?,
+        langfuse_trace: trace,
+        family: family
+      ).read
+
+      upsert_langfuse_trace(trace: trace, output: result.to_verdict)
+
+      result
+    end
+  end
+
   def extract_bank_statement(pdf_content:, model: "", family: nil)
     with_provider_response do
       effective_model = model.presence || @default_model
