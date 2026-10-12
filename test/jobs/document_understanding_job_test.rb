@@ -63,6 +63,25 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal "receipt", extraction.verdict["document_class"]
   end
 
+  test "a re-delivery against a settled row is a no-op" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    provider = FakeProvider.new(RECEIPT)
+    stub_provider(provider)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+    @link.reload
+    assert_equal "unlinked", @link.status
+    assert_equal 1, @link.document_extractions.count
+
+    # The row already settled, so a re-delivery (or a reaper re-enqueue) must do
+    # nothing: no second verdict, no second extraction, no second paid call.
+    provider.expects(:understand_document).never
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "unlinked", @link.reload.status
+    assert_equal 1, @link.document_extractions.count
+  end
+
   test "the page images and the OCR text both reach the provider" do
     seen = nil
     provider = FakeProvider.new(RECEIPT)
@@ -79,6 +98,31 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal "TOTAL 12.34", seen[:ocr_text]
   end
 
+  test "a text-less page with an image is forwarded to the vision model" do
+    # Ruling R14: the vision model reads page images precisely when the OCR is
+    # poor, so a photographed page with no recognised glyphs must reach it — not
+    # be held as "unreadable". The empty OCR text makes the total uncheckable
+    # (totals_agree nil), so this can never satisfy a later auto-post gate.
+    seen = nil
+    provider = FakeProvider.new(RECEIPT)
+    provider.define_singleton_method(:understand_document) do |pages:, ocr_text:, family: nil, model: ""|
+      seen = { pages: pages, ocr_text: ocr_text }
+      @response
+    end
+    stub_ocr_success(pages: [ { page: 1, text: "", confidence: 0.0, image: "iVBORw0KGgo=" } ])
+    stub_provider(provider)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+    @link.reload
+
+    assert_equal "unlinked", @link.status
+    assert_equal [ "iVBORw0KGgo=" ], seen[:pages]
+    assert_equal "", seen[:ocr_text]
+    assert_equal "succeeded", @link.extraction.status
+    assert_nil @link.extraction.validations["totals_agree"],
+               "no OCR text means the total is uncheckable, never agreed"
+  end
+
   test "a document the OCR cannot read lands visibly and is never lost" do
     stub_request(:post, "#{Ocr.url}/ocr").to_return(status: 422, body: { error: "unreadable" }.to_json)
     stub_provider(FakeProvider.new(RECEIPT))
@@ -90,6 +134,20 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_includes @link.failure_message, "found no text"
     assert_nil @link.extraction
     assert_not_nil @link.stored_path, "the original bytes must survive an unreadable read"
+  end
+
+  test "an unreadable document never reaches a paid provider call" do
+    # The hold paths above use a permissive provider stub, so a regression that
+    # moved the provider call ABOVE the failure guard would pass them all. The
+    # negative expectation is the actual pin.
+    provider = FakeProvider.new(RECEIPT)
+    stub_provider(provider)
+    provider.expects(:understand_document).never
+    stub_request(:post, "#{Ocr.url}/ocr").to_return(status: 422, body: { error: "unreadable" }.to_json)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "queued", @link.reload.status
   end
 
   test "an empty 200 read lands as held-for-input, never a silent success" do
@@ -123,6 +181,24 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_nil @link.extraction, "a failed read must not record a verdict"
   end
 
+  test "a persistent OCR outage lands the row terminally once the retries are spent" do
+    stub_request(:post, "#{Ocr.url}/ocr").to_raise(Faraday::ConnectionFailed.new("refused"))
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    # The retry counter is already at the ceiling when the failure handler runs
+    # (the retry_on block fires instead of re-enqueueing) — the terminal state
+    # the per-attempt test above does not reach. Rails 8.1 tracks retries per
+    # exception class in `exception_executions`, keyed by the exception list's
+    # `to_s`; attempts: 8, and the handler adds one more.
+    job = DocumentUnderstandingJob.new(@link.id)
+    job.exception_executions = { "[Ocr::Error]" => 7 }
+    job.perform_now
+
+    assert_equal "failed", @link.reload.status
+    assert_includes @link.failure_message, "unreachable"
+    assert_nil @link.extraction
+  end
+
   test "a failed provider call holds the row rather than settling it" do
     stub_ocr_success(pages: [ { page: 1, text: "TOTAL 12.34", confidence: 0.97 } ])
     stub_provider(FakeProvider.new(RECEIPT, success: false))
@@ -140,6 +216,21 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal false, validations["totals_agree"]
     assert_equal "12.34", validations["ai_total"]
     assert_equal "99.99", validations["ocr_total"]
+  end
+
+  test "validate refuses to pass the line-item sum when any amount is unparseable" do
+    # A false pass here is money-relevant (it gates a later auto-post): a
+    # dropped, unreadable amount must read as "not checkable", never "agrees".
+    understanding = DocumentUnderstanding.new(
+      RECEIPT.merge(
+        "line_items" => [ { "description" => "Coffee", "amount" => "12.34" },
+                          { "description" => "Fee", "amount" => "n/a" } ]
+      )
+    )
+    validations = DocumentUnderstandingJob.validate(understanding, ocr_text: "TOTAL 12.34")
+
+    assert_nil validations["line_items_sum"],
+               "an unparseable amount makes the sum uncheckable, never a false pass"
   end
 
   test "validate accepts agreement and checks the line-item sum and the last4 witness" do

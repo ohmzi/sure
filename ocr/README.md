@@ -57,10 +57,14 @@ normalised to a single page, honouring its EXIF orientation.
 
 ### Status codes
 
-- `200` — success.
-- `422` — an input with no detectable text, or a file that cannot be opened
-  (a malformed PDF, a corrupt image, an empty upload). This is a *normal*
-  outcome the app must be able to see, not a server fault.
+- `200` — success. A page that rendered but contained **no recognised text**
+  is a normal `200` page with `"text": ""` (and its `image` when
+  `include_images` was truthy) — the vision model reads the page image when the
+  OCR is poor, so a text-less photo is a success, not a failure.
+- `422` — the service could not produce a page the engine can read: a file that
+  cannot be opened (a malformed PDF, a corrupt image, an empty upload), or a
+  document none of whose pages is at least `MIN_SIDE` px on each side. This is a
+  *normal* outcome the app must be able to see, not a server fault.
 - `5xx` — a retryable fault.
 
 ## Configuration

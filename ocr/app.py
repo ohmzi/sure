@@ -130,7 +130,9 @@ def ocr(file: UploadFile = File(...), include_images: bool = Form(False)):
             page["image"] = encode_page(image)
         pages.append(page)
 
-    if not any(page["text"].strip() for page in pages):
-        raise HTTPException(status_code=422, detail="unreadable")
-
+    # A page that rendered but yielded no recognised text is a NORMAL page with
+    # `text: ""`, never a 422: the vision model reads the page IMAGE precisely
+    # when the OCR is poor, and a photographed page with no glyphs is the
+    # canonical case. Only a document the service could not render at all is
+    # unreadable (the `render` raise above).
     return {"engine": "paddleocr", "pages": pages}

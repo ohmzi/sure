@@ -11,7 +11,18 @@ class DocumentUnderstandingJob < ApplicationJob
   # An OCR failure is transient far more often than it is terminal — the sidecar
   # is restarting, the GPU is busy, the weights are still loading. Retry with
   # backoff; only a service that ANSWERED and said "unreadable" lands terminally.
-  retry_on Ocr::Error, wait: :polynomially_longer, attempts: 8
+  #
+  # The block runs once the retries are SPENT and the sidecar is still
+  # unreachable, and lands the row terminally with a message. Without it the row
+  # would rest at `processing` forever — invisible, and never re-driven (no sweep
+  # touches a native row: DocumentLink.capture_pending_content keys on a
+  # paperless_document_id the native path never sets). That silent wedge is the
+  # predecessor's failure mode this milestone exists to remove.
+  retry_on Ocr::Error, wait: :polynomially_longer, attempts: 8 do |job, error|
+    DocumentLink.find_by(id: job.arguments.first)&.fail!(
+      message: "OCR service unreachable after 8 attempts: #{error.message}"
+    )
+  end
   discard_on ActiveRecord::RecordNotFound
 
   UNREADABLE_MESSAGE = "the OCR engine found no text in this document".freeze
@@ -25,10 +36,13 @@ class DocumentUnderstandingJob < ApplicationJob
 
     line_items = understanding.line_items.map { |i| BigDecimal(i["amount"].to_s.delete(",")) rescue nil }
     sum_ok =
-      if understanding.line_items.empty? || ai_total.nil?
-        nil # nothing to check — not a pass, not a fail
+      if understanding.line_items.empty? || ai_total.nil? || line_items.any?(&:nil?)
+        # Nothing to check, or a line item the model sent unreadable — either
+        # way the sum is NOT checkable. Never a false pass: this key gates a
+        # later auto-post, so a wrong `true` is money-relevant.
+        nil
       else
-        line_items.compact.sum == ai_total
+        line_items.sum == ai_total
       end
 
     last4 = [ understanding.account_last4, understanding.card_last4 ].compact
@@ -55,11 +69,13 @@ class DocumentUnderstandingJob < ApplicationJob
 
     result = read(link)
     return land_unreadable(link, result.failure_code) if result.failure?
-    # A 200 that carried no text (Task 3's client reads a body with no `pages`
-    # key as a non-failure, empty result) is still "nothing was understood":
-    # hold the row for the user, never settle a text-less read and never hand an
-    # empty read to the paid model.
-    return land_unreadable(link, :no_text) if result.text.blank?
+    # A genuine empty read (Task 3's client reads a body with no `pages` key as
+    # a non-failure, empty result) is "nothing was understood": no text AND no
+    # page images to send. Hold it for the user rather than settle a text-less
+    # read. When the OCR found no text but DID render pages, those images are
+    # exactly what the vision model is for — a text-less photo is the canonical
+    # case, so forward them (Ruling R14).
+    return land_unreadable(link, :no_text) if result.text.blank? && result.page_images.empty?
 
     link.record_content!(result.text, refresh: true)
 
