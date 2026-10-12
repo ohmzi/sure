@@ -139,12 +139,17 @@ class Paperless::ClientTest < ActiveSupport::TestCase
     end
   end
 
-  test "file maps :original to the download path" do
+  test "file maps :original to the download path with the original flag" do
     with_paperless do
       paperless_cassette("file_download") do
         response = Paperless::Client.new.file(4242, kind: :original)
         assert_equal "%PDF", response.body
-        assert_requested :get, "http://paperless.test:8000/api/documents/4242/download/", times: 1
+        # (Ruling M8-C1, 2026-10-11 close-out) paperless's /download/ serves
+        # the ARCHIVED PDF without the flag — only the flagged call yields the
+        # UPLOADED bytes a photo lightbox can render. Probe (live, 2026-10-11,
+        # the stacked JPEG receipt): unflagged `%PDF`, flagged `image/jpeg`.
+        assert_requested :get, "http://paperless.test:8000/api/documents/4242/download/",
+                         query: { "original" => "true" }, times: 1
       end
     end
   end
@@ -169,7 +174,10 @@ class Paperless::ClientTest < ActiveSupport::TestCase
   test "a mid-stream failure raises unreachable after the delivered chunks" do
     request = OpenStruct.new(headers: {}, options: OpenStruct.new)
     connection = Object.new
-    connection.define_singleton_method(:get) do |_path, &setup|
+    # (Ruling M8-C1) the client passes its kind's query params positionally to
+    # Faraday now; the double mirrors that shape (the pinned BEHAVIOUR is
+    # unchanged).
+    connection.define_singleton_method(:get) do |_path, _params, &setup|
       setup.call(request)
       request.options.on_data.call("%PDF", 4, OpenStruct.new(status: 206, response_headers: {}))
       raise Faraday::ConnectionFailed, "mid-body connection reset"

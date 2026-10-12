@@ -1,6 +1,8 @@
 require "test_helper"
+require_relative "../support/paperless_test_helper"
 
 class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
+  include PaperlessTestHelper
   setup do
     @tmp = Pathname.new(Dir.mktmpdir("doc-links"))
     @previous_staging = ENV["OHMZBUDGET_PAPERLESS_STAGING_DIR"]
@@ -262,6 +264,46 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     get viewer_document_path(document_links(:unlinked_receipt))
     assert_select "img[data-document-viewer-target='image'][src='#{file_document_path(document_links(:unlinked_receipt), kind: "original")}']"
     assert_select "[data-action~='wheel->document-viewer#zoom']"
+  end
+
+  test "an image row's file url serves an image through the proxy" do
+    # (Ruling M8-C1, 2026-10-11 close-out) end to end, through the REAL client:
+    # the row's file URL must fetch the uploaded original — paperless's
+    # download endpoint WITH original=true (unflagged it answers the archived
+    # PDF, which is exactly why the photo lightbox never displayed). The stub
+    # is the endpoint contract, not a stand-in for the client: a request that
+    # dropped the flag (or read another endpoint) is unstubbed and fails.
+    link = document_links(:unlinked_receipt) # image/png
+    row = DocumentBrowser::Row.for_document_link(link)
+
+    with_paperless do
+      stub_request(:get, "http://paperless.test:8000/api/documents/#{link.paperless_document_id}/download/")
+        .with(query: { "original" => "true" })
+        .to_return(status: 200, body: "PNGBYTES", headers: { "Content-Type" => "image/png" })
+
+      get row.file_url
+
+      assert_response :success
+      assert_equal "image/png", response.headers["Content-Type"]
+    end
+  end
+
+  test "a pdf row's file url still serves a pdf through the proxy" do
+    # The image branch's mirror (Ruling M8-C1): a PDF-backed link's file URL
+    # answers a PDF content type.
+    link = document_links(:linked_receipt) # application/pdf
+    row = DocumentBrowser::Row.for_document_link(link)
+
+    with_paperless do
+      stub_request(:get, "http://paperless.test:8000/api/documents/#{link.paperless_document_id}/download/")
+        .with(query: { "original" => "true" })
+        .to_return(status: 200, body: "%PDF-1.7", headers: { "Content-Type" => "application/pdf" })
+
+      get row.file_url
+
+      assert_response :success
+      assert_equal "application/pdf", response.headers["Content-Type"]
+    end
   end
 
   test "the viewer states a missing paperless copy honestly instead of framing it" do

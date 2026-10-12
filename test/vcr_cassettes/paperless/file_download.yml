@@ -2,7 +2,7 @@
 http_interactions:
 - request:
     method: get
-    uri: http://paperless.test:8000/api/documents/4242/download/
+    uri: http://paperless.test:8000/api/documents/4242/download/?original=true
     body:
       encoding: ASCII-8BIT
       string: ''

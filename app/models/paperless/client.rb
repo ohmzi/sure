@@ -8,7 +8,17 @@ require "faraday/multipart"
 class Paperless::Client
   DEFAULT_URL = "http://paperless:8000".freeze
   DEFAULT_TOKEN_FILE = "/run/secrets/paperless_token".freeze
-  FILE_KINDS = { original: "download", preview: "preview", thumb: "thumb" }.freeze
+  # What each kind fetches (M1; repaired Ruling M8-C1, 2026-10-11 close-out):
+  # paperless's /download/ serves the ARCHIVED PDF unless `original=true` is
+  # passed — only the flagged call yields the UPLOADED bytes a photo lightbox
+  # must render. Verified live 2026-10-11 against the stacked JPEG receipt:
+  # unflagged download answered %PDF; `download/?original=true` answered
+  # image/jpeg (the whole reason photos never displayed).
+  FILE_KINDS = {
+    original: [ "download", { original: "true" } ],
+    preview: [ "preview", {} ],
+    thumb: [ "thumb", {} ]
+  }.freeze
   TASK_FAILURE_STATUSES = %w[failure revoked].freeze
 
   def initialize(base_url: nil, token: nil)
@@ -65,9 +75,9 @@ class Paperless::Client
   # returns a buffered response whose body is a String. Both branches map HTTP
   # errors to Paperless::Error with the pinned codes.
   def file(id, kind:, range: nil, &block)
-    path = FILE_KINDS.fetch(kind.to_sym) { raise ArgumentError, "unknown kind: #{kind}" }
+    path, params = FILE_KINDS.fetch(kind.to_sym) { raise ArgumentError, "unknown kind: #{kind}" }
     if block
-      stream_connection.get("/api/documents/#{id}/#{path}/") do |req|
+      stream_connection.get("/api/documents/#{id}/#{path}/", params) do |req|
         req.headers["Range"] = range if range.present?
         # Faraday 2.14 calls on_data with (chunk, bytes, env); adapt to the
         # pinned (chunk, env) contract and map the streamed status here.
@@ -76,7 +86,7 @@ class Paperless::Client
       nil
     else
       response = with_errors do
-        json_connection.get("/api/documents/#{id}/#{path}/") do |req|
+        json_connection.get("/api/documents/#{id}/#{path}/", params) do |req|
           req.headers["Range"] = range if range.present?
         end
       end

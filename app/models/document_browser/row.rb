@@ -58,6 +58,7 @@ class DocumentBrowser::Row
       routes = Rails.application.routes.url_helpers
       draft = link.receipt_imports.max_by(&:created_at)
       ready = link.paperless_document_id.present?
+      file_kind = viewer_url_kind(link.content_type)
 
       new(
         record: link,
@@ -72,7 +73,9 @@ class DocumentBrowser::Row
         tags: link.paperless_tags,
         merchant: draft&.payee,
         amount: draft&.total_amount,
-        file_url: (routes.file_document_path(link, kind: "original") if ready),
+        # (Ruling M8-C1, 2026-10-11 close-out) the viewer's bytes follow the
+        # row's kind, never one hard-coded endpoint — see viewer_url_kind.
+        file_url: (routes.file_document_path(link, kind: file_kind) if ready && file_kind),
         # (repaired 2026-10-11, verifier F11) the proxy forces an inline
         # disposition; `download: true` flips it to an attachment so the
         # row/viewer Download affordance actually downloads.
@@ -97,6 +100,7 @@ class DocumentBrowser::Row
         statement.content_type
       end
       attached = statement.original_file.attached?
+      file_kind = viewer_url_kind(content_type)
 
       new(
         record: statement,
@@ -113,7 +117,7 @@ class DocumentBrowser::Row
         tags: link&.paperless_tags || [],
         merchant: statement.institution_name_hint,
         amount: nil, # statements carry no extracted total (M8 locked decision 7)
-        file_url: statement_file_url(statement, link, ready, attached, routes),
+        file_url: statement_file_url(statement, link, ready, attached, file_kind, routes),
         # Active Storage's helper demands a host unless only_path is pinned; a
         # model-side call has no request context (account.rb's logo-path precedent).
         download_url: (routes.rails_blob_path(statement.original_file, disposition: "attachment", only_path: true) if attached),
@@ -128,6 +132,20 @@ class DocumentBrowser::Row
       return :pdf if content_type.to_s == "application/pdf"
 
       :unsupported
+    end
+
+    # The URL kind the viewer's centre stage must request, decided by the row's
+    # kind (Ruling M8-C1, 2026-10-11 close-out): image and PDF rows both read
+    # the UPLOADED original — "original" is paperless's download endpoint WITH
+    # original=true (Paperless::Client::FILE_KINDS); without the flag that
+    # endpoint answers with the archived PDF, which is exactly why the photo
+    # lightbox never displayed — and rows with no in-page preview carry no file
+    # URL at all (their bytes ride the download affordance). Row thumbnails
+    # always read paperless's rendered "thumb".
+    def viewer_url_kind(content_type)
+      case viewer_kind(content_type)
+      when :image, :pdf then "original"
+      end
     end
 
     def icon_for(content_type)
@@ -192,8 +210,8 @@ class DocumentBrowser::Row
         statuses
       end
 
-      def statement_file_url(statement, link, ready, attached, routes)
-        return routes.file_document_path(link, kind: "original") if ready
+      def statement_file_url(statement, link, ready, attached, file_kind, routes)
+        return routes.file_document_path(link, kind: file_kind) if ready && file_kind
         return nil unless attached
 
         routes.rails_blob_path(statement.original_file, disposition: "inline", only_path: true)
