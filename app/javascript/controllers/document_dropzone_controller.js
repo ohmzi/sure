@@ -62,7 +62,17 @@ export default class extends Controller {
           Accept: "text/vnd.turbo-stream.html",
         },
       })
-        .then((response) => this.respond(response))
+        .then((response) => {
+          // A CSV or OFX drop answers with a redirect to the screen that can
+          // read it. `fetch` follows it as a GET, which never yields a
+          // turbo-stream body, so it must be handed to Turbo as a navigation
+          // instead — otherwise a successful import reports itself as a failure.
+          if (response.redirected) {
+            window.Turbo.visit(response.url);
+            return;
+          }
+          return this.respond(response);
+        })
         .catch(() => this.reportFailure());
     }
   }
