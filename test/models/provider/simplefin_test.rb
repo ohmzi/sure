@@ -174,4 +174,34 @@ class Provider::SimplefinTest < ActiveSupport::TestCase
     assert delay <= Provider::Simplefin::MAX_RETRY_DELAY,
       "Delay should be capped at MAX_RETRY_DELAY (#{Provider::Simplefin::MAX_RETRY_DELAY}s)"
   end
+
+  # --- M5: the connection contract, pinned against a stubbed bridge. -----------------
+  # The bridge host is a placeholder, never a real one. `record: :none` makes a
+  # missing cassette raise (VCR::Errors::UnhandledHTTPRequestError) instead of
+  # reaching the network; the default record mode :once would hit the real host.
+  test "claims a setup token into an access url through the bridge" do
+    setup_token = Base64.strict_encode64("https://bridge.example.org/simplefin/claim/tok-123")
+    VCR.use_cassette("simplefin/claim", record: :none) do
+      assert_equal "https://bridge.example.org/simplefin/access/abc",
+                   @provider.claim_access_url(setup_token)
+    end
+  end
+
+  test "fetches accounts from the claimed access url" do
+    VCR.use_cassette("simplefin/accounts", record: :none) do
+      payload = @provider.get_accounts("https://bridge.example.org/simplefin/access/abc")
+      assert_equal 1, payload[:accounts].size
+      assert_equal "checking", payload[:accounts].first[:name]
+    end
+  end
+
+  test "surfaces a compromised setup token as a typed error" do
+    setup_token = Base64.strict_encode64("https://bridge.example.org/simplefin/claim/tok-123")
+    VCR.use_cassette("simplefin/claim_forbidden", record: :none) do
+      error = assert_raises(Provider::Simplefin::SimplefinError) do
+        @provider.claim_access_url(setup_token)
+      end
+      assert_equal :token_compromised, error.error_type
+    end
+  end
 end

@@ -1,0 +1,23 @@
+---
+http_interactions:
+- request:
+    method: get
+    uri: https://bridge.example.org/simplefin/access/abc/accounts
+    body:
+      encoding: UTF-8
+      string: ''
+    headers:
+      User-Agent:
+      - Sure Finance SimpleFin Client
+  response:
+    status:
+      code: 200
+      message: OK
+    headers:
+      Content-Type:
+      - application/json
+    body:
+      encoding: UTF-8
+      string: '{"accounts":[{"id":"acc-1","name":"checking","currency":"USD","balance":"1000.00"}]}'
+  recorded_at: Wed, 01 Oct 2025 00:00:00 GMT
+recorded_with: VCR 6.3.1
