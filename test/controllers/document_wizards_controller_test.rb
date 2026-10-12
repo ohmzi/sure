@@ -24,26 +24,34 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type='file'][name='document_file'][accept='application/pdf,image/*']"
   end
 
-  test "the intake creates a receipt draft and redirects into the receipt flow" do
+  test "the intake stages the link, enqueues the native read and lands on the archive" do
+    # (Task 8) The wizard no longer creates the draft: the native read job does,
+    # once it has a verdict. So the POST stages the link, enqueues exactly the
+    # native job (never the paperless upload — one read pipeline only) and lands
+    # the user on the archive.
     file = Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png")
 
-    assert_difference -> { ReceiptImport.count } => 1, -> { DocumentLink.count } => 1 do
-      post document_wizard_intake_path(source: "receipt_or_bill"),
-           params: { document_file: file }
+    assert_no_difference -> { ReceiptImport.count } do
+      assert_difference -> { DocumentLink.count } => 1 do
+        assert_enqueued_with(job: DocumentUnderstandingJob) do
+          assert_no_enqueued_jobs only: Paperless::UploadJob do
+            post document_wizard_intake_path(source: "receipt_or_bill"), params: { document_file: file }
+          end
+        end
+      end
     end
 
-    draft = ReceiptImport.order(:created_at).last
-    assert_redirected_to import_account_path(draft)
-    assert_equal "receipt", draft.document_link.source
-    assert_equal "awaiting_ocr", draft.understanding_state
+    assert_redirected_to documents_path
+    assert_equal I18n.t("document_wizards.create.reading_in_background"), flash[:notice]
+    assert_equal "receipt", DocumentLink.order(:created_at).last.source
   end
 
   test "a statement-shaped filename under the Receipt or Bill tile is still filed receipt or bill" do
     file = Rack::Test::UploadedFile.new(file_fixture("receipts/statement.pdf"), "application/pdf")
     post document_wizard_intake_path(source: "receipt_or_bill"), params: { document_file: file }
 
-    assert_equal "receipt", ReceiptImport.order(:created_at).last.document_link.source
-    assert_not_equal "statement", ReceiptImport.order(:created_at).last.document_link.source
+    assert_equal "receipt", DocumentLink.order(:created_at).last.source
+    assert_not_equal "statement", DocumentLink.order(:created_at).last.source
   end
 
   test "a duplicate upload alerts without creating a row" do
@@ -160,17 +168,20 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[data-turbo-frame='_top']", count: 0
   end
 
-  test "a resolved account ladder finishes the intake on the archive" do
+  test "a resolved account ladder still finishes the receipt intake on the archive" do
+    # (Task 8) The ladder no longer runs in the wizard for receipts — the draft
+    # does not exist yet, so the path always lands on the archive. The ladder
+    # moves into the read pipeline in a later task.
     users(:family_admin).update!(default_account: accounts(:depository))
     file = Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png")
 
-    assert_difference -> { ReceiptImport.count } => 1, -> { DocumentLink.count } => 1 do
-      post document_wizard_intake_path(source: "receipt_or_bill"), params: { document_file: file }
+    assert_no_difference -> { ReceiptImport.count } do
+      assert_difference -> { DocumentLink.count } => 1 do
+        post document_wizard_intake_path(source: "receipt_or_bill"), params: { document_file: file }
+      end
     end
 
-    draft = ReceiptImport.order(:created_at).last
     assert_redirected_to documents_path # no step-3 GET: the wizard finished
-    assert_equal accounts(:depository), draft.account
     assert_match(/reading it in the background/i, flash[:notice])
 
     follow_redirect!
@@ -179,34 +190,37 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
     assert_select "span", text: I18n.t("import.accounts.show.title"), count: 0
   end
 
-  test "a single-account user's intake finishes without the step-3 ask" do
+  test "a single-account user's receipt intake also finishes without the step-3 ask" do
     account_shares(:credit_card_shared_with_member).destroy!
     sign_in users(:family_member) # exactly one accessible visible account now
     file = Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png")
 
-    post document_wizard_intake_path(source: "receipt_or_bill"), params: { document_file: file }
+    assert_no_difference -> { ReceiptImport.count } do
+      post document_wizard_intake_path(source: "receipt_or_bill"), params: { document_file: file }
+    end
 
-    draft = ReceiptImport.order(:created_at).last
     assert_redirected_to documents_path
-    assert_equal accounts(:depository), draft.account
   end
 
-  test "a two-account user without a default still asks at step 3" do
+  test "a two-account user without a default no longer asks at step 3 for a receipt" do
+    # (Task 8) The step-3 ask was the receipt path's ambiguity route; it is now
+    # the statement path's alone until the ladder returns to the pipeline. No
+    # draft is created here, so there is nothing to ask about yet.
     sign_in users(:family_member)
     file = Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png")
 
-    post document_wizard_intake_path(source: "receipt_or_bill"), params: { document_file: file }
+    assert_no_difference -> { ReceiptImport.count } do
+      post document_wizard_intake_path(source: "receipt_or_bill"), params: { document_file: file }
+    end
 
-    draft = ReceiptImport.order(:created_at).last
-    assert_redirected_to import_account_path(draft)
-    assert_nil draft.account
+    assert_redirected_to documents_path
   end
 
   test "the one-tap source override wins over the guess and cannot escape receipt or bill" do
     overridden = Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png")
     post document_wizard_intake_path(source: "receipt_or_bill"),
          params: { document_file: overridden, source_override: "bill" }
-    assert_equal "bill", ReceiptImport.order(:created_at).last.document_link.source
+    assert_equal "bill", DocumentLink.order(:created_at).last.source
 
     # A hand-crafted override outside the pair is ignored and the guess (a
     # statement-shaped PDF under this tile) clamps to receipt — the override can
@@ -214,7 +228,7 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
     crafted = Rack::Test::UploadedFile.new(file_fixture("receipts/statement.pdf"), "application/pdf")
     post document_wizard_intake_path(source: "receipt_or_bill"),
          params: { document_file: crafted, source_override: "statement" }
-    assert_equal "receipt", ReceiptImport.order(:created_at).last.document_link.source
+    assert_equal "receipt", DocumentLink.order(:created_at).last.source
   end
 
   test "the title from Add details rides the intake" do

@@ -241,4 +241,35 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal true, validations["line_items_sum"]
     assert_equal true, validations["last4_in_ocr"]
   end
+
+  # --- Task 8: the receipt seam -----------------------------------------------
+
+  test "a receipt is routed to a draft and linked to its document" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    assert_difference -> { ReceiptImport.count }, 1 do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+
+    # The brief's fence reads `ReceiptImport.last`, but imports have UUID primary
+    # keys — `.last` orders by a random uuid, not by insertion, so it returns a
+    # fixture at random. Find the draft by the link the job read instead.
+    draft = ReceiptImport.find_by!(document_link_id: @link.id)
+    assert_equal @link.id, draft.document_link_id
+    assert_equal "understood", draft.understanding_state
+    assert_equal BigDecimal("12.34"), draft.total_amount
+  end
+
+  test "re-running the read does not mint a second draft" do
+    stub_ocr_success(pages: [ { page: 1, text: "TOTAL 12.34", confidence: 0.97 } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+    @link.update!(status: "queued")   # as the reaper would
+
+    assert_no_difference -> { ReceiptImport.count } do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+  end
 end

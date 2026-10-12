@@ -25,8 +25,12 @@ class ReceiptImport < Import
   def understood? = understanding_state == "understood"
   def needs_understanding? = understanding_state == "needs_understanding"
 
+  # The draft no longer kicks its own understanding job: the document job that
+  # is already running owns the read and creates the draft once it has a verdict
+  # (Task 8). Enqueuing the old regex-understanding job here too would leave two
+  # pipelines reading the same document.
   def self.create_from_document_link!(document_link:)
-    draft = create!(
+    create!(
       family: document_link.family,
       document_link: document_link,
       status: :pending,
@@ -34,11 +38,12 @@ class ReceiptImport < Import
       date_format: document_link.family.date_format,
       signage_convention: "inflows_negative"
     )
-    # One of the two sides of the settle race: if the snapshot already exists
-    # (the link settled before the draft committed), parse now; otherwise the
-    # job waits for the capture job's kick (CaptureContentJob).
-    ReceiptImport::UnderstandJob.perform_later(draft.id)
-    draft
+  end
+
+  # Idempotent: a retry, a reaper re-enqueue or a reprocess must adopt the existing
+  # draft rather than mint a second one (and a second set of rows).
+  def self.find_or_create_from_document_link!(document_link:)
+    find_by(document_link: document_link) || create_from_document_link!(document_link: document_link)
   end
 
   # --- extracted data -------------------------------------------------------
@@ -112,9 +117,8 @@ class ReceiptImport < Import
     end
   end
 
-  # The wizard's step 2 creates the draft and the understanding job kicks from
-  # both sides of the settle race (Task 6); the receipt's screenshot/bytes live
-  # on the DocumentLink.
+  # The document job creates the draft once it has a verdict (Task 8); the
+  # receipt's screenshot/bytes live on the DocumentLink.
   def document = document_link
 
   def requires_csv_workflow? = false
@@ -159,11 +163,13 @@ class ReceiptImport < Import
   # --- the money writer (D8) ------------------------------------------------
   #
   # The ONLY entry writer in M7, reached only through Import#publish (the
-  # reviewed publish button). Identity is the spec's reserved idempotency
-  # pattern (§7 errata): external_id "paperless:<docID>" + source "paperless",
-  # so a replayed or redelivered publish finds the same entry. Heuristic
-  # claiming is OFF: publishing never edits or adopts a user's existing entry —
-  # linking a receipt to an existing expense is M3's link-only path.
+  # reviewed publish button). Identity is the DOCUMENT, not the paperless id
+  # (Task 8): `external_id "document:<document_link.id>"` + `source "document"`,
+  # so a replayed or redelivered publish finds the same entry. The link outlives
+  # every attempt, so its id is stable across retries — which is exactly what
+  # makes the identity replay-safe once paperless_document_id is gone.
+  # Heuristic claiming is OFF: publishing never edits or adopts a user's existing
+  # entry — linking a receipt to an existing expense is M3's link-only path.
   def import!
     raise "Account required for a receipt import" unless account.present?
     raise "A receipt needs a total before it can be published" unless total_amount.present?
@@ -174,7 +180,7 @@ class ReceiptImport < Import
     # (Ruling M7-L3, 2026-10-11 close-out) the writer is REPLAY-SAFE, not just
     # guarded upstream: any route or retry that reaches it twice must not post
     # the money twice. The parent entry is claimed by its external_id
-    # (paperless:<docID>), so a replay finds it already present and must skip
+    # (document:<link id>), so a replay finds it already present and must skip
     # the split entirely rather than re-minting the children.
     # (Ruling M7-L8, 2026-10-11 close-out) ...and the guard is ATOMIC, not a
     # bare check-then-act: the unlocked `data_committed?` let two CONCURRENT
@@ -192,8 +198,8 @@ class ReceiptImport < Import
       transaction do
         adapter = Account::ProviderImportAdapter.new(account)
         entry = adapter.import_transaction(
-          external_id: "paperless:#{document_link.paperless_document_id}",
-          source: "paperless",
+          external_id: "document:#{document_link.id}",
+          source: "document",
           amount: total_amount,
           currency: default_currency, # Import's helper: account&.currency || family.currency
           date: purchase_date,
@@ -205,6 +211,11 @@ class ReceiptImport < Import
         # protected from provider syncs like every other import-written entry).
         entry.update!(import: self, import_locked: true)
         split_into_line_items!(entry) if line_items_split?
+
+        # The provenance edge that was never wired (spec §8.5): without this,
+        # document_links.entry_id stays nil for every published receipt and the
+        # "which document did this come from" question has no answer.
+        document_link.link_to_entry!(entry)
       end
     end
   end

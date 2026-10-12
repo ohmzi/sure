@@ -21,17 +21,18 @@ class DocumentLink::Intake
   FilenameTooLong = Class.new(StandardError)
 
   class << self
-    def call(family:, uploader:, file:, source: nil, title: nil)
-      new(family: family, uploader: uploader, file: file, source: source, title: title).call
+    def call(family:, uploader:, file:, source: nil, title: nil, enqueue: nil)
+      new(family: family, uploader: uploader, file: file, source: source, title: title, enqueue: enqueue).call
     end
   end
 
-  def initialize(family:, uploader:, file:, source:, title:)
+  def initialize(family:, uploader:, file:, source:, title:, enqueue: nil)
     @family = family
     @uploader = uploader
     @file = file
     @source = source
     @title = title
+    @enqueue = enqueue
   end
 
   def call
@@ -86,8 +87,14 @@ class DocumentLink::Intake
     # `queued` with its staged bytes so the retry route can re-drive it. The
     # caller distinguishes the held outcome from the queued-for-upload one by the
     # returned row's status (`queued` = held, `processing` = in flight).
+    #
+    # `enqueue:` (Task 8) lets a caller choose the job — the wizard hands the
+    # staged link to the native DocumentUnderstandingJob instead of the paperless
+    # upload, so one document is never read by two pipelines. The default is
+    # unchanged, so the archive's upload route behaves exactly as before.
     def enqueue_upload(link)
-      Paperless::UploadJob.perform_later(link.id)
+      job = @enqueue || ->(l) { Paperless::UploadJob.perform_later(l.id) }
+      job.call(link)
     rescue => e
       link.hold!(message: "enqueue failed: #{e.class}")
     end

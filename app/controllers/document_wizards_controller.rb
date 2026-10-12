@@ -1,10 +1,13 @@
 # frozen_string_literal: true
 
 # The document wizard's step 2 (M7): the quick-intake drop screen behind the
-# home New popup's two document rows. Step 3 (Import::AccountsController) is
-# only reached when the account prefill ladder cannot resolve (M8 Task 9,
-# Ruling M8-L1 decision 2); otherwise the wizard finishes on the archive and
-# must never block on OCR (locked decision 11).
+# home New popup's two document rows. The statement leg still finishes through
+# the account-prefill ladder: it hands off to step 3 (Import::AccountsController)
+# only when the ladder cannot resolve (M8 Task 9, Ruling M8-L1 decision 2).
+# The receipt/bill leg no longer asks at all (Task 8): it stages the link,
+# enqueues the native read and lands on the archive, and the ladder moves into
+# the read pipeline in a later task. The wizard must never block on OCR
+# (locked decision 11).
 class DocumentWizardsController < ApplicationController
   WIZARD_SOURCES = %w[receipt_or_bill statement].freeze
   # document_links.source is receipt|bill|statement|other. Under the Receipt or
@@ -55,10 +58,19 @@ class DocumentWizardsController < ApplicationController
         return redirect_to new_document_wizard_path(source: wizard_source), alert: t(".invalid_file")
       end
 
-      link = DocumentLink::Intake.call(family: Current.family, uploader: Current.user, file: file,
-                                       source: receipt_bill_source(file), title: params[:title].presence)
-      draft = ReceiptImport.create_from_document_link!(document_link: link)
-      finish_or_ask(draft, destination: documents_path, notice: t(".reading_in_background"))
+      # The link is staged and the native read owns everything after it (Task 8):
+      # DocumentUnderstandingJob is the enqueued job, so the paperless upload is
+      # never started for a wizard document and no document is read twice. The
+      # draft is created by the JOB once it has a verdict, so the wizard no
+      # longer creates one here — and the account prefill ladder moves into the
+      # pipeline in a later task, so this path finishes on the archive (the
+      # step-3 ask is now the statement path's alone until then).
+      DocumentLink::Intake.call(
+        family: Current.family, uploader: Current.user, file: file,
+        source: receipt_bill_source(file), title: params[:title].presence,
+        enqueue: ->(link) { DocumentUnderstandingJob.perform_later(link.id) }
+      )
+      redirect_to documents_path, notice: t(".reading_in_background")
     rescue DocumentLink::Intake::Duplicate
       redirect_to new_document_wizard_path(source: wizard_source), alert: t(".duplicate")
     rescue DocumentLink::Staging::TooLargeError
@@ -85,6 +97,10 @@ class DocumentWizardsController < ApplicationController
     # applies it and finishes on the archive (the 2026-10-11 hotfix's shape);
     # only the ambiguous case asks at step 3. A refusal from the move itself
     # (assign_account!'s guards) also falls back to the ask, never a 500.
+    # (Task 8) Reached only by the statement leg now: the receipt/bill leg has no
+    # draft at this point (the read job creates it), so it always finishes on the
+    # archive. Kept — not deleted — because the step-3 ask route is still live
+    # for statements and the receipt ladder returns to the pipeline in Task 10.
     def finish_or_ask(import, destination:, notice:)
       account = Import::AccountPrefill.call(user: Current.user).account
       applied = account && (import.is_a?(PdfImport) ? import.assign_account!(account) : import.update(account: account))

@@ -37,4 +37,16 @@ class DocumentLink::IntakeTest < ActiveSupport::TestCase
       DocumentLink::Intake.call(family: @family, uploader: users(:family_admin), file: @file, source: "invoice")
     end
   end
+
+  # (Task 8) The wizard hands the staged link to the native read instead of the
+  # paperless upload, so one document is never read by two pipelines. The
+  # default above (Paperless::UploadJob) is the archive route's, unchanged.
+  test "an explicit enqueue: chooses the job, and the paperless upload is not enqueued" do
+    assert_enqueued_with(job: DocumentUnderstandingJob) do
+      assert_no_enqueued_jobs only: Paperless::UploadJob do
+        DocumentLink::Intake.call(family: @family, uploader: users(:family_admin), file: @file,
+                                  enqueue: ->(link) { DocumentUnderstandingJob.perform_later(link.id) })
+      end
+    end
+  end
 end

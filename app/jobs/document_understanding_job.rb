@@ -111,6 +111,10 @@ class DocumentUnderstandingJob < ApplicationJob
     link.classify!(document_class: classification.document_class,
                    confidence: classification.confidence,
                    classified_by: classification.classified_by)
+    # Route while the link is still `processing` — settle! flips it to
+    # `unlinked` immediately after, and link_to_entry! only accepts the
+    # LINKABLE statuses (the routed draft is linked at PUBLISH, not here).
+    route(link, understanding, classification)
     link.settle!
     link.broadcast_row_update!
   rescue Ocr::Error
@@ -137,5 +141,23 @@ class DocumentUnderstandingJob < ApplicationJob
 
     def land_unreadable(link, code)
       link.hold!(message: "#{UNREADABLE_MESSAGE} (#{code})")
+    end
+
+    # The money-adjacent seam: a receipt or a bill becomes a reviewable draft,
+    # filled from the same three-method contract `apply_extraction!` has always
+    # consumed. Nothing here writes money — the reviewed publish does that.
+    # find_or_create (never create) because a retry, a reaper re-enqueue or a
+    # reprocess must adopt the draft it already made, not mint a second set of
+    # rows.
+    def route(link, understanding, classification)
+      case classification.document_class
+      when "receipt", "bill"
+        draft = ReceiptImport.find_or_create_from_document_link!(document_link: link)
+        draft.apply_extraction!(ReceiptImport::Understanding.new(understanding))
+      else
+        # "other": archived and deliberately not read for line items — the right
+        # answer for a warranty or a lease. Nothing to route.
+        nil
+      end
     end
 end

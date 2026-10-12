@@ -51,7 +51,7 @@ class ReceiptImportTest < ActiveSupport::TestCase
 
   # --- Task 7: the reviewed publish (D8) --------------------------------------
 
-  test "publish creates exactly one expense with the reserved paperless external id" do
+  test "publish creates exactly one expense with the document identity" do
     draft = imports(:receipt_understood)
     draft.update!(understanding_state: "understood")
     # (repaired 2026-10-10, verifier F3) The fixture keeps its items in
@@ -70,8 +70,10 @@ class ReceiptImportTest < ActiveSupport::TestCase
     end
 
     entry = draft.reload.entries.find_by(parent_entry_id: nil)
-    assert_equal "paperless:#{draft.document_link.paperless_document_id}", entry.external_id
-    assert_equal "paperless", entry.source
+    # (Task 8) The identity is the DOCUMENT, not paperless_document_id — a
+    # column Task 12 deletes. The link id is stable across retries.
+    assert_equal "document:#{draft.document_link.id}", entry.external_id
+    assert_equal "document", entry.source
     assert_equal BigDecimal("12.00"), entry.amount
     assert_equal Date.new(2026, 9, 14), entry.date
     assert_equal accounts(:depository), entry.account
@@ -92,7 +94,7 @@ class ReceiptImportTest < ActiveSupport::TestCase
   # (Ruling M7-L3) The writer is replay-safe on its own, not just behind the
   # route: the reviewer's direct-call probe re-ran import! on already-committed
   # data and doubled the split children (2 -> 4). The parent is claimed by its
-  # `paperless:<docID>` external_id, so a replay writes nothing.
+  # `document:<link id>` external_id (Task 8), so a replay writes nothing.
   test "a direct import! replay on committed data writes nothing" do
     draft = imports(:receipt_understood)
     draft.generate_rows_from_line_items!
@@ -181,6 +183,57 @@ class ReceiptImportTest < ActiveSupport::TestCase
       draft.publish
     end
   end
+
+  # --- Task 8: the receipt seam -----------------------------------------------
+  #
+  # The identity is the DOCUMENT, not the paperless id — the column this used to
+  # read is deleted in Task 12, and if the identity is not re-pointed here a
+  # retried publish can no longer find its own entry and the D8 replay-safety
+  # property is lost SILENTLY (every pre-Task-8 test still passes). The brief's
+  # fence spells the fixture `receipt_imports(:pending_receipt)`; the repo has no
+  # such fixture — the awaiting_ocr draft on the unlinked_receipt link is
+  # `imports(:receipt_draft)` (the same row the old create_from_document_link!
+  # test uses), so that is the one used here.
+
+  test "import! mints an identity that does not depend on paperless" do
+    draft = imports(:receipt_draft)
+    draft.update!(account: accounts(:depository), extracted_data: {
+      "total" => "12.34", "date" => "2026-10-01", "payee" => "Acme", "line_items" => []
+    })
+
+    entry = nil
+    assert_difference -> { Entry.count }, 1 do
+      draft.import!
+      entry = draft.reload.document_link.entry
+    end
+
+    assert_equal "document:#{draft.document_link.id}", entry.external_id
+    assert_equal "document", entry.source
+  end
+
+  test "publishing links the document to the entry it created" do
+    draft = imports(:receipt_draft)
+    draft.update!(account: accounts(:depository), extracted_data: {
+      "total" => "12.34", "date" => "2026-10-01", "payee" => "Acme", "line_items" => []
+    })
+
+    draft.import!
+
+    assert_equal draft.reload.document_link.reload.entry_id, draft.document_link.entry.id
+    assert_equal "linked", draft.document_link.status
+  end
+
+  test "a replayed publish finds its own entry instead of minting a second" do
+    draft = imports(:receipt_draft)
+    draft.update!(account: accounts(:depository), extracted_data: {
+      "total" => "12.34", "date" => "2026-10-01", "payee" => "Acme", "line_items" => []
+    })
+
+    draft.import!
+    assert_no_difference -> { Entry.count } do
+      ReceiptImport.find(draft.id).import!
+    end
+  end
 end
 
 # A genuine concurrent double-submit needs a second, concurrently-committing
@@ -216,6 +269,11 @@ class ReceiptImportConcurrentPublishTest < ActiveSupport::TestCase
     draft = imports(:receipt_understood)
     draft.entries.where(parent_entry_id: nil).find_each(&:destroy)
     draft.rows.destroy_all
+    # (Task 8) import! now calls document_link.link_to_entry!, so the LINK is
+    # written too — and this class commits, so the fixture set is reused. Reset
+    # it to the fixture's own state (unlinked, no entry) or the next test in
+    # this process inherits a linked row pointing at a destroyed entry.
+    draft.document_link.unlink!
   ensure
     ActiveRecord::Base.establish_connection(@original_db_config) if @original_db_config
   end
@@ -284,7 +342,9 @@ class ReceiptImportConcurrentPublishTest < ActiveSupport::TestCase
       writer.value # joins the writer and re-raises anything it raised
       reader.value # likewise; the loser of the race must return, not raise
 
-      external_id = "paperless:#{draft.document_link.paperless_document_id}"
+      # (Task 8) The parent's identity is the DOCUMENT link id — the same
+      # `document:<link id>` import! now mints.
+      external_id = "document:#{draft.document_link.id}"
       parent = Entry.find_by(account: accounts(:depository), external_id: external_id)
       assert parent.present?, "the first submit must commit the expense"
       assert_equal 2, parent.child_entries.count, "the second submit must not re-mint the split children"
