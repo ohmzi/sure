@@ -523,20 +523,14 @@ class Family::DataExporter
         }.to_json
       end
 
-      # Export budgets
+      # Export budgets (explicit, versioned envelope contract).
       @family.budgets.find_each do |budget|
-        lines << {
-          type: "Budget",
-          data: budget.as_json
-        }.to_json
+        lines << { type: "Budget", version: 1, data: serialize_budget_for_export(budget) }.to_json
       end
 
-      # Export budget categories
+      # Export budget categories (explicit, versioned envelope contract).
       @family.budget_categories.includes(:budget, :category).find_each do |budget_category|
-        lines << {
-          type: "BudgetCategory",
-          data: budget_category.as_json
-        }.to_json
+        lines << { type: "BudgetCategory", version: 1, data: serialize_budget_category_for_export(budget_category) }.to_json
       end
 
       # Export rules with versioned schema, in run order
@@ -758,6 +752,33 @@ class Family::DataExporter
         stop_processing: rule.stop_processing,
         conditions: rule.conditions.where(parent_id: nil).map { |condition| serialize_condition(condition) },
         actions: rule.actions.map { |action| serialize_action(action) }
+      }
+    end
+
+    def serialize_budget_for_export(budget)
+      {
+        id: budget.id,
+        start_date: budget.start_date,
+        end_date: budget.end_date,
+        budgeted_spending: budget.budgeted_spending,
+        expected_income: budget.expected_income,
+        currency: budget.currency,
+        user_id: budget.user_id
+      }
+    end
+
+    def serialize_budget_category_for_export(budget_category)
+      {
+        id: budget_category.id,
+        budget_id: budget_category.budget_id,
+        category_id: budget_category.category_id,
+        budgeted_spending: budget_category.budgeted_spending,
+        currency: budget_category.currency,
+        rollover_enabled: budget_category.rollover_enabled,
+        rolled_over_amount: budget_category.rolled_over_amount,
+        target_amount: budget_category.target_amount,
+        target_type: budget_category.target_type,
+        target_date: budget_category.target_date
       }
     end
 

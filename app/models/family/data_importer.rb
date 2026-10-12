@@ -77,6 +77,7 @@ class Family::DataImporter
     "BudgetCategory" => "budget_categories",
     "Rule" => "rules"
   }.freeze
+  TARGET_TYPES = %w[monthly_assign savings_balance savings_by_date needed_for_spending].freeze
 
   def initialize(family, ndjson_content, import_session: nil, import: nil)
     @family = family
@@ -1313,15 +1314,26 @@ class Family::DataImporter
         require_source_id!("Budget", old_id)
 
         budget = mapped_record(:budgets, old_id, @family.budgets, record_type: "Budget")
-        created = budget.blank?
-        budget ||= @family.budgets.build
+        start_date = Date.parse(data["start_date"].to_s)
+        end_date = Date.parse(data["end_date"].to_s)
+        user_id = mapped_user_id(data["user_id"])
 
+        if budget.blank? && user_id.nil?
+          # A personal budget whose owner is absent from the target family degrades
+          # to the household budget; reuse the existing household row for the period
+          # instead of inserting a second user_id-nil budget (index_budgets_shared_unique).
+          budget = @family.budgets.find_by(start_date: start_date, end_date: end_date, user_id: nil)
+        end
+
+        budget ||= @family.budgets.build
+        created = budget.new_record?
         budget.assign_attributes(
-          start_date: Date.parse(data["start_date"].to_s),
-          end_date: Date.parse(data["end_date"].to_s),
+          start_date: start_date,
+          end_date: end_date,
           budgeted_spending: data["budgeted_spending"]&.to_d,
           expected_income: data["expected_income"]&.to_d,
-          currency: data["currency"] || @family.currency
+          currency: data["currency"] || @family.currency,
+          user_id: user_id
         )
 
         budget.save!
@@ -1334,11 +1346,9 @@ class Family::DataImporter
       records.each do |record|
         data = record["data"]
 
-        # Map budget ID
         new_budget_id = mapped_id(:budgets, data["budget_id"], record_type: "BudgetCategory")
         next unless new_budget_id
 
-        # Map category ID
         new_category_id = mapped_id(:categories, data["category_id"], record_type: "BudgetCategory")
         next unless new_category_id
 
@@ -1349,12 +1359,31 @@ class Family::DataImporter
         budget_category.assign_attributes(
           category_id: new_category_id,
           budgeted_spending: data["budgeted_spending"].to_d,
-          currency: data["currency"] || budget.currency
+          currency: data["currency"] || budget.currency,
+          rollover_enabled: truthy?(data["rollover_enabled"]) || false,
+          rolled_over_amount: data["rolled_over_amount"]&.to_d || 0,
+          target_amount: data["target_amount"]&.to_d,
+          target_type: imported_target_type(data["target_type"]),
+          target_date: parse_import_date(data["target_date"])
         )
 
         budget_category.save!
         increment_summary("BudgetCategory", created ? :created : :updated)
       end
+    end
+
+    # A budget's owner travels only when the referenced user exists in the target
+    # family. SureImport exports no User records, so cross-family personal budgets
+    # degrade to the household budget (user_id nil) rather than dangling a FK
+    # (budgets.user_id -> users, on_delete: :cascade).
+    def mapped_user_id(value)
+      return nil if value.blank?
+
+      @family.users.where(id: value).pick(:id)
+    end
+
+    def imported_target_type(value)
+      value.presence_in(TARGET_TYPES)
     end
 
     # New rules are appended after the family's existing ones, in the exported
