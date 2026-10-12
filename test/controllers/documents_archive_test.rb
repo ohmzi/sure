@@ -206,6 +206,26 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     assert_no_match "Dated receipt", response.body
   end
 
+  test "the displayed date is the same coerced date the range filter uses" do
+    # (Ruling M8-C3, 2026-10-11 close-out) a needs_understanding draft carrying
+    # a purchase date must not move the row's display: the range/sort SQL only
+    # reads UNDERSTOOD drafts, and the displayed date must BE that authority.
+    link = document_links(:unlinked_receipt)
+    link.receipt_imports.destroy_all
+    link.update!(title: "Undated review receipt")
+    link.update_columns(created_at: Time.zone.parse("2026-09-15 12:00"))
+    ReceiptImport.create!(family: families(:dylan_family), document_link: link, type: "ReceiptImport",
+                          status: "pending", understanding_state: "needs_understanding",
+                          extracted_data: { "date" => "2026-01-05" })
+    date_format = families(:dylan_family).date_format
+
+    get documents_path(q: { date_from: "2026-09-01", date_to: "2026-09-30" })
+
+    assert_match "Undated review receipt", response.body # the range agrees: created_at is the authority
+    assert_match Date.iso8601("2026-09-15").strftime(date_format), response.body
+    assert_no_match Date.iso8601("2026-01-05").strftime(date_format), response.body
+  end
+
   # -- the tag facet (M8 Task 6) ----------------------------------------------
 
   test "the tag facet filters by the stored snapshot" do

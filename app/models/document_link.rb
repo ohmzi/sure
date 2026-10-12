@@ -180,6 +180,20 @@ class DocumentLink < ApplicationRecord
         .update_all(paperless_tags: names, updated_at: Time.current) == 1
   end
 
+  # The row's displayed "document date" MUST be the same coerced date the
+  # range filter and the document_date sort use (Ruling M8-C3, 2026-10-11
+  # close-out — they used to disagree for reachable states). Same precedence
+  # as DocumentLink::Search::DOCUMENT_DATE_SQL: the latest UNDERSTOOD draft
+  # whose raw extracted date passes the SQL's shape guard, else the upload
+  # date. A needs_understanding draft carrying a date, or a newer draft that
+  # is not understood, must not move the display away from that authority.
+  def document_date
+    draft = receipt_imports
+      .select { |import| import.understanding_state == "understood" && import.extracted_data&.dig("date").to_s.match?(/\d{4}-\d{2}-\d{2}/) }
+      .max_by(&:created_at)
+    draft&.purchase_date || created_at.to_date
+  end
+
   # The live row (M8 Task 9, Ruling M8-L1 decision 3): when a draft's
   # understanding settles, the archive's row re-renders in place over the
   # family stream every layout subscribes to, so "Reading…" flips to the review

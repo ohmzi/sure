@@ -69,7 +69,9 @@ class DocumentBrowser::Row
         thumb_url: (routes.file_document_path(link, kind: "thumb") if ready),
         icon: icon_for(link.content_type),
         statuses: [ Status.new(label: I18n.t("documents.status.#{link.status}"), tone: STATUS_TONES.fetch(link.status, :neutral)) ],
-        date: draft&.purchase_date || link.created_at.to_date,
+        # (Ruling M8-C3, 2026-10-11 close-out) the displayed date is the same
+        # coerced date the range/sort SQL uses, never the newest draft's date.
+        date: link.document_date,
         tags: link.paperless_tags,
         merchant: draft&.payee,
         amount: draft&.total_amount,

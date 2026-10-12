@@ -63,6 +63,36 @@ class DocumentLink::SearchTest < ActiveSupport::TestCase
     assert_includes invalid, link.id
   end
 
+  test "the displayed date is the same coerced date the range and sort use" do
+    # (Ruling M8-C3, 2026-10-11 close-out) a needs_understanding draft carrying
+    # a purchase date, and a newer draft that is not understood, must not move
+    # the row's display away from DOCUMENT_DATE_SQL's precedence.
+    link = document_links(:unlinked_receipt)
+    link.receipt_imports.destroy_all
+    link.update_columns(created_at: Time.zone.parse("2026-09-15 12:00"))
+
+    ReceiptImport.create!(family: @family, document_link: link, type: "ReceiptImport",
+                          status: "pending", understanding_state: "needs_understanding",
+                          extracted_data: { "date" => "2026-01-05" })
+
+    assert_equal "2026-09-15", document_date_sql(link) # the authority: the upload date
+    assert_equal Date.iso8601("2026-09-15"), link.document_date
+    assert_equal link.document_date, DocumentBrowser::Row.for_document_link(link).date
+    assert_includes document_date_range(link, "2026-09-01", "2026-09-30"), link.id
+    assert_not_includes document_date_range(link, "2026-01-01", "2026-01-31"), link.id
+
+    # A NEWER draft that is not understood must not shadow the latest
+    # understood one — the SQL reads only understood drafts, so the display
+    # follows that same pick.
+    ReceiptImport.create!(family: @family, document_link: link, type: "ReceiptImport",
+                          status: "pending", understanding_state: "understood",
+                          extracted_data: { "date" => "2026-08-01" })
+
+    assert_equal "2026-08-01", document_date_sql(link)
+    assert_equal Date.iso8601("2026-08-01"), link.reload.document_date
+    assert_equal link.document_date, DocumentBrowser::Row.for_document_link(link).date
+  end
+
   # -- the tag facet (M8 Task 6) ----------------------------------------------
 
   test "the tag filter matches by array overlap on the stored snapshot" do
@@ -135,4 +165,16 @@ class DocumentLink::SearchTest < ActiveSupport::TestCase
     assert_equal unfiltered, DocumentLink::Search.new(family: @family, filters: { status: [] }).relation.pluck(:id)
     assert_equal unfiltered, DocumentLink::Search.new(family: @family, filters: { status: %w[bogus] }).relation.pluck(:id)
   end
+
+  private
+    # The expression the range/sort SQL evaluates — the display must equal it,
+    # never merely "look plausible" (Ruling M8-C3).
+    def document_date_sql(link)
+      DocumentLink::Search.new(family: @family).relation.where(id: link.id)
+                          .pick(Arel.sql(DocumentLink::Search::DOCUMENT_DATE_SQL))
+    end
+
+    def document_date_range(link, from, to)
+      DocumentLink::Search.new(family: @family, filters: { date_from: from, date_to: to }).relation.pluck(:id)
+    end
 end
