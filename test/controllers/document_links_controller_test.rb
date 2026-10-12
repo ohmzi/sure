@@ -342,7 +342,19 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "an id outside the family's links is a 404, never a leak" do
-    get viewer_document_path(SecureRandom.uuid) # set_link scopes to Current.family; a stale/foreign id dies there
+    # (Ruling M8-C4, 2026-10-11 close-out) a REAL foreign-family row, not a
+    # random UUID: this id exists, so without family scoping `set_link` would
+    # find it and the viewer would render it — the 404 is discriminating.
+    foreign = DocumentLink.create!(family: families(:empty), created_by: users(:empty),
+                                   source: "receipt", status: "unlinked", paperless_document_id: 9199,
+                                   title: "Foreign receipt", original_filename: "foreign.png",
+                                   content_type: "image/png")
+
+    get viewer_document_path(foreign)
+    assert_response :not_found
+
+    # The random-UUID shape stays as an extra: a stale id dies at the same gate.
+    get viewer_document_path(SecureRandom.uuid)
     assert_response :not_found
   end
 

@@ -515,6 +515,23 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
 
   # -- the viewer modal (M8 Task 4) -------------------------------------------
 
+  test "an id outside the family's statements is a 404, never a leak" do
+    # (Ruling M8-C4, 2026-10-11 close-out) a REAL foreign-family statement id:
+    # this row exists, so without family scoping `set_statement` would find it
+    # — the 404 is discriminating, unlike a random UUID alone.
+    foreign = AccountStatement.create_from_upload!(
+      family: families(:empty), account: nil,
+      file: uploaded_file(filename: "foreign_statement.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+
+    get viewer_account_statement_path(foreign)
+    assert_response :not_found
+
+    # The random-UUID shape stays as an extra: a stale id dies at the same gate.
+    get viewer_account_statement_path(SecureRandom.uuid)
+    assert_response :not_found
+  end
+
   test "a csv statement's viewer offers a download instead of a broken preview" do
     statement = AccountStatement.create_from_upload!(
       family: @account.family, account: @account,
