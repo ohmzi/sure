@@ -34,8 +34,8 @@ class AccountStatement < ApplicationRecord
     ".qfx" => %w[application/vnd.intu.qfx application/x-ofx text/xml application/xml text/plain application/octet-stream],
     # M7 (locked decision 9): a camera photo of a statement is a first-class
     # vault upload. Types are the Task-1 probe's Marcel results (real magic
-    # bytes: JPEG/PNG signatures, ISO-BMFF `ftypheic`/`ftypmif1`); paperless
-    # decodes HEIC (M1 R12 heic-ok), so the wizard posts the bytes unchanged.
+    # bytes: JPEG/PNG signatures, ISO-BMFF `ftypheic`/`ftypmif1`); the wizard
+    # posts the bytes unchanged.
     ".jpg" => %w[image/jpeg],
     ".jpeg" => %w[image/jpeg],
     ".png" => %w[image/png],
@@ -51,24 +51,22 @@ class AccountStatement < ApplicationRecord
 
   has_many :pdf_imports, -> { where(type: "PdfImport").ordered }, class_name: "PdfImport", dependent: :restrict_with_error
   has_one_attached :original_file, dependent: :purge_later
-  # The statement's archived document copy (M8): StatementOcrJob creates it for
-  # paperless-extracted statements; CSV/XLSX/OFX rows have none. The viewer and
-  # the tag facet read through it (never destroyed with the statement — the
-  # link's history outlives the vault row).
+  # The statement's archived document copy (M8): the native read creates it for
+  # the statements it reads; CSV/XLSX/OFX rows have none. The viewer and the tag
+  # facet read through it (never destroyed with the statement — the link's
+  # history outlives the vault row).
   has_one :archived_document_link, -> { where(source: "statement") }, class_name: "DocumentLink",
           foreign_key: :account_statement_id, dependent: nil
 
   enum :source, { manual_upload: "manual_upload" }, validate: true, default: "manual_upload"
   enum :upload_status, { stored: "stored", failed: "failed" }, validate: true, default: "stored"
-  # The outcome of the deterministic (paperless OCR + template) extraction path
-  # for scanned PDF statements (spec §8.6). The AI path never sets this, so it
-  # stays not_attempted there. `extraction_failed` avoids colliding with the
+  # The statement's extraction outcome: the native read sets `extracted` once it
+  # has read the statement. `extraction_failed` avoids colliding with the
   # upload_status `failed` helper.
   enum :extraction_state, {
     not_attempted: "not_attempted",
     processing: "processing",
     extracted: "extracted",
-    needs_template: "needs_template",
     extraction_failed: "extraction_failed"
   }, validate: true, default: "not_attempted", scopes: false
   enum :review_status, { unmatched: "unmatched", linked: "linked", rejected: "rejected" }, validate: true, default: "unmatched", scopes: false
@@ -111,8 +109,8 @@ class AccountStatement < ApplicationRecord
 
     # Statement search over the statement's own filename OR the OCR snapshot of
     # its linked document (a statement without a link still matches by name —
-    # the fallback). Local only: paperless is never queried (M8 locked
-    # decision 4 / M7 Task 10's pin, kept verbatim in behaviour).
+    # the fallback). Local only: never an external call (M8 locked decision 4 /
+    # M7 Task 10's pin, kept verbatim in behaviour).
     def search(query)
       term = query.to_s.strip
       return all if term.blank?

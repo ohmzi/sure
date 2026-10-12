@@ -312,18 +312,6 @@ class PdfImportTest < ActiveSupport::TestCase
     assert import.errors[:account_statement].present?
   end
 
-  test "routing takes the OCR path for an image statement" do
-    statement = AccountStatement.create_from_upload!(
-      family: families(:dylan_family), account: nil,
-      file: Rack::Test::UploadedFile.new(file_fixture("statements/scan.png"), "image/png")
-    )
-    import = PdfImport.create_from_statement!(statement: statement)
-
-    assert_enqueued_with(job: StatementOcrJob) do
-      assert_equal :ocr, PdfImport.route_processing_later!(import, file: Rack::Test::UploadedFile.new(file_fixture("statements/scan.png"), "image/png"))
-    end
-  end
-
   private
 
     def create_pdf_statement(account: accounts(:depository))

@@ -33,9 +33,9 @@
 
       <div class="bg-container border border-primary rounded-xl p-4 space-y-4">
         <% link = import.document_link %>
-        <% if link.present? && link.paperless_document_id.present? %>
-          <%# Ruling 6 (M1): only rows with a paperless copy have a file — #file
-              404s for queued/held rows, so they get no thumbnail or link. %>
+        <% if link.present? && link.stored_path.present? %>
+          <%# Ruling 6 (M1): only rows with stored bytes have a file — #file
+              404s for byte-less rows, so they get no thumbnail or link. %>
           <% if link.content_type.to_s.start_with?("image/") %>
             <%= image_tag file_document_path(link, kind: "thumb"),
                   alt: link.title.presence || link.original_filename,

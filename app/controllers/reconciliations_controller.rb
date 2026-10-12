@@ -17,12 +17,6 @@ class ReconciliationsController < ApplicationController
     # a candidate row is only ever an entry on an account the current user can
     # see, so an unshared account's name/amount/date never renders.
     @results = @links.index_with { |link| ReceiptMatcher.call(link, viewer: Current.user) }
-  rescue Paperless::Error
-    # Paperless is unreachable: render the persisted rows rather than 500ing the
-    # whole inbox. The _result partial tolerates a nil result.
-    # (Ruling P-m3-1, 2026-10-10 pre-flight)
-    @results = @links.index_with { nil }
-    flash.now[:alert] = t(".paperless_unavailable")
   end
 
   def link
@@ -48,10 +42,6 @@ class ReconciliationsController < ApplicationController
       format.html { redirect_to reconciliations_path, notice: t(".success") }
       format.turbo_stream { stream_redirect_to reconciliations_path, notice: t(".success") }
     end
-  rescue Paperless::Error
-    # Paperless is unreachable: nothing can be re-checked, so return to the inbox
-    # with an alert. (Ruling P-m3-1, 2026-10-10 pre-flight)
-    redirect_to reconciliations_path, alert: t(".paperless_unavailable")
   end
 
   def dismiss
@@ -72,10 +62,6 @@ class ReconciliationsController < ApplicationController
       format.html { redirect_to reconciliations_path, notice: t(".success") }
       format.turbo_stream { stream_redirect_to reconciliations_path, notice: t(".success") }
     end
-  rescue Paperless::Error
-    # (Ruling M3-C2 R1c, 2026-10-11 close-out) the visibility check reads the
-    # document from paperless; an outage must answer honestly, not 500.
-    redirect_to reconciliations_path, alert: t(".paperless_unavailable")
   end
 
   private

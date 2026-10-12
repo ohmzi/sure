@@ -1,11 +1,6 @@
 require "test_helper"
 
 class DocumentLinkTest < ActiveSupport::TestCase
-  # assert_enqueued_with lives in ActiveJob::TestHelper (the repo convention —
-  # the same include Task 1's finish_processing! enqueue pin needs, see
-  # test/models/ofx_import_test.rb and its Ruling M2-L2 note).
-  include ActiveJob::TestHelper
-
   setup do
     @family = families(:dylan_family)
     @entry = entries(:transaction)
@@ -50,16 +45,6 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert_nil link.failure_message
   end
 
-  test "finish_processing! files the document id and only from processing" do
-    link = document_links(:queued_receipt)
-    assert link.mark_processing!
-    assert link.finish_processing!(document_id: 4242)
-    link.reload
-    assert_equal "unlinked", link.status
-    assert_equal 4242, link.paperless_document_id
-    assert_nil link.paperless_task_id
-  end
-
   test "record_match! moves an unlinked row to suggested through the guarded path" do
     assert @link.record_match!(status: "suggested", confidence: 62)
     @link.reload
@@ -80,15 +65,13 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert_equal 90, link.confidence
   end
 
-  test "retry_upload! resets the poll budget and clears the failure" do
+  test "retry_upload! clears the failure and re-queues the row" do
     link = document_links(:queued_receipt)
     assert link.mark_processing!
-    link.note_poll!(7)
     assert link.fail!("boom")
     assert link.retry_upload!
     link.reload
     assert_equal "queued", link.status
-    assert_equal 0, link.poll_attempts
     assert_nil link.failure_message
   end
 
@@ -222,58 +205,5 @@ class DocumentLinkTest < ActiveSupport::TestCase
 
     assert link.record_content!("SECOND READ", refresh: true)
     assert_equal "SECOND READ", link.reload.extracted_text
-  end
-
-  # M8 Task 6: the settle-time tag snapshot is idempotent exactly like
-  # record_content! — it fills only a blank column, so a replayed job or a
-  # backfill run can never overwrite names already resolved.
-  test "record_tags! writes once and refuses to overwrite" do
-    link = document_links(:unlinked_receipt)
-    assert link.record_tags!(%w[ohmzbudget receipt])
-
-    assert_equal %w[ohmzbudget receipt], link.reload.tags
-    assert_not link.record_tags!(%w[other])
-    assert_equal %w[ohmzbudget receipt], link.reload.tags
-    assert_not link.record_tags!([])
-  end
-
-  test "finish_processing! enqueues exactly one content capture when it settles the row" do
-    link = document_links(:queued_receipt)
-    assert link.mark_processing!
-
-    assert_enqueued_with(job: Paperless::CaptureContentJob, args: [ link.id ]) do
-      assert link.finish_processing!(document_id: 4242)
-    end
-
-    assert_not link.finish_processing!(document_id: 4243)
-  end
-
-  # (Ruling M7-L9, 2026-10-11 close-out) the settle choke point's enqueue is
-  # failure-SAFE: a transient enqueue failure (Sidekiq/Redis down) must not
-  # lose the snapshot silently (the M1-Ruling-11 class). The settle stands, the
-  # failure is logged, and the settled-but-snapshotless scope the backfill task
-  # computes — re-driven hourly by SyncCleanerJob — picks the link up.
-  test "a raising content-capture enqueue is rescued and the sweep re-drives the link" do
-    link = document_links(:queued_receipt)
-    assert link.mark_processing!
-
-    Paperless::CaptureContentJob.stubs(:perform_later).raises(StandardError.new("redis down"))
-
-    settled = nil
-    assert_difference "DebugLogEntry.count", 1 do
-      assert_nothing_raised { settled = link.finish_processing!(document_id: 4242) }
-    end
-    assert settled, "the settle must stand when only the enqueue failed"
-
-    link.reload
-    assert_equal "unlinked", link.status
-    assert_equal 4242, link.paperless_document_id
-    assert_nil link.extracted_text
-
-    Paperless::CaptureContentJob.unstub(:perform_later)
-
-    assert_enqueued_with(job: Paperless::CaptureContentJob, args: [ link.id ]) do
-      DocumentLink.capture_pending_content
-    end
   end
 end

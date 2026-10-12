@@ -36,8 +36,12 @@ class DocumentLink::Intake
   end
 
   def call
-    resolved_source = @source.presence ||
-                      DocumentLink::SourceGuesser.guess(filename: filename, content_type: content_type).to_s
+    # The reader decides the document's class. A blank source (the archive
+    # form's "detect automatically") starts every upload as a receipt; the
+    # native read's DocumentClassifier writes the real class once the bytes are
+    # read. The old filename heuristic (DocumentLink::SourceGuesser) is gone
+    # because it could not tell a photographed receipt from a scanned statement.
+    resolved_source = @source.presence || "receipt"
     raise InvalidSource unless DocumentLink::SOURCES.include?(resolved_source)
     raise FilenameTooLong if filename.length > MAX_FILENAME_LENGTH
     # Cap before the digest read: an over-cap upload must never be buffered in
@@ -88,12 +92,11 @@ class DocumentLink::Intake
     # caller distinguishes the held outcome from the queued-for-upload one by the
     # returned row's status (`queued` = held, `processing` = in flight).
     #
-    # `enqueue:` (Task 8) lets a caller choose the job — the wizard hands the
-    # staged link to the native DocumentUnderstandingJob instead of the paperless
-    # upload, so one document is never read by two pipelines. The default is
-    # unchanged, so the archive's upload route behaves exactly as before.
+    # `enqueue:` lets a caller choose the job; the default is the native
+    # DocumentUnderstandingJob. The archive's upload route and the wizard now
+    # run the same read, so one document is never read by two pipelines.
     def enqueue_upload(link)
-      job = @enqueue || ->(l) { Paperless::UploadJob.perform_later(l.id) }
+      job = @enqueue || ->(l) { DocumentUnderstandingJob.perform_later(l.id) }
       job.call(link)
     rescue => e
       link.hold!(message: "enqueue failed: #{e.class}")

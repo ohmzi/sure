@@ -15,7 +15,7 @@
     <div data-controller="receipt-dropzone"
          data-action="dragover->receipt-dropzone#dragover drop->receipt-dropzone#drop">
       <%= styled_form_with url: document_wizard_intake_path(source: @source), multipart: true,
-                           data: { turbo_frame: (@finish_immediately ? :_top : "modal"),
+                           data: { turbo_frame: :_top,
                                    "receipt-dropzone-target": "form" } do |form| %>
         <p class="px-2 pb-2 text-xs text-secondary"><%= t("document_wizards.new.description_#{@source}") %></p>
 

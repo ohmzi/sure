@@ -14,7 +14,7 @@ class AccountStatementsController < ApplicationController
     @rows = @statements.map { |statement| DocumentBrowser::Row.for_account_statement(statement, viewer_url: viewer_account_statement_path(statement, document_browser_viewer_params)) }
     # The tag facet's choices: the archived links' stored snapshots (M8 Task 6),
     # narrowed to the statements this user may see — the same visible scope as
-    # the list, never a live paperless call.
+    # the list, never a live external call.
     @tag_choices = DocumentLink.tag_snapshot_names(
       Current.family.document_links.where(account_statement_id: visible_storage_scope.select(:id))
     )

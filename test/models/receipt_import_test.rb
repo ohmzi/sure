@@ -39,16 +39,6 @@ class ReceiptImportTest < ActiveSupport::TestCase
     assert_includes @link.receipt_imports, imports(:receipt_draft)
   end
 
-  test "capturing content kicks the linked draft" do
-    Paperless::Client.any_instance.stubs(:document).returns(
-      Paperless::Document.new(id: 9001, title: "Receipt", created: Date.current, tag_ids: [], content: "TOTAL 1.00")
-    )
-
-    assert_enqueued_with(job: ReceiptImport::UnderstandJob, args: [ imports(:receipt_draft).id ]) do
-      Paperless::CaptureContentJob.perform_now(document_links(:unlinked_receipt).id)
-    end
-  end
-
   # --- Task 7: the reviewed publish (D8) --------------------------------------
 
   test "publish creates exactly one expense with the document identity" do

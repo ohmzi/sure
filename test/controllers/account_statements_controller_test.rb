@@ -640,7 +640,7 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     # (Ruling M8-C6, 2026-10-11 close-out) the close-out's named statements tag
     # scope, pinned permanently: the choices come from the stored snapshot on
     # the VISIBLE statements' archived links, and the filter narrows through
-    # the same subquery — never a paperless call.
+    # the same subquery — never a live external call.
     tagged = AccountStatement.create_from_upload!(
       family: @account.family, account: @account,
       file: uploaded_file(filename: "tagged_statement.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
@@ -702,7 +702,7 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
       family: @account.family, account: @account,
       file: uploaded_file(filename: "facet_linked.csv", content_type: "text/csv", content: "date,amount\n2024-01-02,2\n")
     )
-    linked.update_columns(extraction_state: "needs_template")
+    linked.update_columns(extraction_state: "extraction_failed")
 
     get account_statements_path
     AccountStatement::Search::REVIEW_FILTERS.each do |review|
@@ -717,7 +717,7 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match linked.filename, response.body
     assert_select "input[name='q[review][]'][checked='checked'][value='unmatched']"
 
-    get account_statements_path(q: { extraction: %w[needs_template] })
+    get account_statements_path(q: { extraction: %w[extraction_failed] })
     assert_match linked.filename, response.body
     assert_no_match unmatched.filename, response.body
   end

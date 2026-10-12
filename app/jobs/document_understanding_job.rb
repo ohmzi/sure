@@ -2,9 +2,9 @@
 
 # The native read: one idempotent job per document.
 #
-# paperless did this in two halves — Upload/TaskPoll/CaptureContent for the text,
-# StatementOcrJob or ReceiptImport::UnderstandJob for the meaning. Both halves
-# are one job now, because both halves need the same thing: the pages.
+# The read is one job: the OCR sidecar produces the text and the page images,
+# and the AI provider reads the meaning from them, because both halves need the
+# same thing: the pages.
 class DocumentUnderstandingJob < ApplicationJob
   queue_as :heavy
 
@@ -39,10 +39,8 @@ class DocumentUnderstandingJob < ApplicationJob
   #
   # The block runs once the retries are SPENT and the sidecar is still
   # unreachable, and lands the row terminally with a message. Without it the row
-  # would rest mid-read forever — invisible, and never re-driven (no sweep
-  # touches a native row: DocumentLink.capture_pending_content keys on a
-  # paperless_document_id the native path never sets). That silent wedge is the
-  # predecessor's failure mode this milestone exists to remove.
+  # would rest mid-read forever — invisible, and never re-driven. That silent
+  # wedge is the predecessor's failure mode this milestone exists to remove.
   #
   # It uses abandon!, not fail! (fix round 2): during the backoff the row is
   # parked `queued` (await_retry!), so fail!'s `processing`-only guard would
@@ -59,8 +57,7 @@ class DocumentUnderstandingJob < ApplicationJob
   # bounded retry ladder as an OCR blip instead (fix round 2, the transient
   # self-healing the reviewer flagged): parked during the backoff, then either a
   # successful read settles the row or the ladder is spent and abandon! lands it
-  # terminally. Bounded at 8 attempts — cheaper than the paperless-era hourly
-  # sweep it replaces.
+  # terminally. Bounded at 8 attempts.
   retry_on Provider::Error, wait: :polynomially_longer, attempts: 8 do |job, error|
     DocumentLink.find_by(id: job.arguments.first)&.abandon!(
       message: "AI provider unavailable after 8 attempts: #{error.message}"
@@ -283,9 +280,8 @@ class DocumentUnderstandingJob < ApplicationJob
     end
 
     # What the review screen shows and the next-steps email carries. The AI read
-    # this document — the paperless/template wording `statement_ocr` carries
-    # describes a path this one replaces (Task 12 sweeps it) — and the summary must
-    # stay present: Import#ai_processed? IS `ai_summary.present?`, and the publish
+    # this document, and the summary must stay present: Import#ai_processed? IS
+    # `ai_summary.present?`, and the publish
     # gate reads it. The bank name is a hint the read may not have produced, so a
     # nameless statement gets the sentence without the parenthesis rather than an
     # empty "()".

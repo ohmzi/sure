@@ -43,13 +43,14 @@ class ReceiptImportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal BigDecimal("12.00"), @draft.reload.total_amount
   end
 
-  # (D8, Step 5's end-to-end pin) Understanding settles the draft and the review
-  # screen renders it — the whole path through the controller writes nothing:
-  # only Import#publish (the reviewed publish) ever creates an entry.
-  test "understanding a receipt and rendering its review screen writes no money" do
+  # (D8, Step 5's end-to-end pin) A settled draft's review screen renders and
+  # writes nothing: only Import#publish (the reviewed publish) ever creates an
+  # entry. The read itself that settles the draft is pinned in
+  # document_understanding_job_test; here the draft is seeded settled.
+  test "rendering a settled receipt's review screen writes no money" do
     draft = imports(:receipt_draft)
     draft.document_link.record_content!(File.read(Rails.root.join("test/fixtures/files/receipts/wizard_latte.txt")))
-    ReceiptImport::UnderstandJob.perform_now(draft.id)
+    draft.update!(understanding_state: "understood")
     assert draft.reload.understood?
 
     assert_no_difference [ -> { Entry.count }, -> { Transaction.count } ] do
@@ -69,8 +70,8 @@ class ReceiptImportsControllerTest < ActionDispatch::IntegrationTest
 
   test "a needs_understanding draft renders the manual entry form" do
     draft = imports(:receipt_draft)
-    draft.document_link.update!(status: "failed", failure_message: "paperless rejected the upload")
-    ReceiptImport::UnderstandJob.perform_now(draft.id)
+    draft.document_link.update!(status: "failed", failure_message: "the read found no total")
+    draft.update!(understanding_state: "needs_understanding")
     assert draft.reload.needs_understanding?
 
     get import_path(draft)

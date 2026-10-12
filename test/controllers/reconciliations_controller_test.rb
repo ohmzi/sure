@@ -8,16 +8,16 @@ class ReconciliationsControllerTest < ActionDispatch::IntegrationTest
     @account = accounts(:depository)
   end
 
+  def receipt_text = "Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00"
+
   def suggested_link
     entry = @account.entries.create!(
       name: "Starbucks Coffee", date: Date.current, amount: 55, currency: "USD", entryable: Transaction.new
     )
     link = DocumentLink.create!(
       family: @family, source: "receipt", status: "suggested",
-      paperless_document_id: 101, title: "Receipt", confidence: 95
+      extracted_text: receipt_text, title: "Receipt", confidence: 95
     )
-    Paperless::Client.any_instance.stubs(:document)
-      .returns(stub(content: "Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00", created: Date.current, id: 101))
     [ entry, link ]
   end
 
@@ -34,10 +34,8 @@ class ReconciliationsControllerTest < ActionDispatch::IntegrationTest
   test "the inbox lists a pending_review receipt" do
     link = DocumentLink.create!(
       family: @family, source: "receipt", status: "pending_review",
-      paperless_document_id: 102, title: "Ambiguous receipt"
+      extracted_text: receipt_text, title: "Ambiguous receipt"
     )
-    Paperless::Client.any_instance.stubs(:document)
-      .returns(stub(content: "Receipt\n#{Date.current.iso8601}\nTOTAL $55.00", created: Date.current, id: 102))
 
     get reconciliations_url
 
@@ -105,7 +103,7 @@ class ReconciliationsControllerTest < ActionDispatch::IntegrationTest
     _entry, link = suggested_link
     other = DocumentLink.create!(
       family: families(:empty), source: "receipt", status: "suggested",
-      paperless_document_id: 999, title: "Other Family Receipt"
+      title: "Other Family Receipt"
     )
 
     get reconciliations_url
@@ -124,10 +122,8 @@ class ReconciliationsControllerTest < ActionDispatch::IntegrationTest
     )
     link = DocumentLink.create!(
       family: @family, source: "receipt", status: "suggested",
-      paperless_document_id: 201, title: "Receipt", confidence: 95
+      extracted_text: receipt_text, title: "Receipt", confidence: 95
     )
-    Paperless::Client.any_instance.stubs(:document)
-      .returns(stub(content: "Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00", created: Date.current, id: 201))
 
     sign_in users(:family_member) # no AccountShare on :connected
 
@@ -151,10 +147,8 @@ class ReconciliationsControllerTest < ActionDispatch::IntegrationTest
     )
     link = DocumentLink.create!(
       family: @family, source: "receipt", status: "suggested",
-      paperless_document_id: 202, title: "Receipt", confidence: 95
+      extracted_text: receipt_text, title: "Receipt", confidence: 95
     )
-    Paperless::Client.any_instance.stubs(:document)
-      .returns(stub(content: "Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00", created: Date.current, id: 202))
 
     sign_in users(:family_member)
 
@@ -170,10 +164,8 @@ class ReconciliationsControllerTest < ActionDispatch::IntegrationTest
     # visibility gate must not block clearing it.
     link = DocumentLink.create!(
       family: @family, source: "receipt", status: "suggested",
-      paperless_document_id: 204, title: "Stale receipt", confidence: 80
+      extracted_text: receipt_text, title: "Stale receipt", confidence: 80
     )
-    Paperless::Client.any_instance.stubs(:document)
-      .returns(stub(content: "Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00", created: Date.current, id: 204))
 
     sign_in users(:family_member)
 
@@ -205,10 +197,8 @@ class ReconciliationsControllerTest < ActionDispatch::IntegrationTest
     )
     link = DocumentLink.create!(
       family: @family, source: "receipt", status: "suggested",
-      paperless_document_id: 203, title: "Receipt", confidence: 95
+      extracted_text: receipt_text, title: "Receipt", confidence: 95
     )
-    Paperless::Client.any_instance.stubs(:document)
-      .returns(stub(content: "Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00", created: Date.current, id: 203))
 
     get reconciliations_url
     assert_match(/Starbucks Coffee/, response.body)
@@ -262,47 +252,4 @@ class ReconciliationsControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "suggested", link.reload.status
   end
-
-  # (Ruling M3-C2 R5, 2026-10-11 close-out) P-m3-1's controller fallbacks: the
-  # inbox renders from persisted state and both actions answer honestly when
-  # paperless is down.
-  test "the inbox still renders from persisted state when paperless is down" do
-    _entry, link = suggested_link
-    stub_paperless_outage
-
-    get reconciliations_url
-
-    assert_response :success
-    assert_select "turbo-frame##{ActionView::RecordIdentifier.dom_id(link)}", count: 1
-    assert_match I18n.t("reconciliations.result.candidates_unavailable"), response.body
-  end
-
-  test "linking answers honestly when paperless is down" do
-    entry, link = suggested_link
-    stub_paperless_outage
-
-    post link_reconciliation_url(link, entry_id: entry.id)
-
-    assert_redirected_to reconciliations_url
-    assert_equal I18n.t("reconciliations.link.paperless_unavailable"), flash[:alert]
-    assert_equal "suggested", link.reload.status
-    assert_nil link.entry
-  end
-
-  test "dismissing answers honestly when paperless is down" do
-    _entry, link = suggested_link
-    stub_paperless_outage
-
-    post dismiss_reconciliation_url(link)
-
-    assert_redirected_to reconciliations_url
-    assert_equal I18n.t("reconciliations.dismiss.paperless_unavailable"), flash[:alert]
-    assert_equal "suggested", link.reload.status
-  end
-
-  private
-    def stub_paperless_outage
-      Paperless::Client.any_instance.stubs(:document)
-        .raises(Paperless::Error.new("paperless unreachable", code: :unreachable))
-    end
 end

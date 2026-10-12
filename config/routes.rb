@@ -414,9 +414,6 @@ Rails.application.routes.draw do
         get ":provider_key/connect_form", action: :connect_form, as: :connect_form
       end
     end
-    resource :paperless, controller: "paperless", only: :show do
-      post :check, on: :member
-    end
   end
 
   resource :subscription, only: %i[new show create] do
@@ -523,7 +520,6 @@ Rails.application.routes.draw do
       put :apply_template
       post :cancel
       get :summary
-      post :retry_statement_ocr
     end
 
     resource :upload, only: %i[show update], module: :import
@@ -542,10 +538,6 @@ Rails.application.routes.draw do
   # M7: a receipt draft's editable details (manual entry + the receipt/bill
   # override). Publishing stays on imports#publish.
   resources :receipt_imports, only: %i[update]
-
-  namespace :ingest do
-    post "paperless", to: "paperless#create"
-  end
 
   resources :documents, controller: "document_links", only: %i[index create destroy] do
     member do

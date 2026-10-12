@@ -8,17 +8,13 @@ class ReceiptMatcherTest < ActiveSupport::TestCase
     @account = accounts(:depository)
   end
 
-  # A DocumentLink whose OCR text is stubbed, so the matcher runs without a live
-  # paperless. `created` is the paperless document date used when the receipt
-  # text carries no parseable date.
-  def link_for(text, created: Date.current, document_id: 101)
-    link = DocumentLink.create!(
+  # A DocumentLink carrying the OCR snapshot the matcher reads. `created_at` is
+  # the fallback date used when the receipt text carries no parseable date.
+  def link_for(text, created: Time.current)
+    DocumentLink.create!(
       family: @family, source: "receipt", status: "unlinked",
-      paperless_document_id: document_id, title: "Receipt"
+      extracted_text: text, title: "Receipt", created_at: created
     )
-    Paperless::Client.any_instance.stubs(:document)
-      .returns(stub(content: text, created: created, id: document_id))
-    link
   end
 
   test "a unique exact-amount entry on the same day is suggested and never linked" do
@@ -78,11 +74,11 @@ class ReceiptMatcherTest < ActiveSupport::TestCase
     assert_empty result.candidates
   end
 
-  test "an undated receipt is matched against the paperless document date" do
-    # No date in the OCR text, so document_date falls back to the paperless
-    # `created` value and the window is anchored there.
+  test "an undated receipt falls back to the link's created date" do
+    # No date in the OCR text, so document_date falls back to when the link was
+    # created and the window is anchored there.
     entry = create_transaction(account: @account, date: 1.day.ago.to_date, amount: 55, name: "Starbucks Coffee")
-    result = ReceiptMatcher.call(link_for("Starbucks\nTOTAL $55.00", created: 1.day.ago.to_date))
+    result = ReceiptMatcher.call(link_for("Starbucks\nTOTAL $55.00", created: 1.day.ago))
 
     assert result.suggested?
     assert_equal [ entry ], result.candidates.map(&:entry)

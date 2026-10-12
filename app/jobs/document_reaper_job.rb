@@ -3,9 +3,8 @@
 # The hourly sweep for documents whose read never finished.
 #
 # A worker killed by an OOM or a rolling deploy leaves a row in `processing`
-# with nothing scheduled to move it. paperless's era had SyncCleanerJob for
-# exactly this; the native pipeline needs its own, or a document is lost in the
-# one way that looks like nothing happened.
+# with nothing scheduled to move it. The native read needs its own reaper, or a
+# document is lost in the one way that looks like nothing happened.
 #
 # The cadence IS the retry bound: a row that is genuinely unreadable is retried
 # once an hour, which is cheap and self-limiting (a successful read settles the

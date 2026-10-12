@@ -18,11 +18,6 @@ class SyncCleanerJob < ApplicationJob
     sweep("family_exports") { FamilyExport.clean }
     sweep("pdf_imports") { PdfImport.clean }
     sweep("provider_activity_flags") { clear_stuck_activity_fetch_flags }
-    # (Ruling M7-L9, 2026-10-11 close-out) not a reaper but the same failure
-    # class: a settled document link whose snapshot enqueue was lost
-    # (finish_processing! rescues the raise) heals here, hourly, without an
-    # operator — the scope the backfill task computes.
-    sweep("document_link_snapshots") { DocumentLink.capture_pending_content }
   end
 
   private

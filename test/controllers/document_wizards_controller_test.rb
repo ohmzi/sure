@@ -34,9 +34,7 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
     assert_no_difference -> { ReceiptImport.count } do
       assert_difference -> { DocumentLink.count } => 1 do
         assert_enqueued_with(job: DocumentUnderstandingJob) do
-          assert_no_enqueued_jobs only: Paperless::UploadJob do
-            post document_wizard_intake_path(source: "receipt_or_bill"), params: { document_file: file }
-          end
+          post document_wizard_intake_path(source: "receipt_or_bill"), params: { document_file: file }
         end
       end
     end
@@ -76,9 +74,7 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
     assert_no_difference -> { AccountStatement.count } => 0, -> { PdfImport.count } => 0 do
       assert_difference -> { DocumentLink.count } => 1 do
         assert_enqueued_with(job: DocumentUnderstandingJob) do
-          assert_no_enqueued_jobs only: Paperless::UploadJob do
-            post document_wizard_intake_path(source: "statement"), params: { document_file: file }
-          end
+          post document_wizard_intake_path(source: "statement"), params: { document_file: file }
         end
       end
     end
@@ -89,16 +85,13 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a statement photo is staged and handed to the native read" do
-    # (Task 9) An image statement no longer goes to StatementOcrJob: the
-    # statement leg enqueues the same native read the receipt leg does, so no
+    # An image statement takes the same native read the receipt leg does, so no
     # document is ever read by two pipelines.
     file = Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png")
 
     assert_no_difference -> { AccountStatement.count } => 0 do
       assert_enqueued_with(job: DocumentUnderstandingJob) do
-        assert_no_enqueued_jobs only: StatementOcrJob do
-          post document_wizard_intake_path(source: "statement"), params: { document_file: file }
-        end
+        post document_wizard_intake_path(source: "statement"), params: { document_file: file }
       end
     end
 
@@ -174,19 +167,17 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type='submit']", count: 0
   end
 
-  test "the drop screen targets the page when the ladder resolves and the modal when it asks" do
-    # (M8 Task 9) The resolved finish is a full-page archive landing, so the
-    # form must not stay inside the #modal frame; the ambiguous case still asks
-    # at step 3, which renders in the modal as it always has.
-    users(:family_admin).update!(default_account: accounts(:depository))
+  test "the drop screen always targets the page — the wizard has no step-3 ask" do
+    # (Task 12) Both wizard legs hand the staged link to the native read and
+    # land on the archive, so the form escapes the #modal frame in every case.
     get new_document_wizard_path(source: "receipt_or_bill")
     assert_select "form[data-turbo-frame='_top']"
     assert_select "form[data-turbo-frame='modal']", count: 0
 
-    sign_in users(:family_member) # two accounts, no default: the ladder cannot resolve
+    sign_in users(:family_member) # no default account: the target is unchanged
     get new_document_wizard_path(source: "receipt_or_bill")
-    assert_select "form[data-turbo-frame='modal']"
-    assert_select "form[data-turbo-frame='_top']", count: 0
+    assert_select "form[data-turbo-frame='_top']"
+    assert_select "form[data-turbo-frame='modal']", count: 0
   end
 
   test "a resolved account ladder still finishes the receipt intake on the archive" do

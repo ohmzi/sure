@@ -3,13 +3,13 @@ require "test_helper"
 class DocumentsArchiveTest < ActionDispatch::IntegrationTest
   setup do
     @tmp = Pathname.new(Dir.mktmpdir("archive"))
-    @previous_staging = ENV["OHMZBUDGET_PAPERLESS_STAGING_DIR"]
-    ENV["OHMZBUDGET_PAPERLESS_STAGING_DIR"] = @tmp.to_s
+    @previous_staging = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
+    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = @tmp.to_s
     sign_in users(:family_admin)
   end
 
   teardown do
-    ENV["OHMZBUDGET_PAPERLESS_STAGING_DIR"] = @previous_staging
+    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = @previous_staging
     FileUtils.remove_entry(@tmp) if @tmp.exist?
   end
 
@@ -42,13 +42,15 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
   test "the archive lists the family's documents with status pills" do
     get documents_path
     assert_response :success
-    assert_select "img[src=?]", file_document_path(document_links(:linked_receipt), kind: "thumb")
+    # Only images carry a thumbnail (their own stored bytes); the PDF row next
+    # to it renders its file-type icon instead.
+    assert_select "img[src=?]", file_document_path(document_links(:unlinked_receipt), kind: "thumb")
     assert_match I18n.t("documents.status.linked"), response.body
   end
 
   test "the browser lists rows with thumbnails, statuses and the draft affordances" do
     get documents_path
-    assert_select "img[src=?]", file_document_path(document_links(:linked_receipt), kind: "thumb")
+    assert_select "img[src=?]", file_document_path(document_links(:unlinked_receipt), kind: "thumb")
     assert_match I18n.t("documents.status.linked"), response.body
     # (repaired 2026-10-11, verifier F8) receipt_draft is awaiting_ocr: its row
     # must keep the VISIBLE disabled "Reading…" affordance (the old `if enabled`
@@ -121,12 +123,14 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     DocumentLink.find_each { |link| DocumentLink::Staging.delete(link.stored_path) }
   end
 
-  test "a blank source falls back to the receipt-vs-statement heuristic" do
+  test "a blank source defaults to receipt, leaving the class to the read" do
     file = uploaded_file(filename: "bank-statement.pdf", content_type: "application/pdf", content: "%PDF-1.4 x")
     post documents_path, params: { document: file } # no source: the dropzone's default
 
     link = DocumentLink.order(:created_at).last
-    assert_equal "statement", link.source
+    assert_equal "receipt", link.source
+  ensure
+    DocumentLink.find_each { |link| DocumentLink::Staging.delete(link.stored_path) }
   end
 
   # -- full-text search, sort and the document-date range (M8 Task 5; the moved
@@ -168,9 +172,10 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     assert_no_match "Water receipt", response.body
   end
 
-  test "the archive and its search never call paperless" do
-    Paperless::Client.any_instance.expects(:document).never
-    Paperless::Client.any_instance.expects(:post_document).never
+  test "the archive and its search read no stored bytes" do
+    # The index is a metadata read: it renders store URLs, never the bytes.
+    DocumentLink::Staging.expects(:open).never
+    DocumentLink::Staging.expects(:write).never
 
     get documents_path(source: "receipt,bill", q: { search: "coffee" })
     assert_response :success

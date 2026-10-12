@@ -6,44 +6,27 @@ class ReceiptWizardTest < ApplicationSystemTestCase
     sign_in users(:family_admin)
     @account = accounts(:depository)
     users(:family_admin).update!(default_account: @account)
+    # The read's account resolver (Account::DocumentMatcher) prefills this
+    # account from the AI's institution/last4 hints, so the journey can assert it.
+    @account.update!(institution_name: "Chase", last4: "4242", account_network: "visa")
     # NO `DocumentLink.where(status: "unlinked").delete_all` here (M1's
     # document_bridge_test line): that line belongs to the entry-page link panel
     # this suite never touches, and it would delete the settled `unlinked_receipt`
     # row that `imports(:receipt_draft)` points at (the imports FK nullifies the
     # draft's document_link_id), breaking the second journey's seed.
 
-    # Run jobs inline and stub only the paperless egress, so the whole bridge
-    # (wizard intake -> post -> poll -> unlinked -> snapshot -> understanding)
-    # runs in this process. #file is stubbed yielded, not returned — Mocha
-    # `.returns` never invokes a passed block.
+    # Run jobs inline and stub the native read — the OCR sidecar and the AI
+    # provider — so the whole journey (wizard intake -> read -> settled draft)
+    # runs in this process.
     @previous_adapter = ActiveJob::Base.queue_adapter
     ActiveJob::Base.queue_adapter = :inline
-    # Ruling 8 (M1): the inline adapter cannot enqueue FUTURE jobs, so the
-    # upload job's set(wait:) poll handoff is folded to an immediate perform.
-    Paperless::TaskPollJob.stubs(:set).returns(Paperless::TaskPollJob)
-    Paperless::Client.any_instance.stubs(:configured?).returns(true)
-    Paperless.stubs(:tag_id).returns(1)
-    Paperless::Client.any_instance.stubs(:post_document).returns("task-uuid")
-    Paperless::Client.any_instance.stubs(:task).returns(
-      Paperless::Task.new(status: :success, document_id: 6001, duplicate_of: nil, error_message: nil)
-    )
-    Paperless::Client.any_instance.stubs(:file).yields(
-      "", OpenStruct.new(status: 200, response_headers: { "content-type" => "image/png" })
-    )
-    # The snapshot the settle path records (Task 1) — total AND date, so the
-    # inline OCR lands `understood` under the F8 rule.
-    Paperless::Client.any_instance.stubs(:document).returns(
-      Paperless::Document.new(id: 6001, title: "receipt.png", created: Date.current, tag_ids: [],
-                              content: "LATTE LANE CAFE\n2026-09-14\nTOTAL $4.75")
-    )
-    # Ruling-8-class fold (M1): the inline adapter cannot enqueue FUTURE jobs,
-    # and Import#publish's post-commit `family.sync_later` fan-out enqueues them
-    # deep inside Sync's finalization (proven: the publish POST 500s with
-    # `NotImplementedError: Use a queueing backend to enqueue jobs in the
-    # future` without this stub). The family sync fan-out is not the surface
-    # under test — the reviewed publish's money write is; production is
-    # untouched (Sidekiq runs the real sync). Same discipline as the
-    # `Paperless::TaskPollJob.set` fold above.
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 4.75", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_document_provider
+    # The inline adapter cannot enqueue FUTURE jobs, and Import#publish's
+    # post-commit `family.sync_later` fan-out enqueues them deep inside Sync's
+    # finalization. The family sync fan-out is not the surface under test — the
+    # reviewed publish's money write is; production is untouched (Sidekiq runs
+    # the real sync).
     Family.any_instance.stubs(:sync_later)
   end
 
@@ -82,18 +65,18 @@ class ReceiptWizardTest < ApplicationSystemTestCase
     assert_current_path documents_path
     draft = ReceiptImport.order(:created_at).last
     assert_equal @account, draft.account
-    # The inline harness settles the OCR during the POST (the stub content
-    # parses), so the row already carries the ready affordance.
+    # The inline read settles the draft during the POST, so the row already
+    # carries the ready affordance.
     assert_equal "understood", draft.understanding_state
     within "#document_link_#{draft.document_link.id}" do
       assert_link I18n.t("imports.receipt_import.review_details")
     end
   end
 
-  test "an ambiguous account choice still asks at step 3 and then lands on the archive" do
-    # (M8 Task 9) family_member reaches two accounts with no default: the
-    # ladder cannot resolve, so the wizard still asks — step 3, in the modal it
-    # has always used. Its Finish is fire-and-forget and lands on the archive.
+  test "a receipt from a member with no default account still lands on the archive" do
+    # (Task 8/9) The wizard no longer asks at step 3: the native read settles the
+    # draft and resolves its account from the AI's hints, so the drop always
+    # finishes on the archive.
     sign_in users(:family_member)
     visit root_path
     click_on I18n.t("pages.dashboard.new")
@@ -103,12 +86,6 @@ class ReceiptWizardTest < ApplicationSystemTestCase
     assert_selector "#modal input[type='file'][name='document_file']", visible: :all
     execute_script("document.querySelectorAll(\"#modal input[type='file'][name='document_camera'], #modal input[type='file'][name='document_file']\").forEach(function (el) { el.classList.remove('hidden'); el.style.display = 'block'; })")
     attach_file "document_file", file_fixture("receipts/receipt.png")
-
-    # onchange auto-submits; the modal swaps to step 3 (a native select, so
-    # Capybara's own `select` drives it — Task 5's F1 repair).
-    assert_text I18n.t("import.accounts.show.title")
-    select @account.name, from: I18n.t("import.accounts.show.account_label")
-    click_on I18n.t("import.accounts.show.finish")
 
     assert_current_path documents_path
     draft = ReceiptImport.order(:created_at).last
@@ -133,7 +110,9 @@ class ReceiptWizardTest < ApplicationSystemTestCase
 
     assert_current_path documents_path
     link = DocumentLink.order(:created_at).last
-    assert_equal "bill", link.source
+    # The override and the title reach the intake; the read's classifier then
+    # owns the final source, so only the title is asserted here (the intake
+    # source itself is pinned in document_wizards_controller_test).
     assert_equal "Laptop purchase", link.title
   end
 
@@ -147,10 +126,11 @@ class ReceiptWizardTest < ApplicationSystemTestCase
       assert_button I18n.t("imports.receipt_import.reading"), disabled: true
     end
 
-    # Settle outside the browser: snapshot, then the understanding job (which
-    # broadcasts the replaced row).
-    link.record_content!(File.read(Rails.root.join("test/fixtures/files/receipts/wizard_latte.txt")))
-    ReceiptImport::UnderstandJob.perform_now(draft.id)
+    # Settle outside the browser: stage the link's bytes and run the native
+    # read, which settles the draft and broadcasts the replaced row.
+    link.update_columns(status: "queued",
+                        stored_path: DocumentLink::Staging.write(io: StringIO.new("PNG"), id: link.id))
+    DocumentUnderstandingJob.perform_now(link.id)
 
     # The row's GET actions render as icon links (the label lives in title and
     # aria-label), so the flip is pinned by the Review-details href — absent in
@@ -172,11 +152,14 @@ class ReceiptWizardTest < ApplicationSystemTestCase
 
   test "a settled receipt reviews and publishes into one expense" do
     # Seed the receipt_draft fixture directly (its document_link row survives
-    # setup — see the F10 repair above) and settle its snapshot inline.
+    # setup — see the F10 repair above), stage its bytes and run the native read
+    # so the draft settles through the real pipeline.
     draft = imports(:receipt_draft)
-    draft.update!(account: @account)
-    draft.document_link.record_content!(File.read(Rails.root.join("test/fixtures/files/receipts/wizard_latte.txt")))
-    ReceiptImport::UnderstandJob.perform_now(draft.id)
+    link = draft.document_link
+    link.update_columns(status: "queued",
+                        stored_path: DocumentLink::Staging.write(io: StringIO.new("PNG"), id: link.id))
+    DocumentUnderstandingJob.perform_now(link.id)
+    draft.reload
 
     # (Ruling M7-L4, 2026-10-11) The plan's fence navigated the archive card's
     # "Review details" affordance (`documents_path(source: "receipt,bill")` +

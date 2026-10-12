@@ -2,8 +2,8 @@
 
 # The documents page's scope builder (M8 locked decision 2). One place turns
 # the browser's params into SQL; the viewer's prev/next recomputes through the
-# SAME object, so the walk can never desync from the list. Nothing here calls
-# paperless (locked decision 4).
+# SAME object, so the walk can never desync from the list. Nothing here leaves
+# the database (locked decision 4).
 class DocumentLink::Search
   # The one sort vocabulary both pages share (M8 locked decision 5).
   # AccountStatement::Search aliases it, so the two selects can never drift.
@@ -74,7 +74,7 @@ class DocumentLink::Search
     def status_filters = Array(@filters[:status]) & DocumentLink::STATUSES
 
     # The Merchant / Amount facet (M8 Task 7, locked decision 7): documents
-    # read the understood draft's extracted payee/total — never a paperless
+    # read the understood draft's extracted payee/total — never an external
     # call (locked decision 4). Local, like every other filter here.
     def merchant_matching(term)
       return scope if term.blank?
@@ -116,8 +116,8 @@ class DocumentLink::Search
     end
 
     # The tag facet (M8 Task 6): array overlap against the stored snapshot —
-    # never a paperless call (locked decisions 4/6). Blank names filter nothing;
-    # a name no row carries yields an empty page, never a widened one.
+    # local, never an external call (locked decisions 4/6). Blank names filter
+    # nothing; a name no row carries yields an empty page, never a widened one.
     def tag_filters = Array(@filters[:tags]).map(&:to_s).reject(&:blank?).uniq
 
     # Invalid dates are ignored (M8 Task 5): a half-typed or junk value drops

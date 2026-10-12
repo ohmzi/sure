@@ -11,7 +11,6 @@ en:
         not_attempted: Not read
         processing: Reading
         extracted: Read
-        needs_template: Needs a template
         extraction_failed: Read failed
       tags: Tags
       no_tags: No tags yet
@@ -42,7 +41,6 @@ en:
       remove: Remove
       extraction:
         processing: Extracting…
-        needs_template: Needs a template
         extraction_failed: Extraction failed
     viewer:
       previous: Previous

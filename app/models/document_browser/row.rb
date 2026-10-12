@@ -23,7 +23,7 @@ class DocumentBrowser::Row
   # Extraction badges render only for the states a reader must see: an
   # extracted (or not-attempted) statement carries no second badge.
   EXTRACTION_TONES = {
-    "processing" => :info, "needs_template" => :warning, "extraction_failed" => :error
+    "processing" => :info, "extraction_failed" => :error
   }.freeze
 
   attr_reader :record, :key, :title, :doc_type_label, :kind, :thumb_url, :icon,
@@ -57,7 +57,7 @@ class DocumentBrowser::Row
     def for_document_link(link, viewer_url: nil)
       routes = Rails.application.routes.url_helpers
       draft = link.receipt_imports.max_by(&:created_at)
-      ready = link.paperless_document_id.present?
+      ready = link.stored_path.present?
       file_kind = viewer_url_kind(link.content_type)
 
       new(
@@ -66,7 +66,7 @@ class DocumentBrowser::Row
         title: link.title.presence || link.original_filename,
         doc_type_label: I18n.t("documents.source.#{link.source}"),
         kind: viewer_kind(link.content_type),
-        thumb_url: (routes.file_document_path(link, kind: "thumb") if ready),
+        thumb_url: (routes.file_document_path(link, kind: "thumb") if ready && thumbnail?(link.content_type)),
         icon: icon_for(link.content_type),
         statuses: [ Status.new(label: I18n.t("documents.status.#{link.status}"), tone: STATUS_TONES.fetch(link.status, :neutral)) ],
         # (Ruling M8-C3, 2026-10-11 close-out) the displayed date is the same
@@ -92,10 +92,10 @@ class DocumentBrowser::Row
     def for_account_statement(statement, viewer_url: nil)
       routes = Rails.application.routes.url_helpers
       link = statement.archived_document_link
-      ready = link&.paperless_document_id.present?
+      ready = link&.stored_path.present?
       # The vault's own bytes when the archive copy is not there yet (CSV/XLSX/
-      # OFX always take this branch); a settled link's bytes come from M1's
-      # proxy so the browser never talks to paperless (locked decision 4).
+      # OFX always take this branch); a settled link's bytes come from the
+      # proxy so the browser serves them locally.
       content_type = if ready && link.content_type.present?
         link.content_type
       else
@@ -138,16 +138,19 @@ class DocumentBrowser::Row
 
     # The URL kind the viewer's centre stage must request, decided by the row's
     # kind (Ruling M8-C1, 2026-10-11 close-out): image and PDF rows both read
-    # the UPLOADED original — "original" is paperless's download endpoint WITH
-    # original=true (Paperless::Client::FILE_KINDS); without the flag that
-    # endpoint answers with the archived PDF, which is exactly why the photo
-    # lightbox never displayed — and rows with no in-page preview carry no file
-    # URL at all (their bytes ride the download affordance). Row thumbnails
-    # always read paperless's rendered "thumb".
+    # the UPLOADED original, and rows with no in-page preview carry no file URL
+    # at all (their bytes ride the download affordance). Every kind serves the
+    # document's own stored bytes; the kind only picks the viewer's branch.
     def viewer_url_kind(content_type)
       case viewer_kind(content_type)
       when :image, :pdf then "original"
       end
+    end
+
+    # Only images have a thumbnail — their stored bytes, scaled down by the
+    # browser. Every other type falls back to its file-type icon.
+    def thumbnail?(content_type)
+      viewer_kind(content_type) == :image
     end
 
     def icon_for(content_type)

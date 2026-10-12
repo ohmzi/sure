@@ -1,7 +1,7 @@
 unlinked_receipt:
   family: dylan_family
   created_by: family_admin
-  paperless_document_id: 9001
+  stored_path: staged/unlinked-receipt.png
   status: unlinked
   source: receipt
   title: Coffee receipt
@@ -21,7 +21,7 @@ linked_receipt:
   family: dylan_family
   created_by: family_admin
   entry: transaction
-  paperless_document_id: 9002
+  stored_path: staged/linked-receipt.pdf
   status: linked
   source: receipt
   title: Lunch receipt
@@ -42,10 +42,7 @@ held_bill:
 understood_receipt_link:
   family: dylan_family
   created_by: family_admin
-  # 9005, not the plan's 9003 (M7 Task 3 deviation, recorded in the ledger):
-  # M1's Ingest::PaperlessControllerTest writes 9003/9004 onto its own rows in
-  # setup, and paperless_document_id is unique-indexed — 9003 collided there.
-  paperless_document_id: 9005
+  stored_path: staged/understood-receipt.png
   status: unlinked
   source: receipt
   title: Latte Lane

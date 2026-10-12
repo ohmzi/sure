@@ -7,24 +7,6 @@ class DocumentBrowserTest < ApplicationSystemTestCase
   setup do
     ensure_tailwind_build
     sign_in users(:family_admin)
-
-    # The M1 harness (document_bridge_test.rb): only the paperless egress is
-    # stubbed, so the whole flow runs in this process. The rows render
-    # thumbnails through DocumentLinksController#file (plain <img>, not a Turbo
-    # frame), and the viewer loads its frame from the same proxy — #file must be
-    # stubbed too (yielded, not returned — Mocha `.returns` never invokes a
-    # passed block).
-    @previous_adapter = ActiveJob::Base.queue_adapter
-    ActiveJob::Base.queue_adapter = :inline
-    Paperless::TaskPollJob.stubs(:set).returns(Paperless::TaskPollJob)
-    Paperless::Client.any_instance.stubs(:configured?).returns(true)
-    Paperless::Client.any_instance.stubs(:file).yields(
-      "", OpenStruct.new(status: 200, response_headers: { "content-type" => "image/png" })
-    )
-  end
-
-  teardown do
-    ActiveJob::Base.queue_adapter = @previous_adapter
   end
 
   test "a row opens the viewer modal, next walks the list, escape closes" do

@@ -367,8 +367,7 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal Date.new(2026, 9, 1), statement.period_start_on
     # The rendered sentence, not the key: the summary is user-visible (the import
     # review screen and the next-steps email) and drives the publish gate
-    # (Import#ai_processed? is `ai_summary.present?`), and the paperless/template
-    # wording it used to borrow rendered as "…template vperiod (paperless OCR)".
+    # (Import#ai_processed? is `ai_summary.present?`).
     assert_equal "Read from this document by AI (Chase).", import.ai_summary
     assert import.ai_processed?
   end

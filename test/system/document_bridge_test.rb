@@ -9,32 +9,13 @@ class DocumentBridgeTest < ApplicationSystemTestCase
     # action is unambiguous.
     DocumentLink.where(status: "unlinked").delete_all
 
-    # Run jobs inline and stub only the paperless egress, so the whole bridge
-    # (upload -> post -> poll -> unlinked -> link) runs in this process. The
-    # thumbnail <img> tags hit DocumentLinksController#file (Ruling M11 (M1): plain img, not a Turbo frame), so #file must be
-    # stubbed too (yielded, not returned — Mocha `.returns` never invokes a
-    # passed block).
+    # Run jobs inline and stub the native read — the OCR sidecar and the AI
+    # provider — so the whole bridge (upload -> read -> unlinked -> link) runs
+    # in this process.
     @previous_adapter = ActiveJob::Base.queue_adapter
     ActiveJob::Base.queue_adapter = :inline
-    # Ruling 8 (M1): the inline adapter cannot enqueue FUTURE jobs
-    # (InlineAdapter#enqueue_at raises NotImplementedError in activejob 8.1.3),
-    # so the upload job's set(wait:) poll handoff would 500 the POST and strand
-    # the row in `processing`. Folding `set` back to an immediate perform keeps
-    # the whole bridge in-process, exactly as the comment above intends.
-    # Production is untouched — Sidekiq schedules the real wait.
-    Paperless::TaskPollJob.stubs(:set).returns(Paperless::TaskPollJob)
-    Paperless::Client.any_instance.stubs(:configured?).returns(true)
-    Paperless.stubs(:tag_id).returns(1)
-    Paperless::Client.any_instance.stubs(:post_document).returns("task-uuid")
-    Paperless::Client.any_instance.stubs(:task).returns(
-      Paperless::Task.new(status: :success, document_id: 6001, duplicate_of: nil, error_message: nil)
-    )
-    Paperless::Client.any_instance.stubs(:document).returns(
-      Paperless::Document.new(id: 6001, title: "receipt.png", created: Date.current, tag_ids: [], content: "TOTAL 4.75")
-    )
-    Paperless::Client.any_instance.stubs(:file).yields(
-      "", OpenStruct.new(status: 200, response_headers: { "content-type" => "image/png" })
-    )
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 4.75", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_document_provider
   end
 
   teardown do

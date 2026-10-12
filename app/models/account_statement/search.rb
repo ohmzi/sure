@@ -62,7 +62,7 @@ class AccountStatement::Search
 
     # The tag facet on statements (M8 Task 6): statements carry no tags of
     # their own, so the filter is a subquery over their archived document
-    # links' stored snapshots — never a paperless call (locked decisions 4/6).
+    # links' stored snapshots — local, never an external call (locked decisions 4/6).
     def tag_filters = Array(@filters[:tags]).map(&:to_s).reject(&:blank?).uniq
 
     def tagged_statement_ids

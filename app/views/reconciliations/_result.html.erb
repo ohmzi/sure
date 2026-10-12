@@ -4,14 +4,17 @@
   <%= render DS::Card.new do %>
     <div class="flex gap-4">
       <div class="w-32 shrink-0">
-        <%= image_tag file_document_path(link, kind: :preview), alt: link.title.to_s, class: "rounded-lg" %>
+        <% if link.stored_path.present? %>
+          <%= image_tag file_document_path(link, kind: :preview), alt: link.title.to_s, class: "rounded-lg" %>
+        <% end %>
       </div>
 
       <div class="flex-1 space-y-2">
         <p class="text-sm text-secondary"><%= t(".receipt_for", title: link.title) %></p>
 
         <% if result.nil? %>
-          <%# (Ruling P-m3-1, 2026-10-10 pre-flight) paperless unreachable: candidates could not be recomputed %>
+          <%# Defensive: a nil result (never produced today) renders the honest
+              empty line rather than a blank row. %>
           <p class="text-sm text-secondary"><%= t(".candidates_unavailable") %></p>
         <% else %>
           <% result.candidates.each do |candidate| %>

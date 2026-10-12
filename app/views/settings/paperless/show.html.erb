@@ -1,9 +1,0 @@
-<% content_for :page_title, t(".title") %>
-<%= render DS::Card.new do %>
-  <p class="text-secondary"><%= @configured ? t(".configured") : t(".unconfigured") %></p>
-  <% if @token_invalid_at.present? %>
-    <%= render DS::Alert.new(variant: :warning, title: t(".rotation_title"),
-          message: t(".rotation_description", time: l(@token_invalid_at, format: :short))) %>
-  <% end %>
-  <%= render DS::Button.new(text: t(".check"), href: check_settings_paperless_path, method: :post) %>
-<% end %>

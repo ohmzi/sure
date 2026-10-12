@@ -242,7 +242,7 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
   test "duplicate pdf import does not enqueue processing twice for reused import" do
     assert_difference "AccountStatement.count", 1 do
       assert_difference "Import.where(type: 'PdfImport').count", 1 do
-        assert_enqueued_jobs 1, only: StatementOcrJob do
+        assert_enqueued_jobs 1, only: ProcessPdfJob do
           post imports_url, params: {
             import: {
               import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf")
@@ -259,7 +259,7 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     end
 
     created_import = PdfImport.order(:created_at).last
-    assert_equal "pending", created_import.status
+    assert_equal "importing", created_import.status
     assert_redirected_to import_url(created_import)
   end
 
@@ -702,269 +702,15 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "a text-layer PDF with a PDF-capable provider uses the AI path" do
-    Provider::Registry.stubs(:preferred_llm_provider).returns(OpenStruct.new(supports_pdf_processing?: true))
-    ImportsController.any_instance.stubs(:text_layer_pdf?).returns(true)
-
+  test "a PDF import takes the AI path" do
+    # Every document takes the AI path now (the AI-vs-OCR branch is gone).
     assert_enqueued_with(job: ProcessPdfJob) do
-      assert_no_enqueued_jobs only: StatementOcrJob do
-        post imports_url, params: {
-          import: { import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf") }
-        }
-      end
+      post imports_url, params: {
+        import: { import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf") }
+      }
     end
 
     assert_response :redirect
-  end
-
-  test "a scanned PDF with a PDF-capable provider uses the paperless OCR path" do
-    Provider::Registry.stubs(:preferred_llm_provider).returns(OpenStruct.new(supports_pdf_processing?: true))
-    ImportsController.any_instance.stubs(:text_layer_pdf?).returns(false)
-
-    assert_enqueued_with(job: StatementOcrJob) do
-      assert_no_enqueued_jobs only: ProcessPdfJob do
-        post imports_url, params: {
-          import: { import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf") }
-        }
-      end
-    end
-
-    assert_response :redirect
-  end
-
-  test "text_layer_pdf? reads a real text-layer PDF and survives malformed input (Ruling M2-L3)" do
-    # The four routing tests above stub the helper away, so a broken rescue list
-    # (the pre-ruling fence rescued PDF::Reader::Error, which is not an exception
-    # in pdf-reader 2.15.1) passed them unchanged. Exercise the helper itself:
-    controller = ImportsController.new
-    text_layer = file_fixture("imports/sample_bank_statement.pdf").open
-    assert controller.send(:text_layer_pdf?, text_layer),
-           "a text-layer PDF must be recognized as extractable"
-
-    malformed = Tempfile.new([ "malformed", ".pdf" ])
-    malformed.binmode
-    malformed.write("%PDF-1.4 not really a pdf")
-    malformed.rewind
-    assert_not controller.send(:text_layer_pdf?, malformed),
-               "malformed input must fall back, never raise"
-  ensure
-    malformed&.close!
-  end
-
-  test "a provider without PDF support uses the paperless OCR path" do
-    Provider::Registry.stubs(:preferred_llm_provider).returns(OpenStruct.new(supports_pdf_processing?: false))
-
-    assert_enqueued_with(job: StatementOcrJob) do
-      assert_no_enqueued_jobs only: ProcessPdfJob do
-        post imports_url, params: {
-          import: { import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf") }
-        }
-      end
-    end
-
-    assert_response :redirect
-  end
-
-  test "no provider uses the paperless OCR path" do
-    Provider::Registry.stubs(:preferred_llm_provider).returns(nil)
-
-    assert_enqueued_with(job: StatementOcrJob) do
-      assert_no_enqueued_jobs only: ProcessPdfJob do
-        post imports_url, params: {
-          import: { import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf") }
-        }
-      end
-    end
-
-    assert_response :redirect
-  end
-
-  test "a statement OCR enqueue failure leaves the statement retryable, not stuck" do
-    # (Ruling M2-C2, 2026-10-11 close-out): a raising enqueue (Redis/Sidekiq
-    # down) must hold the statement in the visible, retryable extraction_failed
-    # state - the import page then offers "Try again" - instead of stranding it
-    # on the "Processing your PDF" screen.
-    Provider::Registry.stubs(:preferred_llm_provider).returns(nil)
-    StatementOcrJob.stubs(:perform_later).raises(StandardError, "redis down")
-
-    post imports_url, params: {
-      import: { import_file: file_fixture_upload("imports/sample_bank_statement.pdf", "application/pdf") }
-    }
-
-    import = PdfImport.order(:created_at).last
-    assert_equal "extraction_failed", import.account_statement.extraction_state
-    assert_equal I18n.t("imports.create.statement_ocr_enqueue_failed"), flash[:alert]
-
-    get import_url(import)
-    assert_response :success
-    assert_select "form[action=?]", retry_statement_ocr_import_path(import), count: 1
-  end
-
-  test "a needs_template statement import shows the template banner" do
-    import = imports(:pdf)
-    import.update!(account: accounts(:depository))
-    statement = AccountStatement.create_from_upload!(
-      family: import.family,
-      account: import.account,
-      file: Rack::Test::UploadedFile.new(
-        file_fixture("imports/sample_bank_statement.pdf"),
-        "application/pdf", true, original_filename: "statement.pdf"
-      )
-    )
-    statement.update!(extraction_state: :needs_template)
-    import.update!(account_statement: statement)
-
-    get import_url(import)
-
-    assert_response :success
-    assert_select "##{dom_id(statement)}", count: 1
-    assert_select "a[href=?]", account_statement_path(statement), count: 1
-    assert_select "form[action=?]", retry_statement_ocr_import_path(import), count: 0
-  end
-
-  test "an extraction_failed statement import shows the banner and a retry" do
-    import = imports(:pdf)
-    import.update!(account: accounts(:depository))
-    statement = AccountStatement.create_from_upload!(
-      family: import.family,
-      account: import.account,
-      file: Rack::Test::UploadedFile.new(
-        file_fixture("imports/sample_bank_statement.pdf"),
-        "application/pdf", true, original_filename: "statement.pdf"
-      )
-    )
-    statement.update!(extraction_state: :extraction_failed)
-    import.update!(account_statement: statement)
-
-    get import_url(import)
-
-    assert_response :success
-    assert_select "##{dom_id(statement)}", count: 1
-    assert_select "form[action=?]", retry_statement_ocr_import_path(import), count: 1
-  end
-
-  # Ruling M2-L4: the statement sits on credit_card, which the member holds
-  # read_only (account_shares.yml) - a viewer who cannot manage it.
-  test "retry_statement_ocr refuses a viewer who cannot manage the statement (Ruling M2-L4)" do
-    import = imports(:pdf)
-    import.update!(account: accounts(:credit_card))
-    statement = AccountStatement.create_from_upload!(
-      family: import.family,
-      account: import.account,
-      file: Rack::Test::UploadedFile.new(
-        file_fixture("imports/sample_bank_statement.pdf"),
-        "application/pdf", true, original_filename: "statement.pdf"
-      )
-    )
-    import.update!(account_statement: statement)
-
-    other = users(:family_member)
-    statement.update!(extraction_state: :extraction_failed)
-
-    sign_in other
-    assert_no_enqueued_jobs only: StatementOcrJob do
-      post retry_statement_ocr_import_path(import)
-    end
-
-    assert_response :redirect
-    assert_equal "extraction_failed", statement.reload.extraction_state
-  end
-
-  test "retry_statement_ocr refuses to reset an already-extracted statement (Ruling M2-L4)" do
-    import = imports(:pdf)
-    import.update!(account: accounts(:depository))
-    statement = AccountStatement.create_from_upload!(
-      family: import.family,
-      account: import.account,
-      file: Rack::Test::UploadedFile.new(
-        file_fixture("imports/sample_bank_statement.pdf"),
-        "application/pdf", true, original_filename: "statement.pdf"
-      )
-    )
-    import.update!(account_statement: statement)
-
-    statement.update!(extraction_state: :extracted)
-
-    assert_no_enqueued_jobs only: StatementOcrJob do
-      post retry_statement_ocr_import_path(import)
-    end
-
-    assert_response :redirect
-    assert_equal "extracted", statement.reload.extraction_state
-  end
-
-  test "retry_statement_ocr clears the state and re-enqueues the job" do
-    import = imports(:pdf)
-    import.update!(account: accounts(:depository))
-    statement = AccountStatement.create_from_upload!(
-      family: import.family,
-      account: import.account,
-      file: Rack::Test::UploadedFile.new(
-        file_fixture("imports/sample_bank_statement.pdf"),
-        "application/pdf", true, original_filename: "statement.pdf"
-      )
-    )
-    statement.update!(extraction_state: :extraction_failed)
-    import.update!(account_statement: statement)
-
-    assert_enqueued_with(job: StatementOcrJob, args: [ import.id ]) do
-      post retry_statement_ocr_import_path(import)
-    end
-
-    assert_redirected_to import_path(import)
-    assert statement.reload.not_attempted?
-  end
-
-  test "a failing retry enqueue restores the retryable state and surfaces it" do
-    # (Ruling M2-C2, 2026-10-11 close-out): if the re-enqueue raises, the
-    # statement must hold back in the state that offered the retry (not
-    # not_attempted, which renders no retry affordance) and the failure must
-    # surface.
-    import = imports(:pdf)
-    import.update!(account: accounts(:depository))
-    statement = AccountStatement.create_from_upload!(
-      family: import.family,
-      account: import.account,
-      file: Rack::Test::UploadedFile.new(
-        file_fixture("imports/sample_bank_statement.pdf"),
-        "application/pdf", true, original_filename: "statement.pdf"
-      )
-    )
-    statement.update!(extraction_state: :extraction_failed)
-    import.update!(account_statement: statement)
-
-    StatementOcrJob.stubs(:perform_later).raises(StandardError, "redis down")
-
-    post retry_statement_ocr_import_path(import)
-
-    assert_redirected_to import_path(import)
-    assert_equal "extraction_failed", statement.reload.extraction_state
-    assert_equal I18n.t("imports.retry_statement_ocr.retry_enqueue_failed"), flash[:alert]
-  end
-
-  test "the extraction_failed banner hides the retry from a read-only viewer" do
-    # (Ruling M2-C8, 2026-10-11 close-out): the action refusals are pinned; this
-    # pins the view-level hiding - a viewer who cannot manage the statement
-    # sees the explanation, but no action that would be refused.
-    import = imports(:pdf)
-    import.update!(account: accounts(:credit_card))
-    statement = AccountStatement.create_from_upload!(
-      family: import.family,
-      account: import.account,
-      file: Rack::Test::UploadedFile.new(
-        file_fixture("imports/sample_bank_statement.pdf"),
-        "application/pdf", true, original_filename: "statement.pdf"
-      )
-    )
-    statement.update!(extraction_state: :extraction_failed)
-    import.update!(account_statement: statement)
-
-    sign_in users(:family_member)
-    get import_url(import)
-
-    assert_response :success
-    assert_select "##{dom_id(statement)}", count: 1
-    assert_select "form[action=?]", retry_statement_ocr_import_path(import), count: 0
   end
 
   private

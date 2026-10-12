@@ -51,48 +51,6 @@ class ImportsController < ApplicationController
     raise ActiveRecord::RecordNotFound unless @import.is_a?(PdfImport)
   end
 
-  def retry_statement_ocr
-    import = Current.family.imports.find(params[:id])
-    statement = import.account_statement
-    # Ruling M2-L4: this action MUTATES an existing, possibly restricted
-    # statement (it re-runs OCR and can re-POST the file to paperless), so it
-    # must enforce the same precondition as the sibling mutating actions -
-    # manageable_by? - not the family-level statement_manager? gate. Without
-    # this, any family member could reset the state of a statement they cannot
-    # even view (ImportsController#index is unfiltered, so the id is reachable).
-    return redirect_to import_path(import), alert: t("accounts.not_authorized") unless statement&.manageable_by?(Current.user)
-
-    # And it only re-drives the two states that actually offer a retry - a
-    # direct POST must never reset an extracted or in-flight statement.
-    unless statement.extraction_state.in?(%w[extraction_failed needs_template])
-      return redirect_to import_path(import), alert: t(".not_retryable")
-    end
-
-    previous_state = statement.extraction_state
-    statement.update!(extraction_state: :not_attempted)
-
-    # (Ruling M2-C2, 2026-10-11 close-out) M1 Ruling 11's pattern: a transient
-    # enqueue failure (Redis/Sidekiq down) must not strand the statement at
-    # not_attempted, which the import page renders with no retry affordance.
-    # Hold it back to the state that offered the retry and surface the failure.
-    begin
-      StatementOcrJob.perform_later(import.id)
-    rescue => e
-      statement.update!(extraction_state: previous_state)
-      DebugLogEntry.capture(
-        category: "import",
-        level: "warn",
-        message: "StatementOcrJob enqueue failed: #{e.class}: #{e.message}",
-        source: "statement_ocr_job",
-        family: import.family,
-        metadata: { import_id: import.id, account_statement_id: statement.id, reason: "enqueue_failed" }
-      )
-      redirect_to import_path(import), alert: t(".retry_enqueue_failed")
-    else
-      redirect_to import_path(import), notice: t(".retried")
-    end
-  end
-
   def cancel
     if @import.force_fail!
       redirect_to imports_path, notice: t(".cancelled")
@@ -246,24 +204,15 @@ class ImportsController < ApplicationController
       return redirect_to new_import_path, alert: t("imports.create.pdf_too_large", max_size: Import::MAX_PDF_SIZE / 1.megabyte) if file.size > Import::MAX_PDF_SIZE
 
       pdf_import = PdfImport.create_from_upload!(family: Current.family, file: file, user: Current.user)
-      routing = PdfImport.route_processing_later!(pdf_import, file: file, text_layer: text_layer_pdf?(file))
-      if routing == :ocr_enqueue_failed
-        return redirect_to import_path(pdf_import), alert: t("imports.create.statement_ocr_enqueue_failed")
-      end
-
+      # Every document takes the AI path now: the OCR fallback is gone, so
+      # nothing here decides text-layer vs scan.
+      pdf_import.process_with_ai_later
       redirect_to import_path(pdf_import), notice: t("imports.create.pdf_processing")
     rescue AccountStatement::DuplicateUploadError
       redirect_to new_import_path, alert: t("imports.create.duplicate_pdf_unavailable")
     rescue AccountStatement::InvalidUploadError
       redirect_to new_import_path, alert: t("imports.create.invalid_pdf")
     end
-
-    # (Ruling M7-L5, 2026-10-11 Task 8) A thin delegate kept for M2's pins:
-    # the routing tests stub this helper by name
-    # (test/controllers/imports_controller_test.rb:682, :697) and the
-    # Ruling-M2-L3 probe calls it directly (:716). The logic is
-    # PdfImport.text_layer?; the name must survive the move.
-    def text_layer_pdf?(file) = PdfImport.text_layer?(file)
 
     def create_document_import(file)
       adapter = VectorStore.adapter

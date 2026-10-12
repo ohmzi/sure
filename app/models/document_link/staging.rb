@@ -2,9 +2,9 @@
 
 require "digest"
 
-# Holds uploaded bytes on a dedicated volume path while paperless is
-# unreachable, so an upload is never silently lost (spec §7, §8.1). Files are
-# named by the row id, so a client-supplied filename can never reach the path.
+# Holds uploaded bytes on a dedicated volume path until a read consumes them,
+# so an upload is never silently lost (spec §7, §8.1). Files are named by the
+# row id, so a client-supplied filename can never reach the path.
 class DocumentLink::Staging
   MAX_BYTES = 25.megabytes
   READ_CHUNK = 64.kilobytes
@@ -12,7 +12,7 @@ class DocumentLink::Staging
   class TooLargeError < StandardError; end
 
   def self.root
-    Pathname.new(ENV["OHMZBUDGET_PAPERLESS_STAGING_DIR"].presence || "/rails/storage/paperless-staged")
+    Pathname.new(ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"].presence || "/rails/storage/document-store")
   end
 
   def self.write(io:, id:)

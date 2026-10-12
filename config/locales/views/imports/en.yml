@@ -512,9 +512,6 @@ en:
       ndjson_uploaded: NDJSON file uploaded successfully.
       pdf_too_large: PDF file is too large. Maximum size is %{max_size}MB.
       pdf_processing: Your PDF is being processed. You will receive an email when analysis is complete.
-      # (Ruling M2-C2, 2026-10-11 close-out): alert for a failed StatementOcrJob
-      # enqueue; the statement is held in the retryable extraction_failed state.
-      statement_ocr_enqueue_failed: We couldn't queue the OCR for this statement — it is archived and safe. You can try again.
       invalid_pdf: The uploaded file is not a valid PDF.
       missing_upload: We didn't receive your file. Please try uploading it again.
       duplicate_pdf_unavailable: This PDF is already stored as a statement you cannot access.
@@ -592,11 +589,7 @@ en:
       contract: Contract
       other: Other Document
       unknown: Unknown Document
-    statement_ocr:
-      summary: "Read by the %{bank} statement template v%{version} (paperless OCR)."
-    # The native read's summary (Task 9). It sits beside statement_ocr rather than
-    # replacing it: that key describes the paperless/template path, and Task 12
-    # deletes those surfaces and sweeps it. Import#ai_processed? IS
+    # The native read's summary (Task 9). Import#ai_processed? IS
     # `ai_summary.present?` (pdf_import.rb), so a natively-read statement must
     # always get one, and this says what actually happened — the AI read the
     # document. The bank name is a hint the model may not have supplied, hence the
@@ -604,24 +597,6 @@ en:
     statement_read:
       summary: "Read from this document by AI (%{bank})."
       summary_no_bank: "Read from this document by AI."
-    needs_template:
-      title: We couldn't read this statement
-      description: The file is archived and safe, but its format doesn't match any known bank template yet.
-      failed_title: We couldn't read this statement
-      failed_description: The OCR attempt failed before we could read the file. It is archived and safe.
-      archived_statement: Archived statement
-      fix_path: Add a template for this bank, or import the file as CSV/OFX, to bring its transactions in.
-      failed_fix_path: Try again, add a template for this bank, or import the file as CSV/OFX.
-      retry: Try again
-      back_to_imports: Back to imports
-    retry_statement_ocr:
-      retried: Statement OCR re-queued.
-      # Ruling M2-L4: the state guard's alert (only extraction_failed /
-      # needs_template may be re-driven).
-      not_retryable: This statement is not awaiting a re-read.
-      # (Ruling M2-C2, 2026-10-11 close-out): the failed enqueue's alert; the
-      # statement is held back in the state that offered the retry.
-      retry_enqueue_failed: We couldn't queue the OCR — the statement is still ready to retry.
     pdf_import:
       processing_title: Processing your PDF
       processing_description: We're analyzing your document using AI. This may take a moment. You'll receive an email when the analysis is complete.

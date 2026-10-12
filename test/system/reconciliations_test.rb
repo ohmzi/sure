@@ -12,17 +12,8 @@ class ReconciliationsTest < ApplicationSystemTestCase
     )
     @link = DocumentLink.create!(
       family: @family, source: "receipt", status: "unlinked",
-      paperless_document_id: 101, title: "Starbucks receipt"
+      extracted_text: "Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00", title: "Starbucks receipt"
     )
-
-    Paperless::Client.any_instance.stubs(:document)
-      .returns(stub(content: "Starbucks\n#{Date.current.iso8601}\nTOTAL $55.00", created: Date.current, id: 101))
-    # The document proxy streams through the browser; keep it from reaching a
-    # live paperless. M1's #file yields (chunk, env) to its block, so the stub
-    # must yield — a plain .returns never invokes the block and the img would
-    # commit an empty stream.
-    Paperless::Client.any_instance.stubs(:file)
-      .yields("preview-bytes", stub(status: 200, response_headers: { "content-type" => "image/png" }))
   end
 
   test "a suggested receipt is linked to its transaction from the inbox" do

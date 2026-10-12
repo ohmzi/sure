@@ -20,11 +20,10 @@ class DocumentWizardsController < ApplicationController
 
   def new
     @source = wizard_source
-    # The drop screen's form targets the WHOLE page (`_top`) when the ladder
-    # resolves — the finish is then a full-page archive landing, not a swap of
-    # the #modal frame; the ambiguous case keeps the modal for step 3
-    # (Rendered into the #modal frame via the DS::Dialog container).
-    @finish_immediately = Import::AccountPrefill.call(user: Current.user).account.present?
+    # The drop screen's form always targets the WHOLE page (`_top`): the finish
+    # is a full-page archive landing, never a swap of the #modal frame. The
+    # step-3 ask the modal once served is gone — both legs hand the staged link
+    # to the native read and settle on the archive.
   end
 
   def create
@@ -58,15 +57,14 @@ class DocumentWizardsController < ApplicationController
       end
 
       # The link is staged and the native read owns everything after it (Task 8):
-      # DocumentUnderstandingJob is the enqueued job, so the paperless upload is
-      # never started for a wizard document and no document is read twice. The
-      # draft is created by the JOB once it has a verdict, so the wizard no
-      # longer creates one here — and the account prefill ladder moves into the
-      # pipeline in a later task, so this path finishes on the archive (the
-      # step-3 ask is now the statement path's alone until then).
+      # DocumentUnderstandingJob is the enqueued job, so no document is read
+      # twice. The draft is created by the JOB once it has a verdict, so the
+      # wizard no longer creates one here — and the account prefill ladder moves
+      # into the pipeline in a later task, so this path finishes on the archive
+      # (the step-3 ask is now the statement path's alone until then).
       DocumentLink::Intake.call(
         family: Current.family, uploader: Current.user, file: file,
-        source: receipt_bill_source(file), title: params[:title].presence,
+        source: receipt_bill_source, title: params[:title].presence,
         enqueue: ->(link) { DocumentUnderstandingJob.perform_later(link.id) }
       )
       redirect_to documents_path, notice: t(".reading_in_background")
@@ -78,16 +76,12 @@ class DocumentWizardsController < ApplicationController
       redirect_to new_document_wizard_path(source: wizard_source), alert: t(".invalid_file")
     end
 
-    # The one-tap override wins over the filename heuristic; anything outside
-    # the receipt/bill pair falls back to the guess, clamped (a crafted
-    # override can never smuggle a statement in under this tile).
-    def receipt_bill_source(file)
+    # The one-tap override wins; anything outside the receipt/bill pair (or no
+    # override) files as a receipt. The read's DocumentClassifier owns the real
+    # class once the bytes are read, so this is only the initial hint.
+    def receipt_bill_source
       override = params[:source_override].to_s
-      return override if RECEIPT_BILL_SOURCES.include?(override)
-
-      guess = DocumentLink::SourceGuesser.guess(filename: file.original_filename,
-                                                content_type: file.content_type).to_s
-      RECEIPT_BILL_SOURCES.include?(guess) ? guess : "receipt"
+      RECEIPT_BILL_SOURCES.include?(override) ? override : "receipt"
     end
 
     # The skip-when-resolved ladder (M8 Task 9, Ruling M8-L1 decision 2):

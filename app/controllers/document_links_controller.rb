@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
-# The document bridge's HTTP surface. Every byte of a file goes through #file —
-# the browser never talks to paperless (spec §8.4). Ids are resolved through the
-# link table; an arbitrary URL is never echoed.
+# The document bridge's HTTP surface. Every byte of a file goes through #file,
+# served from the document's own stored copy — the browser never talks to any
+# external engine (spec §8.4). Ids are resolved through the link table; an
+# arbitrary URL is never echoed.
 class DocumentLinksController < ApplicationController
-  include ActionController::Live
   include DocumentBrowser
 
   FILE_KINDS = { "original" => :original, "preview" => :preview, "thumb" => :thumb }.freeze
@@ -38,9 +38,8 @@ class DocumentLinksController < ApplicationController
     # the modal's prev/next recompute over the same filtered list.
     @rows = @links.map { |link| DocumentBrowser::Row.for_document_link(link, viewer_url: viewer_document_path(link, document_browser_viewer_params)) }
     # The tag facet's choices come from the stored snapshot (M8 Task 6), never
-    # a live paperless call.
+    # a live external call.
     @tag_choices = DocumentLink.tag_snapshot_names(Current.family.document_links)
-    @token_invalid_at = Paperless.token_invalid_at
     @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("documents.index.receipts_bills_title"), documents_path ] ]
     # Ruling 4: explicit view path — implicit render under this controller would
     # resolve to document_links/index, but spec §6 and Task 8 pin the views at
@@ -105,45 +104,37 @@ class DocumentLinksController < ApplicationController
     render plain: "file too large", status: :payload_too_large
   end
 
-  # Streams paperless bytes with Range/Content-Range passthrough. We forward the
-  # client's Range header and copy back the upstream status and headers on the
-  # first chunk (before the response is committed).
+  # Serves the document's own stored bytes. Range requests are honored with the
+  # same 206/Content-Range passthrough the old proxy exposed, so the in-page PDF
+  # viewer can seek; the row/viewer Download affordance passes `download: true`
+  # so the disposition is an attachment instead of inline.
   def file
-    return render(plain: "not ready", status: :not_found) if @link.paperless_document_id.blank?
+    return render(plain: "not ready", status: :not_found) if @link.stored_path.blank?
 
     kind = FILE_KINDS[params[:kind].presence || "preview"]
     return render(plain: "invalid kind", status: :bad_request) unless kind
 
-    # The in-page viewer keeps fetching inline; the row/viewer Download
-    # affordance passes `download: true` so the disposition is an attachment
-    # (repaired 2026-10-11, verifier F11 — the proxy forced inline for every
-    # kind before).
-    disposition = ActiveModel::Type::Boolean.new.cast(params[:download]) ? "attachment" : "inline"
+    path = DocumentLink::Staging.resolve!(@link.stored_path)
+    return render(plain: "not ready", status: :not_found) unless path.file?
 
-    started = false
-    Paperless.client.file(@link.paperless_document_id, kind: kind, range: request.headers["Range"]) do |chunk, env|
-      unless started
-        started = true
-        response.status = env.status
-        %w[content-type content-range content-length accept-ranges].each do |header|
-          value = env.response_headers[header]
-          response.headers[header.split("-").map(&:capitalize).join("-")] = value if value
-        end
-        response.headers["Content-Disposition"] = disposition
-      end
-      response.stream.write(chunk)
-    end
-  rescue Paperless::Error => e
-    if e.code == :unauthorized
-      Paperless.note_token_invalid!
-      render plain: "paperless token needs rotation", status: :bad_gateway unless started
+    content_type = @link.content_type.presence || "application/octet-stream"
+    disposition = ActiveModel::Type::Boolean.new.cast(params[:download]) ? :attachment : :inline
+    filename = @link.original_filename.presence || "document"
+
+    size = path.size
+    response.headers["Accept-Ranges"] = "bytes"
+    if (range = http_range(size))
+      first, last = range
+      response.headers["Content-Range"] = "bytes #{first}-#{last}/#{size}"
+      send_data(path.binread(last - first + 1, first),
+                type: content_type, disposition: disposition, filename: filename, status: :partial_content)
     else
-      render plain: "paperless unreachable", status: :bad_gateway unless started
+      send_data(path.binread, type: content_type, disposition: disposition, filename: filename)
     end
-  rescue ActionController::Live::ClientDisconnected, IOError
-    # The viewer navigated away; nothing to render.
-  ensure
-    response.stream.close
+  rescue ArgumentError
+    # A stored_path outside the store root (or an unreadable one): serve nothing
+    # rather than 500.
+    render plain: "not ready", status: :not_found
   end
 
   def link
@@ -160,16 +151,14 @@ class DocumentLinksController < ApplicationController
   end
 
   def retry
-    # Ruling M4 (M1), 2026-10-10 close-out: refuse to re-enqueue a row whose
-    # upload is already in flight — a processing row, or a row that still holds
-    # its paperless task id. Together with UploadJob's task-id guard, a
-    # double-submitted retry cannot post the same bytes twice.
-    unless @link.status.in?(%w[failed queued]) && @link.paperless_task_id.blank? &&
+    # Refuse to re-enqueue a row whose read is already in flight, or a row with
+    # no held bytes to read.
+    unless @link.status.in?(%w[failed queued]) &&
            @link.stored_path.present? && DocumentLink::Staging.exists?(@link.stored_path)
       return render(plain: "no held upload to retry", status: :conflict)
     end
     @link.retry_upload!
-    Paperless::UploadJob.perform_later(@link.id)
+    DocumentUnderstandingJob.perform_later(@link.id)
     redirect_back_or_to documents_path, notice: t("documents.retry.queued")
   end
 
@@ -220,8 +209,26 @@ class DocumentLinksController < ApplicationController
     end
 
     def require_document_copy!
-      return if @link.paperless_document_id.present?
-      render plain: "no paperless copy yet", status: :conflict
+      return if @link.stored_path.present?
+      render plain: "no stored copy yet", status: :conflict
+    end
+
+    # "bytes=0-3" -> [0, 3]; "bytes=4-" -> [4, size-1]; "bytes=-5" -> the last
+    # five bytes. A malformed or unsatisfiable range is ignored (200, full body).
+    def http_range(size)
+      match = request.headers["Range"].to_s.match(/\Abytes=(\d*)-(\d*)\z/)
+      return nil unless match && (match[1].present? || match[2].present?)
+
+      if match[1].empty?
+        length = match[2].to_i
+        return nil if length.zero? || size.zero?
+        [ [ size - length, 0 ].max, size - 1 ]
+      else
+        first = match[1].to_i
+        last = match[2].present? ? [ match[2].to_i, size - 1 ].min : size - 1
+        return nil if first > last || first >= size
+        [ first, last ]
+      end
     end
 
     def bad_request

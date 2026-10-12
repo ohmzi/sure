@@ -52,7 +52,7 @@ class DocumentBrowserComponentTest < ViewComponent::TestCase
     assert_equal I18n.t("account_statements.type.statement"), row.doc_type_label
     assert_equal [ I18n.t("account_statements.status.linked") ], row.statuses.map(&:label)
 
-    %w[processing needs_template extraction_failed].each do |state|
+    %w[processing extraction_failed].each do |state|
       statement.update!(extraction_state: state)
       labels = DocumentBrowser::Row.for_account_statement(statement).statuses.map(&:label)
 

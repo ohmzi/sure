@@ -5,11 +5,9 @@ en:
       receipts_bills_title: Receipts & Bills
       upload: Upload
       source_auto: Detect automatically
-      token_invalid_title: paperless token needs rotation
-      token_invalid_description: "The last paperless call was rejected (401) at %{time}. Rotate the token in settings."
     create:
       queued: Document queued for processing.
-      held: The upload is held on this server; retry it once paperless is reachable.
+      held: The upload is held on this server; retry it once processing is available.
     link:
       linked: Document linked to the entry.
       unlinked: Document unlinked from the entry.

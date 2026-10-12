@@ -895,17 +895,13 @@ class AccountStatementTest < ActiveSupport::TestCase
     statement = create_pdf_statement
 
     assert statement.not_attempted?
-    assert_not statement.needs_template?
   end
 
-  test "records the needs_template and extraction_failed extraction states" do
+  test "records the extraction_failed extraction state" do
     statement = create_pdf_statement
 
-    statement.update!(extraction_state: :needs_template)
-    assert statement.reload.needs_template?
-
     statement.update!(extraction_state: :extraction_failed)
-    assert statement.extraction_failed?
+    assert statement.reload.extraction_failed?
   end
 
   test "the extraction_state column is non-null and defaults to not_attempted in the database" do

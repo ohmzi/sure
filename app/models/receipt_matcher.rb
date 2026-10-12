@@ -1,5 +1,5 @@
-# Link-only receipt ↔ transaction matcher (D8). It reads a DocumentLink's OCR
-# text from paperless, gathers candidate entries and scores them; it never
+# Link-only receipt ↔ transaction matcher (D8). It reads a DocumentLink's
+# stored OCR snapshot, gathers candidate entries and scores them; it never
 # creates, edits or links an entry — the user's tap does that
 # (DocumentLink#link_to_entry!). Every return value is a value object.
 class ReceiptMatcher
@@ -33,26 +33,14 @@ class ReceiptMatcher
   end
 
   private
-    def paperless_document
-      return nil if @document_link.paperless_document_id.blank?
-
-      @paperless_document ||= Paperless::Client.new.document(@document_link.paperless_document_id)
-    end
-
     def ocr_text
-      paperless_document&.content.to_s
+      @document_link.extracted_text.to_s
     end
 
-    # Prefer the date printed on the receipt; fall back to paperless's own
-    # document date; fall back to when the link was created. All real facts,
-    # never an inferred one.
+    # Prefer the date printed on the receipt; fall back to when the link was
+    # created. All real facts, never an inferred one.
     def document_date(extraction)
-      extraction.date || paperless_created_date || @document_link.created_at.to_date
-    end
-
-    def paperless_created_date
-      value = paperless_document&.created
-      value.present? ? value.to_date : nil
+      extraction.date || @document_link.created_at.to_date
     end
 
     # Candidates: transaction entries on the family's active accounts, in each

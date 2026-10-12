@@ -27,17 +27,11 @@ class ReceiptMatcherJob < ApplicationJob
 
     def match_for_family(family_id)
       DocumentLink.where(family_id: family_id, status: MATCHABLE_STATUSES).find_each do |link|
-        begin
-          # viewer: nil — the job runs with no Current.user and scores the
-          # family-wide candidate set for every member (Ruling M3-C2,
-          # 2026-10-11 close-out): the suggestion state is family-level; each
-          # member's inbox then scopes the rendered candidates per viewer.
-          result = ReceiptMatcher.call(link, viewer: nil)
-        rescue Paperless::Error
-          # One paperless outage must not abort the remaining links; leave this
-          # row for the next tick. (Ruling P-m3-1, 2026-10-10 pre-flight)
-          next
-        end
+        # viewer: nil — the job runs with no Current.user and scores the
+        # family-wide candidate set for every member (Ruling M3-C2,
+        # 2026-10-11 close-out): the suggestion state is family-level; each
+        # member's inbox then scopes the rendered candidates per viewer.
+        result = ReceiptMatcher.call(link, viewer: nil)
         next if result.no_match?
 
         # M1's guarded, atomic write (R4): a user dismiss/link racing this write

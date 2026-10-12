@@ -1,20 +1,23 @@
 require "test_helper"
-require_relative "../support/paperless_test_helper"
 
 class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
-  include PaperlessTestHelper
   setup do
     @tmp = Pathname.new(Dir.mktmpdir("doc-links"))
-    @previous_staging = ENV["OHMZBUDGET_PAPERLESS_STAGING_DIR"]
-    ENV["OHMZBUDGET_PAPERLESS_STAGING_DIR"] = @tmp.to_s
+    @previous_staging = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
+    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = @tmp.to_s
     sign_in users(:family_admin)
     @family = families(:dylan_family)
     @link = document_links(:linked_receipt)
   end
 
   teardown do
-    ENV["OHMZBUDGET_PAPERLESS_STAGING_DIR"] = @previous_staging
+    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = @previous_staging
     FileUtils.remove_entry(@tmp) if @tmp.exist?
+  end
+
+  # Writes bytes at the store root for the row and returns the path.
+  def stage_bytes(link, bytes)
+    DocumentLink::Staging.write(io: StringIO.new(bytes), id: link.id)
   end
 
   test "create rejects an unknown source" do
@@ -25,10 +28,10 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
-  test "create stages the bytes and enqueues the upload job" do
+  test "create stages the bytes and enqueues the native read" do
     file = uploaded_file(filename: "r.png", content_type: "image/png", content: "png-bytes")
     assert_difference "DocumentLink.count", 1 do
-      assert_enqueued_with(job: Paperless::UploadJob) do
+      assert_enqueued_with(job: DocumentUnderstandingJob) do
         post documents_path, params: { document: file, source: "receipt", title: "New" }
       end
     end
@@ -41,11 +44,11 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
 
   test "create holds the row back to queued with its bytes when the enqueue raises" do
     # Ruling 11 (M1), 2026-10-10 close-out: without this fence a raise between
-    # stage! and enqueue strands the row in `processing` — no poll is ever
-    # scheduled (the job schedules it), the retry route refuses `processing`,
-    # and the (family, sha256) unique index blocks re-uploading the same bytes.
+    # stage! and enqueue strands the row in `processing` — no read is ever
+    # started, the retry route refuses `processing`, and the (family, sha256)
+    # unique index blocks re-uploading the same bytes.
     file = uploaded_file(filename: "r.png", content_type: "image/png", content: "png-bytes")
-    Paperless::UploadJob.stubs(:perform_later).raises(StandardError, "redis down")
+    DocumentUnderstandingJob.stubs(:perform_later).raises(StandardError, "redis down")
     assert_difference "DocumentLink.count", 1 do
       post documents_path, params: { document: file, source: "receipt" }
     end
@@ -128,55 +131,43 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_empty Dir.children(@tmp)
   end
 
-  test "file streams the proxied bytes with the range response" do
-    Paperless::Client.any_instance.stubs(:file)
-                     .with(@link.paperless_document_id, kind: :preview, range: "bytes=0-3")
-                     .yields(
-                       "%PDF", OpenStruct.new(status: 206, response_headers: { "content-type" => "application/pdf", "content-range" => "bytes 0-3/8", "accept-ranges" => "bytes" })
-                     )
+  test "file streams the stored bytes with the range response" do
+    @link.update_columns(stored_path: stage_bytes(@link, "%PDF-1.7-range"),
+                         content_type: "application/pdf")
+
     get file_document_path(@link, kind: "preview"), headers: { "Range" => "bytes=0-3" }
     assert_response 206
     assert_equal "application/pdf", response.headers["Content-Type"]
-    assert_equal "bytes 0-3/8", response.headers["Content-Range"]
+    assert_equal "bytes 0-3/14", response.headers["Content-Range"]
     assert_equal "%PDF", response.body
   end
 
   test "file serves inline for viewing and an attachment for a download request" do
-    Paperless::Client.any_instance.stubs(:file).yields(
-      "%PDF", OpenStruct.new(status: 200, response_headers: { "content-type" => "application/pdf" })
-    )
+    @link.update_columns(stored_path: stage_bytes(@link, "%PDF-1.7"),
+                         content_type: "application/pdf")
 
     get file_document_path(@link, kind: "original")
-    assert_equal "inline", response.headers["Content-Disposition"]
+    assert_match(/\Ainline/, response.headers["Content-Disposition"])
 
     get file_document_path(@link, kind: "original", download: true)
-    assert_equal "attachment", response.headers["Content-Disposition"]
+    assert_match(/\Aattachment/, response.headers["Content-Disposition"])
   end
 
-  test "file refuses a kind paperless does not serve" do
+  test "file refuses an unknown kind" do
     get file_document_path(@link, kind: "weird")
     assert_response :bad_request
   end
 
-  test "file refuses a document with no paperless copy" do
+  test "file refuses a document with no stored bytes" do
     processing = document_links(:held_bill)
-    processing.update_columns(status: "processing", paperless_document_id: nil)
+    processing.update_columns(status: "processing", stored_path: nil)
     get file_document_path(processing, kind: "preview")
     assert_response :not_found
   end
 
-  test "file maps a paperless 401 to a rotation warning" do
-    Paperless::Client.any_instance.stubs(:file).raises(Paperless::Error.new("token", code: :unauthorized))
-    get file_document_path(@link, kind: "preview")
-    assert_response :bad_gateway
-    assert Setting["paperless_token_invalid_at"].present?
-  ensure
-    Setting["paperless_token_invalid_at"] = nil
-  end
-
-  test "link refuses a document with no paperless copy" do
+  test "link refuses a document with no stored bytes" do
     processing = document_links(:held_bill)
-    processing.update_columns(status: "processing", paperless_document_id: nil)
+    processing.update_columns(status: "processing", stored_path: nil)
     post link_document_path(processing), params: { entry_id: entries(:transaction).id }
     assert_response :conflict
     assert_equal "processing", processing.reload.status
@@ -204,9 +195,9 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "retry re-enqueues only a row with held bytes" do
-    @link.update_columns(status: "failed", paperless_task_id: nil)
+    @link.update_columns(status: "failed")
     @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf") # -> queued with stored_path
-    assert_enqueued_with(job: Paperless::UploadJob) do
+    assert_enqueued_with(job: DocumentUnderstandingJob) do
       post retry_document_path(@link)
     end
     assert_response :redirect
@@ -219,23 +210,16 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_response :conflict
   end
 
-  test "retry refuses a row whose upload is already in flight" do
-    # Ruling M4 (M1), 2026-10-10 close-out: staged bytes alone are not enough —
-    # a row in `processing`, or one still holding its task id (the poll is
-    # scheduled), must not be re-enqueued.
+  test "retry refuses a row whose read is already in flight" do
+    # Staged bytes alone are not enough — a row in `processing` must not be
+    # re-enqueued, or a second read would race the first.
     path = DocumentLink::Staging.write(io: StringIO.new("x"), id: @link.id)
-    @link.update_columns(status: "processing", paperless_task_id: "task-1", stored_path: path)
+    @link.update_columns(status: "processing", stored_path: path)
     assert_no_enqueued_jobs do
       post retry_document_path(@link)
     end
     assert_response :conflict
-
-    @link.update_columns(status: "queued", paperless_task_id: "task-1")
-    assert_no_enqueued_jobs do
-      post retry_document_path(@link)
-    end
-    assert_response :conflict
-    assert_equal "queued", @link.reload.status
+    assert_equal "processing", @link.reload.status
   ensure
     DocumentLink::Staging.delete(path)
   end
@@ -266,47 +250,32 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-action~='wheel->document-viewer#zoom']"
   end
 
-  test "an image row's file url serves an image through the proxy" do
-    # (Ruling M8-C1, 2026-10-11 close-out) end to end, through the REAL client:
-    # the row's file URL must fetch the uploaded original — paperless's
-    # download endpoint WITH original=true (unflagged it answers the archived
-    # PDF, which is exactly why the photo lightbox never displayed). The stub
-    # is the endpoint contract, not a stand-in for the client: a request that
-    # dropped the flag (or read another endpoint) is unstubbed and fails.
+  test "an image row's file url serves the stored image bytes" do
+    # end to end through the real store: the row's file URL fetches the
+    # document's own bytes with their stored content type.
     link = document_links(:unlinked_receipt) # image/png
+    link.update_columns(stored_path: stage_bytes(link, "PNGBYTES"))
     row = DocumentBrowser::Row.for_document_link(link)
 
-    with_paperless do
-      stub_request(:get, "http://paperless.test:8000/api/documents/#{link.paperless_document_id}/download/")
-        .with(query: { "original" => "true" })
-        .to_return(status: 200, body: "PNGBYTES", headers: { "Content-Type" => "image/png" })
+    get row.file_url
 
-      get row.file_url
-
-      assert_response :success
-      assert_equal "image/png", response.headers["Content-Type"]
-    end
+    assert_response :success
+    assert_equal "image/png", response.headers["Content-Type"]
+    assert_equal "PNGBYTES", response.body
   end
 
-  test "a pdf row's file url still serves a pdf through the proxy" do
-    # The image branch's mirror (Ruling M8-C1): a PDF-backed link's file URL
-    # answers a PDF content type.
+  test "a pdf row's file url still serves a pdf" do
     link = document_links(:linked_receipt) # application/pdf
+    link.update_columns(stored_path: stage_bytes(link, "%PDF-1.7"))
     row = DocumentBrowser::Row.for_document_link(link)
 
-    with_paperless do
-      stub_request(:get, "http://paperless.test:8000/api/documents/#{link.paperless_document_id}/download/")
-        .with(query: { "original" => "true" })
-        .to_return(status: 200, body: "%PDF-1.7", headers: { "Content-Type" => "application/pdf" })
+    get row.file_url
 
-      get row.file_url
-
-      assert_response :success
-      assert_equal "application/pdf", response.headers["Content-Type"]
-    end
+    assert_response :success
+    assert_equal "application/pdf", response.headers["Content-Type"]
   end
 
-  test "the viewer states a missing paperless copy honestly instead of framing it" do
+  test "the viewer states a missing copy honestly instead of framing it" do
     get viewer_document_path(document_links(:queued_receipt))
 
     assert_response :success
@@ -346,7 +315,7 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     # random UUID: this id exists, so without family scoping `set_link` would
     # find it and the viewer would render it — the 404 is discriminating.
     foreign = DocumentLink.create!(family: families(:empty), created_by: users(:empty),
-                                   source: "receipt", status: "unlinked", paperless_document_id: 9199,
+                                   source: "receipt", status: "unlinked",
                                    title: "Foreign receipt", original_filename: "foreign.png",
                                    content_type: "image/png")
 

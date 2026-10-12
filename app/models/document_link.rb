@@ -3,10 +3,9 @@
 require "digest"
 
 # The receipt/bill/statement spine. One row per uploaded document: it tracks the
-# paperless upload, the staged bytes while paperless is unreachable, and the
-# optional link to an entry. Status changes go through `transition!` only — a
-# single atomic conditional UPDATE, so a late poll or webhook can never clobber
-# a row the user already moved on.
+# stored bytes and the optional link to an entry. Status changes go through
+# `transition!` only — a single atomic conditional UPDATE, so a late write can
+# never clobber a row the user already moved on.
 class DocumentLink < ApplicationRecord
   STATUSES  = %w[queued processing unlinked suggested pending_review linked verified dismissed failed].freeze
   SOURCES   = %w[receipt bill statement other].freeze
@@ -45,9 +44,8 @@ class DocumentLink < ApplicationRecord
   scope :ordered, -> { order(created_at: :desc) }
 
   # The "the job died" shape (Task 11): mid-read or queued, has bytes, no stated
-  # hold, and has not moved in a bound. This is SyncCleanerJob's paperless-era
-  # scope, re-pointed — and it is what makes "never a lost document" a property
-  # rather than a promise.
+  # hold, and has not moved in a bound. DocumentReaperJob's scope — and it is
+  # what makes "never a lost document" a property rather than a promise.
   #
   # `failure_message: nil` is the hold signal (fix round 1, item 2): `hold!`
   # lands a row in `queued` WITH a message, and the hold reasons that never
@@ -67,43 +65,14 @@ class DocumentLink < ApplicationRecord
 
   class << self
     # The only way a row enters the system. The caller stages bytes
-    # (DocumentLink#stage!, Task 3) and enqueues Paperless::UploadJob.
+    # (DocumentLink#stage!, Task 3) and enqueues the native DocumentUnderstandingJob.
     def link_from_upload!(family:, uploader:, source:, title: nil)
       create!(family: family, created_by: uploader, source: source, title: title, status: "queued")
     end
 
-    # (Ruling M7-L9, 2026-10-11 close-out) The re-drive for a lost snapshot
-    # enqueue: `finish_processing!` rescues the raise and leaves the row
-    # settled-but-snapshotless, which is exactly this scope. SyncCleanerJob
-    # sweeps it hourly; the paperless:backfill_extracted_text rake task's scope
-    # is the wider `capture_pending_snapshot` below (M8 Task 6). Idempotent —
-    # CaptureContentJob no-ops when the snapshot already exists, so neither path
-    # can overwrite a good snapshot or double-apply. Returns the scanned count,
-    # for the task's output.
-    def capture_pending_content
-      scope = where.not(paperless_document_id: nil).where(extracted_text: nil)
-      count = scope.count
-      scope.find_each { |link| Paperless::CaptureContentJob.perform_later(link.id) }
-      count
-    end
-
-    # The operator-driven backfill's scope (M8 locked decision 6): a settled row
-    # is re-driven when its OCR snapshot OR its tag snapshot is missing. Kept
-    # separate from capture_pending_content on purpose — a genuinely tag-less
-    # document can never leave the tag scope (record_tags! refuses blank names),
-    # so sweeping tags hourly would re-fetch it from paperless forever; the
-    # backfill is the documented refresh path and its re-fetch is bounded to
-    # its runs (M8 self-review). Returns the scanned count.
-    def capture_pending_snapshot
-      scope = where.not(paperless_document_id: nil).where("extracted_text IS NULL OR tags = '{}'")
-      count = scope.count
-      scope.find_each { |link| Paperless::CaptureContentJob.perform_later(link.id) }
-      count
-    end
-
     # Local OCR-context search (M8 locked decision 4 / M7 Task 10's pin): the
-    # snapshot, the title and the filename — never paperless. sanitize_sql_like
-    # keeps a typed % or _ literal (the EntrySearch idiom).
+    # snapshot, the title and the filename. sanitize_sql_like keeps a typed % or
+    # _ literal (the EntrySearch idiom).
     def search(query)
       term = query.to_s.strip
       return all if term.blank?
@@ -113,8 +82,8 @@ class DocumentLink < ApplicationRecord
     end
 
     # The tag facet's vocabulary (M8 Task 6): the distinct names stored in the
-    # snapshot, so the choices render and filter with paperless down (locked
-    # decision 4). Callers pass the scope whose tags they may show.
+    # snapshot, so the choices render and filter locally. Callers pass the scope
+    # whose tags they may show.
     def tag_snapshot_names(scope = all)
       scope.distinct.pluck(Arel.sql("unnest(tags)")).compact.sort
     end
@@ -145,10 +114,8 @@ class DocumentLink < ApplicationRecord
   # (fix round 2): without this, a row parked by `await_retry!` would carry its
   # message into `processing`, and the sweep — which excludes message-bearing
   # rows — would be blind to a genuine crash of the restarted read.
-  def mark_processing!(paperless_document_id: nil)
-    attrs = { failure_message: nil }
-    attrs[:paperless_document_id] = paperless_document_id if paperless_document_id
-    transition!(from: %w[queued failed processing], to: "processing", **attrs)
+  def mark_processing!
+    transition!(from: %w[queued failed processing], to: "processing", failure_message: nil)
   end
 
   # The read's liveness touch (Task 11 fix round 1, item 1). The `stranded`
@@ -161,50 +128,12 @@ class DocumentLink < ApplicationRecord
     self.class.where(id: id, status: %w[queued processing]).update_all(updated_at: Time.current) == 1
   end
 
-  def record_task!(task_id)
-    transition!(from: "processing", to: "processing", paperless_task_id: task_id)
-  end
-
-  def note_poll!(attempts)
-    transition!(from: "processing", to: "processing", poll_attempts: attempts)
-  end
-
-  def finish_processing!(document_id:)
-    settled = transition!(from: "processing", to: "unlinked",
-                          paperless_document_id: document_id, paperless_task_id: nil, failure_message: nil)
-    # One choke point for the OCR-text snapshot: polling, the ingest webhook and
-    # statement OCR all settle through this method. Idempotent and bounded.
-    # (Ruling M7-L9, 2026-10-11 close-out) The enqueue is failure-SAFE, not
-    # fire-and-forget: a transient enqueue failure (Sidekiq/Redis down) at this
-    # choke point used to raise and strand the settled row with no re-drive (the
-    # M1-Ruling-11 class). The settle stands — the row is unlinked with its
-    # document id — and the row stays in `capture_pending_content`'s scope,
-    # which SyncCleanerJob's hourly sweep re-drives without an operator.
-    if settled
-      begin
-        Paperless::CaptureContentJob.perform_later(id)
-      rescue => e
-        DebugLogEntry.capture(
-          category: "background_jobs",
-          level: "warn",
-          message: "CaptureContentJob enqueue failed: #{e.class}: #{e.message}",
-          source: "document_link",
-          family: family,
-          metadata: { record_type: self.class.name, record_id: id, reason: "enqueue_failed" }
-        )
-      end
-    end
-    settled
-  end
-
   # The OCR-text snapshot. Deliberately NOT a status transition: a `transition!`
   # in progress must not be clobbered by content capture. By default it is
   # idempotent — it fills only a blank column, so a replayed job or a backfill
   # can never overwrite a good snapshot. `refresh: true` is the native-read
   # escape hatch: a reprocess after a model (or engine) change MUST be able to
-  # replace a bad snapshot; the paperless-era write-once contract existed only
-  # because the snapshot arrived from someone else's engine, which is no longer
-  # true.
+  # replace a bad snapshot.
   def record_content!(text, refresh: false)
     return false if text.blank?
 
@@ -217,28 +146,13 @@ class DocumentLink < ApplicationRecord
   # (Task 8/9) or linked. Moves only this row's status — never money.
   def settle! = transition!(from: "processing", to: "unlinked", failure_message: nil)
 
-  # The AI's class, written once the read settles. `source` was chosen by the user
-  # in the paperless era (SourceGuesser or a wizard tile); it is now a fact about
-  # the document.
+  # The AI's class, written once the read settles. `source` is a fact about the
+  # document, decided by the read's DocumentClassifier.
   def classify!(document_class:, confidence:, classified_by:)
     self.class.where(id: id).update_all(
       source: document_class, classified_by: classified_by,
       classification_confidence: confidence, updated_at: Time.current
     )
-  end
-
-  # The settle-time tag snapshot (M8 locked decision 6), idempotent like
-  # record_content!: it fills only while the column is empty, so a replayed job
-  # or a backfill run can never overwrite names already resolved. A blank list
-  # is a deliberate no-write — a genuinely tag-less document cannot record that
-  # fact, so it stays in the backfill's scope and is re-fetched on a later run
-  # (bounded; recorded in M8's self-review).
-  def record_tags!(names)
-    names = Array(names).map(&:to_s).reject(&:blank?).uniq
-    return false if names.empty?
-
-    self.class.where(id: id, tags: [])
-        .update_all(tags: names, updated_at: Time.current) == 1
   end
 
   # The row's displayed "document date" MUST be the same coerced date the
@@ -271,15 +185,13 @@ class DocumentLink < ApplicationRecord
   end
 
   def fail!(message)
-    transition!(from: "processing", to: "failed",
-                failure_message: message, paperless_task_id: nil)
+    transition!(from: "processing", to: "failed", failure_message: message)
   end
 
-  # Paperless unreachable or the token rejected: keep the bytes, drop back to a
-  # retryable state, no retry loop and no silent failure (spec §8.1, §8.6).
+  # The read could not run: keep the bytes, drop back to a retryable state, no
+  # retry loop and no silent failure (spec §8.1, §8.6).
   def hold!(message: nil)
-    transition!(from: %w[processing queued], to: "queued",
-                paperless_task_id: nil, failure_message: message)
+    transition!(from: %w[processing queued], to: "queued", failure_message: message)
   end
 
   # The retry ladder is waiting, not the user (Task 11 fix round 2). A transient
@@ -291,21 +203,18 @@ class DocumentLink < ApplicationRecord
   # (the job's guard accepts `queued`), and `mark_processing!` clears the message
   # when the read restarts, so a crash after the restart stays sweepable.
   def await_retry!(message:)
-    transition!(from: %w[processing queued], to: "queued",
-                failure_message: message, paperless_task_id: nil)
+    transition!(from: %w[processing queued], to: "queued", failure_message: message)
   end
 
   # The retry ladder is spent: land the row terminally from whatever state it is
   # actually in. A backoff-parked row is `queued`, so `fail!`'s `processing`-only
   # guard would no-op and leave a spent row parked forever.
   def abandon!(message:)
-    transition!(from: %w[processing queued], to: "failed",
-                failure_message: message, paperless_task_id: nil)
+    transition!(from: %w[processing queued], to: "failed", failure_message: message)
   end
 
   def retry_upload!
-    transition!(from: %w[failed queued processing], to: "queued",
-                paperless_task_id: nil, failure_message: nil, poll_attempts: 0)
+    transition!(from: %w[failed queued processing], to: "queued", failure_message: nil)
   end
 
   # A fresh read of the same document: clears the terminal bits and re-queues.

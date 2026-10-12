@@ -8,18 +8,17 @@ class DocumentLink::IntakeTest < ActiveSupport::TestCase
   setup do
     @family = families(:dylan_family)
     @file = Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png")
-    Paperless.stubs(:tag_id).returns(1)
   end
 
-  test "creates a staged, processing link and enqueues the upload" do
+  test "creates a staged, processing link and enqueues the native read" do
     link = nil
-    assert_enqueued_with(job: Paperless::UploadJob) do
+    assert_enqueued_with(job: DocumentUnderstandingJob) do
       link = DocumentLink::Intake.call(family: @family, uploader: users(:family_admin), file: @file)
     end
 
     assert link.persisted?
     assert_equal "processing", link.status
-    assert_equal "receipt", link.source # SourceGuesser: images are receipts
+    assert_equal "receipt", link.source # a blank source defaults to receipt
     assert link.stored_path.present?
   end
 
@@ -38,15 +37,12 @@ class DocumentLink::IntakeTest < ActiveSupport::TestCase
     end
   end
 
-  # (Task 8) The wizard hands the staged link to the native read instead of the
-  # paperless upload, so one document is never read by two pipelines. The
-  # default above (Paperless::UploadJob) is the archive route's, unchanged.
-  test "an explicit enqueue: chooses the job, and the paperless upload is not enqueued" do
+  # The wizard hands the staged link to the native read explicitly; the default
+  # is the same job, so either way one document is read once.
+  test "an explicit enqueue: chooses the job" do
     assert_enqueued_with(job: DocumentUnderstandingJob) do
-      assert_no_enqueued_jobs only: Paperless::UploadJob do
-        DocumentLink::Intake.call(family: @family, uploader: users(:family_admin), file: @file,
-                                  enqueue: ->(link) { DocumentUnderstandingJob.perform_later(link.id) })
-      end
+      DocumentLink::Intake.call(family: @family, uploader: users(:family_admin), file: @file,
+                                enqueue: ->(link) { DocumentUnderstandingJob.perform_later(link.id) })
     end
   end
 end

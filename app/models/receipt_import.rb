@@ -163,11 +163,11 @@ class ReceiptImport < Import
   # --- the money writer (D8) ------------------------------------------------
   #
   # The ONLY entry writer in M7, reached only through Import#publish (the
-  # reviewed publish button). Identity is the DOCUMENT, not the paperless id
-  # (Task 8): `external_id "document:<document_link.id>"` + `source "document"`,
-  # so a replayed or redelivered publish finds the same entry. The link outlives
+  # reviewed publish button). Identity is the DOCUMENT (Task 8):
+  # `external_id "document:<document_link.id>"` + `source "document"`, so a
+  # replayed or redelivered publish finds the same entry. The link outlives
   # every attempt, so its id is stable across retries — which is exactly what
-  # makes the identity replay-safe once paperless_document_id is gone.
+  # makes the identity replay-safe.
   # Heuristic claiming is OFF: publishing never edits or adopts a user's existing
   # entry — linking a receipt to an existing expense is M3's link-only path.
   def import!

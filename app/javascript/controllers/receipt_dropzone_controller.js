@@ -6,7 +6,7 @@ import { Controller } from "@hotwired/stimulus";
 // (the camera row, the drop zone's picker) submits the same form on `change`,
 // so no Continue button is needed. The sha256-first duplicate warning is
 // enforced server-side in DocumentLink::Intake (spec §8.1) — the digest is
-// computed and checked BEFORE any row or paperless post — so a duplicate is
+// computed and checked BEFORE any row or file write — so a duplicate is
 // never silently re-added regardless of how the file arrives.
 export default class extends Controller {
   static targets = ["input", "form"];
