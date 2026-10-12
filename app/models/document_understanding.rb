@@ -54,10 +54,22 @@ class DocumentUnderstanding
   def line_items = member_hashes(verdict[:line_items])
 
   # Statements carry rows; a receipt carries line items. Keeping them separate
-  # means neither can be mistaken for the other downstream.
+  # means neither can be mistaken for the other downstream. The gate is the
+  # DOCUMENT's class, because a batch is not a document: on the generic no-schema
+  # read a mid-statement run of continuation pages routinely comes back
+  # classified "other", and gating on that batch's own class silently dropped its
+  # rows. The batched read therefore accumulates `transaction_rows` (raw, ungated)
+  # and this reader — keyed on the merged verdict's class, the same one
+  # DocumentClassifier judges — decides whether they are the document's rows.
   def transactions
     return [] unless document_class == "statement"
 
+    transaction_rows
+  end
+
+  # The rows as the model sent them, with no class gate and the same coercion as
+  # `transactions` (so neither reader can hand a non-hash member downstream).
+  def transaction_rows
     member_hashes(verdict[:transactions])
   end
 
@@ -69,6 +81,13 @@ class DocumentUnderstanding
   # writer, so the stitched read is assembled into a new one.
   def with_transactions(rows)
     self.class.new(verdict.merge("transactions" => rows))
+  end
+
+  # The same, for the line items a multi-page receipt carries beyond its first
+  # page — batching is not the statement leg's alone, and merge_understanding
+  # keeps only the first value it sees for every other field.
+  def with_line_items(rows)
+    self.class.new(verdict.merge("line_items" => rows))
   end
 
   def confidence_for(field) = field_confidence[field].to_f

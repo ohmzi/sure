@@ -22,6 +22,31 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     def understand_document(pages:, ocr_text:, family: nil, model: "") = @response
   end
 
+  # A provider double that answers each batch differently. FakeProvider returns
+  # the SAME verdict for every call, so it can show accumulation but not that a
+  # batch which disagrees with the document survives — the case review finding 4
+  # is about. This one hands out one verdict per call; a call past the end of the
+  # script re-uses the last verdict, since only the batches a test scripts are
+  # interesting.
+  class ScriptedProvider
+    Response = Struct.new(:success?, :data, :error)
+
+    attr_reader :provider_name, :llm_model
+
+    def initialize(*verdicts)
+      @verdicts = verdicts
+      @calls = 0
+    end
+
+    def supports_document_understanding? = true
+
+    def understand_document(pages:, ocr_text:, family: nil, model: "")
+      verdict = @verdicts[[ @calls, @verdicts.size - 1 ].min]
+      @calls += 1
+      Response.new(true, DocumentUnderstanding.new(verdict), nil)
+    end
+  end
+
   RECEIPT = {
     "document_class" => "receipt", "total" => "12.34", "date" => "2026-10-01",
     "payee" => "Acme Store", "currency" => "USD", "card_last4" => "4242",
@@ -305,6 +330,25 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal 2, import.rows_count
     assert_equal "Chase", statement.institution_name_hint
     assert_equal Date.new(2026, 9, 1), statement.period_start_on
+    # The rendered sentence, not the key: the summary is user-visible (the import
+    # review screen and the next-steps email) and drives the publish gate
+    # (Import#ai_processed? is `ai_summary.present?`), and the paperless/template
+    # wording it used to borrow rendered as "…template vperiod (paperless OCR)".
+    assert_equal "Read from this document by AI (Chase).", import.ai_summary
+    assert import.ai_processed?
+  end
+
+  test "a statement the read could not name still gets a summary, never an empty bank" do
+    # institution_name_hint is a hint the model may simply not supply; an empty
+    # "()" would be the same class of garbled copy review finding 1 was about.
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT.merge("institution_name" => nil)))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal "Read from this document by AI.", import.ai_summary
+    assert import.ai_processed?
   end
 
   test "a multi-page statement is batched, and the batches are stitched" do
@@ -324,6 +368,51 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal [ 2, 2, 1 ], seen_batches, "pages are sent in bounded batches, never all at once"
     import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
     assert_equal 6, import.rows_count, "every batch's transactions are kept"
+  end
+
+  test "a continuation batch's rows survive even when that batch is classified other" do
+    # Review finding 2 (ruling on finding 4): `part.transactions` is gated on the
+    # BATCH's own document_class, and on the generic no-schema read a mid-statement
+    # run of continuation pages comes back "other" routinely — so its rows used to
+    # vanish with no error and no signal. FakeProvider cannot show this (it returns
+    # the identical verdict every call); ScriptedProvider can.
+    pages = (1..4).map { |n| { page: n, text: "ACCOUNT SUMMARY\nPAGE #{n}", confidence: 0.95, image: "cGFnZQ==" } }
+    stub_ocr_success(pages: pages)
+
+    continuation = {
+      "document_class" => "other",
+      "transactions" => [ { "date" => "2026-09-07", "amount" => "-9.99", "name" => "Late Fee", "notes" => "" } ]
+    }
+    stub_provider(ScriptedProvider.new(STATEMENT, continuation))
+
+    with_batch_size(2) { DocumentUnderstandingJob.perform_now(@link.id) }
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal [ "Cafe", "Fuel", "Late Fee" ], import.rows.order(:source_row_number).pluck(:name),
+                 "the continuation batch's rows are the statement's rows, whatever that batch called itself"
+    assert_equal 3, import.rows_count
+  end
+
+  test "a multi-page receipt keeps the line items of its later batches" do
+    # Review finding 3 (ruling on finding 4): understand_in_batches runs for every
+    # class, so batching quietly applied to receipts too — while
+    # merge_understanding keeps only the FIRST value per field, which threw away
+    # every line item past the first batch. For a receipt that is the whole payload.
+    pages = (1..2).map { |n| { page: n, text: "PAGE #{n}", confidence: 0.95, image: "cGFnZQ==" } }
+    stub_ocr_success(pages: pages)
+
+    second_page = RECEIPT.merge(
+      "line_items" => [ { "description" => "Sandwich", "amount" => "8.00" } ],
+      "total" => nil, "date" => nil, "payee" => nil
+    )
+    stub_provider(ScriptedProvider.new(RECEIPT, second_page))
+
+    with_batch_size(1) { DocumentUnderstandingJob.perform_now(@link.id) }
+
+    draft = ReceiptImport.find_by!(document_link_id: @link.id)
+    assert_equal [ "Coffee", "Sandwich" ], draft.line_items.map { |item| item["description"] },
+                 "every batch's line items are kept"
+    assert_equal "12.34", draft.extracted_data["total"], "the first batch's total still wins"
   end
 
   test "re-running a statement read adopts the existing import" do

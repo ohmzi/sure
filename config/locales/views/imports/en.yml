@@ -594,6 +594,16 @@ en:
       unknown: Unknown Document
     statement_ocr:
       summary: "Read by the %{bank} statement template v%{version} (paperless OCR)."
+    # The native read's summary (Task 9). It sits beside statement_ocr rather than
+    # replacing it: that key describes the paperless/template path, and Task 12
+    # deletes those surfaces and sweeps it. Import#ai_processed? IS
+    # `ai_summary.present?` (pdf_import.rb), so a natively-read statement must
+    # always get one, and this says what actually happened — the AI read the
+    # document. The bank name is a hint the model may not have supplied, hence the
+    # second sentence without the parenthesis rather than an empty "()".
+    statement_read:
+      summary: "Read from this document by AI (%{bank})."
+      summary_no_bank: "Read from this document by AI."
     needs_template:
       title: We couldn't read this statement
       description: The file is archived and safe, but its format doesn't match any known bank template yet.

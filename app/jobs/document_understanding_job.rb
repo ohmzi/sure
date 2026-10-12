@@ -208,8 +208,7 @@ class DocumentUnderstandingJob < ApplicationJob
       import.update!(
         account_statement: statement,
         document_type: "bank_statement",
-        ai_summary: I18n.t("imports.statement_ocr.summary", bank: understanding.institution_name.to_s,
-                           version: understanding.period_start ? "period" : "unknown"),
+        ai_summary: statement_summary(understanding),
         extracted_data: { "transactions" => understanding.transactions.map do |row|
           { "date" => row["date"].to_s, "amount" => row["amount"].to_s,
             "name" => row["name"].to_s, "notes" => row["notes"].to_s, "category" => "" }
@@ -219,6 +218,20 @@ class DocumentUnderstandingJob < ApplicationJob
       import.sync_mappings
       statement.update!(extraction_state: :extracted)
       import.update!(status: import.rows_count.positive? ? :pending : :complete)
+    end
+
+    # What the review screen shows and the next-steps email carries. The AI read
+    # this document — the paperless/template wording `statement_ocr` carries
+    # describes a path this one replaces (Task 12 sweeps it) — and the summary must
+    # stay present: Import#ai_processed? IS `ai_summary.present?`, and the publish
+    # gate reads it. The bank name is a hint the read may not have produced, so a
+    # nameless statement gets the sentence without the parenthesis rather than an
+    # empty "()".
+    def statement_summary(understanding)
+      bank = understanding.institution_name
+      return I18n.t("imports.statement_read.summary_no_bank") if bank.blank?
+
+      I18n.t("imports.statement_read.summary", bank: bank)
     end
 
     # The statement vault row for this document, created on first read and
@@ -284,6 +297,7 @@ class DocumentUnderstandingJob < ApplicationJob
     def understand_in_batches(provider, result, link)
       merged = nil
       transactions = []
+      line_items = []
 
       result.pages.each_slice(PAGE_BATCH) do |pages|
         response = provider.understand_document(pages: pages.filter_map(&:image),
@@ -293,10 +307,28 @@ class DocumentUnderstandingJob < ApplicationJob
 
         part = response.data
         merged = merge_understanding(merged, part)
-        transactions.concat(part.transactions)
+        # Rows and line items are the two fields that ACCUMULATE, and both are
+        # read RAW here: a batch is not a document. A mid-statement run of
+        # continuation pages routinely comes back classified "other" on the
+        # generic no-schema read, and `part.transactions` — gated on that batch's
+        # OWN class — dropped its rows silently. Same trap for a multi-page
+        # receipt, whose items live beyond its first page while
+        # merge_understanding keeps only the first value per field.
+        transactions.concat(part.transaction_rows)
+        line_items.concat(part.line_items)
       end
 
-      merged.with_transactions(transactions)
+      # The gate is therefore the MERGED verdict's class — the first batch that
+      # reported one, which is also exactly what DocumentClassifier judges and
+      # what `transactions` itself gates on, so a read that will be routed as a
+      # statement always carries every batch's rows. Line items go on every read;
+      # they are the receipt/bill leg's payload and the statement's reader ignores
+      # them.
+      if merged.document_class == "statement"
+        merged.with_transactions(transactions).with_line_items(line_items)
+      else
+        merged.with_line_items(line_items)
+      end
     end
 
     # Keeps the FIRST value reported for each field: the opening pages carry the
