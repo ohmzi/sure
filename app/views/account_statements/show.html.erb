@@ -1,4 +1,10 @@
-<%= content_for :page_title, @statement.filename %>
+<%# (Ruling M8-C5, 2026-10-11 close-out) the settings layout used to render
+    content_for :page_title as the page h1; the main layout has no such slot,
+    so the page owns its header explicitly — the drill-through stays on the
+    main chrome. %>
+<header class="flex justify-between items-center text-primary font-medium pb-4">
+  <h1 class="text-xl"><%= @statement.filename %></h1>
+</header>
 
 <%= settings_section title: t(".title") do %>
   <div class="space-y-4">

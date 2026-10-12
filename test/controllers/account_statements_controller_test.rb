@@ -21,6 +21,22 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", text: I18n.t("account_statements.index.title") # still the pinned title key
   end
 
+  test "the statement details page renders in the main chrome, never the settings chrome" do
+    # (Ruling M8-C5, 2026-10-11 close-out) the vault's drill-through must not
+    # move the user from the main page into the settings chrome.
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "details_statement.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+
+    get account_statement_url(statement)
+
+    assert_response :success
+    assert_select "#settings-nav-container", count: 0
+    assert_select "div[data-controller~='app-layout']"
+    assert_select "h1", text: statement.filename # the page owns its header now
+  end
+
   test "the statements nav entry is gated to statement managers" do
     sign_in users(:family_member)
     get documents_path

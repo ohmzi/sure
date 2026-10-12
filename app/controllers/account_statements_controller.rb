@@ -55,7 +55,9 @@ class AccountStatementsController < ApplicationController
       [ t("account_statements.index.title"), account_statements_path ],
       [ @statement.filename, nil ]
     ]
-    render layout: "settings"
+    # (Ruling M8-C5, 2026-10-11 close-out) the vault's drill-through stays on
+    # the main chrome too — the owner asked the pages not to change location,
+    # and a row's Details jumped from the main Statements page into settings.
   end
 
   def create
@@ -107,7 +109,7 @@ class AccountStatementsController < ApplicationController
       @can_manage_statement = @statement.manageable_by?(Current.user)
       @reconciliation_checks = @statement.reconciliation_checks
       flash.now[:alert] = @statement.errors.full_messages.to_sentence
-      render :show, status: :unprocessable_entity, layout: "settings"
+      render :show, status: :unprocessable_entity
     end
   end
 
