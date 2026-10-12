@@ -165,10 +165,14 @@ services:
     build:
       context: ../ocr
     container_name: ocr
-    restart: unless-stopped
     environment:
       OCR_LANG: ${OCR_LANG:-en}
       OCR_DPI: ${OCR_DPI:-300}
+    # The same hardening as the app services, and it matters more here: this is
+    # the one container parsing UNTRUSTED PDFs and images through native code
+    # (poppler, PaddleOCR, PIL). The GPU arrives via the device reservation below,
+    # which needs no capabilities, so dropping ALL is safe.
+    <<: *app_hardening
     networks:
       - internal
     deploy:

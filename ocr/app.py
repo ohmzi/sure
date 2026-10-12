@@ -18,6 +18,12 @@ DPI = int(os.environ.get("OCR_DPI", "300"))
 MAX_PAGES = int(os.environ.get("OCR_MAX_PAGES", "60"))
 LANG = os.environ.get("OCR_LANG", "en").split(",")[0].strip() or "en"
 
+# A page this small on either side cannot hold a legible line of text. PaddleOCR's
+# unwarping stage raises on such degenerate inputs ("axes don't match array"), and
+# an unhandled raise is a retryable 500 — but a page that is simply too small is a
+# permanent property of the document, so it must take the 422 "unreadable" path.
+MIN_SIDE = 32
+
 app = FastAPI(title="ohmzbudget-ocr")
 _engine = None
 
@@ -36,13 +42,26 @@ def engine():
 
 
 def render(data: bytes, filename: str):
-    """PDF -> page images (bounded); image -> a single normalised page."""
-    if filename.lower().endswith(".pdf") or data[:4] == b"%PDF":
-        return convert_from_bytes(data, dpi=DPI, fmt="png")[:MAX_PAGES]
+    """PDF -> page images (bounded); image -> a single normalised page.
 
-    # EXIF orientation FIRST: a phone photo is routinely stored rotated, and an
-    # unrotated page is exactly the failure this service exists to fix.
-    return [ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert("RGB")]
+    Raises for anything the engine cannot be asked about; the caller turns that
+    into 422 (unreadable), never a retryable 5xx."""
+    if filename.lower().endswith(".pdf") or data[:4] == b"%PDF":
+        # `last_page` hands the bound to the rasteriser. Slicing a full render
+        # afterwards would rasterise EVERY page into memory first (~26 MB/page at
+        # 300 DPI) and can exhaust the container on a runaway PDF — exactly what
+        # MAX_PAGES exists to prevent.
+        pages = convert_from_bytes(data, dpi=DPI, fmt="png", last_page=MAX_PAGES)
+    else:
+        # EXIF orientation FIRST: a phone photo is routinely stored rotated, and
+        # an unrotated page is exactly the failure this service exists to fix.
+        pages = [ImageOps.exif_transpose(Image.open(io.BytesIO(data))).convert("RGB")]
+
+    for page in pages:
+        if min(page.size) < MIN_SIDE:
+            raise ValueError(f"degenerate page {page.size}")
+
+    return pages
 
 
 def ocr_page(image):
@@ -87,8 +106,13 @@ def encode_page(image):
 
 
 @app.post("/ocr")
-async def ocr(file: UploadFile = File(...), include_images: bool = Form(False)):
-    data = await file.read()
+def ocr(file: UploadFile = File(...), include_images: bool = Form(False)):
+    # Plain `def`, not `async def`: the body is fully synchronous (poppler
+    # subprocess + a GPU model that can take tens of seconds per page). Under
+    # `--workers 1` an async handler blocks the event loop, so /healthz could not
+    # answer during an OCR and the healthcheck's 5s timeout would restart the
+    # container mid-document. FastAPI runs a plain `def` in its threadpool.
+    data = file.file.read()
     if not data:
         raise HTTPException(status_code=422, detail="empty upload")
 
