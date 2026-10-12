@@ -11,7 +11,6 @@ class DocumentIntake
   Routed = Data.define(:kind, :record, :message)
 
   IMAGE_TYPES = %w[image/png image/jpeg image/webp image/heic image/heif].freeze
-  PDF_TYPE = "application/pdf"
   # A PDF's magic number. This — not the MIME the browser guessed from the
   # name — is what tells a real PDF from a bank's CSV ledger exported as
   # `statement.pdf` with an `application/pdf` content type.
@@ -40,7 +39,7 @@ class DocumentIntake
     when :ofx then route_ofx
     when :csv then route_csv
     when :document then route_document
-    else Routed.new(kind: :rejected, record: nil, message: I18n.t("document_intake.rejected"))
+    else rejected(I18n.t("document_intake.rejected"))
     end
   end
 
@@ -98,8 +97,38 @@ class DocumentIntake
       Routed.new(kind: :ofx, record: import, message: nil)
     end
 
+    # Mirror the real import path (ImportsController#create): stash the bytes AND
+    # apply the SAME guards — the size cap and the CSV MIME allow-list — before
+    # anything is created. Without the bytes the user lands on a configuration
+    # screen with no columns and no rows to map (Import#uploaded? is
+    # raw_file_str.present?); without the guards they land on one for a file the
+    # importer cannot parse. A refusal here is the bar's message, not an import
+    # that can never work.
     def route_csv
+      return rejected(csv_too_large_message) if @file.tempfile.size > Import::MAX_CSV_SIZE
+      # The router already proved the bytes are a bank export when the first line
+      # is tabular, so the MIME allow-list refuses only what the CSV importer
+      # genuinely cannot read (an XLSX, a ZIP) — never the CSV-named-`.pdf` the
+      # design calls out.
+      return rejected(I18n.t("imports.create.invalid_file_type")) unless csv_readable?
+
       import = TransactionImport.create!(family: @family, status: :pending, date_format: @family.date_format)
+      import.update!(raw_file_str: csv_bytes)
       Routed.new(kind: :csv, record: import, message: nil)
+    end
+
+    def rejected(message) = Routed.new(kind: :rejected, record: nil, message: message)
+
+    def csv_readable? = Import::ALLOWED_CSV_MIME_TYPES.include?(content_type) || looks_tabular?(head)
+
+    def csv_too_large_message = I18n.t("imports.create.file_too_large", max_size: Import::MAX_CSV_SIZE / 1.megabyte)
+
+    # The bytes the importer will parse: from the top, then rewound again so no
+    # later reader sees a consumed stream.
+    def csv_bytes
+      @file.tempfile.rewind
+      bytes = @file.tempfile.read.to_s
+      @file.tempfile.rewind
+      bytes
     end
 end

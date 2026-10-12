@@ -1189,11 +1189,13 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
       get new_account_path(params)
       assert_response :success
 
-      # Milestone B (design D2): the two document rows became ONE on-ramp. It is
-      # the dropzone label (not a wizard anchor), bound to the ONE intake
-      # endpoint, so from the dashboard a chosen file uploads in place.
-      assert_select "turbo-frame#modal [data-controller~='document-dropzone'][data-document-dropzone-url-value='#{documents_intake_path}']", count: 1
-      assert_select "turbo-frame#modal label", text: I18n.t("accounts.new.document"), count: 1
+      # Milestone B (design D2 / Ruling RB2): the two document rows became ONE
+      # plain link to the Documents page — the ONE place to upload. There is no
+      # second dropzone on the dashboard (it has no #documents_grid), and the
+      # link escapes the modal frame so it lands on the full page.
+      assert_select "turbo-frame#modal a[data-turbo-frame='_top'][href=?]", documents_path,
+                    text: I18n.t("accounts.new.document"), count: 1
+      assert_select "turbo-frame#modal [data-controller~='document-dropzone']", count: 0
       # ...and neither wizard row survives.
       assert_select "turbo-frame#modal a[href=?]", new_document_wizard_path(source: "receipt_or_bill"), count: 0
       assert_select "turbo-frame#modal a[href=?]", new_document_wizard_path(source: "statement"), count: 0

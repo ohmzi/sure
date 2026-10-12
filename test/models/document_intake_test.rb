@@ -43,6 +43,41 @@ class DocumentIntakeTest < ActiveSupport::TestCase
     assert_equal :csv, result.kind
   end
 
+  test "a CSV carries its bytes onto the import so the config screen has data to map" do
+    body = "a,b\n1,2\n"
+    result = DocumentIntake.call(family: @family, uploader: @user,
+                                 file: uploaded(body, filename: "bank.csv", content_type: "text/csv"))
+
+    assert_equal :csv, result.kind
+    # Import#uploaded? is raw_file_str.present? — without the bytes the user
+    # lands on a configuration screen with no columns and no rows.
+    assert_equal body, result.record.raw_file_str
+  end
+
+  test "an oversized CSV is refused rather than half-created" do
+    body = "a,b\n" + ("x,y\n" * ((Import::MAX_CSV_SIZE / 4) + 1))
+
+    assert_no_difference -> { Import.count } do
+      result = DocumentIntake.call(family: @family, uploader: @user,
+                                   file: uploaded(body, filename: "big.csv", content_type: "text/csv"))
+      assert_equal :rejected, result.kind
+      assert_equal I18n.t("imports.create.file_too_large", max_size: Import::MAX_CSV_SIZE / 1.megabyte),
+                   result.message
+    end
+  end
+
+  test "a spreadsheet the CSV importer cannot parse is refused, not handed on" do
+    assert_no_difference -> { Import.count } do
+      result = DocumentIntake.call(
+        family: @family, uploader: @user,
+        file: uploaded("PK\x03\x04binary", filename: "book.xlsx",
+                       content_type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+      )
+      assert_equal :rejected, result.kind
+      assert_equal I18n.t("imports.create.invalid_file_type"), result.message
+    end
+  end
+
   test "an unrecognised binary is rejected with a message and changes nothing" do
     assert_no_difference -> { DocumentLink.count } do
       result = DocumentIntake.call(family: @family, uploader: @user,

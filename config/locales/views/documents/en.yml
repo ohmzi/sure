@@ -11,6 +11,7 @@ en:
       add_document: Add document
       drop_hint: …or drop files anywhere on this page
       search: Search
+      upload_failed: The upload failed. Check your connection and try again.
     # The one dropzone's endpoint copy.
     intakes:
       create:

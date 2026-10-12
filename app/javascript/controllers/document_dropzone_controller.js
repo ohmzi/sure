@@ -6,10 +6,9 @@ import { Controller } from "@hotwired/stimulus";
 // settling. No wizard, no navigation, no second screen.
 export default class extends Controller {
   static targets = ["status"];
-  static values = { url: String };
+  static values = { url: String, failure: { type: String, default: "" } };
 
   connect() {
-    this.dragging = false;
     this.onDragOver = (event) => this.showOverlay(event);
     this.onDragLeave = (event) => this.maybeHideOverlay(event);
     this.onDrop = (event) => this.drop(event);
@@ -63,8 +62,26 @@ export default class extends Controller {
           Accept: "text/vnd.turbo-stream.html",
         },
       })
-        .then((response) => response.text())
-        .then((html) => window.Turbo.renderStreamMessage(html));
+        .then((response) => this.respond(response))
+        .catch(() => this.reportFailure());
     }
+  }
+
+  // A refused upload is answered with a turbo-stream too (a 422 whose body
+  // writes the reason into the bar), so any stream response is rendered
+  // whatever its status. Anything else — a 500, a lost connection — is thrown
+  // so the catch can put it on the bar rather than swallow it.
+  respond(response) {
+    const contentType = response.headers.get("Content-Type") || "";
+    if (!contentType.includes("turbo-stream"))
+      throw new Error(`upload failed: ${response.status}`);
+    return response
+      .text()
+      .then((html) => window.Turbo.renderStreamMessage(html));
+  }
+
+  reportFailure() {
+    if (this.hasStatusTarget && this.failureValue)
+      this.statusTarget.textContent = this.failureValue;
   }
 }

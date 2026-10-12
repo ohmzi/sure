@@ -3,7 +3,8 @@
     ONE intake endpoint, and the stream appends the new row to #documents_grid
     without any navigation. %>
 <div data-controller="document-dropzone"
-     data-document-dropzone-url-value="<%= documents_intake_path %>">
+     data-document-dropzone-url-value="<%= documents_intake_path %>"
+     data-document-dropzone-failure-value="<%= t("documents.intake_bar.upload_failed") %>">
   <%= render DocumentBrowserComponent.new(
         family: :documents, title: t(".receipts_bills_title"), url: documents_path,
         rows: @rows, pagy: @pagy, filters: @filters, source_filter: @source_filter,
