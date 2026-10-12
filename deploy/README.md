@@ -5,6 +5,8 @@ the internal OCR sidecar (`ocr`). paperless-ngx was removed in Milestone A — t
 app reads documents natively. Its named volumes are left on disk, undeclared by
 compose, until the owner removes them (see "Paperless removal").
 
+Acceptance test: see deploy/ACCEPTANCE.md
+
 ## Stack
 
 - `web` — `./bin/rails server`, published on loopback `127.0.0.1:7300:3000`. Its
@@ -44,6 +46,8 @@ docker volume rm ohmzbudget_paperless-data ohmzbudget_paperless-media \
 - `dc` — required entry point: sources `.env`, exports the secret files, runs compose.
 - `bootstrap-secrets.sh` — writes/re-homes secrets into `secrets/` (never prints a value).
 - `backup.sh` / `restore-drill.sh` — nightly backup and the proven restore drill.
+- `healthcheck-alert.sh` — host monitor (container health, disk headroom, backup
+  freshness); cron-driven, see "Monitoring schedule" below.
 - `.env` and `secrets/` — untracked live state (never committed).
 
 ## Hardening
@@ -81,6 +85,28 @@ from dropped caps and `no-new-privileges`. `deploy/dc exec -T web` is the servic
 - Never run raw `./dc config` (or `docker compose … config`) against the live
   deployment — it renders the resolved secret values into its output. Validate
   with `./dc config --services` or `./dc config --quiet` instead.
+
+## Upgrade the application image
+The app image is built **locally from this checkout** (`image: ohmzbudget:local` +
+`build: context: ..` in `compose.yml`); there is no registry tag to pull or bump.
+An image upgrade is therefore a **rebuild**: it ships whatever source this checkout
+holds right now. Record the current image before rebuilding, so you can get back
+to it (`docker tag ohmzbudget:local ohmzbudget:rollback-<YYYYMMDDHHMM>`).
+
+From the repo root:
+
+```bash
+git -C . rev-parse HEAD           # record the commit being deployed
+deploy/dc images                  # record the current ohmzbudget:local image id
+# ... land the new source, then:
+deploy/dc build web                       # one image, shared by web/worker/worker-heavy
+deploy/dc up -d web worker worker-heavy   # the web entrypoint runs db:prepare (pending migrations)
+deploy/dc ps                      # the app services move starting -> healthy (~60s)
+```
+
+A rebuild touches only the app containers; the data volumes (`postgres-data`,
+`redis-data`, `app-storage`) are never recreated by it. Rolling back a
+**destructive migration** still needs a restore, not just an image swap.
 
 ## Rotate the app secrets
 `secret_key_base` and `postgres_password` live in untracked `deploy/secrets/`
@@ -175,8 +201,29 @@ Host crontab entry (03:17 — off the top of the hour; the log lives under the
 owner's backup root, not `/var/log`):
 
 ```cron
-17 3 * * * /home/ohmz/StudioProjects/OhmzBudget/deploy/backup.sh >> /home/ohmz/ohmzbudget-backups/backup.log 2>&1
+17 3 * * * /home/ohmz/StudioProjects/OhmzBudget-native-a/deploy/backup.sh >> /home/ohmz/ohmzbudget-backups/backup.log 2>&1
 ```
+
+## Monitoring schedule
+`deploy/healthcheck-alert.sh` (mode 0755, run from the host) checks that every
+service in the current stack is running and none is unhealthy, that `DISK_MOUNT`
+has headroom (`DISK_LIMIT_PCT`, default 90), and that the backup artifacts above
+are fresh (`BACKUP_MAX_AGE_HOURS`, default 26). It matches on the compose **service
+name**, so stopped orphan containers from the removed paperless service are
+ignored. When healthy it prints one OK line and exits 0; on failure it posts one
+JSON alert to `ALERT_WEBHOOK_URL` and exits 1. It sources `deploy/.env` itself,
+because cron gives the job no environment. Until the owner sets `ALERT_WEBHOOK_URL`
+in `deploy/.env`, a run aborts at the guard (message on stderr) — loud by design,
+never silently healthy.
+
+Host crontab entry (every 30 minutes; the log lives under the owner's backup
+root, not `/var/log`):
+
+```cron
+*/30 * * * * /home/ohmz/StudioProjects/OhmzBudget-native-a/deploy/healthcheck-alert.sh >> "$HOME/ohmzbudget-backups/healthcheck.log" 2>&1
+```
+
+Confirm it is installed with `crontab -l | grep healthcheck`.
 
 ## Restore drill (proven)
 `deploy/restore-drill.sh` (mode 0755) proves the newest dump is a real,
@@ -210,6 +257,81 @@ Each run writes only to `ohmzbudget_restore_drill`; the live `sure_production`
 database is read for the comparison counts and otherwise untouched. The drill is
 the verification for the backup set, so run it after enabling cron and after any
 schema or backup change.
+
+## Restore
+This is the **standing restore procedure**; the drill above remains the routine
+verification that a backup set is real, and never touches the live database. The
+dumps are plain `pg_dump` output with **no `--clean`**: piping one into a
+populated database fails on every `CREATE` while psql still exits 0 — a silent
+no-op. Never pipe a dump into a populated database; restore into a scratch
+database first, or DROP/CREATE the live one immediately before loading.
+
+Work from the repo root. The shell has not sourced `deploy/.env`, so define the
+backup dir first — without it `"$BACKUP_DIR"/sure_db_*.sql.gz` expands to
+`/sure_db_*.sql.gz`, gunzip reads nothing, and the pipeline status would still
+come from psql's 0:
+
+```bash
+cd ~/StudioProjects/OhmzBudget
+set -a; . deploy/.env; set +a
+: "${BACKUP_DIR:?set BACKUP_DIR in deploy/.env}"
+```
+
+Stop the app writers, then load the newest Sure dump into a scratch database
+(`-v ON_ERROR_STOP=1` turns a partial load into a failure instead of a zero
+exit; the psql variables expand **inside** the container, where `deploy/.env`
+put them):
+
+```bash
+deploy/dc stop web worker worker-heavy
+deploy/dc exec -T db sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS sure_restore;"'
+deploy/dc exec -T db sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE sure_restore;"'
+gunzip -c "$(ls -t "$BACKUP_DIR"/sure_db_*.sql.gz | head -1)" | \
+  deploy/dc exec -T db sh -c 'psql -q -U "$POSTGRES_USER" -d sure_restore -v ON_ERROR_STOP=1'
+```
+
+Sanity-check the scratch load (counts must be non-zero; with writers stopped they
+should match live):
+
+```bash
+deploy/dc exec -T db sh -c 'psql -U "$POSTGRES_USER" -d sure_restore -tAc "select count(*) from entries;"'
+```
+
+Restore the app-storage volume with its writers stopped (`web`/`worker` own both
+the Active Storage attachments and the document store). Restore onto a fresh
+volume, or empty the target first so the extract is an exact copy rather than a
+merge:
+
+```bash
+deploy/dc stop web worker worker-heavy
+docker run --rm -v ohmzbudget_app-storage:/data alpine:3.20 sh -c 'find /data -mindepth 1 -delete'
+docker run --rm -v ohmzbudget_app-storage:/data -v "$BACKUP_DIR":/backup:ro alpine:3.20 \
+  tar xzf "/backup/$(basename "$(ls -t "$BACKUP_DIR"/app-storage_*.tgz | head -1)")" -C /data
+```
+
+Bring everything back and verify:
+
+```bash
+deploy/dc up -d
+curl -sf -o /dev/null -w '%{http_code}\n' http://127.0.0.1:7300/up   # 200
+```
+
+A stored document still streams (open one in Documents), and a balance
+recomputes after a sync (trigger one from the account page). Drop the scratch
+database once satisfied:
+
+```bash
+deploy/dc exec -T db sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS sure_restore;"'
+```
+
+The paperless database and media volume are no longer part of the stack. The
+`paperless-db` container is left stopped on disk with its volumes (Ruling R23);
+if that data is ever restored by hand, use the archived `paperless_db_*.sql.gz` /
+`paperless-media_*.tgz` against those volumes.
+
+## Known retained data (§16.7)
+The legacy `/var/backups/firefly` ledger dump is intentionally retained and is
+**not** part of the backup set; do not delete it without the owner's say-so.
 
 ## Local development loop (test suite)
 The host has no `ruby`/`bundle`, no `mise`/`asdf` and no `psql`/`redis-cli`, so
