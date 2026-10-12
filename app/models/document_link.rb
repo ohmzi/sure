@@ -10,6 +10,13 @@ class DocumentLink < ApplicationRecord
   STATUSES  = %w[queued processing unlinked suggested pending_review linked verified dismissed failed].freeze
   SOURCES   = %w[receipt bill statement other].freeze
   LINKABLE  = %w[unlinked suggested pending_review linked].freeze
+  # The statuses a PUBLISH may record a provenance edge from (spec §8.5).
+  # Wider than LINKABLE by `dismissed`: a user who dismissed the reconciliations
+  # inbox's MATCHER suggestion has not refused to link the document to an entry
+  # they then publish from it, and dropping the edge silently would leave
+  # Milestone B's provenance ("which document did this come from") with no
+  # answer. `link_to_entry!` still defaults to LINKABLE everywhere else.
+  PUBLISH_LINKABLE = (LINKABLE + %w[dismissed]).freeze
   # Ruling M2 (M1), 2026-10-10 close-out: a `SETTLEABLE` constant was deleted —
   # no task, and no shipped code path, ever consumed it; every `transition!`
   # carries its own inline `from:` list.
@@ -261,9 +268,11 @@ class DocumentLink < ApplicationRecord
     transition!(from: %w[unlinked suggested pending_review], to: status.to_s, confidence: confidence)
   end
 
-  # NEVER touches the entry's money (D8): it writes only this row.
-  def link_to_entry!(entry, confidence: nil)
-    transition!(from: LINKABLE, to: "linked", entry_id: entry.id, confidence: confidence)
+  # NEVER touches the entry's money (D8): it writes only this row. `from:`
+  # defaults to LINKABLE; the publish-time provenance write may widen it (see
+  # PUBLISH_LINKABLE) but every other caller keeps the default contract.
+  def link_to_entry!(entry, confidence: nil, from: LINKABLE)
+    transition!(from: from, to: "linked", entry_id: entry.id, confidence: confidence)
   end
 
   def unlink!

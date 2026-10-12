@@ -17,6 +17,45 @@ class DocumentClassifierTest < ActiveSupport::TestCase
     assert_equal "ai", result.classified_by
   end
 
+  test "a statement with a period but statement-free text and filename corroborates on the period alone" do
+    # Review finding 6: the existing period test's OCR also matches STATEMENT_TEXT,
+    # so it short-circuits before the period branch. With no statement language,
+    # a non-statement filename and a populated period, ONLY the period branch can
+    # corroborate this verdict.
+    result = DocumentClassifier.call(
+      ai_verdict: DocumentUnderstanding.new(
+        "document_class" => "statement",
+        "statement_period" => { "start" => "2026-09-01", "end" => "2026-09-30" },
+        "field_confidence" => {}
+      ),
+      filename: "scan.pdf", content_type: "application/pdf",
+      ocr_text: "The quick brown fox jumps over the lazy dog"
+    )
+
+    assert_equal "statement", result.document_class
+    assert result.corroborated, "the period is corroboration on its own"
+    assert_equal "ai", result.classified_by
+  end
+
+  test "a statement asserted with only a total is accepted but not corroborated" do
+    # Review finding 6: `confidently_asserted?`'s statement arm had no coverage.
+    # No statement text, no period and a non-statement filename leave it
+    # uncorroborated; a total is enough for the model's structure to be trusted.
+    result = DocumentClassifier.call(
+      ai_verdict: DocumentUnderstanding.new(
+        "document_class" => "statement",
+        "total" => "1234.56",
+        "field_confidence" => { "total" => 0.9 }
+      ),
+      filename: "scan.pdf", content_type: "application/pdf",
+      ocr_text: "The quick brown fox jumps over the lazy dog"
+    )
+
+    assert_equal "statement", result.document_class
+    assert_not result.corroborated
+    assert_equal "ai", result.classified_by
+  end
+
   test "a receipt claim with no receipt signal and low confidence falls back to other" do
     result = DocumentClassifier.call(
       ai_verdict: DocumentUnderstanding.new(

@@ -9,7 +9,25 @@
 class DocumentUnderstanding
   CLASSES = DocumentLink::SOURCES
 
+  # Well-formed grouping only: "1,234.56" is fine, but misplaced commas such as
+  # "12,34,5" are unreadable nonsense and must read as nil, never as a guess
+  # like 12345. The ONE definition of "a parseable amount" — `total` and the
+  # job's `line_items_sum` check both go through `parse_amount`, so neither can
+  # drift back into accepting a value the other rejects. A false pass on that
+  # sum gates Milestone B's auto-post, where a wrong `true` is money.
+  AMOUNT_PATTERN = /\A-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\z/
+
   attr_reader :verdict
+
+  # The guarded amount parse. nil means unparseable, everywhere.
+  def self.parse_amount(value)
+    text = value.to_s.strip
+    return nil unless text.match?(AMOUNT_PATTERN)
+
+    BigDecimal(text.delete(","))
+  rescue ArgumentError
+    nil
+  end
 
   def initialize(verdict)
     @verdict = (verdict || {}).with_indifferent_access
@@ -29,16 +47,7 @@ class DocumentUnderstanding
   def field_confidence = (verdict[:field_confidence] || {}).with_indifferent_access
 
   def total
-    raw = verdict[:total].presence or return nil
-    text = raw.to_s.strip
-    # A thousands separator ("1,234.56") is fine; misplaced commas ("12,34,5")
-    # are unreadable nonsense and must read as nil, never as a guess like
-    # 12345. Require well-formed grouping before stripping the commas.
-    return nil unless text.match?(/\A-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\z/)
-
-    BigDecimal(text.delete(","))
-  rescue ArgumentError
-    nil
+    self.class.parse_amount(verdict[:total])
   end
 
   def date

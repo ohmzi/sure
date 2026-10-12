@@ -20,7 +20,10 @@ class ReceiptImport::Understanding
       "date" => @understanding.date&.iso8601,
       "payee" => @understanding.payee,
       "line_items" => @understanding.line_items.map do |item|
-        { "description" => item["description"].to_s, "amount" => item["amount"].to_s }
+        # `source_page` is the native read's single-page-batch anchor (spec
+        # §8.3); it rides through so the item row can trace to its page.
+        { "description" => item["description"].to_s, "amount" => item["amount"].to_s,
+          "source_page" => item["source_page"] }
       end
     }.compact
   end

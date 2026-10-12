@@ -280,6 +280,28 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_nil @link.extraction
   end
 
+  test "a non-OCR, non-provider failure holds the row and is never re-raised into an unbounded retry" do
+    # Review finding 1: any other exception used to be held AND re-raised. No
+    # retry_on matches it, and Sidekiq's default is 25 attempts, so every
+    # attempt re-entered through the job's `queued` guard, cleared the hold in
+    # mark_processing!, and re-ran the whole read — OCR sidecar plus a paid
+    # provider call. A route failure (here: the draft creation raising, as the
+    # statement vault's DuplicateUploadError or a PG::UniqueViolation would) must
+    # end the attempt, not schedule another paid read.
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+    ReceiptImport.stubs(:find_or_create_from_document_link!)
+                 .raises(StandardError.new("vault refused: duplicate upload"))
+
+    DocumentUnderstandingJob.perform_now(@link.id) # must not raise
+
+    @link.reload
+    assert_equal "queued", @link.status
+    assert_includes @link.failure_message, "read failed"
+    assert_includes @link.failure_message, "duplicate upload"
+    assert_enqueued_jobs 0, only: DocumentUnderstandingJob
+  end
+
   test "validate flags an OCR/model total disagreement" do
     understanding = DocumentUnderstanding.new(RECEIPT)
     validations = DocumentUnderstandingJob.validate(understanding, ocr_text: "ACME STORE\nTOTAL 99.99")
@@ -302,6 +324,26 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
     assert_nil validations["line_items_sum"],
                "an unparseable amount makes the sum uncheckable, never a false pass"
+  end
+
+  test "validate reads a mis-grouped amount as unparseable, never a false sum agreement" do
+    # Review finding 2: `line_items_sum` used a bare `BigDecimal(amount.delete(","))`
+    # with no grouping guard, so "12,34,5" parsed as 12345. With the model's own
+    # total also reading 12345, the sum "agreed" on a value nobody could read —
+    # a false `true` on the key that gates Milestone B's auto-post. Both sides
+    # now go through DocumentUnderstanding.parse_amount and read nil.
+    understanding = DocumentUnderstanding.new(
+      RECEIPT.merge(
+        "total" => "12345",
+        "line_items" => [ { "description" => "Fee", "amount" => "12,34,5" } ]
+      )
+    )
+    validations = DocumentUnderstandingJob.validate(understanding, ocr_text: "TOTAL 12345")
+
+    assert_equal "12345.0", validations["ai_total"],
+                 "the model's total is a well-formed 12345 and reads fine"
+    assert_nil validations["line_items_sum"],
+               "but the mis-grouped line item is uncheckable, never a false pass"
   end
 
   test "validate accepts agreement and checks the line-item sum and the last4 witness" do
@@ -342,6 +384,25 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_no_difference -> { ReceiptImport.count } do
       DocumentUnderstandingJob.perform_now(@link.id)
     end
+  end
+
+  test "a routed receipt draft carries the extraction anchor and its item rows carry their page" do
+    # Review finding 3: imports.document_extraction_id and import_rows.source_page
+    # were written by nothing, so an extracted draft could not trace to the read
+    # that produced it (the stated reason document_extractions exists).
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    draft = ReceiptImport.find_by!(document_link_id: @link.id)
+    assert_equal @link.extraction.id, draft.document_extraction_id,
+                 "the draft traces to the read that produced it (spec §8.3)"
+    assert_equal 1, draft.rows.count
+    assert_equal 1, draft.rows.first.source_page,
+                 "a single-page batch names exactly one page, so the item row carries it"
+    assert_nil draft.rows.first.source_coordinates,
+               "PaddleOCR's boxes are not linked to the model's rows — never invent one"
   end
 
   # --- Task 9: the statement seam --------------------------------------------
@@ -469,6 +530,33 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal 1, PdfImport.where(account_statement: statement_for(@link)).count
   end
 
+  test "a routed statement import carries the extraction anchor" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal @link.extraction.id, import.document_extraction_id,
+                 "the statement import traces to the read that produced it (spec §8.3)"
+    assert_equal [ 1, 1 ], import.rows.order(:source_row_number).pluck(:source_page),
+                 "a single-page batch names exactly one page on every row"
+  end
+
+  test "a multi-page statement batch leaves source_page unknown rather than inventing one" do
+    # A row read from a batch of two pages could sit on either; a single-page
+    # batch is the only one that genuinely names a page, so nothing is written
+    # for this one (spec §8.3 — "never a guess").
+    pages = (1..2).map { |n| { page: n, text: "PAGE #{n}", confidence: 0.95, image: "cGFnZQ==" } }
+    stub_ocr_success(pages: pages)
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal [ nil, nil ], import.rows.order(:source_row_number).pluck(:source_page)
+  end
+
   # --- Task 10: the account resolver ------------------------------------------
 
   test "a confidently matched account is prefilled without asking" do
@@ -488,6 +576,27 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
   test "a below-bar match leaves the account blank for the step-3 ask" do
     stub_ocr_success(pages: [ { page: 1, text: "ACME\nTOTAL 12.34", confidence: 0.97 } ])
     stub_provider(FakeProvider.new(RECEIPT.merge("institution_name" => "Nothing Like Any Account")))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_nil ReceiptImport.find_by!(document_link_id: @link.id).account_id
+  end
+
+  test "a match above the floor but below the bar still leaves the account blank" do
+    # Review finding 5: the below-bar test above uses hints NO account can score
+    # on, so every candidate is dropped by the FLOOR (0.35) and deleting the bar
+    # gate would leave the suite green. Here one account scores exactly 0.40 —
+    # last4 (0.35) + currency (0.05) — which is above the floor and below the bar
+    # (0.60). Only the bar keeps the account blank.
+    accounts(:credit_card).update!(last4: "4242")
+    stub_ocr_success(pages: [ { page: 1, text: "ACME\nTOTAL 12.34", confidence: 0.97 } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    prefill_match = Account::DocumentMatcher.best_match(
+      family: @family, account_last4_hint: "4242", currency: "USD"
+    )
+    assert_equal "0.4".to_d, prefill_match.confidence,
+                 "the fixture must sit above the floor, or the floor — not the bar — is what drops it"
 
     DocumentUnderstandingJob.perform_now(@link.id)
 

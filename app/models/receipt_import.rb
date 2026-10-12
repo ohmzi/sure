@@ -109,6 +109,9 @@ class ReceiptImport < Import
           date: purchase_date&.strftime(date_format),
           amount: item["amount"].to_s,
           name: item["description"].to_s,
+          # The native read stamps an item's page when its batch covered a
+          # single page (spec §8.3); nil for every other producer, harmlessly.
+          source_page: item["source_page"],
           currency: currency
         }
       end
@@ -214,8 +217,16 @@ class ReceiptImport < Import
 
         # The provenance edge that was never wired (spec §8.5): without this,
         # document_links.entry_id stays nil for every published receipt and the
-        # "which document did this come from" question has no answer.
-        document_link.link_to_entry!(entry)
+        # "which document did this come from" question has no answer. The return
+        # is CHECKED, never dropped (review finding 4): a `dismissed` link is
+        # still a link this publish must record — the dismissal was about the
+        # matcher's suggestion, not this user action — so the write accepts
+        # PUBLISH_LINKABLE. Any other refusal (a `verified` link already
+        # committed to a different entry) is SURFACED by raising, which rolls
+        # the whole publish back rather than committing money with no edge.
+        unless document_link.link_to_entry!(entry, from: DocumentLink::PUBLISH_LINKABLE)
+          raise "could not record the document provenance edge on #{document_link.id}"
+        end
       end
     end
   end

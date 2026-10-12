@@ -333,6 +333,9 @@ class PdfImport < Import
           name: txn["name"].to_s,
           category: txn["category"].to_s,
           notes: txn["notes"].to_s,
+          # The native read stamps a transaction's page when its batch covered a
+          # single page (spec §8.3); nil for every other producer, harmlessly.
+          source_page: txn["source_page"],
           currency: currency
         )
       end
@@ -350,6 +353,7 @@ class PdfImport < Import
           name: row.name,
           category: row.category,
           notes: row.notes,
+          source_page: row.source_page,
           currency: row.currency
         }
       end

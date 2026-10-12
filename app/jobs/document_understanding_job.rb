@@ -74,7 +74,11 @@ class DocumentUnderstandingJob < ApplicationJob
     ai_total = understanding.total
     ocr_total = OcrTotal.call(ocr_text)
 
-    line_items = understanding.line_items.map { |i| BigDecimal(i["amount"].to_s.delete(",")) rescue nil }
+    # The SAME guarded parse the model's own total goes through (review finding
+    # 2): before this, "12,34,5" parsed as 12345 here while `total` read it as
+    # nil, so a model that also reported 12345 made the sum "agree" on a value
+    # nobody could read — a false `true` on the key that gates auto-post.
+    line_items = understanding.line_items.map { |i| DocumentUnderstanding.parse_amount(i["amount"]) }
     sum_ok =
       if understanding.line_items.empty? || ai_total.nil? || line_items.any?(&:nil?)
         # Nothing to check, or a line item the model sent unreadable — either
@@ -170,11 +174,25 @@ class DocumentUnderstandingJob < ApplicationJob
     # sweepable.
     link&.await_retry!(message: "retry scheduled: #{e.message}")
     raise
+  rescue ActiveRecord::RecordNotFound
+    # A vanished link is discarded (the `discard_on` above), never held: there is
+    # no row to hold. Re-raised so `discard_on` still sees it.
+    raise
   rescue => e
     # Anything else is ours: record it on the link so the archive can show it,
-    # and leave the row retryable rather than wedged.
+    # and STOP. This arm deliberately does NOT re-raise (review finding 1):
+    # nothing matches `retry_on`, and Sidekiq's default is 25 attempts, so
+    # re-raising re-entered through the job's own `queued` guard, cleared the
+    # hold in `mark_processing!`, and re-ran the WHOLE read — the OCR sidecar
+    # plus a paid provider call — on every attempt. That is the unbounded replay
+    # Task 11's two fix rounds removed for the OCR and provider classes; here it
+    # was reintroduced for every other exception (a route failure such as the
+    # statement vault's DuplicateUploadError, a PG::UniqueViolation, a nil-method
+    # bug). A generic exception is usually a bug, not a transient upstream blip,
+    # so a bounded retry ladder would only burn more paid reads on a
+    # deterministic failure. The row is held with its reason and recoverable
+    # through `reprocess!`; a fresh read after that starts from a clean state.
     DocumentLink.find_by(id: document_link_id)&.hold!(message: "read failed: #{e.class}: #{e.message}")
-    raise
   end
 
   private
@@ -204,6 +222,10 @@ class DocumentUnderstandingJob < ApplicationJob
       when "receipt", "bill"
         draft = ReceiptImport.find_or_create_from_document_link!(document_link: link)
         draft.apply_extraction!(ReceiptImport::Understanding.new(understanding))
+        # The row -> extraction anchor (spec §8.3): the draft traces to the read
+        # that produced it. Written here, at the one seam that has both the
+        # draft and its extraction in hand.
+        draft.update!(document_extraction: link.extraction)
       when "statement"
         route_statement(link, understanding)
       else
@@ -267,10 +289,16 @@ class DocumentUnderstandingJob < ApplicationJob
       import.update!(
         account_statement: statement,
         document_type: "bank_statement",
+        # The row -> extraction anchor (spec §8.3): the import traces to the read
+        # that produced it. `source_page` on each transaction is carried through
+        # to the generated Import::Row; it is only present when the batch that
+        # read the row covered exactly one page.
+        document_extraction: link.extraction,
         ai_summary: statement_summary(understanding),
         extracted_data: { "transactions" => understanding.transactions.map do |row|
           { "date" => row["date"].to_s, "amount" => row["amount"].to_s,
-            "name" => row["name"].to_s, "notes" => row["notes"].to_s, "category" => "" }
+            "name" => row["name"].to_s, "notes" => row["notes"].to_s, "category" => "",
+            "source_page" => row["source_page"] }
         end }
       )
       import.generate_rows_from_extracted_data
@@ -377,8 +405,16 @@ class DocumentUnderstandingJob < ApplicationJob
         # OWN class — dropped its rows silently. Same trap for a multi-page
         # receipt, whose items live beyond its first page while
         # merge_understanding keeps only the first value per field.
-        transactions.concat(part.transaction_rows)
-        line_items.concat(part.line_items)
+        # The row -> page anchor (spec §8.3). A batch is a slice of the read's
+        # OCR pages, so a row belongs to those pages; only a SINGLE-page batch
+        # names one page. A multi-page batch leaves the page unknown — the row
+        # could sit on any of its pages — and an invented page would be a
+        # traceability lie, so it stays nil. Coordinates are always nil:
+        # PaddleOCR's boxes are per recognised line and are not linked to the
+        # model's transaction/item rows, so there is no genuine box to record.
+        page = pages.size == 1 ? pages.first.number : nil
+        transactions.concat(tag_page(part.transaction_rows, page))
+        line_items.concat(tag_page(part.line_items, page))
       end
 
       # The gate is therefore the MERGED verdict's class — the first batch that
@@ -392,6 +428,15 @@ class DocumentUnderstandingJob < ApplicationJob
       else
         merged.with_line_items(line_items)
       end
+    end
+
+    # Stamps the batch's page onto each row when the batch named exactly one
+    # page, so the Import::Row generated downstream can carry `source_page`.
+    # A nil page (a multi-page batch) leaves the rows untouched.
+    def tag_page(rows, page)
+      return rows if page.nil?
+
+      rows.map { |row| row.merge("source_page" => page) }
     end
 
     # Keeps the FIRST value reported for each field: the opening pages carry the

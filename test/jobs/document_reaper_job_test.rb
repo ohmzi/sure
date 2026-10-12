@@ -155,6 +155,11 @@ class DocumentReaperJobTest < ActiveSupport::TestCase
     waiting = stranded_link(status: "processing", age: 2.hours)
     assert waiting.await_retry!(message: "OCR service unreachable; a retry is scheduled")
     assert_equal "queued", waiting.reload.status
+    # `await_retry!` bumps updated_at through transition!, so by default the row
+    # is excluded for FRESHNESS, not for the hold — and the assertion would pass
+    # even with the failure_message clause removed (review finding 7). Re-age it
+    # so the park is the ONLY thing keeping it out of the sweep.
+    waiting.update!(updated_at: 2.hours.ago)
 
     assert_enqueued_jobs 0, only: DocumentUnderstandingJob do
       DocumentReaperJob.perform_now
@@ -167,6 +172,9 @@ class DocumentReaperJobTest < ActiveSupport::TestCase
   test "a read that restarts after being marked is sweepable again if it then crashes" do
     marked = stranded_link(status: "processing", age: 2.hours)
     assert marked.await_retry!(message: "OCR service unreachable; a retry is scheduled")
+    # Same masking as the test above (finding 7): re-age so the hold, not
+    # freshness, is what excludes the row here.
+    marked.update!(updated_at: 2.hours.ago)
     assert_not_includes DocumentLink.stranded(before: 30.minutes.ago), marked
 
     assert marked.mark_processing!

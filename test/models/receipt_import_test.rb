@@ -213,6 +213,27 @@ class ReceiptImportTest < ActiveSupport::TestCase
     assert_equal "linked", draft.document_link.status
   end
 
+  test "a dismissed link still records the provenance edge on publish" do
+    # Review finding 4: import! ignored link_to_entry!'s return, so a draft whose
+    # link was dismissed in the reconciliations inbox published with the money
+    # correct but the provenance edge SILENTLY absent — and Milestone B's
+    # provenance rests on that edge. The publish now writes it (a dismissal was
+    # about the matcher's suggestion, not this user action) instead of dropping it.
+    draft = imports(:receipt_draft)
+    draft.update!(account: accounts(:depository), extracted_data: {
+      "total" => "12.34", "date" => "2026-10-01", "payee" => "Acme", "line_items" => []
+    })
+    link = draft.document_link
+    assert link.dismiss!
+    assert_equal "dismissed", link.reload.status
+
+    draft.import!
+
+    link.reload
+    assert_equal "linked", link.status, "the publish records the edge rather than dropping it"
+    assert_equal draft.id, link.entry.import_id
+  end
+
   # (Task 8) The brief's name for this case claimed identity dedup, but the
   # second call never reaches the adapter: `data_committed?` (the M7-L3/L8
   # guard, pinned by the tests above) short-circuits it. What this case actually
