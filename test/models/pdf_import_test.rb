@@ -258,6 +258,20 @@ class PdfImportTest < ActiveSupport::TestCase
     assert_equal existing_import, PdfImport.create_from_statement!(statement: statement)
   end
 
+  test "find_or_create_from_statement! adopts the statement's existing import" do
+    # The native read's entry point (Task 9): a retry, a reaper re-enqueue or a
+    # reprocess must adopt the import the statement already has rather than mint
+    # a second one (and a second set of rows) against the same vault row.
+    statement = create_pdf_statement
+
+    import = PdfImport.find_or_create_from_statement!(statement: statement)
+    assert_equal statement, import.account_statement
+
+    assert_no_difference -> { PdfImport.count } do
+      assert_equal import, PdfImport.find_or_create_from_statement!(statement: statement)
+    end
+  end
+
   test "assigning account links statement backed import statement" do
     statement = create_pdf_statement(account: nil)
     import = PdfImport.create_from_statement!(statement: statement)

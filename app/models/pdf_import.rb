@@ -83,6 +83,17 @@ class PdfImport < Import
       create!(family: statement.family, account: statement.account, account_statement: statement, date_format: statement.family.date_format, status: :pending)
     end
 
+    # The native read's entry point (Task 9). create_from_statement! already
+    # reuses a matching import, so a re-run against the SAME statement row is
+    # idempotent; this adds the direct lookup by vault row, so a statement whose
+    # import would not be reusable (the account or the family's date format moved
+    # since) is still adopted rather than duplicated. A retry, a reaper
+    # re-enqueue or a reprocess must never mint a second import, and therefore a
+    # second set of rows, against one statement.
+    def find_or_create_from_statement!(statement:)
+      where(account_statement: statement).first || create_from_statement!(statement: statement)
+    end
+
     # M2 Task 10's AI-vs-OCR decision, as ONE seam: the imports page and the M7
     # wizard must not be able to drift. Byte-identical to M2's landed controller
     # fence plus Ruling M2-C2's enqueue guard (app/controllers/imports_controller.rb):

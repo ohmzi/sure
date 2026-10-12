@@ -65,27 +65,46 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
     assert_response :redirect
   end
 
-  test "the statement tile creates the vault statement and hands off to step 3" do
+  test "the statement tile stages the link, enqueues the native read and lands on the archive" do
+    # (Task 9) The statement leg is the native read's now: the wizard stages the
+    # link and enqueues DocumentUnderstandingJob. The vault row and its PdfImport
+    # are created BY that read once it has a verdict and its transactions, so the
+    # wizard creates neither — and with no import in hand there is nothing to
+    # hand to step 3.
     file = Rack::Test::UploadedFile.new(file_fixture("receipts/statement.pdf"), "application/pdf")
 
-    assert_difference -> { AccountStatement.count } => 1, -> { PdfImport.count } => 1 do
-      post document_wizard_intake_path(source: "statement"), params: { document_file: file }
+    assert_no_difference -> { AccountStatement.count } => 0, -> { PdfImport.count } => 0 do
+      assert_difference -> { DocumentLink.count } => 1 do
+        assert_enqueued_with(job: DocumentUnderstandingJob) do
+          assert_no_enqueued_jobs only: Paperless::UploadJob do
+            post document_wizard_intake_path(source: "statement"), params: { document_file: file }
+          end
+        end
+      end
     end
 
-    pdf_import = PdfImport.order(:created_at).last
-    assert_redirected_to import_account_path(pdf_import)
-    assert pdf_import.account_statement.present?
+    assert_redirected_to documents_path(source: "statement")
+    assert_equal I18n.t("document_wizards.create.statement_processing"), flash[:notice]
+    assert_equal "statement", DocumentLink.order(:created_at).last.source
   end
 
-  test "a statement photo is archived and routed to the OCR path" do
+  test "a statement photo is staged and handed to the native read" do
+    # (Task 9) An image statement no longer goes to StatementOcrJob: the
+    # statement leg enqueues the same native read the receipt leg does, so no
+    # document is ever read by two pipelines.
     file = Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png")
 
-    assert_enqueued_with(job: StatementOcrJob) do
-      post document_wizard_intake_path(source: "statement"), params: { document_file: file }
+    assert_no_difference -> { AccountStatement.count } => 0 do
+      assert_enqueued_with(job: DocumentUnderstandingJob) do
+        assert_no_enqueued_jobs only: StatementOcrJob do
+          post document_wizard_intake_path(source: "statement"), params: { document_file: file }
+        end
+      end
     end
 
-    statement = AccountStatement.order(:created_at).last
-    assert_equal "image/png", statement.content_type
+    link = DocumentLink.order(:created_at).last
+    assert_equal "statement", link.source
+    assert_equal "image/png", link.content_type
   end
 
   test "a csv is refused before anything is archived, and the retry is refused too" do
@@ -108,20 +127,22 @@ class DocumentWizardsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("document_wizards.create.unsupported_type"), flash[:alert]
   end
 
-  test "a failed OCR enqueue alerts instead of flashing the success notice" do
-    # (Ruling M7-L6, 2026-10-11 Task 8 fix round 1) The seam reports
-    # :ocr_enqueue_failed; the wizard must surface it honestly.
-    Provider::Registry.stubs(:preferred_llm_provider).returns(nil)
-    StatementOcrJob.stubs(:perform_later).raises(StandardError, "redis down")
+  test "a failed read enqueue alerts instead of flashing the success notice" do
+    # (Ruling M7-L6, kept alive for this leg by Task 9) The intake holds the row
+    # back to `queued` when DocumentUnderstandingJob cannot be enqueued. The
+    # statement is archived and safe, but the read never started, so the wizard
+    # must say so rather than promise a background read that is not happening.
+    DocumentUnderstandingJob.stubs(:perform_later).raises(StandardError, "redis down")
     file = Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png")
 
     post document_wizard_intake_path(source: "statement"), params: { document_file: file }
 
-    pdf_import = PdfImport.order(:created_at).last
-    assert_redirected_to import_path(pdf_import)
+    link = DocumentLink.order(:created_at).last
+    assert_redirected_to documents_path(source: "statement")
     assert_equal I18n.t("document_wizards.create.statement_ocr_enqueue_failed"), flash[:alert]
     assert_nil flash[:notice]
-    assert_equal "extraction_failed", pdf_import.account_statement.reload.extraction_state
+    assert_equal "queued", link.status
+    assert_includes link.failure_message, "enqueue failed"
   end
 
   # --- M8 Task 9: quick intake (Ruling M8-L1) --------------------------------

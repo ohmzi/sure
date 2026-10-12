@@ -1,13 +1,12 @@
 # frozen_string_literal: true
 
 # The document wizard's step 2 (M7): the quick-intake drop screen behind the
-# home New popup's two document rows. The statement leg still finishes through
-# the account-prefill ladder: it hands off to step 3 (Import::AccountsController)
-# only when the ladder cannot resolve (M8 Task 9, Ruling M8-L1 decision 2).
-# The receipt/bill leg no longer asks at all (Task 8): it stages the link,
-# enqueues the native read and lands on the archive, and the ladder moves into
-# the read pipeline in a later task. The wizard must never block on OCR
-# (locked decision 11).
+# home New popup's two document rows. Both legs now stage the link, enqueue the
+# native DocumentUnderstandingJob and land on the archive: the receipt/bill leg
+# since Task 8, the statement leg since Task 9. The account-prefill ladder no
+# longer runs here at all — it moves into the read pipeline in Task 10, and the
+# step-3 ask route it can hand off to stays live for that move. The wizard must
+# never block on OCR (locked decision 11).
 class DocumentWizardsController < ApplicationController
   WIZARD_SOURCES = %w[receipt_or_bill statement].freeze
   # document_links.source is receipt|bill|statement|other. Under the Receipt or
@@ -97,10 +96,12 @@ class DocumentWizardsController < ApplicationController
     # applies it and finishes on the archive (the 2026-10-11 hotfix's shape);
     # only the ambiguous case asks at step 3. A refusal from the move itself
     # (assign_account!'s guards) also falls back to the ask, never a 500.
-    # (Task 8) Reached only by the statement leg now: the receipt/bill leg has no
-    # draft at this point (the read job creates it), so it always finishes on the
-    # archive. Kept — not deleted — because the step-3 ask route is still live
-    # for statements and the receipt ladder returns to the pipeline in Task 10.
+    # (Task 8) Reached only by the statement leg then; (Task 9) NOT reached at
+    # all now — the statement leg no longer builds an import synchronously, so
+    # there is nothing to prefill or to ask about yet. Kept deliberately, not
+    # deleted: the step-3 ask route is still live (`import_account_path`), and
+    # the ladder returns to the pipeline in Task 10, which is where this method
+    # gets its statement caller back.
     def finish_or_ask(import, destination:, notice:)
       account = Import::AccountPrefill.call(user: Current.user).account
       applied = account && (import.is_a?(PdfImport) ? import.assign_account!(account) : import.update(account: account))
@@ -125,25 +126,42 @@ class DocumentWizardsController < ApplicationController
       unless statement_wizard_upload?(file)
         return redirect_to new_document_wizard_path(source: "statement"), alert: t(".unsupported_type")
       end
+      # The Add details title is column-limited like the archive's (500 is
+      # document_links.title's cap). This leg's drop screen renders no title
+      # field, so this guards a hand-rolled POST from reaching the staged INSERT
+      # - the same guard, for the same reason, as create_receipt_or_bill.
+      if params[:title].to_s.length > DocumentLinksController::MAX_TITLE_LENGTH
+        return redirect_to new_document_wizard_path(source: "statement"), alert: t(".invalid_file")
+      end
 
-      pdf_import = PdfImport.create_from_upload!(family: Current.family, file: file, user: Current.user)
-      outcome = PdfImport.route_processing_later!(pdf_import, file: file)
-      # (Ruling M7-L6) the seam reports a failed OCR enqueue; the wizard must
-      # surface it honestly rather than pretend the read started.
-      return redirect_to import_path(pdf_import), alert: t(".statement_ocr_enqueue_failed") if outcome == :ocr_enqueue_failed
+      # (Task 9) The statement leg is the native read's now, exactly as the
+      # receipt leg became it in Task 8: the link is staged and
+      # DocumentUnderstandingJob is enqueued, and the vault row and its PdfImport
+      # are created BY the read once it has a verdict and its transactions. The
+      # wizard creates nothing synchronously and enqueues no second pipeline, so
+      # one document is never read twice — and with no import in hand there is
+      # nothing for the account ladder to prefill, so this leg lands on the
+      # archive (the ladder moves into the pipeline in Task 10).
+      link = DocumentLink::Intake.call(
+        family: Current.family, uploader: Current.user, file: file,
+        source: "statement", title: params[:title].presence,
+        enqueue: ->(l) { DocumentUnderstandingJob.perform_later(l.id) }
+      )
+      # Intake holds the row back to `queued` when the enqueue raised (Ruling 11,
+      # and Ruling M7-L6 for this leg): the statement is archived and safe, but
+      # the read never started, so the wizard must not promise one in the
+      # background.
+      if link.status == "queued"
+        return redirect_to documents_path(source: "statement"), alert: t(".statement_ocr_enqueue_failed")
+      end
 
-      # The same ladder decides (M8 Task 9): resolved finishes on the
-      # statements-filtered archive; ambiguous asks at step 3. OCR settles
-      # asynchronously (Ruling M7-L5, 2026-10-11 Task 8).
-      finish_or_ask(pdf_import, destination: documents_path(source: "statement"), notice: t(".statement_processing"))
-    rescue AccountStatement::DuplicateUploadError
+      redirect_to documents_path(source: "statement"), notice: t(".statement_processing")
+    rescue DocumentLink::Intake::Duplicate
       redirect_to new_document_wizard_path(source: "statement"), alert: t(".duplicate")
-    rescue AccountStatement::InvalidUploadError
+    rescue DocumentLink::Staging::TooLargeError
+      redirect_to new_document_wizard_path(source: "statement"), alert: t(".too_large")
+    rescue DocumentLink::Intake::InvalidSource, DocumentLink::Intake::FilenameTooLong
       redirect_to new_document_wizard_path(source: "statement"), alert: t(".invalid_file")
-    rescue ActiveRecord::RecordInvalid
-      # (Ruling M7-L6) backstop: if the vault's allow-list and the wizard's set ever
-      # diverge, the user gets the honest refusal, never a 500 over a half-written row.
-      redirect_to new_document_wizard_path(source: "statement"), alert: t(".unsupported_type")
     end
 
     # The statement wizard accepts exactly what the OCR path can read.

@@ -29,6 +29,17 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     "field_confidence" => { "total" => 0.98, "date" => 0.97 }
   }.freeze
 
+  STATEMENT = {
+    "document_class" => "statement", "institution_name" => "Chase", "account_last4" => "1234",
+    "statement_period" => { "start" => "2026-09-01", "end" => "2026-09-30" },
+    "currency" => "USD", "total" => nil, "date" => nil, "payee" => nil, "line_items" => [],
+    "transactions" => [
+      { "date" => "2026-09-03", "amount" => "-12.34", "name" => "Cafe", "notes" => "" },
+      { "date" => "2026-09-05", "amount" => "-50.00", "name" => "Fuel", "notes" => "" }
+    ],
+    "field_confidence" => { "institution_name" => 0.95 }
+  }.freeze
+
   setup do
     @family = families(:dylan_family)
     @link = DocumentLink.create!(family: @family, source: "other", status: "queued",
@@ -271,5 +282,82 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_no_difference -> { ReceiptImport.count } do
       DocumentUnderstandingJob.perform_now(@link.id)
     end
+  end
+
+  # --- Task 9: the statement seam --------------------------------------------
+
+  test "a statement is routed to a statement-backed draft with its rows" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    assert_difference -> { PdfImport.count }, 1 do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+
+    statement = statement_for(@link)
+    # The brief's fence reads `PdfImport.last`, but imports have UUID primary
+    # keys and test/fixtures/imports.yml holds three PdfImports, so `.last`
+    # orders by a random uuid and returns a fixture. Find the import by the
+    # statement the job just minted instead — the property under test is the
+    # link between the two, not the row order.
+    import = PdfImport.find_by!(account_statement_id: statement.id)
+    assert_equal statement.id, import.account_statement_id
+    assert_equal 2, import.rows_count
+    assert_equal "Chase", statement.institution_name_hint
+    assert_equal Date.new(2026, 9, 1), statement.period_start_on
+  end
+
+  test "a multi-page statement is batched, and the batches are stitched" do
+    pages = (1..5).map { |n| { page: n, text: "PAGE #{n}", confidence: 0.95, image: "cGFnZQ==" } }
+    stub_ocr_success(pages: pages)
+
+    seen_batches = []
+    provider = FakeProvider.new(STATEMENT)
+    provider.define_singleton_method(:understand_document) do |pages:, ocr_text:, family: nil, model: ""|
+      seen_batches << pages.size
+      @response
+    end
+    stub_provider(provider)
+
+    with_batch_size(2) { DocumentUnderstandingJob.perform_now(@link.id) }
+
+    assert_equal [ 2, 2, 1 ], seen_batches, "pages are sent in bounded batches, never all at once"
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal 6, import.rows_count, "every batch's transactions are kept"
+  end
+
+  test "re-running a statement read adopts the existing import" do
+    stub_ocr_success(pages: [ { page: 1, text: "CHASE", confidence: 0.96 } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    @link.update!(status: "queued")   # as the reaper would
+
+    assert_no_difference -> { PdfImport.count } do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+
+    # ...and it ADOPTED that import rather than making a fresh statement+import
+    # pair that happened not to change the count. `assert_no_difference` alone
+    # passes just as well when the re-run failed to create anything at all, so
+    # pin the identity the adoption has to preserve.
+    assert_equal import.id, PdfImport.find_by!(account_statement_id: statement_for(@link).id).id
+    assert_equal 1, PdfImport.where(account_statement: statement_for(@link)).count
+  end
+
+  def statement_for(link)
+    AccountStatement.find_by(id: link.reload.account_statement_id)
+  end
+
+  # The batch size is a constant read at call time, so it can be pinned in a test.
+  def with_batch_size(size)
+    original = DocumentUnderstandingJob::PAGE_BATCH
+    DocumentUnderstandingJob.send(:remove_const, :PAGE_BATCH)
+    DocumentUnderstandingJob.const_set(:PAGE_BATCH, size)
+    yield
+  ensure
+    DocumentUnderstandingJob.send(:remove_const, :PAGE_BATCH)
+    DocumentUnderstandingJob.const_set(:PAGE_BATCH, original)
   end
 end

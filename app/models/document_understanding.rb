@@ -63,6 +63,14 @@ class DocumentUnderstanding
 
   def to_verdict = verdict.to_h.deep_stringify_keys
 
+  # A copy carrying the given transactions. The read is batched by page, so the
+  # statement's rows accumulate across several verdicts while its identity
+  # fields come from the first batch that reported them; the class has no
+  # writer, so the stitched read is assembled into a new one.
+  def with_transactions(rows)
+    self.class.new(verdict.merge("transactions" => rows))
+  end
+
   def confidence_for(field) = field_confidence[field].to_f
 
   private
