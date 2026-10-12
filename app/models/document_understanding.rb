@@ -48,17 +48,17 @@ class DocumentUnderstanding
     nil
   end
 
-  def period_start = parse_date(verdict.dig(:statement_period, :start))
-  def period_end = parse_date(verdict.dig(:statement_period, :end))
+  def period_start = parse_date(statement_period_field(:start))
+  def period_end = parse_date(statement_period_field(:end))
 
-  def line_items = Array(verdict[:line_items]).map { |i| i.with_indifferent_access }
+  def line_items = member_hashes(verdict[:line_items])
 
   # Statements carry rows; a receipt carries line items. Keeping them separate
   # means neither can be mistaken for the other downstream.
   def transactions
     return [] unless document_class == "statement"
 
-    Array(verdict[:transactions]).map { |t| t.with_indifferent_access }
+    member_hashes(verdict[:transactions])
   end
 
   def to_verdict = verdict.to_h.deep_stringify_keys
@@ -75,5 +75,22 @@ class DocumentUnderstanding
       Date.parse(value.to_s) if value.present?
     rescue Date::Error
       nil
+    end
+
+    # statement_period is unconstrained on the generic path (no schema is sent):
+    # the model may return a bare string, so dig would raise TypeError. Guard to
+    # a hash and read the key, or nil.
+    def statement_period_field(key)
+      period = verdict[:statement_period]
+      period.is_a?(Hash) ? period[key] : nil
+    end
+
+    # Coerce an untrusted array slot into indifferent-access hashes, dropping any
+    # member the model sent as a non-hash (a String, number, nested array…) so
+    # that mapping cannot raise NoMethodError.
+    def member_hashes(value)
+      Array(value)
+        .select { |i| i.respond_to?(:with_indifferent_access) }
+        .map { |i| i.with_indifferent_access }
     end
 end

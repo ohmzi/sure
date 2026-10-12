@@ -51,6 +51,38 @@ class DocumentUnderstandingTest < ActiveSupport::TestCase
     assert_equal "4242", u.to_verdict["card_last4"]
   end
 
+  test "a non-hash sub-value reads as empty or nil rather than raising" do
+    u = DocumentUnderstanding.new(verdict(
+      "document_class" => "statement",
+      "line_items" => "none",
+      "statement_period" => "October 2026",
+      "transactions" => "n/a"
+    ))
+
+    assert_equal [], u.line_items
+    assert_equal [], u.transactions
+    assert_nil u.period_start
+    assert_nil u.period_end
+  end
+
+  test "non-hash members inside a list are dropped while hashes survive" do
+    u = DocumentUnderstanding.new(verdict(
+      "line_items" => [ "junk", { "description" => "Coffee", "amount" => "3.00" } ]
+    ))
+
+    assert_equal 1, u.line_items.size
+    assert_equal "Coffee", u.line_items.first["description"]
+  end
+
+  test "a hash statement_period is read into dates" do
+    u = DocumentUnderstanding.new(verdict(
+      "statement_period" => { "start" => "2026-10-01", "end" => "2026-10-31" }
+    ))
+
+    assert_equal Date.new(2026, 10, 1), u.period_start
+    assert_equal Date.new(2026, 10, 31), u.period_end
+  end
+
   test "transactions is empty unless the class is a statement" do
     receipt = DocumentUnderstanding.new(verdict)
     assert_empty receipt.transactions

@@ -17,8 +17,24 @@ class Provider::Openai::DocumentReader
     digits. Where they disagree, trust the images for structure and the OCR
     text for characters, and lower the field confidence.
 
-    Return the flat JSON object described by the schema. Never invent a value.
-    If a field is not present in the document, return null for it.
+    Return ONE flat JSON object with exactly these keys:
+    - document_class: one of #{DocumentUnderstanding::CLASSES.map(&:inspect).join(", ")}
+    - institution_name, account_last4, card_last4, card_network, currency,
+      total, date, payee: a string, or null when the document does not show it.
+      card_network, when present, is one of #{Account::CARD_NETWORKS.map(&:inspect).join(", ")}.
+    - statement_period: an object {"start": string|null, "end": string|null},
+      or null when the document has no statement period.
+    - line_items: an array of objects {"description": string, "amount": string}
+      — the purchased items on a receipt or bill. Use an empty array if none.
+    - transactions: an array of objects
+      {"date": string, "amount": string, "name": string, "notes": string|null}
+      — the account rows on a STATEMENT only. Use an empty array for anything
+      that is not a statement.
+    - field_confidence: an object mapping a field name to a number between 0
+      and 1, e.g. {"total": 0.99}.
+
+    Never invent a value. If a field is not present in the document, return
+    null for it (or an empty array for line_items and transactions).
   TEXT
 
   attr_reader :client, :model, :pages, :ocr_text, :custom_provider, :langfuse_trace, :family
@@ -49,7 +65,7 @@ class Provider::Openai::DocumentReader
       response = client.responses.create(parameters: {
         model: model,
         instructions: INSTRUCTIONS,
-        input: [ { role: "developer", content: content_parts } ],
+        input: [ { role: "developer", content: native_content_parts } ],
         text: { format: { type: "json_schema", name: "document_understanding",
                           strict: true, schema: json_schema } }
       })
@@ -67,7 +83,7 @@ class Provider::Openai::DocumentReader
         model: model,
         messages: [
           { role: "system", content: INSTRUCTIONS },
-          { role: "user", content: content_parts }
+          { role: "user", content: generic_content_parts }
         ],
         response_format: { type: "json_object" }
       })
@@ -80,20 +96,29 @@ class Provider::Openai::DocumentReader
         model: model,
         messages: [
           { role: "system", content: INSTRUCTIONS },
-          { role: "user", content: content_parts }
+          { role: "user", content: generic_content_parts }
         ]
       })
       parse_generic(response)
     end
 
-    # OpenAI's multimodal content array: images first, then the OCR text as its
-    # own part so the model never has to guess which characters it is looking at.
-    def content_parts
-      images = pages.map do |base64|
-        { type: "image_url", image_url: { url: "data:image/png;base64,#{base64}" } }
-      end
-      images + [ { type: "text", text: ocr_block } ]
+    # The multimodal content array, shaped per endpoint: the Responses API
+    # (read_native) takes "input_image"/"input_text" parts with a flat image_url
+    # string, while chat completions (read_generic) takes "image_url"/"text"
+    # parts with a nested image_url object. Both send the images first and the
+    # same ocr_block last, so the two paths cannot drift in what they tell the
+    # model. (pdf_processor.rb's vision call is the chat-completions shape.)
+    def native_content_parts
+      pages.map { |base64| { type: "input_image", image_url: image_data_url(base64) } } +
+        [ { type: "input_text", text: ocr_block } ]
     end
+
+    def generic_content_parts
+      pages.map { |base64| { type: "image_url", image_url: { url: image_data_url(base64) } } } +
+        [ { type: "text", text: ocr_block } ]
+    end
+
+    def image_data_url(base64) = "data:image/png;base64,#{base64}"
 
     def ocr_block
       return "OCR text: (none — the OCR engine found no text; rely on the images.)" if ocr_text.blank?

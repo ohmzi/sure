@@ -7,6 +7,17 @@ class Provider::Openai::UnderstandDocumentTest < ActiveSupport::TestCase
     Provider::Openai.new("test-key", uri_base: "https://api.deepseek.com/v1", model: "deepseek-flash")
   end
 
+  # No uri_base takes the native Responses-API path (stock OpenAI).
+  def native_provider
+    Provider::Openai.new("test-key", model: "gpt-4.1")
+  end
+
+  def stub_openai_responses(body:, status: 200)
+    stub_request(:post, %r{/responses\z}).to_return(
+      status: status, headers: { "Content-Type" => "application/json" }, body: body.to_json
+    )
+  end
+
   test "understand_document returns a DocumentUnderstanding from the tool-free JSON reply" do
     stub_openai_chat(body: { "choices" => [ { "message" => { "content" => {
       "document_class" => "receipt", "total" => "9.99", "date" => "2026-10-01",
@@ -26,5 +37,40 @@ class Provider::Openai::UnderstandDocumentTest < ActiveSupport::TestCase
     response = provider.understand_document(pages: [ "aW1n" ], ocr_text: "", family: families(:dylan_family))
 
     assert_not response.success?
+  end
+
+  test "the generic (chat) request body carries the page images and the OCR text" do
+    stub_openai_chat(body: { "choices" => [ { "message" => { "content" => { "document_class" => "receipt" }.to_json } } ] })
+
+    provider.understand_document(pages: [ "aW1n" ], ocr_text: "TOTAL 9.99", family: families(:dylan_family))
+
+    user_content = nil
+    assert_requested(:post, %r{/chat/completions\z}) do |req|
+      user_content = JSON.parse(req.body).dig("messages", 1, "content")
+    end
+
+    assert_equal "image_url", user_content[0]["type"]
+    assert_equal "data:image/png;base64,aW1n", user_content[0].dig("image_url", "url")
+    assert_equal "text", user_content[1]["type"]
+    assert_includes user_content[1]["text"], "TOTAL 9.99"
+  end
+
+  test "the native (responses) request body carries the page images and the OCR text" do
+    stub_openai_responses(body: { "output" => [ { "type" => "message", "content" => [
+      { "type" => "output_text", "text" => { "document_class" => "receipt" }.to_json }
+    ] } ] })
+
+    response = native_provider.understand_document(pages: [ "aW1n" ], ocr_text: "TOTAL 9.99", family: families(:dylan_family))
+    assert response.success?, response.error&.message
+
+    content = nil
+    assert_requested(:post, %r{/responses\z}) do |req|
+      content = JSON.parse(req.body).dig("input", 0, "content")
+    end
+
+    assert_equal "input_image", content[0]["type"]
+    assert_equal "data:image/png;base64,aW1n", content[0]["image_url"]
+    assert_equal "input_text", content[1]["type"]
+    assert_includes content[1]["text"], "TOTAL 9.99"
   end
 end
