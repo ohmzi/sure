@@ -176,6 +176,17 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "a malformed scalar q param renders the page instead of a 500" do
+    # (Ruling M8-C6, 2026-10-11 close-out) `?q=coffee` and `?q[]=coffee` send
+    # a scalar/array where the facet hash belongs; the concern's shape guard
+    # wraps them empty instead of raising out of #permit.
+    get documents_path(q: "coffee")
+    assert_response :success
+
+    get documents_path(q: [ "coffee" ])
+    assert_response :success
+  end
+
   test "sort orders by document date and by name" do
     old = document_links(:unlinked_receipt)
     old.update!(title: "Alpha receipt")

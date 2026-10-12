@@ -624,6 +624,73 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match statement.filename, response.body
   end
 
+  test "a malformed scalar q param renders the page instead of a 500" do
+    # (Ruling M8-C6, 2026-10-11 close-out) the statements-side mirror of the
+    # documents pin: the shape guard keeps the vault a 200 for `?q=coffee`.
+    get account_statements_path(q: "coffee")
+    assert_response :success
+
+    get account_statements_path(q: [ "coffee" ])
+    assert_response :success
+  end
+
+  # -- the tag facet on the statements side (Ruling M8-C6) ---------------------
+
+  test "the tag facet narrows the vault through the archived links' stored snapshots" do
+    # (Ruling M8-C6, 2026-10-11 close-out) the close-out's named statements tag
+    # scope, pinned permanently: the choices come from the stored snapshot on
+    # the VISIBLE statements' archived links, and the filter narrows through
+    # the same subquery — never a paperless call.
+    tagged = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "tagged_statement.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    link = DocumentLink.link_from_upload!(family: tagged.family, uploader: users(:family_admin), source: "statement")
+    link.update!(account_statement: tagged, status: "unlinked", paperless_tags: %w[ohmzbudget statement])
+    untagged = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "untagged_statement.csv", content_type: "text/csv", content: "date,amount\n2024-01-02,2\n")
+    )
+
+    get account_statements_path
+    assert_select "input[name='q[tags][]'][value='statement']"  # the choices ride the visible links' snapshots
+    assert_select "input[name='q[tags][]'][value='ohmzbudget']"
+
+    get account_statements_path(q: { tags: %w[statement] })
+    assert_match tagged.filename, response.body
+    assert_no_match untagged.filename, response.body
+
+    # A name no row carries is a real filter: an empty page, never a widened one.
+    get account_statements_path(q: { tags: %w[nope] })
+    assert_no_match tagged.filename, response.body
+  end
+
+  # -- the statements viewer walk (Ruling M8-C6) --------------------------------
+
+  test "a statement row opens the viewer with prev/next over the visible list" do
+    # (Ruling M8-C6, 2026-10-11 close-out) the documents-side walk pin's
+    # statements mirror: prev/next recompute over the SAME filtered visible
+    # relation the index lists.
+    older = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "walk_older.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    newer = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "walk_newer.csv", content_type: "text/csv", content: "date,amount\n2024-01-02,2\n")
+    )
+    older.update_columns(created_at: 2.days.ago)
+    newer.update_columns(created_at: 1.day.ago)
+
+    get viewer_account_statement_path(newer)
+    assert_select "a[data-viewer-next][href='#{viewer_account_statement_path(older)}']"
+    assert_select "a[data-viewer-previous]", count: 0 # newest row: nothing newer
+
+    # The mirror makes the walk discriminating in both directions.
+    get viewer_account_statement_path(older)
+    assert_select "a[data-viewer-previous][href='#{viewer_account_statement_path(newer)}']"
+  end
+
   # -- the review / extraction facets (M8 Task 9, Ruling M8-L2) ----------------
 
   test "the review and extraction facets render and narrow the vault list" do

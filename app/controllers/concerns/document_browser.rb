@@ -7,7 +7,13 @@ module DocumentBrowser
 
   private
     def document_browser_filters
-      params.fetch(:q, {}).permit(
+      # (Ruling M8-C6, 2026-10-11 close-out) `?q=coffee` (or `q[]=`) sends a
+      # scalar where the facet hash belongs; wrapping the fetched value empty
+      # keeps both GET surfaces a 200 instead of a 500 out of #permit (the
+      # task-2 finding's one-line shape guard).
+      q = params.fetch(:q, {})
+      q = ActionController::Parameters.new unless q.is_a?(ActionController::Parameters)
+      q.permit(
         :search, :sort, :date_from, :date_to, :merchant, :amount_min, :amount_max,
         status: [], tags: [], extraction: [], review: []
       ).to_h.symbolize_keys
