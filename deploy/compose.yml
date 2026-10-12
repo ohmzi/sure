@@ -97,7 +97,12 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
-    command: bundle exec sidekiq
+    # An explicit queue list EXCLUDES `heavy`: Sidekiq's -q flags override
+    # config/sidekiq.yml's :queues, so DocumentUnderstandingJob (minutes-long
+    # OCR + vision) cannot occupy a thread the mailers and syncs need. Keep this
+    # list in sync with config/sidekiq.yml minus `heavy`; `worker-heavy` drains
+    # `heavy`. Weights mirror config/sidekiq.yml.
+    command: bundle exec sidekiq -q scheduled,10 -q high_priority,4 -q medium_priority,2 -q low_priority,1 -q default,1
     volumes:
       - app-storage:/rails/storage
     environment:
