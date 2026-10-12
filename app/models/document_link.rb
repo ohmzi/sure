@@ -44,6 +44,15 @@ class DocumentLink < ApplicationRecord
   scope :for_entry, ->(entry) { where(entry_id: entry.respond_to?(:id) ? entry.id : entry) }
   scope :ordered, -> { order(created_at: :desc) }
 
+  # The "the job died" shape (Task 11): mid-read or queued, has bytes, and has
+  # not moved in a bound. This is SyncCleanerJob's paperless-era scope,
+  # re-pointed — and it is what makes "never a lost document" a property rather
+  # than a promise. Terminal rows (settled, failed) and byte-less rows are
+  # deliberately out: there is nothing to re-read, or nothing that can settle.
+  def self.stranded(before:)
+    where(status: %w[queued processing]).where.not(stored_path: nil).where("updated_at < ?", before)
+  end
+
   class << self
     # The only way a row enters the system. The caller stages bytes
     # (DocumentLink#stage!, Task 3) and enqueues Paperless::UploadJob.
@@ -250,6 +259,17 @@ class DocumentLink < ApplicationRecord
   def retry_upload!
     transition!(from: %w[failed queued processing], to: "queued",
                 paperless_task_id: nil, failure_message: nil, poll_attempts: 0)
+  end
+
+  # A fresh read of the same document: clears the terminal bits and re-queues.
+  # It deliberately does NOT unlink an entry — reprocessing the READ must never
+  # move money (D8). A published receipt's provenance link survives a reprocess.
+  # The second, unconditional updated_at bump gives the re-queued row a clean
+  # `stranded` clock, so a reaper tick cannot re-select it before the fresh job
+  # has had its bound.
+  def reprocess!
+    transition!(from: STATUSES, to: "queued", failure_message: nil) &&
+      self.class.where(id: id).update_all(updated_at: Time.current) == 1
   end
 
   # Writes the uploaded bytes to the staging volume and records their digest.

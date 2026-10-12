@@ -165,6 +165,9 @@ en:
             pdf_vision_processing_failed:
               title: The synthetic PDF vision/native check failed
               message: Sure could not complete the image or native-document PDF path through the configured model. No customer data was sent. The failure was recorded in Settings → Debug logs and Rails.logger.
+            ocr_probe_failed:
+              title: The OCR service live check failed
+              message: The document OCR sidecar did not answer its health endpoint. The native read cannot run while it is down, so new documents cannot be read. Check the sidecar container and OCR_SERVICE_URL, then run the checks again.
             vector_probe_failed:
               title: The document-search live check failed
               message: Sure could not verify the selected vector store and every required embedding service. The failure was recorded in Settings → Debug logs and Rails.logger.
@@ -209,6 +212,7 @@ en:
             function_calling: Function calling (tools)
             pdf_text_extraction: PDF text-extraction path
             pdf_vision_processing: PDF vision/native path
+            ocr_service: OCR service (document sidecar)
             llm_request_timeout: LLM request timeout
             probe_request_timeout: Health-check probe timeout
             openai_credentials: OpenAI credentials
@@ -266,6 +270,10 @@ en:
             unsupported: Disabled or not supported by the effective provider/model
             not_checked: Not checked
             unavailable: Unavailable until an LLM provider is configured
+          ocr_statuses:
+            ok: Live check passed
+            error: Live check failed
+            not_configured: Not configured
           probe_statuses:
             passing: Live check passed
             failing: Live check failed

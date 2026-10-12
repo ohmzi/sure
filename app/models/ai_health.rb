@@ -92,6 +92,24 @@ class AiHealth
     pdf_probe_status(pdf_vision_processing_probe, capable: @pdf_vision_processing_capable)
   end
 
+  # The OCR sidecar is a second ingest dependency, so it needs its own liveness
+  # signal: AiHealth already knows about the vision provider, and a green AI chip
+  # with a dead sidecar would be a lie.
+  #
+  # The brief's fence spelled the bound as `Faraday.get(url, {}, { timeout: 5 })`,
+  # but Faraday's third positional argument is the HEADERS hash, not options — an
+  # Integer header value raises `NoMethodError: undefined method 'strip' for an
+  # instance of Integer` before the request is ever sent. The request block sets
+  # the same 5-second bound where Faraday actually reads it.
+  def ocr_probe
+    return { status: :not_configured } unless Ocr.configured?
+
+    response = Faraday.get("#{Ocr.url}/healthz") { |req| req.options.timeout = 5 }
+    response.success? ? { status: :ok } : { status: :error, detail: "HTTP #{response.status}" }
+  rescue Faraday::Error => e
+    { status: :error, detail: e.class.name }
+  end
+
   def vector_store_configured?
     @vector_store_configured
   end

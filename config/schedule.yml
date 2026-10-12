@@ -110,3 +110,10 @@ receipt_matcher:
   active_job: true
   queue: "scheduled"
   description: "Scores unlinked and suggested receipts against candidate transactions"
+
+document_reaper:
+  cron: "17 * * * *"
+  class: "DocumentReaperJob"
+  active_job: true
+  queue: "default"
+  description: "Re-enqueues documents whose read never finished (mid-read or queued, with bytes, idle past the bound)"

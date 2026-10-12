@@ -92,6 +92,32 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert_nil link.failure_message
   end
 
+  test "reprocess! frees the row for a fresh read without touching the money" do
+    link = document_links(:linked_receipt)
+    entry_id = link.entry_id
+
+    link.reprocess!
+
+    assert_equal "queued", link.reload.status
+    assert_equal entry_id, link.entry_id, "reprocessing a read must not unlink an entry"
+  end
+
+  # The reprocess escape hatch's second half (guidance 2): it clears the
+  # TERMINAL bits, so a row the read failed on can be read again — the failure
+  # message does not survive to mislabel the fresh attempt. The provenance link
+  # still must not move.
+  test "reprocess! clears the failure message and re-queues a failed row" do
+    link = document_links(:queued_receipt)
+    assert link.mark_processing!
+    assert link.fail!("OCR service unreachable after 8 attempts: boom")
+
+    assert link.reprocess!
+    link.reload
+    assert_equal "queued", link.status
+    assert_nil link.failure_message
+    assert_nil link.entry_id
+  end
+
   test "a stale transition on an already-moved row is refused" do
     link = document_links(:linked_receipt)
     assert_not link.transition!(from: "processing", to: "failed")

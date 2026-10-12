@@ -5,6 +5,15 @@
    else "text-warning"
    end %>
 <% vector_store_failure_kind = ai_health.vector_store_failure_kind %>
+<%# Called once: this makes a live request, so it must not be repeated per
+    reference. The status is a distinguishable :not_configured rather than a
+    false healthy, so a green AI chip over a dead sidecar cannot happen. %>
+<% ocr = ai_health.ocr_probe %>
+<% ocr_class = case ocr[:status]
+   when :ok then "text-success"
+   when :error then "text-destructive"
+   else "text-warning"
+   end %>
 
 <% pdf_checks = [
   {
@@ -66,6 +75,14 @@
     <%= render DS::Alert.new(
       title: t("admin.system_health.show.ai.alerts.#{check[:key]}_failed.title"),
       message: t("admin.system_health.show.ai.alerts.#{check[:key]}_failed.message"),
+      variant: :error
+    ) %>
+  <% end %>
+
+  <% if ocr[:status] == :error %>
+    <%= render DS::Alert.new(
+      title: t("admin.system_health.show.ai.alerts.ocr_probe_failed.title"),
+      message: t("admin.system_health.show.ai.alerts.ocr_probe_failed.message"),
       variant: :error
     ) %>
   <% end %>
@@ -165,6 +182,15 @@
           </dd>
         </div>
       <% end %>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.show.ai.labels.ocr_service") %></dt>
+        <dd class="mt-1 font-medium <%= ocr_class %>" data-testid="ocr-service-status">
+          <%= t("admin.system_health.show.ai.ocr_statuses.#{ocr[:status]}") %>
+          <% if ocr[:detail].present? %>
+            <span class="text-secondary">(<%= ocr[:detail] %>)</span>
+          <% end %>
+        </dd>
+      </div>
       <div>
         <dt class="text-secondary"><%= t("admin.system_health.show.ai.labels.llm_request_timeout") %></dt>
         <dd class="mt-1 font-medium text-primary"><%= t("admin.system_health.show.values.seconds", seconds: ai_health.llm_request_timeout) %></dd>

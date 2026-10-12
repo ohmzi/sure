@@ -15,6 +15,9 @@ class Admin::SystemHealthTest < ApplicationSystemTestCase
     AiHealth::Probe.any_instance.stubs(:pdf_text_extraction).returns(probe_result(:passing))
     AiHealth::Probe.any_instance.stubs(:pdf_vision_processing).returns(probe_result(:passing))
     AiHealth::Probe.any_instance.stubs(:openai_vector_store).returns(probe_result(:passing))
+    # The OCR sidecar probe lives on AiHealth (not AiHealth::Probe) and makes a
+    # live request, so the AI tab that renders it must stub it here.
+    AiHealth.any_instance.stubs(:ocr_probe).returns({ status: :ok })
   end
 
   test "selecting AI status runs live probes" do

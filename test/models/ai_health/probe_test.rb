@@ -599,7 +599,44 @@ class AiHealth::ProbeTest < ActiveSupport::TestCase
     assert result.passing?
   end
 
+  # The OCR sidecar is a second ingest dependency, so it needs its own liveness
+  # signal (Task 11 Step 4). These are the three branches the admin AI view
+  # renders; the unconfigured branch is the one the brief calls out — a green
+  # chip over a dead sidecar would be a lie.
+  test "OCR probe reports a distinguishable unconfigured state instead of healthy" do
+    Ocr.stubs(:configured?).returns(false)
+
+    assert_equal({ status: :not_configured }, ocr_health.ocr_probe)
+  end
+
+  test "OCR probe reports ok when the sidecar answers its health endpoint" do
+    request = stub_request(:get, "#{Ocr.url}/healthz").to_return(status: 200)
+
+    assert_equal({ status: :ok }, ocr_health.ocr_probe)
+    assert_requested request
+  end
+
+  test "OCR probe reports an error with the HTTP status when the sidecar is unhealthy" do
+    stub_request(:get, "#{Ocr.url}/healthz").to_return(status: 503)
+
+    assert_equal({ status: :error, detail: "HTTP 503" }, ocr_health.ocr_probe)
+  end
+
+  test "OCR probe reports an unreachable sidecar as an error without raising" do
+    stub_request(:get, "#{Ocr.url}/healthz").to_raise(Faraday::ConnectionFailed.new("refused"))
+
+    assert_equal({ status: :error, detail: "Faraday::ConnectionFailed" }, ocr_health.ocr_probe)
+  end
+
   private
+    # ocr_probe lives on AiHealth (beside pdf_vision_processing_status), not on
+    # AiHealth::Probe, so the probe double above cannot exercise it. run_probes:
+    # false keeps this instance from firing the other (stubbed-elsewhere) live
+    # probes; ocr_probe is a separate call the test drives directly.
+    def ocr_health
+      AiHealth.new(run_probes: false)
+    end
+
     def stub_tools_request(endpoint)
       stub_request(:post, "#{endpoint}/chat/completions").with { |request| JSON.parse(request.body).key?("tools") }
     end

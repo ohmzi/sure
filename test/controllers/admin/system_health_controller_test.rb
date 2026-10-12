@@ -26,6 +26,10 @@ class Admin::SystemHealthControllerTest < ActionDispatch::IntegrationTest
     AiHealth::Probe.any_instance.stubs(:openai_vector_store).returns(probe_result(:passing))
     AiHealth::Probe.any_instance.stubs(:pgvector).returns(probe_result(:passing))
     AiHealth::Probe.any_instance.stubs(:embedding).returns(probe_result(:passing))
+    # The OCR sidecar probe lives on AiHealth (not AiHealth::Probe) and makes a
+    # live request, so the AI tab that renders it must stub it here — otherwise
+    # WebMock blocks the request and the page 500s.
+    AiHealth.any_instance.stubs(:ocr_probe).returns({ status: :ok })
   end
 
   test "super admin can view the system health page" do
