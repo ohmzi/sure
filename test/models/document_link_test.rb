@@ -118,6 +118,42 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert_nil link.entry_id
   end
 
+  # Fix round 2, item 1: the retry-backoff park. A transient OCR failure marks
+  # the row `queued` with the reason so the sweep leaves it alone for the whole
+  # backoff; the scheduled retry still finds it (the job's guard accepts
+  # `queued`), and mark_processing! clears the mark when the read restarts — so
+  # a crash after the restart is a plain stale `processing` row, not an
+  # invisible one.
+  test "await_retry! parks a row in queued with the reason, and mark_processing! clears it" do
+    link = document_links(:queued_receipt)
+    assert link.mark_processing!
+
+    assert link.await_retry!(message: "OCR service unreachable; a retry is scheduled")
+    link.reload
+    assert_equal "queued", link.status
+    assert_equal "OCR service unreachable; a retry is scheduled", link.failure_message
+
+    assert link.mark_processing!
+    link.reload
+    assert_equal "processing", link.status
+    assert_nil link.failure_message, "a restart must clear the backoff mark"
+  end
+
+  test "abandon! lands a spent row terminally from queued, where fail! would no-op" do
+    link = document_links(:queued_receipt)
+    assert link.mark_processing!
+    assert link.await_retry!(message: "OCR service unreachable; a retry is scheduled")
+
+    # fail! only moves a `processing` row; the backoff park leaves the row
+    # `queued`, so the exhaustion handler must use abandon! or the row is parked
+    # forever.
+    assert_not link.fail!("too late")
+    assert link.abandon!(message: "OCR service unreachable after 8 attempts")
+    link.reload
+    assert_equal "failed", link.status
+    assert_equal "OCR service unreachable after 8 attempts", link.failure_message
+  end
+
   test "a stale transition on an already-moved row is refused" do
     link = document_links(:linked_receipt)
     assert_not link.transition!(from: "processing", to: "failed")

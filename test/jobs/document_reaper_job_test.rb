@@ -144,4 +144,35 @@ class DocumentReaperJobTest < ActiveSupport::TestCase
       DocumentReaperJob.perform_now
     end
   end
+
+  # Fix round 2, item 1 (the retry-backoff window). The job parks a row here on a
+  # transient OCR failure: queued, with the reason, while retry_on waits. The
+  # polynomial's later waits far exceed BOUND, so without the park the sweep
+  # would select a waiting row and race the scheduled retry into a second OCR
+  # call, a second paid provider call and a second DocumentExtraction. The park
+  # carries a message, so the sweep leaves it for the ladder.
+  test "a row waiting in retry backoff is never selected" do
+    waiting = stranded_link(status: "processing", age: 2.hours)
+    assert waiting.await_retry!(message: "OCR service unreachable; a retry is scheduled")
+    assert_equal "queued", waiting.reload.status
+
+    assert_enqueued_jobs 0, only: DocumentUnderstandingJob do
+      DocumentReaperJob.perform_now
+    end
+  end
+
+  # Closing the backoff hole must not open the crash hole: the retry restarts the
+  # read, and mark_processing! clears the backoff message, so a crash after the
+  # restart (stale, no code running, no message) is visible to the sweep again.
+  test "a read that restarts after being marked is sweepable again if it then crashes" do
+    marked = stranded_link(status: "processing", age: 2.hours)
+    assert marked.await_retry!(message: "OCR service unreachable; a retry is scheduled")
+    assert_not_includes DocumentLink.stranded(before: 30.minutes.ago), marked
+
+    assert marked.mark_processing!
+    marked.update!(updated_at: 2.hours.ago)
+
+    assert_nil marked.reload.failure_message
+    assert_includes DocumentLink.stranded(before: 30.minutes.ago), marked
+  end
 end

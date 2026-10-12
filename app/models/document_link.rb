@@ -141,8 +141,12 @@ class DocumentLink < ApplicationRecord
         .update_all(attributes.merge(status: to, updated_at: Time.current)) == 1
   end
 
+  # A read is starting (or restarting). Clears any stale failure/backoff message
+  # (fix round 2): without this, a row parked by `await_retry!` would carry its
+  # message into `processing`, and the sweep — which excludes message-bearing
+  # rows — would be blind to a genuine crash of the restarted read.
   def mark_processing!(paperless_document_id: nil)
-    attrs = {}
+    attrs = { failure_message: nil }
     attrs[:paperless_document_id] = paperless_document_id if paperless_document_id
     transition!(from: %w[queued failed processing], to: "processing", **attrs)
   end
@@ -276,6 +280,27 @@ class DocumentLink < ApplicationRecord
   def hold!(message: nil)
     transition!(from: %w[processing queued], to: "queued",
                 paperless_task_id: nil, failure_message: message)
+  end
+
+  # The retry ladder is waiting, not the user (Task 11 fix round 2). A transient
+  # OCR failure re-raises for `retry_on`, and the row parks in `queued` WITH the
+  # reason so the sweep leaves it alone for the whole backoff — the polynomial's
+  # later waits far exceed the sweep's bound, and a sweep that selected a waiting
+  # row would race the scheduled retry into a second OCR call, a second paid
+  # provider call and a second DocumentExtraction. The retry still finds the row
+  # (the job's guard accepts `queued`), and `mark_processing!` clears the message
+  # when the read restarts, so a crash after the restart stays sweepable.
+  def await_retry!(message:)
+    transition!(from: %w[processing queued], to: "queued",
+                failure_message: message, paperless_task_id: nil)
+  end
+
+  # The retry ladder is spent: land the row terminally from whatever state it is
+  # actually in. A backoff-parked row is `queued`, so `fail!`'s `processing`-only
+  # guard would no-op and leave a spent row parked forever.
+  def abandon!(message:)
+    transition!(from: %w[processing queued], to: "failed",
+                failure_message: message, paperless_task_id: nil)
   end
 
   def retry_upload!

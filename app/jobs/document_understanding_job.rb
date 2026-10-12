@@ -39,13 +39,31 @@ class DocumentUnderstandingJob < ApplicationJob
   #
   # The block runs once the retries are SPENT and the sidecar is still
   # unreachable, and lands the row terminally with a message. Without it the row
-  # would rest at `processing` forever — invisible, and never re-driven (no sweep
+  # would rest mid-read forever — invisible, and never re-driven (no sweep
   # touches a native row: DocumentLink.capture_pending_content keys on a
   # paperless_document_id the native path never sets). That silent wedge is the
   # predecessor's failure mode this milestone exists to remove.
+  #
+  # It uses abandon!, not fail! (fix round 2): during the backoff the row is
+  # parked `queued` (await_retry!), so fail!'s `processing`-only guard would
+  # no-op and leave a spent row parked forever.
   retry_on Ocr::Error, wait: :polynomially_longer, attempts: 8 do |job, error|
-    DocumentLink.find_by(id: job.arguments.first)&.fail!(
+    DocumentLink.find_by(id: job.arguments.first)&.abandon!(
       message: "OCR service unreachable after 8 attempts: #{error.message}"
+    )
+  end
+
+  # A provider failure is transient far more often than terminal (a blip, a 5xx,
+  # a busy model), and the sweep no longer re-drives held rows (finding 2), so a
+  # synchronous hold here would wait for a human forever. It joins the same
+  # bounded retry ladder as an OCR blip instead (fix round 2, the transient
+  # self-healing the reviewer flagged): parked during the backoff, then either a
+  # successful read settles the row or the ladder is spent and abandon! lands it
+  # terminally. Bounded at 8 attempts — cheaper than the paperless-era hourly
+  # sweep it replaces.
+  retry_on Provider::Error, wait: :polynomially_longer, attempts: 8 do |job, error|
+    DocumentLink.find_by(id: job.arguments.first)&.abandon!(
+      message: "AI provider unavailable after 8 attempts: #{error.message}"
     )
   end
   discard_on ActiveRecord::RecordNotFound
@@ -109,14 +127,11 @@ class DocumentUnderstandingJob < ApplicationJob
 
     # One provider call per batch of pages (Task 9). A 40-page statement sent as
     # one request hits the context and payload limits and fails hard, which is
-    # the case this milestone exists for. A provider failure is still a hold, not
-    # a raise: the row stays retryable and visible rather than wedging the job.
-    understanding =
-      begin
-        understand_in_batches(provider, result, link)
-      rescue Provider::Error => e
-        return link.hold!(message: e.message)
-      end
+    # the case this milestone exists for. A provider failure is transient far
+    # more often than terminal, and a held row is excluded from the sweep
+    # (finding 2), so it propagates to the retry_on Provider::Error ladder rather
+    # than parking the row for a human (fix round 2).
+    understanding = understand_in_batches(provider, result, link)
 
     validations = self.class.validate(understanding, ocr_text: result.text)
     classification = DocumentClassifier.call(
@@ -149,11 +164,14 @@ class DocumentUnderstandingJob < ApplicationJob
     route(link, understanding, classification)
     link.settle!
     link.broadcast_row_update!
-  rescue Ocr::Error
-    # Transient: let retry_on do its work. The row stays `processing`, and the
-    # heartbeat keeps its clock fresh so the reaper does not add a second read
-    # on top of this one while the retry is pending.
-    link&.heartbeat!
+  rescue Ocr::Error, Provider::Error => e
+    # Transient upstream failure: let retry_on re-enqueue. Park the row `queued`
+    # with the reason (fix round 2) so the sweep cannot select it during the
+    # backoff — the later waits far exceed the sweep's bound, and a second read
+    # would race this one. The retry still finds the row, and mark_processing!
+    # clears the mark when it restarts, so a crash after the restart stays
+    # sweepable.
+    link&.await_retry!(message: "retry scheduled: #{e.message}")
     raise
   rescue => e
     # Anything else is ours: record it on the link so the archive can show it,

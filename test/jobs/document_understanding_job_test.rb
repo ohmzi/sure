@@ -204,17 +204,33 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_not_nil @link.stored_path
   end
 
-  test "an unreachable OCR service leaves the row mid-read for the retry, never settles it" do
+  test "an unreachable OCR service parks the row for the scheduled retry, never settles it" do
     stub_request(:post, "#{Ocr.url}/ocr").to_raise(Faraday::ConnectionFailed.new("refused"))
     stub_provider(FakeProvider.new(RECEIPT))
 
     # retry_on swallows the error and re-enqueues rather than letting it escape,
     # so the assertion is on the state it leaves behind, not on a raised class.
+    # Fix round 2: the row is parked `queued` WITH a reason while the ladder
+    # waits, so the sweep cannot race the scheduled retry into a second read.
     DocumentUnderstandingJob.perform_now(@link.id)
+    @link.reload
 
-    assert_equal "processing", @link.reload.status
+    assert_equal "queued", @link.status
+    assert_includes @link.failure_message, "retry"
     assert_enqueued_jobs 1, only: DocumentUnderstandingJob
     assert_nil @link.extraction, "a failed read must not record a verdict"
+  end
+
+  test "restarting the read after an OCR failure clears the backoff mark" do
+    stub_request(:post, "#{Ocr.url}/ocr").to_raise(Faraday::ConnectionFailed.new("refused"))
+    stub_provider(FakeProvider.new(RECEIPT))
+    DocumentUnderstandingJob.perform_now(@link.id)
+    assert_includes @link.reload.failure_message, "retry"
+
+    # The scheduled retry runs the read again; mark_processing! clears the mark,
+    # so a crash now is a plain stale `processing` row the sweep can revive.
+    assert @link.mark_processing!
+    assert_nil @link.reload.failure_message
   end
 
   test "a persistent OCR outage lands the row terminally once the retries are spent" do
@@ -235,14 +251,33 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_nil @link.extraction
   end
 
-  test "a failed provider call holds the row rather than settling it" do
+  test "a failed provider call parks the row for the retry ladder, never settling it" do
     stub_ocr_success(pages: [ { page: 1, text: "TOTAL 12.34", confidence: 0.97 } ])
     stub_provider(FakeProvider.new(RECEIPT, success: false))
 
     DocumentUnderstandingJob.perform_now(@link.id)
+    @link.reload
 
-    assert_equal "queued", @link.reload.status
+    # Fix round 2: a provider failure is transient far more often than terminal,
+    # and a held row is excluded from the sweep (finding 2) — so it joins the
+    # same bounded ladder as an OCR blip (parked queued + reason, retry
+    # scheduled) rather than waiting for a human.
+    assert_equal "queued", @link.status
     assert_includes @link.failure_message, "AI provider failed"
+    assert_enqueued_jobs 1, only: DocumentUnderstandingJob
+  end
+
+  test "a persistent provider outage lands the row terminally once the retries are spent" do
+    stub_ocr_success(pages: [ { page: 1, text: "TOTAL 12.34", confidence: 0.97 } ])
+    stub_provider(FakeProvider.new(RECEIPT, success: false))
+
+    job = DocumentUnderstandingJob.new(@link.id)
+    job.exception_executions = { "[Provider::Error]" => 7 }
+    job.perform_now
+
+    assert_equal "failed", @link.reload.status
+    assert_includes @link.failure_message, "AI provider unavailable"
+    assert_nil @link.extraction
   end
 
   test "validate flags an OCR/model total disagreement" do
