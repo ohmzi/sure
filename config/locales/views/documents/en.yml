@@ -5,6 +5,17 @@ en:
       receipts_bills_title: Receipts & Bills
       upload: Upload
       source_auto: Detect automatically
+    # The slim bar (design D2). One row: the picker, the drop hint, a search
+    # affordance, and the status line the intake stream writes refusals into.
+    intake_bar:
+      add_document: Add document
+      drop_hint: …or drop files anywhere on this page
+      search: Search
+    # The one dropzone's endpoint copy.
+    intakes:
+      create:
+        duplicate: This document is already in your archive.
+        invalid_file: That file could not be uploaded.
     create:
       queued: Document queued for processing.
       held: The upload is held on this server; retry it once processing is available.
@@ -37,3 +48,7 @@ en:
       verified: Verified
       dismissed: Dismissed
       failed: Failed
+  # DocumentIntake: the content router's copy. A file it cannot place is refused
+  # with this message on the bar; nothing is archived.
+  document_intake:
+    rejected: We could not tell what this file is. Drop a photo, a PDF, or a bank export.

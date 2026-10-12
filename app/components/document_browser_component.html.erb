@@ -9,7 +9,11 @@
         source_filter: source_filter, documents: documents?, tag_choices: tag_choices %>
 
   <% if rows.any? %>
-    <div class="bg-container rounded-xl shadow-border-xs divide-y divide-subdued">
+    <%# RB1 (Milestone B Task 1): the intake stream appends a freshly uploaded
+        row into this container on the Documents page (the statements page has no
+        intake). Task 3 replaces this list container with the thumbnail grid. %>
+    <% grid_id = documents? ? "documents_grid" : nil %>
+    <div class="bg-container rounded-xl shadow-border-xs divide-y divide-subdued"<%= tag.attributes(id: grid_id) %>>
       <% rows.each do |row| %>
         <%= render "document_browser/row", row: row %>
       <% end %>
@@ -19,7 +23,12 @@
         <%= render "shared/pagination", pagy: pagy %>
       </div>
     <% end %>
+  <% elsif documents? %>
+    <%# RB1: the append target must exist even when the page is empty — the
+        first drop lands here. Task 3 owns the real grid and its empty state. %>
+    <div id="documents_grid" class="bg-container rounded-xl shadow-border-xs divide-y divide-subdued"></div>
+    <%= render "document_browser/empty", filtered: active_filters?, url: url, documents: true %>
   <% else %>
-    <%= render "document_browser/empty", filtered: active_filters?, url: url, documents: documents? %>
+    <%= render "document_browser/empty", filtered: active_filters?, url: url, documents: false %>
   <% end %>
 </div>

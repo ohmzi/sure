@@ -3,25 +3,25 @@
        <% if @provider_configs.any? { |c| c[:key] == "lunchflow" } %>
          data-controller="lunchflow-preload"
        <% end %>>
-    <%# M7 locked decisions 10 and 12: the two document rows are always visible
-        (they are not account rows), receipt first, then statement — anchors, so
-        the popup's list-keyboard-navigation picks them up. The labels use
-        absolute i18n keys like the Import row below: inside the container
+    <%# Milestone B (design D2): the two document rows became ONE. The row opens
+        the file picker and document_dropzone_controller posts the chosen file to
+        the ONE intake endpoint, which decides the type from the content — so the
+        dashboard is one click from uploading, and the Documents page is the
+        dropzone. One endpoint, one pipeline, two on-ramps. The label uses an
+        absolute i18n key like the Import row below: inside the container
         layout's block a relative t() would resolve against
         accounts.new.container, not accounts.new. %>
-    <%= link_to new_document_wizard_path(source: "receipt_or_bill"),
-                class: "group flex items-center gap-4 w-full text-center focus:outline-hidden hover:bg-surface-hover focus:bg-surface-hover text-primary border border-transparent block px-2 rounded-lg p-2" do %>
-      <%= render DS::FilledIcon.new(icon: "receipt-text", hex_color: "#12B76A") %>
-      <%= t("accounts.new.receipt_or_bill") %>
-      <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
-    <% end %>
-
-    <%= link_to new_document_wizard_path(source: "statement"),
-                class: "group flex items-center gap-4 w-full text-center focus:outline-hidden hover:bg-surface-hover focus:bg-surface-hover text-primary border border-transparent block px-2 rounded-lg p-2" do %>
-      <%= render DS::FilledIcon.new(icon: "file-text", hex_color: "#0BA5EC") %>
-      <%= t("accounts.new.statement") %>
-      <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
-    <% end %>
+    <div data-controller="document-dropzone"
+         data-document-dropzone-url-value="<%= documents_intake_path %>">
+      <label class="group flex items-center gap-4 w-full cursor-pointer text-center focus-within:bg-surface-hover hover:bg-surface-hover text-primary border border-transparent px-2 rounded-lg p-2">
+        <%= render DS::FilledIcon.new(icon: "receipt-text", hex_color: "#12B76A") %>
+        <%= t("accounts.new.document") %>
+        <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
+        <input type="file" name="document_file" id="document_file"
+               accept="image/*,application/pdf,.csv,.ofx,.qfx,.xlsx"
+               class="hidden" data-action="change->document-dropzone#pick">
+      </label>
+    </div>
 
     <% unless params[:classification] == "liability" %>
       <%= render "account_type", accountable: Depository.new %>

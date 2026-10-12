@@ -549,10 +549,17 @@ Rails.application.routes.draw do
     end
   end
 
+  # Milestone B: the ONE upload endpoint (design: one dropzone). Every upload
+  # path posts here; the file's content decides which pipeline reads it.
+  post "documents/intake", to: "documents/intakes#create", as: :documents_intake
+
   # M7: the New popup's document wizard (step 2 here; step 3 is
-  # Import::AccountsController under the imports resource).
+  # Import::AccountsController under the imports resource). The wizard's POST
+  # now owns `documents/wizard` — Milestone B's intake took the
+  # `documents/intake` path above — and the whole wizard (routes, controller,
+  # views and tests) is deleted by Milestone B's Task 2.
   get  "documents/new",    to: "document_wizards#new",    as: :new_document_wizard
-  post "documents/intake", to: "document_wizards#create", as: :document_wizard_intake
+  post "documents/wizard", to: "document_wizards#create", as: :document_wizard_intake
 
   resources :holdings, only: %i[index new show update destroy] do
     member do

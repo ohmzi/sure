@@ -25,12 +25,18 @@ class DocumentBridgeTest < ApplicationSystemTestCase
   test "upload a receipt, see it, then link it to an entry" do
     visit documents_path
 
+    # Milestone B: the archive's upload card is the one dropzone now. Its picker
+    # is a hidden input behind the Add document button; un-hide it so
+    # attach_file can set it (the technique the wizard's system tests use), and
+    # the change posts the file to the ONE intake endpoint, whose Turbo Stream
+    # appends the row in place — no form submit, no navigation.
+    assert_selector "input[type='file'][name='document']", visible: :all
+    execute_script("document.querySelector(\"input[type='file'][name='document']\").classList.remove('hidden')")
     attach_file "document", file_fixture("receipts/receipt.png")
-    find("form[action='#{documents_path}'] [type='submit']").click
 
     # The upload flow ran inline: the row exists, has been posted and polled,
     # and is listed as an unlinked candidate on the entry page.
-    assert_text "receipt.png", wait: 5
+    assert_selector "#documents_grid [id^='document_link_']", text: "receipt.png", wait: 5
 
     visit transaction_path(@entry)
     within "#document-link-panel" do

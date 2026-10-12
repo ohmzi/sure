@@ -37,6 +37,7 @@ class DocumentBrowserComponentTest < ViewComponent::TestCase
     assert_selector "#document-browser"
     assert_text statement.filename
     assert_no_selector "input[name='source[]']" # the statements family has no source facet
+    assert_no_selector "#documents_grid"        # the intake's append target is documents-only
   end
 
   test "statements rows carry the type label and the extraction badge for the visible states" do

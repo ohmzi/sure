@@ -1,19 +1,16 @@
-<%= render DocumentBrowserComponent.new(
-      family: :documents, title: t(".receipts_bills_title"), url: documents_path,
-      rows: @rows, pagy: @pagy, filters: @filters, source_filter: @source_filter,
-      tag_choices: @tag_choices
-    ) do |browser| %>
-  <% browser.with_upload do %>
-    <%= render DS::Card.new do %>
-      <div data-controller="receipt-dropzone"
-           data-action="dragover->receipt-dropzone#dragover drop->receipt-dropzone#drop">
-        <%= styled_form_with url: documents_path, multipart: true,
-              data: { "receipt-dropzone-target": "form" } do |form| %>
-          <%= form.file_field :document, data: { "receipt-dropzone-target": "input" }, accept: "application/pdf,image/*" %>
-          <%= form.select :source, [ [ t(".source_auto"), "" ], [ t("documents.source.receipt"), "receipt" ], [ t("documents.source.bill"), "bill" ] ], selected: "" %>
-          <%= form.submit t(".upload") %>
-        <% end %>
-      </div>
+<%# The Documents page is the whole dropzone (design D2): document_dropzone_
+    controller listens on `document`, so a file dropped anywhere posts it to the
+    ONE intake endpoint, and the stream appends the new row to #documents_grid
+    without any navigation. %>
+<div data-controller="document-dropzone"
+     data-document-dropzone-url-value="<%= documents_intake_path %>">
+  <%= render DocumentBrowserComponent.new(
+        family: :documents, title: t(".receipts_bills_title"), url: documents_path,
+        rows: @rows, pagy: @pagy, filters: @filters, source_filter: @source_filter,
+        tag_choices: @tag_choices
+      ) do |browser| %>
+    <% browser.with_upload do %>
+      <%= render "documents/intake_bar" %>
     <% end %>
   <% end %>
-<% end %>
+</div>

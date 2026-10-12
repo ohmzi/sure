@@ -93,12 +93,21 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     assert_response :success # read-only view is fine for guests
   end
 
-  test "the archive renders the dropzone controller" do
+  test "the archive renders the dropzone controller and its append target" do
     get documents_path
-    assert_select "[data-controller~='receipt-dropzone']"
-    # Ruling 6 (M1): Stimulus binds only via data-action — pin the wiring so a
-    # dead dropzone can never pass this test again.
-    assert_select "[data-action~='drop->receipt-dropzone#drop']"
+    # The page IS the dropzone (design D2): the controller is mounted over the
+    # whole archive with the ONE intake endpoint as its URL value.
+    assert_select "[data-controller~='document-dropzone'][data-document-dropzone-url-value='#{documents_intake_path}']"
+    # The picker's change is what uploads a chosen file
+    # (document_dropzone_controller#pick) — pin the wiring so a dead dropzone
+    # can never pass this test again.
+    assert_select "input[type='file'][data-action~='change->document-dropzone#pick']"
+    # The intake stream appends into #documents_grid and reports refusals into
+    # #documents_intake_status; both must exist for the flow to work.
+    assert_select "#documents_grid"
+    assert_select "#documents_intake_status"
+    # The bar's copy reaches the page (not a "Translation missing:" fallback).
+    assert_select "label", text: I18n.t("documents.intake_bar.add_document")
   end
 
   test "a failed document surfaces its failure message on the card" do

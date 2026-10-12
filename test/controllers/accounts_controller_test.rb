@@ -1184,24 +1184,19 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", edit_plaid_item_path(item, add_accounts: true), count: 0
   end
 
-  test "the New popup lists the two document options in every variant" do
-    receipt_href = new_document_wizard_path(source: "receipt_or_bill")
-    statement_href = new_document_wizard_path(source: "statement")
-
+  test "the New popup lists the one document option in every variant" do
     [ {}, { classification: "asset" }, { classification: "liability" }, { return_to: accounts_path } ].each do |params|
       get new_account_path(params)
       assert_response :success
 
-      # Scope the ordering assertion to the POPUP's own rows. Comparing the offsets of
-      # the translated labels over the whole body is brittle: any other page text that
-      # contains "Statement" (a sidebar entry, a nav label) renders earlier and shifts
-      # the offsets, failing this test for a reason unrelated to the popup.
-      rows = Nokogiri::HTML(response.body).css("turbo-frame#modal a[href]")
-                   .map { |a| a["href"] }
-                   .select { |href| [ receipt_href, statement_href ].include?(href) }
-
-      assert_equal [ receipt_href, statement_href ], rows,
-                   "the popup lists Receipt or Bill then Statement, in every variant"
+      # Milestone B (design D2): the two document rows became ONE on-ramp. It is
+      # the dropzone label (not a wizard anchor), bound to the ONE intake
+      # endpoint, so from the dashboard a chosen file uploads in place.
+      assert_select "turbo-frame#modal [data-controller~='document-dropzone'][data-document-dropzone-url-value='#{documents_intake_path}']", count: 1
+      assert_select "turbo-frame#modal label", text: I18n.t("accounts.new.document"), count: 1
+      # ...and neither wizard row survives.
+      assert_select "turbo-frame#modal a[href=?]", new_document_wizard_path(source: "receipt_or_bill"), count: 0
+      assert_select "turbo-frame#modal a[href=?]", new_document_wizard_path(source: "statement"), count: 0
     end
   end
 
