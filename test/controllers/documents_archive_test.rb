@@ -266,4 +266,51 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     assert_match document_links(:understood_receipt_link).title.to_s, response.body
     assert_no_match document_links(:held_bill).title.to_s, response.body
   end
+
+  # -- the sidebar ready-to-review count (M8 Task 9, Ruling M8-L1 decision 3) --
+
+  test "the main nav badges Receipts & Bills with its ready-to-review count" do
+    # Fixtures: receipt_understood's draft is understood (ready); receipt_draft
+    # is awaiting_ocr (still reading) — so the family's count is exactly one.
+    get documents_path
+    assert_response :success
+    assert_select "a[href='#{documents_path}'] [data-nav-badge]", text: "1"
+
+    # It rides the nav on every page, like the insights badge.
+    get root_path
+    assert_select "a[href='#{documents_path}'] [data-nav-badge]", text: "1"
+
+    # A reviewed-and-published receipt stops counting (else the badge would
+    # inflate forever on a family's history).
+    imports(:receipt_understood).update!(status: "complete")
+    get documents_path
+    assert_select "[data-nav-badge]", count: 0
+  end
+
+  test "the nav badge renders nothing when no document is ready to review" do
+    sign_in users(:empty) # a family with no documents at all
+    get documents_path
+    assert_response :success
+    assert_select "[data-nav-badge]", count: 0
+  end
+
+  # -- the status facet (M8 Task 9, Ruling M8-L2) ------------------------------
+
+  test "the status facet renders over DocumentLink::STATUSES and narrows the list" do
+    get documents_path
+    DocumentLink::STATUSES.each do |status|
+      assert_select "input[name='q[status][]'][value='#{status}']"
+    end
+
+    get documents_path(q: { status: %w[queued] })
+    assert_response :success
+    assert_match document_links(:held_bill).title.to_s, response.body
+    assert_no_match document_links(:linked_receipt).title.to_s, response.body
+    assert_select "input[name='q[status][]'][checked='checked'][value='queued']"
+
+    # An unknown token filters nothing instead of widening (the source facet's
+    # rule, mirrored).
+    get documents_path(q: { status: %w[bogus] })
+    assert_match document_links(:linked_receipt).title.to_s, response.body
+  end
 end

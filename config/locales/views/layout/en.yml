@@ -14,6 +14,9 @@ en:
         assistant: Assistant
         bills: Bills
         documents: Receipts & Bills
+        # The ready-to-review count badge on the Receipts & Bills entry
+        # (M8 Task 9, Ruling M8-L1 decision 3).
+        documents_badge: "%{count} ready to review"
         statements: Statements
         budgets: Budgets
         home: Home

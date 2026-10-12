@@ -54,6 +54,7 @@ class DocumentLink::Search
   def relation
     @scope = @family.document_links.includes(:account_statement, :receipt_imports)
     @scope = @scope.where(source: @sources) if @sources
+    @scope = @scope.where(status: status_filters) if status_filters.any?
     @scope = @scope.merge(DocumentLink.search(@filters[:search])) if @filters[:search].present?
     @scope = @scope.where("#{DOCUMENT_DATE_SQL} >= ?", date_from.iso8601) if date_from
     @scope = @scope.where("#{DOCUMENT_DATE_SQL} <= ?", date_to.iso8601) if date_to
@@ -65,6 +66,12 @@ class DocumentLink::Search
 
   private
     attr_reader :scope
+
+    # The status facet (M8 Task 9, Ruling M8-L2): the row's own status
+    # vocabulary, so the owner can genuinely ask "show me what is still
+    # processing". Unknown tokens are dropped, never widened; a cleared
+    # selection filters nothing.
+    def status_filters = Array(@filters[:status]) & DocumentLink::STATUSES
 
     # The Merchant / Amount facet (M8 Task 7, locked decision 7): documents
     # read the understood draft's extracted payee/total — never a paperless

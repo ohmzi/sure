@@ -590,4 +590,35 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     get account_statements_path(q: { merchant: "nobody" })
     assert_no_match statement.filename, response.body
   end
+
+  # -- the review / extraction facets (M8 Task 9, Ruling M8-L2) ----------------
+
+  test "the review and extraction facets render and narrow the vault list" do
+    unmatched = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: "facet_unmatched.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    linked = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "facet_linked.csv", content_type: "text/csv", content: "date,amount\n2024-01-02,2\n")
+    )
+    linked.update_columns(extraction_state: "needs_template")
+
+    get account_statements_path
+    AccountStatement::Search::REVIEW_FILTERS.each do |review|
+      assert_select "input[name='q[review][]'][value='#{review}']"
+    end
+    AccountStatement::Search::EXTRACTION_FILTERS.each do |extraction|
+      assert_select "input[name='q[extraction][]'][value='#{extraction}']"
+    end
+
+    get account_statements_path(q: { review: %w[unmatched] })
+    assert_match unmatched.filename, response.body
+    assert_no_match linked.filename, response.body
+    assert_select "input[name='q[review][]'][checked='checked'][value='unmatched']"
+
+    get account_statements_path(q: { extraction: %w[needs_template] })
+    assert_match linked.filename, response.body
+    assert_no_match unmatched.filename, response.body
+  end
 end

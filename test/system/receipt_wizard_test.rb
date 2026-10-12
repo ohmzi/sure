@@ -51,7 +51,11 @@ class ReceiptWizardTest < ApplicationSystemTestCase
     ActiveJob::Base.queue_adapter = @previous_adapter
   end
 
-  test "the New popup walks Receipt or Bill through camera/upload to the account confirm" do
+  test "the New popup takes a resolved receipt straight to the archive" do
+    # (M8 Task 9, Ruling M8-L1 decisions 1/2) family_admin's bills default
+    # resolves the prefill ladder: choosing the file submits instantly (no
+    # Continue button) and the wizard finishes on the archive in the main
+    # chrome — no step 3.
     visit root_path
     click_on I18n.t("pages.dashboard.new")
 
@@ -67,24 +71,103 @@ class ReceiptWizardTest < ApplicationSystemTestCase
     # attach_file). The script is scoped to the two inputs the wizard actually
     # renders at this point, not every hidden file input on the page.
     assert_text I18n.t("document_wizards.new.capture")
+    assert_selector "#modal [data-controller~='receipt-dropzone']" # the one drop zone
     assert_selector "#modal input[type='file'][name='document_camera']", visible: :all
     assert_selector "#modal input[type='file'][name='document_file']", visible: :all
     execute_script("document.querySelectorAll(\"#modal input[type='file'][name='document_camera'], #modal input[type='file'][name='document_file']\").forEach(function (el) { el.classList.remove('hidden'); el.style.display = 'block'; })")
     assert_selector "input[type='file'][capture='environment']"
     attach_file "document_file", file_fixture("receipts/receipt.png")
+
+    # No further click: the change submits and the wizard lands on the archive.
+    assert_current_path documents_path
+    draft = ReceiptImport.order(:created_at).last
+    assert_equal @account, draft.account
+    # The inline harness settles the OCR during the POST (the stub content
+    # parses), so the row already carries the ready affordance.
+    assert_equal "understood", draft.understanding_state
+    within "#document_link_#{draft.document_link.id}" do
+      assert_link I18n.t("imports.receipt_import.review_details")
+    end
+  end
+
+  test "an ambiguous account choice still asks at step 3 and then lands on the archive" do
+    # (M8 Task 9) family_member reaches two accounts with no default: the
+    # ladder cannot resolve, so the wizard still asks — step 3, in the modal it
+    # has always used. Its Finish is fire-and-forget and lands on the archive.
+    sign_in users(:family_member)
+    visit root_path
+    click_on I18n.t("pages.dashboard.new")
+    click_on I18n.t("accounts.new.receipt_or_bill")
+
+    assert_text I18n.t("document_wizards.new.capture")
+    assert_selector "#modal input[type='file'][name='document_file']", visible: :all
+    execute_script("document.querySelectorAll(\"#modal input[type='file'][name='document_camera'], #modal input[type='file'][name='document_file']\").forEach(function (el) { el.classList.remove('hidden'); el.style.display = 'block'; })")
+    attach_file "document_file", file_fixture("receipts/receipt.png")
+
     # onchange auto-submits; the modal swaps to step 3 (a native select, so
     # Capybara's own `select` drives it — Task 5's F1 repair).
-    assert_text I18n.t("import.accounts.show.title"), wait: 5
+    assert_text I18n.t("import.accounts.show.title")
     select @account.name, from: I18n.t("import.accounts.show.account_label")
     click_on I18n.t("import.accounts.show.finish")
 
-    # The wizard ends at the draft's review screen. The inline harness settles
-    # the OCR during the POST (the stub content parses), so the parsed state is
-    # already visible — the wizard itself never waited on it (decision 11).
-    assert_text I18n.t("imports.receipt_import.understood_title"), wait: 10
+    assert_current_path documents_path
     draft = ReceiptImport.order(:created_at).last
     assert_equal @account, draft.account
     assert_equal "understood", draft.understanding_state
+  end
+
+  test "the one-tap source override and Add details ride the drop" do
+    # (M8 Task 9, Ruling M8-L1 decision 4) The override and the title are chosen
+    # BEFORE the file — choosing the file submits instantly.
+    visit root_path
+    click_on I18n.t("pages.dashboard.new")
+    click_on I18n.t("accounts.new.receipt_or_bill")
+
+    assert_text I18n.t("document_wizards.new.capture")
+    choose I18n.t("documents.source.bill") # one tap: receipt.png would guess receipt
+    find("summary", text: I18n.t("document_wizards.new.add_details")).click
+    fill_in "title", with: "Laptop purchase"
+    assert_selector "#modal input[type='file'][name='document_file']", visible: :all
+    execute_script("document.querySelectorAll(\"#modal input[type='file'][name='document_camera'], #modal input[type='file'][name='document_file']\").forEach(function (el) { el.classList.remove('hidden'); el.style.display = 'block'; })")
+    attach_file "document_file", file_fixture("receipts/receipt.png")
+
+    assert_current_path documents_path
+    link = DocumentLink.order(:created_at).last
+    assert_equal "bill", link.source
+    assert_equal "Laptop purchase", link.title
+  end
+
+  test "a settling draft flips its row to the review affordance without a reload" do
+    # (M8 Task 9, Ruling M8-L1 decision 3) The archive row re-renders in place
+    # when the draft's understanding settles — no manual reload.
+    draft = imports(:receipt_draft)
+    link = draft.document_link
+    visit documents_path
+    within "#document_link_#{link.id}" do
+      assert_button I18n.t("imports.receipt_import.reading"), disabled: true
+    end
+
+    # Settle outside the browser: snapshot, then the understanding job (which
+    # broadcasts the replaced row).
+    link.record_content!(File.read(Rails.root.join("test/fixtures/files/receipts/wizard_latte.txt")))
+    ReceiptImport::UnderstandJob.perform_now(draft.id)
+
+    # The row's GET actions render as icon links (the label lives in title and
+    # aria-label), so the flip is pinned by the Review-details href — absent in
+    # the "Reading…" row. The stream subscription may still be connecting on a
+    # fast machine, and the row replace is idempotent: re-broadcast until the
+    # flipped row lands.
+    page.document.synchronize(Capybara.default_max_wait_time) do
+      unless page.has_selector?("#document_link_#{link.id} a[href='#{import_path(draft)}']")
+        link.broadcast_row_update!
+        raise Capybara::ExpectationNotMet, "the row has not flipped to the review affordance yet"
+      end
+    end
+
+    within "#document_link_#{link.id}" do
+      assert_selector "a[href='#{import_path(draft)}'][title='#{I18n.t("imports.receipt_import.review_details")}']"
+      assert_no_button I18n.t("imports.receipt_import.reading")
+    end
   end
 
   test "a settled receipt reviews and publishes into one expense" do

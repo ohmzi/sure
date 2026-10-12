@@ -2,6 +2,17 @@ en:
   document_browser:
     filters:
       search_placeholder: Search by text, title or file name
+      # The status / review / extraction facet controls (M8 Task 9, Ruling
+      # M8-L2).
+      status: Status
+      review: Review
+      extraction: Extraction
+      extraction_states:
+        not_attempted: Not read
+        processing: Reading
+        extracted: Read
+        needs_template: Needs a template
+        extraction_failed: Read failed
       tags: Tags
       no_tags: No tags yet
       merchant: Merchant

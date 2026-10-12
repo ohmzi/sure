@@ -91,4 +91,32 @@ class ReceiptImport::UnderstandJobTest < ActiveSupport::TestCase
       ReceiptImport::UnderstandJob.perform_now(@draft.id)
     end
   end
+
+  # --- M8 Task 9: the live row broadcast (Ruling M8-L1 decision 3) ------------
+
+  test "a settling draft broadcasts the replaced row with the ready affordance" do
+    settle_with(File.read(Rails.root.join("test/fixtures/files/receipts/wizard_latte.txt")))
+    captured = nil
+    Turbo::StreamsChannel.stubs(:broadcast_replace_to)
+    Turbo::StreamsChannel.expects(:broadcast_replace_to).with do |family, options|
+      captured = options
+      family == @link.family && options[:target] == "document_link_#{@link.id}" && options[:html].present?
+    end
+
+    ReceiptImport::UnderstandJob.perform_now(@draft.id)
+
+    # The row replaces by dom_id on the family stream, and the HTML is the
+    # READY row — the archive flips "Reading…" in place.
+    assert_equal ActionView::RecordIdentifier.dom_id(@link), captured[:target]
+    assert_includes captured[:html], I18n.t("imports.receipt_import.review_details")
+    assert_not_includes captured[:html], I18n.t("imports.receipt_import.reading")
+  end
+
+  test "a settle that cannot be read also broadcasts — the row must leave Reading…" do
+    @link.update!(status: "failed", failure_message: "paperless rejected the upload")
+    Turbo::StreamsChannel.stubs(:broadcast_replace_to)
+    Turbo::StreamsChannel.expects(:broadcast_replace_to).once
+
+    ReceiptImport::UnderstandJob.perform_now(@draft.id)
+  end
 end

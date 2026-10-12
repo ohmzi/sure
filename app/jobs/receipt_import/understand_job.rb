@@ -18,8 +18,11 @@ class ReceiptImport::UnderstandJob < ApplicationJob
   discard_on ActiveRecord::RecordNotFound
 
   retry_on WaitingForText, wait: WAIT_FOR_TEXT, attempts: MAX_WAITS do |job, _error|
-    ReceiptImport.find_by(id: job.arguments.first)
-                &.mark_needs_understanding!("no OCR text arrived after #{WAIT_FOR_TEXT.inspect} x #{MAX_WAITS}")
+    draft = ReceiptImport.find_by(id: job.arguments.first)
+    if draft
+      draft.mark_needs_understanding!("no OCR text arrived after #{WAIT_FOR_TEXT.inspect} x #{MAX_WAITS}")
+      draft.document_link&.broadcast_row_update!
+    end
   end
 
   def perform(receipt_import_id)
@@ -31,12 +34,17 @@ class ReceiptImport::UnderstandJob < ApplicationJob
       return draft.mark_needs_understanding!("the document link is gone")
     end
 
+    # Every settle broadcasts the replaced row (M8 Task 9): the archive flips
+    # "Reading…" to the review (or Add details) affordance in place, without a
+    # reload. The wait path raises instead — nothing has settled yet.
     if link.extracted_text.present?
       draft.apply_extraction!(ReceiptImport::Extractor.call(link.extracted_text))
+      link.broadcast_row_update!
     elsif link.status.in?(%w[queued processing])
       raise WaitingForText
     else
       draft.mark_needs_understanding!("no OCR text for a #{link.status} document")
+      link.broadcast_row_update!
     end
   end
 end

@@ -1,4 +1,4 @@
-<%# locals: (name:, path:, icon:, icon_custom:, active:, mobile_only: false, preview: false) %>
+<%# locals: (name:, path:, icon:, icon_custom:, active:, mobile_only: false, preview: false, badge: nil, badge_title: nil) %>
 
 <%= link_to path, class: "space-y-1 group block relative pb-1 focus-ring rounded-lg", aria: { current: ("page" if active) } do %>
   <div class="grow flex flex-col lg:flex-row gap-1 items-center">
@@ -12,6 +12,13 @@
       <% if preview %>
         <span class="absolute -top-0.5 -right-0.5">
           <%= render DS::Pill.new(tone: :violet, dot_only: true, title: t("shared.preview")) %>
+        </span>
+      <% end %>
+      <%# A count badge on the entry (M8 Task 9: the ready-to-review count on
+          Receipts & Bills). Zero renders nothing. %>
+      <% if badge.to_i.positive? %>
+        <span data-nav-badge class="absolute -top-0.5 -right-0.5">
+          <%= render DS::Pill.new(label: badge, tone: :info, marker: false, title: badge_title) %>
         </span>
       <% end %>
     <% end %>

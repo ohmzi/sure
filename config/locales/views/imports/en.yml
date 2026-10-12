@@ -364,6 +364,9 @@ en:
       close: "Close"
     update:
       account_saved: "Account saved."
+      # (Owner decision 2026-10-11, the intake hotfix's shape — re-applied on
+      # this lane by M8 Task 9) the finish is fire-and-forget: it lands on the
+      # archive with this notice instead of the blocking reading screen.
       reading_in_background: "Saved. We are reading it in the background - track it in Receipts & Bills."
       account_locked: "This import has already been published, so its account can't be changed. Revert it first if you need to import it somewhere else."
       invalid_account: "Account not found."

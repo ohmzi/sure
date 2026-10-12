@@ -22,27 +22,27 @@ class Import::AccountsControllerTest < ActionDispatch::IntegrationTest
   test "finishing writes the account and leaves the modal" do
     patch import_account_path(@draft), params: { import: { account_id: accounts(:depository).id } }
 
-    # (Owner decision 2026-10-11, hotfix) fire-and-forget: the finish lands on the
-    # archive (with a "reading in the background" notice), never on the blocking
-    # "Reading your document" screen.
+    # (Owner decision 2026-10-11, hotfix; the intake hotfix's shape, re-applied
+    # by M8 Task 9) fire-and-forget: the finish lands on the archive (with a
+    # "reading in the background" notice), where the document appears immediately
+    # with its live status, never on the blocking "Reading your document" screen.
     assert_redirected_to documents_path
     assert_match(/reading it in the background/i, flash[:notice])
     assert_equal accounts(:depository), @draft.reload.account
   end
 
-  # (M7 Task 5 deviation, recorded) The finish's destination must actually
-  # render the receipt flow: ImportsController#show's non-CSV early return
-  # checks `uploaded?`, which was false for a draft whose bytes live on the
-  # (Owner decision 2026-10-11, hotfix) supersedes the old "lands on the receipt
-  # flow" intent: the finish is fire-and-forget and lands on the ARCHIVE, where
-  # the document appears with its live status - never on the blocking
-  # "Reading your document" screen (the pending_title heading).
+  # (M7 Task 5 deviation, recorded; superseded by the hotfix's shape) The finish
+  # no longer lands on the receipt flow's blocking "Reading your document"
+  # screen: it lands on the ARCHIVE, where the draft's row carries the live
+  # status. ImportsController#show's non-CSV early return still checks
+  # `uploaded?`, and ReceiptImport answers it with the staged link (the
+  # PdfImport#uploaded? shape) — the review screen is reached from the row.
   test "finishing lands on the archive, not the reading screen" do
     patch import_account_path(@draft), params: { import: { account_id: accounts(:depository).id } }
     follow_redirect!
 
     assert_response :success
-    assert_select "h1", text: I18n.t("documents.index.title")
+    assert_select "h1", text: I18n.t("documents.index.receipts_bills_title")
     assert_select "h1", text: I18n.t("imports.receipt_import.pending_title"), count: 0
   end
 
@@ -96,6 +96,8 @@ class Import::AccountsControllerTest < ActionDispatch::IntegrationTest
 
     patch import_account_path(import), params: { import: { account_id: accounts(:credit_card).id } }
 
+    # A statement-backed finish lands on the statements-filtered archive (the
+    # hotfix's shape, re-applied by M8 Task 9).
     assert_redirected_to documents_path(source: "statement")
     assert_equal accounts(:credit_card), import.reload.account
     assert_equal accounts(:credit_card), statement.reload.account

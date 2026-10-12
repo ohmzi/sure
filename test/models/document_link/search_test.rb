@@ -122,4 +122,17 @@ class DocumentLink::SearchTest < ActiveSupport::TestCase
     assert_equal unfiltered,
                  DocumentLink::Search.new(family: @family, filters: { amount_min: "abc", amount_max: "1..2" }).relation.pluck(:id)
   end
+
+  # -- the status facet (M8 Task 9, Ruling M8-L2) ------------------------------
+
+  test "the status filter narrows over DocumentLink::STATUSES and ignores unknown values" do
+    queued = DocumentLink::Search.new(family: @family, filters: { status: %w[queued] }).relation.pluck(:id)
+    assert_includes queued, document_links(:queued_receipt).id
+    assert_not_includes queued, document_links(:unlinked_receipt).id
+
+    # The facet's cleared states filter nothing; an unknown token never widens.
+    unfiltered = DocumentLink::Search.new(family: @family).relation.pluck(:id)
+    assert_equal unfiltered, DocumentLink::Search.new(family: @family, filters: { status: [] }).relation.pluck(:id)
+    assert_equal unfiltered, DocumentLink::Search.new(family: @family, filters: { status: %w[bogus] }).relation.pluck(:id)
+  end
 end

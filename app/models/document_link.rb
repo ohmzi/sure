@@ -90,6 +90,19 @@ class DocumentLink < ApplicationRecord
     def tag_snapshot_names(scope = all)
       scope.distinct.pluck(Arel.sql("unnest(paperless_tags)")).compact.sort
     end
+
+    # The sidebar's ready-to-review count (M8 Task 9, Ruling M8-L1 decision 3):
+    # the family's documents whose receipt draft has settled into `understood`
+    # and has NOT been published (`complete`) — the draft state the row's
+    # "Review details" affordance reads, so a reviewed-and-published receipt
+    # stops counting instead of inflating the badge forever. A link carries one
+    # draft by construction. Local, like every other archive read.
+    def pending_review_count_for(family)
+      ready = ReceiptImport.where(understanding_state: "understood")
+                           .where.not(status: "complete")
+                           .select(:document_link_id)
+      where(family: family).where(id: ready).count
+    end
   end
 
   # The single write path for status changes. Moves the row only while it is
@@ -165,6 +178,21 @@ class DocumentLink < ApplicationRecord
 
     self.class.where(id: id, paperless_tags: [])
         .update_all(paperless_tags: names, updated_at: Time.current) == 1
+  end
+
+  # The live row (M8 Task 9, Ruling M8-L1 decision 3): when a draft's
+  # understanding settles, the archive's row re-renders in place over the
+  # family stream every layout subscribes to, so "Reading…" flips to the review
+  # affordance without a reload. The replaced row comes from the same factory
+  # the index used; its viewer URL is the bare page URL (a broadcast has no
+  # request carrying the index's filters, and the row must stay openable). The
+  # replace is idempotent, so a repeated delivery is harmless.
+  def broadcast_row_update!
+    row = DocumentBrowser::Row.for_document_link(
+      self, viewer_url: Rails.application.routes.url_helpers.viewer_document_path(self)
+    )
+    html = ApplicationController.render(partial: "document_browser/row", locals: { row: row }, formats: [ :html ])
+    Turbo::StreamsChannel.broadcast_replace_to(family, target: ActionView::RecordIdentifier.dom_id(self), html: html)
   end
 
   def fail!(message)

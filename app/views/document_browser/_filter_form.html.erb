@@ -15,6 +15,44 @@
         </label>
       <% end %>
     </div>
+
+    <%# The status facet (M8 Task 9, Ruling M8-L2): the row's own vocabulary —
+        "show me what is still processing". %>
+    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
+      <span class="text-sm text-secondary"><%= t("document_browser.filters.status") %></span>
+      <% DocumentLink::STATUSES.each do |status| %>
+        <label class="flex items-center gap-1.5 text-sm text-primary">
+          <%= check_box_tag "q[status][]", status, Array(filters[:status]).include?(status),
+                class: "checkbox checkbox--light", data: { "auto-submit-form-target": "auto" } %>
+          <%= t("documents.status.#{status}") %>
+        </label>
+      <% end %>
+    </div>
+  <% else %>
+    <%# The review / extraction facets (M8 Task 9, Ruling M8-L2; the query side
+        landed with AccountStatement::Search in Task 3 — these are the controls
+        the Close-out clause promised). %>
+    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
+      <span class="text-sm text-secondary"><%= t("document_browser.filters.review") %></span>
+      <% AccountStatement::Search::REVIEW_FILTERS.each do |review| %>
+        <label class="flex items-center gap-1.5 text-sm text-primary">
+          <%= check_box_tag "q[review][]", review, Array(filters[:review]).include?(review),
+                class: "checkbox checkbox--light", data: { "auto-submit-form-target": "auto" } %>
+          <%= t("account_statements.status.#{review}") %>
+        </label>
+      <% end %>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
+      <span class="text-sm text-secondary"><%= t("document_browser.filters.extraction") %></span>
+      <% AccountStatement::Search::EXTRACTION_FILTERS.each do |extraction| %>
+        <label class="flex items-center gap-1.5 text-sm text-primary">
+          <%= check_box_tag "q[extraction][]", extraction, Array(filters[:extraction]).include?(extraction),
+                class: "checkbox checkbox--light", data: { "auto-submit-form-target": "auto" } %>
+          <%= t("document_browser.filters.extraction_states.#{extraction}") %>
+        </label>
+      <% end %>
+    </div>
   <% end %>
 
   <%# The Tags facet (M8 Task 6): the choices are the stored snapshot names, so

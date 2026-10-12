@@ -1,30 +1,66 @@
-<%# Step 2 of the wizard. The labels inside the container's block use absolute
-    i18n keys: a relative t() there resolves against accounts.new.container (the
-    layout partial being rendered), not document_wizards.new — see the same note
-    on accounts/new.html.erb. The title IS in the locals hash, which is
-    evaluated before the layout is entered, so its relative key is correct. %>
+<%# Step 2 of the wizard — the quick-intake drop screen (M8 Task 9, Ruling
+    M8-L1 decision 4): ONE drop zone plus the camera row, instant submit on
+    choosing a file (no Continue button). The options ride along: the one-tap
+    source override and the title field behind "Add details". The labels inside
+    the container's block use absolute i18n keys: a relative t() there resolves
+    against accounts.new.container (the layout partial being rendered), not
+    document_wizards.new — see the same note on accounts/new.html.erb. The
+    title IS in the locals hash, which is evaluated before the layout is
+    entered, so its relative key is correct. %>
 <%= render layout: "accounts/new/container", locals: { title: t(".title_#{@source}"), back_path: new_account_path } do %>
   <div class="text-sm">
-    <%= styled_form_with url: document_wizard_intake_path(source: @source), multipart: true,
-                         data: { turbo_frame: "modal" } do |form| %>
-      <p class="px-2 pb-2 text-xs text-secondary"><%= t("document_wizards.new.description_#{@source}") %></p>
+    <%# The drop zone is the archive's own Stimulus controller, reused — not a
+        fork: a dropped file is funneled into the hidden input below and the
+        form submits (receipt_dropzone_controller.js). %>
+    <div data-controller="receipt-dropzone"
+         data-action="dragover->receipt-dropzone#dragover drop->receipt-dropzone#drop">
+      <%= styled_form_with url: document_wizard_intake_path(source: @source), multipart: true,
+                           data: { turbo_frame: (@finish_immediately ? :_top : "modal"),
+                                   "receipt-dropzone-target": "form" } do |form| %>
+        <p class="px-2 pb-2 text-xs text-secondary"><%= t("document_wizards.new.description_#{@source}") %></p>
 
-      <label class="group flex items-center gap-4 w-full cursor-pointer text-primary hover:bg-surface-hover focus-within:bg-surface-hover border border-transparent px-2 rounded-lg p-2">
-        <%= render DS::FilledIcon.new(icon: "camera", hex_color: "#12B76A") %>
-        <span class="grow"><%= t("document_wizards.new.capture") %></span>
-        <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
-        <%= form.file_field :document_camera, accept: "image/*", capture: "environment", class: "hidden", onchange: "this.form.requestSubmit()" %>
-      </label>
+        <label class="group flex items-center gap-4 w-full cursor-pointer text-primary hover:bg-surface-hover focus-within:bg-surface-hover border border-transparent px-2 rounded-lg p-2">
+          <%= render DS::FilledIcon.new(icon: "camera", hex_color: "#12B76A") %>
+          <span class="grow"><%= t("document_wizards.new.capture") %></span>
+          <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
+          <%= form.file_field :document_camera, accept: "image/*", capture: "environment", class: "hidden",
+                data: { action: "change->receipt-dropzone#change" } %>
+        </label>
 
-      <label class="group flex items-center gap-4 w-full cursor-pointer text-primary hover:bg-surface-hover focus-within:bg-surface-hover border border-transparent px-2 rounded-lg p-2">
-        <%= render DS::FilledIcon.new(icon: "upload", hex_color: "#F79009") %>
-        <span class="grow"><%= t("document_wizards.new.upload") %></span>
-        <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
-        <%= form.file_field :document_file, accept: "application/pdf,image/*", class: "hidden", onchange: "this.form.requestSubmit()" %>
-      </label>
+        <label class="flex flex-col items-center gap-2 cursor-pointer text-center border border-dashed border-secondary hover:bg-surface-hover focus-within:bg-surface-hover mx-2 my-1 p-6 rounded-lg">
+          <%= render DS::FilledIcon.new(icon: "upload", hex_color: "#F79009") %>
+          <span><%= t("document_wizards.new.drop_hint") %></span>
+          <%= form.file_field :document_file, accept: "application/pdf,image/*", class: "hidden",
+                data: { "receipt-dropzone-target": "input", action: "change->receipt-dropzone#change" } %>
+        </label>
 
-      <p class="px-2 pt-2 text-xs text-secondary"><%= t("document_wizards.new.hint", max_size: DocumentLink::Staging::MAX_BYTES / 1.megabyte) %></p>
-      <%= form.submit t("document_wizards.new.submit") %>
-    <% end %>
+        <% if @source == "receipt_or_bill" %>
+          <%# The one-tap source override (M8 Task 9): the guess is the default;
+              one tap pins receipt or bill before the file goes in. %>
+          <div class="flex flex-wrap items-center gap-3 px-2 pt-3">
+            <span class="text-xs text-secondary"><%= t("document_wizards.new.source_label") %></span>
+            <% [ [ "", t("document_wizards.new.source_auto") ],
+                 [ "receipt", t("documents.source.receipt") ],
+                 [ "bill", t("documents.source.bill") ] ].each do |value, label| %>
+              <label class="flex items-center gap-1.5 text-sm text-primary">
+                <%= radio_button_tag "source_override", value, value.empty? %>
+                <%= label %>
+              </label>
+            <% end %>
+          </div>
+
+          <%# The options live behind Add details — the title is optional and is
+              chosen before the file (its change is what submits). %>
+          <details class="px-2 pt-3 text-secondary">
+            <summary class="cursor-pointer text-xs hover:text-primary"><%= t("document_wizards.new.add_details") %></summary>
+            <div class="pt-2">
+              <%= form.text_field :title, label: t("document_wizards.new.title_label"), autocomplete: "off" %>
+            </div>
+          </details>
+        <% end %>
+
+        <p class="px-2 pt-2 text-xs text-secondary"><%= t("document_wizards.new.hint", max_size: DocumentLink::Staging::MAX_BYTES / 1.megabyte) %></p>
+      <% end %>
+    </div>
   </div>
 <% end %>
