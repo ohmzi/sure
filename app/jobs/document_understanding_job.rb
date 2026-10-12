@@ -150,7 +150,10 @@ class DocumentUnderstandingJob < ApplicationJob
     link.settle!
     link.broadcast_row_update!
   rescue Ocr::Error
-    # Transient: let retry_on do its work. The row stays `processing`.
+    # Transient: let retry_on do its work. The row stays `processing`, and the
+    # heartbeat keeps its clock fresh so the reaper does not add a second read
+    # on top of this one while the retry is pending.
+    link&.heartbeat!
     raise
   rescue => e
     # Anything else is ours: record it on the link so the archive can show it,
@@ -341,6 +344,11 @@ class DocumentUnderstandingJob < ApplicationJob
       line_items = []
 
       result.pages.each_slice(PAGE_BATCH) do |pages|
+        # The read's heartbeat (Task 11 fix round 1): a long multi-batch read
+        # must keep its row fresh, or the reaper's staleness test would
+        # re-enqueue it while it is still running — a second OCR run, a second
+        # paid provider call, a second extraction.
+        link.heartbeat!
         response = provider.understand_document(pages: pages.filter_map(&:image),
                                                 ocr_text: pages.map(&:text).join("\n\n"),
                                                 family: link.family)

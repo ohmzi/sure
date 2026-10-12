@@ -609,6 +609,14 @@ class AiHealth::ProbeTest < ActiveSupport::TestCase
     assert_equal({ status: :not_configured }, ocr_health.ocr_probe)
   end
 
+  test "OCR probe makes no request when the caller opted out of live probes" do
+    # AiHealth.new(run_probes: false) is the worker-originated path that exists
+    # precisely to avoid provider calls (see AiHealth#initialize's probe-cache
+    # note). ocr_probe must respect run_probes? like its neighbours; WebMock
+    # would raise on any request here, so this also proves none is made.
+    assert_equal({ status: :not_checked }, AiHealth.new(run_probes: false).ocr_probe)
+  end
+
   test "OCR probe reports ok when the sidecar answers its health endpoint" do
     request = stub_request(:get, "#{Ocr.url}/healthz").to_return(status: 200)
 
@@ -631,10 +639,12 @@ class AiHealth::ProbeTest < ActiveSupport::TestCase
   private
     # ocr_probe lives on AiHealth (beside pdf_vision_processing_status), not on
     # AiHealth::Probe, so the probe double above cannot exercise it. run_probes:
-    # false keeps this instance from firing the other (stubbed-elsewhere) live
-    # probes; ocr_probe is a separate call the test drives directly.
+    # false keeps the constructor from firing the other (stubbed-elsewhere) live
+    # probes; run_probes? is then stubbed true so ocr_probe takes its live path.
     def ocr_health
-      AiHealth.new(run_probes: false)
+      health = AiHealth.new(run_probes: false)
+      health.stubs(:run_probes?).returns(true)
+      health
     end
 
     def stub_tools_request(endpoint)

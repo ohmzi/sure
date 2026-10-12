@@ -273,6 +273,7 @@ en:
           ocr_statuses:
             ok: Live check passed
             error: Live check failed
+            not_checked: Not checked
             not_configured: Not configured
           probe_statuses:
             passing: Live check passed

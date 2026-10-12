@@ -44,13 +44,25 @@ class DocumentLink < ApplicationRecord
   scope :for_entry, ->(entry) { where(entry_id: entry.respond_to?(:id) ? entry.id : entry) }
   scope :ordered, -> { order(created_at: :desc) }
 
-  # The "the job died" shape (Task 11): mid-read or queued, has bytes, and has
-  # not moved in a bound. This is SyncCleanerJob's paperless-era scope,
-  # re-pointed — and it is what makes "never a lost document" a property rather
-  # than a promise. Terminal rows (settled, failed) and byte-less rows are
-  # deliberately out: there is nothing to re-read, or nothing that can settle.
+  # The "the job died" shape (Task 11): mid-read or queued, has bytes, no stated
+  # hold, and has not moved in a bound. This is SyncCleanerJob's paperless-era
+  # scope, re-pointed — and it is what makes "never a lost document" a property
+  # rather than a promise.
+  #
+  # `failure_message: nil` is the hold signal (fix round 1, item 2): `hold!`
+  # lands a row in `queued` WITH a message, and the hold reasons that never
+  # self-heal (no OCR configured, no provider configured, a document the engine
+  # cannot read) would otherwise be re-enqueued every hour forever — re-running
+  # OCR on an unreadable document indefinitely. Excluded here, they wait for a
+  # reprocess or a new upload instead.
+  #
+  # Terminal rows (settled, failed) and byte-less rows are out too: there is
+  # nothing to re-read, or nothing that can settle.
   def self.stranded(before:)
-    where(status: %w[queued processing]).where.not(stored_path: nil).where("updated_at < ?", before)
+    where(status: %w[queued processing])
+      .where.not(stored_path: nil)
+      .where(failure_message: nil)
+      .where("updated_at < ?", before)
   end
 
   class << self
@@ -133,6 +145,16 @@ class DocumentLink < ApplicationRecord
     attrs = {}
     attrs[:paperless_document_id] = paperless_document_id if paperless_document_id
     transition!(from: %w[queued failed processing], to: "processing", **attrs)
+  end
+
+  # The read's liveness touch (Task 11 fix round 1, item 1). The `stranded`
+  # sweep keys on a stale `updated_at`, so a read that is genuinely running must
+  # keep its row fresh as it works: a heartbeat per step means the sweep can
+  # never select an in-flight read, however far past the bound the read runs.
+  # Guarded to the two non-terminal statuses so a late heartbeat cannot revive a
+  # settled row's clock and drag it back into the sweep.
+  def heartbeat!
+    self.class.where(id: id, status: %w[queued processing]).update_all(updated_at: Time.current) == 1
   end
 
   def record_task!(task_id)

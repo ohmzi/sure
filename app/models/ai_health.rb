@@ -94,7 +94,9 @@ class AiHealth
 
   # The OCR sidecar is a second ingest dependency, so it needs its own liveness
   # signal: AiHealth already knows about the vision provider, and a green AI chip
-  # with a dead sidecar would be a lie.
+  # with a dead sidecar would be a lie. Like its neighbours it respects
+  # run_probes?: the worker-originated path (AiHealth.new(run_probes: false))
+  # exists precisely to avoid provider calls, so it must not fire this one.
   #
   # The brief's fence spelled the bound as `Faraday.get(url, {}, { timeout: 5 })`,
   # but Faraday's third positional argument is the HEADERS hash, not options — an
@@ -103,6 +105,7 @@ class AiHealth
   # the same 5-second bound where Faraday actually reads it.
   def ocr_probe
     return { status: :not_configured } unless Ocr.configured?
+    return { status: :not_checked } unless run_probes?
 
     response = Faraday.get("#{Ocr.url}/healthz") { |req| req.options.timeout = 5 }
     response.success? ? { status: :ok } : { status: :error, detail: "HTTP #{response.status}" }

@@ -96,4 +96,52 @@ class DocumentReaperJobTest < ActiveSupport::TestCase
 
     assert_equal 2, DocumentReaperJob.perform_now
   end
+
+  # Fix round 1, item 1. The scope keys on a stale `updated_at`, so a read that
+  # is genuinely in flight must keep its row fresh — the job touches it as it
+  # works (heartbeat). A row that is stale only because its job died has no such
+  # touch and is revived; a live read, however long it runs, is not.
+  test "an in-flight read is never selected, even after the bound" do
+    in_flight = stranded_link(status: "processing", age: 2.hours)
+    assert_includes DocumentLink.stranded(before: 30.minutes.ago), in_flight
+
+    # The job's heartbeat makes the row fresh again, exactly as a running read
+    # keeps touching it. Now the sweep cannot see it.
+    assert in_flight.heartbeat!
+    assert_not_includes DocumentLink.stranded(before: 30.minutes.ago), in_flight
+
+    assert_enqueued_jobs 0, only: DocumentUnderstandingJob do
+      DocumentReaperJob.perform_now
+    end
+  end
+
+  # Fix round 1, item 2. `hold!` lands a row in `queued` with a stated reason,
+  # and the hold reasons that never self-heal (no OCR, no provider, unreadable)
+  # meant the sweep re-enqueued the row every hour forever — re-running OCR on a
+  # document the engine cannot read, indefinitely. A failure_message on a queued
+  # row is the hold signal, so the sweep skips it.
+  test "a row held with a permanent reason is not re-enqueued on the next tick" do
+    # Set the message and the stale clock together: a bare update! would bump
+    # updated_at to now and the row would fall out of the scope for freshness,
+    # not for the hold — passing the test for the wrong reason.
+    held = with_staged_bytes
+    held.update!(failure_message: "the OCR engine found no text in this document (no_text)",
+                 updated_at: 2.hours.ago)
+
+    assert_enqueued_jobs 0, only: DocumentUnderstandingJob do
+      DocumentReaperJob.perform_now
+    end
+  end
+
+  test "a held row becomes sweepable again once reprocessed" do
+    held = with_staged_bytes
+    held.update!(failure_message: "no OCR service is configured", updated_at: 2.hours.ago)
+
+    held.reprocess!
+    held.update!(updated_at: 2.hours.ago)
+
+    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ held.id ]) do
+      DocumentReaperJob.perform_now
+    end
+  end
 end

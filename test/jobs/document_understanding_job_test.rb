@@ -471,6 +471,40 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal accounts(:depository).id, import.account_id
   end
 
+  # --- Task 11 fix round 1: the read heartbeat ---------------------------------
+
+  test "each batch heartbeats the row so a long read never looks stale" do
+    # The reaper selects on a stale `updated_at`, and a read that outlives the
+    # bound must not be re-enqueued while it is still running (a second OCR run,
+    # a second paid provider call, a second extraction). The job touches the row
+    # as it works; this pins the touch at the batch seam, where a long read
+    # spends most of its time.
+    pages = (1..2).map { |n| { page: n, text: "PAGE #{n}", confidence: 0.9, image: "cGFnZQ==" } }
+    stub_ocr_success(pages: pages)
+
+    link_id = @link.id
+    observed_second_batch = nil
+    calls = 0
+    provider = FakeProvider.new(STATEMENT)
+    provider.define_singleton_method(:understand_document) do |pages:, ocr_text:, family: nil, model: ""|
+      calls += 1
+      if calls == 1
+        # Simulate the read outliving the bound: by the next batch the row's
+        # clock is hours old unless the job refreshes it between batches.
+        DocumentLink.where(id: link_id).update_all(updated_at: 2.hours.ago)
+      else
+        observed_second_batch = DocumentLink.find(link_id).updated_at
+      end
+      @response
+    end
+    stub_provider(provider)
+
+    with_batch_size(1) { DocumentUnderstandingJob.perform_now(@link.id) }
+
+    assert observed_second_batch > 30.minutes.ago,
+           "a batch must refresh the row's clock, or the reaper re-enqueues a live read"
+  end
+
   def statement_for(link)
     AccountStatement.find_by(id: link.reload.account_statement_id)
   end
