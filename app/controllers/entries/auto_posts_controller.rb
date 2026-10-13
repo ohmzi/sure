@@ -33,7 +33,17 @@ class Entries::AutoPostsController < ApplicationController
     # reversal on the document -- the identity the auto-post is keyed on -- lets
     # the gate refuse it forever. The reviewed publish is untouched: redoing by
     # hand is still the user's call.
+    #
+    # Only the link the entry's OWN identity came from (review finding 5): the
+    # auto-post writer mints `external_id "document:<link id>"`, so that link --
+    # and only that link -- is the one whose reversal is durable. Marking EVERY
+    # link on the entry would also stamp a statement that merely corroborated
+    # this row, wrongly refusing a receipt later matched to that statement. If
+    # the identity cannot be read (an unexpected shape), fall back to every link
+    # so the reversal is never silently lost.
     documents = entry.document_links.to_a
+    identity_link_id = entry.external_id.to_s[/\Adocument:(.*)\z/, 1]
+    documents.select! { |link| link.id.to_s == identity_link_id } if identity_link_id.present?
 
     entry.destroy!                    # detaches its document links via before_destroy
     documents.each(&:mark_auto_post_undone!)

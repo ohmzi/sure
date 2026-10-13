@@ -67,6 +67,24 @@ class EntryProvenanceTest < ActiveSupport::TestCase
     assert_equal "document", EntryProvenance.for(entry.reload).primary
   end
 
+  # The statement route (Milestone A's `route_statement` / PdfImport): every row a
+  # statement produced used to read "from a bank export" with no chip back to the
+  # document the user uploaded. Task 5's review believed this was covered, but its
+  # fixtures only ever exercised a RECEIPT and a CSV import — a statement case
+  # never existed. Finding 1's seam: the statement's PdfImport now carries the
+  # statement's own archived link.
+  test "an entry a statement produced reads as a document, not a bank export" do
+    entry = entries(:transaction_entry)
+    entry.update!(source: nil, external_id: nil, import: statement_backed_import, import_locked: true)
+    entry.document_links.delete_all
+
+    provenance = EntryProvenance.for(entry.reload)
+    assert_equal "document", provenance.primary
+    assert_equal "from a document", provenance.label
+    assert_not provenance.corroborated?,
+               "a document must never corroborate the entry it created itself"
+  end
+
   test "it never returns anything outside the four" do
     Entry.find_each do |entry|
       assert_includes EntryProvenance::SOURCES, EntryProvenance.for(entry).primary
@@ -186,6 +204,22 @@ class EntryProvenanceTest < ActiveSupport::TestCase
   end
 
   private
+    # A statement-born PdfImport whose statement carries its own archived
+    # document link — exactly the shape the native statement route produces.
+    # `archive_document_link!` caches a nil read of the statement's own has_one
+    # while it builds the link, so re-read before the import is created against
+    # the same object.
+    def statement_backed_import
+      statement = AccountStatement.create_from_upload!(
+        family: families(:dylan_family),
+        account: nil,
+        file: uploaded_file(filename: "statement.pdf", content_type: "application/pdf",
+                            content: file_fixture("imports/sample_bank_statement.pdf").binread)
+      )
+      statement.archive_document_link!
+      PdfImport.create_from_statement!(statement: statement.reload)
+    end
+
     # A receipt-posted entry: source "document" and a ReceiptImport that hangs
     # off the receipt's own link, which is attached to the entry -- exactly what
     # `ReceiptImport#publish` records.

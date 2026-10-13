@@ -252,6 +252,26 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert_not link.deletable?
   end
 
+  # The same PRODUCED route, for a STATEMENT (review finding 2). A statement's
+  # own rows hang off its PdfImport -> document_link_id, which used to be nil, so
+  # the N9 guard silently did nothing for every statement: its link was
+  # "deletable" while its rows were unreconciled. Finding 1's seam closes this —
+  # the statement's import now carries the link, so `derived_entries` reaches the
+  # rows and refuses the delete, naming what is in the way.
+  test "a statement's own unreconciled rows block its link's deletion" do
+    import = statement_backed_import
+    link = import.document_link
+    assert_not_nil link, "the statement's import must carry its archived link"
+
+    entry = entries(:transaction_entry)
+    entry.update!(import: import, reconciled_at: nil)
+
+    assert_includes link.derived_entries, entry
+    assert_not link.deletable?
+    assert_includes link.deletion_blockers, entry.name,
+                    "the refusal must name the statement row that is in the way"
+  end
+
   test "derived_entries reaches an entry the document was only matched to" do
     # The CORROBORATED route: a document the matcher attached to an existing
     # entry hangs off `document_links.entry_id`. Missing this route would orphan
@@ -361,4 +381,21 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert link.mark_auto_post_undone!
     assert link.reload.auto_post_undone?
   end
+
+  private
+    # A statement-born PdfImport whose statement carries its own archived
+    # document link — the shape the native statement route produces (finding 1's
+    # seam). `archive_document_link!` caches a nil read of the statement's own
+    # has_one while it builds the link, so re-read before the import is created
+    # against the same object.
+    def statement_backed_import
+      statement = AccountStatement.create_from_upload!(
+        family: @family,
+        account: nil,
+        file: uploaded_file(filename: "statement.pdf", content_type: "application/pdf",
+                            content: file_fixture("imports/sample_bank_statement.pdf").binread)
+      )
+      statement.archive_document_link!
+      PdfImport.create_from_statement!(statement: statement.reload)
+    end
 end

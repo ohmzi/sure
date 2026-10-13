@@ -390,6 +390,18 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-action~='wheel->document-viewer#zoom']"
   end
 
+  # The document's own page (Milestone B Task 4) is the stable, shareable URL
+  # (`Row#details_url`). The modal is the way in from the grid, so the viewer
+  # must offer the link out -- otherwise the page is reachable only by typing
+  # the URL (review finding 4).
+  test "the viewer offers the document's own page" do
+    link = document_links(:understood_receipt_link)
+    get viewer_document_path(link)
+
+    assert_response :success
+    assert_select "a[href='#{document_path(link)}']"
+  end
+
   test "an image row's file url serves the stored image bytes" do
     # end to end through the real store: the row's file URL fetches the
     # document's own bytes with their stored content type.

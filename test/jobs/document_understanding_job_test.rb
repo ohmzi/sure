@@ -492,6 +492,11 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     # link between the two, not the row order.
     import = PdfImport.find_by!(account_statement_id: statement.id)
     assert_equal statement.id, import.account_statement_id
+    # The document anchor (review finding 1): the statement's own rows are born
+    # off this import, so it must carry the statement's archived link — or every
+    # row reads "from a bank export" with no chip back to the uploaded document.
+    assert_equal statement.archived_document_link.id, import.document_link_id,
+                 "the statement's import must point at the statement's own document"
     assert_equal 2, import.rows_count
     assert_equal "Chase", statement.institution_name_hint
     assert_equal Date.new(2026, 9, 1), statement.period_start_on

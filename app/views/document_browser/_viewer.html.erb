@@ -22,6 +22,18 @@
             visual — Review details / Reading… / Retry / Remove are reached from
             the document itself. %>
         <%= render "document_browser/actions", row: row, container_class: "flex items-center gap-3" %>
+        <%# The stable, shareable page for this document (`Row#details_url`, Task
+            4). The modal is the entry point; this breaks out of the modal frame
+            to the full page, which needs no JavaScript. %>
+        <% if row.details_url.present? %>
+          <%= link_to row.details_url,
+                class: "flex items-center rounded-lg border border-secondary px-2 py-1.5 text-primary hover:bg-container-inset-hover",
+                title: t("document_browser.viewer.open_full_page"),
+                aria: { label: t("document_browser.viewer.open_full_page") },
+                data: { turbo_frame: "_top" } do %>
+            <%= icon("maximize-2", size: "sm") %>
+          <% end %>
+        <% end %>
       </div>
       <%= render "document_browser/viewer_nav", direction: :next, url: next_url, title: next_title %>
     </div>

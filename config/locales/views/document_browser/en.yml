@@ -78,6 +78,7 @@ en:
       previous: Previous
       next: Next
       download: Download
+      open_full_page: Open full page
       unavailable_title: No preview yet
       unavailable_description: This document has no copy in the app yet. Open it again once processing has finished.
       unsupported_title: No in-page preview for this file

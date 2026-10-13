@@ -108,6 +108,29 @@ class Entries::AutoPostsControllerTest < ActionDispatch::IntegrationTest
     assert_equal entries(:transaction).id, keep.entry_id
   end
 
+  # The reversal is recorded on exactly the document the entry's OWN identity
+  # came from (review finding 5): the auto-post writer mints
+  # `external_id "document:<link id>"`. Marking EVERY link on the entry would
+  # also stamp a statement that merely corroborated this row, wrongly refusing a
+  # receipt later matched to that statement.
+  test "undo marks only the document the entry's own identity came from" do
+    receipt_link = document_links(:understood_receipt_link)
+    receipt_link.link_to_entry!(@entry)
+    @entry.update!(external_id: "document:#{receipt_link.id}", source: "document")
+
+    # A statement later corroborated this entry (Task 7's claim!): a second link
+    # hangs on the same row. The undo must not reach it.
+    corroborating_link = document_links(:linked_receipt)
+    corroborating_link.link_to_entry!(@entry)
+
+    delete entry_auto_post_path(@entry)
+
+    assert receipt_link.reload.auto_post_undone?,
+           "the entry's own document records the reversal"
+    assert_not corroborating_link.reload.auto_post_undone?,
+               "a corroborating document must not be stamped undone by this undo"
+  end
+
   # Deleting money must not be reachable for an account the user cannot write.
   test "undo refuses a row outside the current family" do
     sign_in users(:empty)

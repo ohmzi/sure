@@ -80,7 +80,19 @@ class PdfImport < Import
                                 reusable_import.account_id == statement.account_id &&
                                 reusable_import.date_format == statement.family.date_format
 
-      create!(family: statement.family, account: statement.account, account_statement: statement, date_format: statement.family.date_format, status: :pending)
+      # The document anchor (spec N13). A statement's own rows are born off this
+      # import, and `EntryProvenance#document_backed?` reads the creating
+      # document off `import.document_link` -- so without this link every row a
+      # statement produced reads "from a bank export" with no chip back to the
+      # document the user uploaded, and `DocumentLink#derived_entries` (the N9
+      # delete guard) cannot see them either. Point the import at the statement's
+      # own archived link. It is nil for a legacy upload whose archive copy is
+      # staged after this call (the vault's own upload path), and present on the
+      # native read's route, where the statement is minted from the uploaded
+      # document and its link already exists.
+      create!(family: statement.family, account: statement.account, account_statement: statement,
+              document_link: statement.archived_document_link,
+              date_format: statement.family.date_format, status: :pending)
     end
 
     # The native read's entry point (Task 9). create_from_statement! already
