@@ -224,6 +224,130 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     DocumentLink::Staging.delete(path)
   end
 
+  # -- the one Documents page: the type facet, the grid, what needs you -------
+  # (Milestone B, design D1/D3/D5.) The literals the plan sketched asserted the
+  # page body contained `documents.source.statement` / `.receipt`; the chip
+  # labels "Statements" / "Receipts & Bills" already contain both substrings, so
+  # the assertions would pass vacuously (and the "filters to statements only"
+  # one could never pass, because the chips always render). These pin the tiles
+  # the facet actually filters, which is the behaviour the plan is about.
+
+  test "the page shows statements and receipts together by default" do
+    statement = document_links(:queued_receipt)
+    statement.update!(source: "statement", title: "Bank statement")
+
+    get documents_path
+
+    assert_response :success
+    assert_match document_links(:held_bill).title.to_s, response.body
+    assert_match statement.title.to_s, response.body
+  end
+
+  test "the type facet filters to statements only" do
+    statement = document_links(:queued_receipt)
+    statement.update!(source: "statement", title: "Bank statement")
+
+    get documents_path(q: { type: [ "statement" ] })
+
+    assert_response :success
+    assert_match statement.title.to_s, response.body
+    assert_no_match document_links(:held_bill).title.to_s, response.body
+  end
+
+  test "the type chips render All / Statements / Receipts & Bills and carry the active choice" do
+    get documents_path
+    assert_select "input[name='q[type][]'][value='all'][checked='checked']"
+    assert_select "input[name='q[type][]'][value='statement'][checked='checked']", count: 0
+
+    get documents_path(q: { type: [ "statement" ] })
+    assert_select "input[name='q[type][]'][value='statement'][checked='checked']"
+    assert_select "input[name='q[type][]'][value='all'][checked='checked']", count: 0
+  end
+
+  test "the grid renders each document as a tile keyed by its link" do
+    get documents_path
+
+    assert_select "#documents_grid"
+    assert_select "#documents_grid #document_link_#{document_links(:unlinked_receipt).id}"
+  end
+
+  test "a tile states Reading…, Review and Posted from the link's own fields" do
+    reading = document_links(:queued_receipt)
+    reading.update_columns(status: "queued", failure_message: nil)
+    posted = document_links(:linked_receipt)             # status linked
+    review = document_links(:understood_receipt_link)    # understood draft, an account, unpublished
+
+    get documents_path
+
+    assert_select "#document_link_#{reading.id}", text: /#{Regexp.escape(I18n.t("document_browser.tile.states.reading"))}/
+    assert_select "#document_link_#{posted.id}", text: /#{Regexp.escape(I18n.t("document_browser.tile.states.posted"))}/
+    assert_select "#document_link_#{review.id}", text: /#{Regexp.escape(I18n.t("document_browser.tile.states.review"))}/
+  end
+
+  test "a tile whose read did not happen shows why (Needs you, with the reason)" do
+    held = document_links(:held_bill)
+    held.update_columns(failure_message: "no AI provider is configured")
+
+    get documents_path
+
+    assert_select "#document_link_#{held.id}", text: /#{Regexp.escape(I18n.t("document_browser.tile.states.needs_you"))}/
+    assert_select "#document_link_#{held.id}", text: /no AI provider is configured/
+  end
+
+  test "a resolved statement with no account asks Which account?" do
+    statement = AccountStatement.create_from_upload!(
+      family: @family, account: nil,
+      file: uploaded_file(filename: "ask.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    link = DocumentLink.create!(family: @family, source: "statement", status: "unlinked",
+                                account_statement: statement, original_filename: "ask.csv")
+
+    get documents_path
+
+    assert_select "#document_link_#{link.id}", text: /#{Regexp.escape(I18n.t("document_browser.tile.states.which_account"))}/
+  end
+
+  test "the attention strip counts what needs a person, breaks it down, and offers to show them" do
+    held = document_links(:held_bill)
+    held.update_columns(failure_message: "no AI provider is configured")
+    # A settled draft that resolved without an account is the strip's
+    # "needs an account" reason.
+    needing = document_links(:unlinked_receipt)
+    needing.receipt_imports.first.update_columns(understanding_state: "understood", status: "pending", account_id: nil)
+
+    get documents_path
+
+    assert_response :success
+    assert_match I18n.t("document_browser.attention.title", count: DocumentLink.needs_attention(@family).count),
+                 response.body
+    assert_select "#documents_attention", text: /#{Regexp.escape(I18n.t("document_browser.attention.reasons.couldnt_read", count: 1))}/
+    assert_select "#documents_attention", text: /#{Regexp.escape(I18n.t("document_browser.attention.reasons.needs_account", count: 1))}/
+    assert_select "#documents_attention a[href='#{documents_path(q: { attention: 1 })}']"
+  end
+
+  test "the attention filter narrows the grid to exactly the documents that need a person" do
+    held = document_links(:held_bill)
+    held.update_columns(failure_message: "no AI provider is configured")
+
+    get documents_path(q: { attention: 1 })
+
+    assert_response :success
+    assert_match held.title.to_s, response.body
+    assert_no_match document_links(:linked_receipt).title.to_s, response.body
+  end
+
+  test "the attention strip renders nothing when no document needs a person" do
+    DocumentLink.where(family: @family).where.not(failure_message: nil).update_all(failure_message: nil)
+    # receipt_understood is the only understood draft; completing it clears the
+    # second branch of needs_attention.
+    imports(:receipt_understood).update!(status: "complete")
+
+    get documents_path
+
+    assert_response :success
+    assert_select "#documents_attention", count: 0
+  end
+
   # -- the viewer modal (M8 Task 4) -------------------------------------------
 
   test "index rows link into the viewer carrying the page's filters" do

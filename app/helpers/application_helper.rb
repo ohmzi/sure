@@ -111,11 +111,11 @@ module ApplicationHelper
     )
   end
 
-  # The Receipts & Bills entry (M8 Task 9, Ruling M8-L1 decision 3), carrying
-  # the ready-to-review count as a `DS::Pill` on the entry — the same signal the
-  # row's "Review details" affordance reads (a draft settled into `understood`).
-  # The count rides the nav on every page, like the insights badge; zero renders
-  # nothing.
+  # The Documents entry (Milestone B, design D1): one destination for every
+  # document — statements and receipts together — with the type as an in-page
+  # facet. It carries the ready-to-review count as a `DS::Pill` on the entry
+  # (M8 Task 9, Ruling M8-L1 decision 3) — the same signal the strip and the
+  # tiles read. The count rides the nav on every page; zero renders nothing.
   def documents_nav_item
     count = Current.family ? DocumentLink.pending_review_count_for(Current.family) : 0
 
@@ -127,21 +127,6 @@ module ApplicationHelper
       active: page_active?(documents_path),
       badge: count,
       badge_title: count.positive? ? t("layouts.application.nav.documents_badge", count: count) : nil
-    }
-  end
-
-  # The Statements slot (M8 locked decision 8): the vault admits admin OR
-  # member (AccountStatement.statement_manager?), so the entry must too — a
-  # guest never sees a door that only redirects them away.
-  def statement_vault_nav_item
-    return nil unless Current.family && AccountStatement.statement_manager?(Current.user)
-
-    {
-      name: t("layouts.application.nav.statements"),
-      path: account_statements_path,
-      icon: "file-text",
-      icon_custom: false,
-      active: page_active?(account_statements_path)
     }
   end
 

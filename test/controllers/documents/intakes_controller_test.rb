@@ -3,24 +3,26 @@ require "test_helper"
 class Documents::IntakesControllerTest < ActionDispatch::IntegrationTest
   setup { sign_in users(:family_admin) }
 
-  # RB1: Task 3 creates document_browser/_tile.html.erb and the grid; until then
-  # this endpoint appends the EXISTING document_browser/row partial, so the test
-  # asserts the Turbo Stream append (target + the row's markup) rather than
-  # tile-specific copy.
-  test "an upload answers with a row for the grid, not a redirect" do
+  # RB1: Task 3 creates document_browser/_tile.html.erb and the grid, so this
+  # endpoint now appends the tile (it appended the row as the placeholder).
+  # The test asserts the Turbo Stream structurally (target + the tile's own
+  # markup), so the swap does not change its shape.
+  test "an upload answers with a tile for the grid, not a redirect" do
     post documents_intake_path,
          params: { document: Rack::Test::UploadedFile.new(StringIO.new("PNGDATA"), "image/png",
                                                           original_filename: "shot.png") }
 
     assert_response :success
-    assert_match "turbo-stream", response.body, "the row must appear in place — no page change"
-    assert_match 'action="append"', response.body
-    assert_match 'target="documents_grid"', response.body
-    # The row partial's own markup: the staged title and its status pill (the
-    # enqueued read leaves the row in flight, so the pill reads "Processing" —
-    # the row's vocabulary for the design's "Reading…").
-    assert_match "shot.png", response.body
-    assert_match I18n.t("documents.status.processing"), response.body
+    # The turbo-stream response body is binary; force UTF-8 so the tile's
+    # "Reading…" (a non-ASCII ellipsis) can be matched.
+    body = response.body.force_encoding("UTF-8")
+    assert_match "turbo-stream", body, "the tile must appear in place — no page change"
+    assert_match 'action="append"', body
+    assert_match 'target="documents_grid"', body
+    # The tile's own markup: the staged title and its state pill. The enqueued
+    # read leaves the row in flight, so the tile reads the design's "Reading…".
+    assert_match "shot.png", body
+    assert_match I18n.t("document_browser.tile.states.reading"), body
   end
 
   test "a rejected file says why on the bar" do

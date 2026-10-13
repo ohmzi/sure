@@ -42,7 +42,7 @@ class Import::AccountsControllerTest < ActionDispatch::IntegrationTest
     follow_redirect!
 
     assert_response :success
-    assert_select "h1", text: I18n.t("documents.index.receipts_bills_title")
+    assert_select "h1", text: I18n.t("documents.index.title")
     assert_select "h1", text: I18n.t("imports.receipt_import.pending_title"), count: 0
   end
 

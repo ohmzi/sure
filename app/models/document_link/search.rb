@@ -54,7 +54,9 @@ class DocumentLink::Search
   def relation
     @scope = @family.document_links.includes(:account_statement, :receipt_imports)
     @scope = @scope.where(source: @sources) if @sources
+    @scope = @scope.where(source: type_filters) if type_filters.any?
     @scope = @scope.where(status: status_filters) if status_filters.any?
+    @scope = @scope.where(id: DocumentLink.needs_attention(@family).select(:id)) if @filters[:attention].present?
     @scope = @scope.merge(DocumentLink.search(@filters[:search])) if @filters[:search].present?
     @scope = @scope.where("#{DOCUMENT_DATE_SQL} >= ?", date_from.iso8601) if date_from
     @scope = @scope.where("#{DOCUMENT_DATE_SQL} <= ?", date_to.iso8601) if date_to
@@ -72,6 +74,17 @@ class DocumentLink::Search
     # processing". Unknown tokens are dropped, never widened; a cleared
     # selection filters nothing.
     def status_filters = Array(@filters[:status]) & DocumentLink::STATUSES
+
+    # The type facet (Milestone B, design D1): the one-page type filter. Each
+    # chip's value is validated against DocumentLink::SOURCES the way the old
+    # top-level source facet was — comma-joined tokens split, unknown tokens
+    # dropped, a cleared selection (or the "All" chip's `all`) filtering
+    # nothing. This is what makes "Receipts & Bills" one chip (value
+    # "receipt,bill").
+    def type_filters
+      Array(@filters[:type]).flat_map { |value| value.to_s.split(",") }.map(&:strip).uniq
+                             .select { |source| DocumentLink::SOURCES.include?(source) }
+    end
 
     # The Merchant / Amount facet (M8 Task 7, locked decision 7): documents
     # read the understood draft's extracted payee/total — never an external

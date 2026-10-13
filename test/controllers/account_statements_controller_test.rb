@@ -37,12 +37,14 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", text: statement.filename # the page owns its header now
   end
 
-  test "the statements nav entry is gated to statement managers" do
-    sign_in users(:family_member)
+  test "the statements vault leaves the main nav (one Documents entry)" do
+    # (Milestone B, design D1) The vault survives for reconciliation — reached
+    # from the account tab's "Open inbox" and settings — but it is no longer a
+    # sidebar destination, for a member or an admin.
     get documents_path
-    assert_select "a[href='#{account_statements_path}']"
+    assert_select "a[href='#{account_statements_path}']", count: 0
 
-    sign_in family_guest
+    sign_in users(:family_member)
     get documents_path
     assert_select "a[href='#{account_statements_path}']", count: 0
   end
@@ -137,6 +139,35 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_equal @account, statement.account
     assert statement.linked?
     assert_redirected_to account_url(@account, tab: "statements")
+  end
+
+  test "an account-tab upload also creates the DocumentLink the Documents page reads" do
+    # Milestone B's gap: the account's statement tab used to create only the
+    # vault row, so a statement uploaded here vanished from the unified
+    # Documents page. The link (source "statement", the same bytes staged) is
+    # what makes DocumentLink the spine every document has.
+    store = Pathname.new(Dir.mktmpdir("statement-link"))
+    previous = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
+    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = store.to_s
+
+    assert_difference "DocumentLink.count", 1 do
+      post account_statements_url, params: {
+        account_statement: {
+          account_id: @account.id,
+          files: [ uploaded_file(filename: "tab_statement.csv", content_type: "text/csv") ]
+        }
+      }
+    end
+
+    statement = AccountStatement.order(:created_at).last
+    link = statement.archived_document_link
+    assert link.present?
+    assert_equal "statement", link.source
+    assert_equal statement.id, link.account_statement_id
+    assert link.stored_path.present?, "the same bytes are staged so the grid can preview it"
+  ensure
+    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = previous
+    FileUtils.remove_entry(store) if store&.exist?
   end
 
   test "member with writable account access can upload linked statement" do

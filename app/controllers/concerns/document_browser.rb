@@ -14,8 +14,8 @@ module DocumentBrowser
       q = params.fetch(:q, {})
       q = ActionController::Parameters.new unless q.is_a?(ActionController::Parameters)
       q.permit(
-        :search, :sort, :date_from, :date_to, :merchant, :amount_min, :amount_max,
-        status: [], tags: [], extraction: [], review: []
+        :search, :sort, :date_from, :date_to, :merchant, :amount_min, :amount_max, :attention,
+        status: [], tags: [], extraction: [], review: [], type: []
       ).to_h.symbolize_keys
     end
 

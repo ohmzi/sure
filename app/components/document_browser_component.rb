@@ -1,29 +1,38 @@
 # frozen_string_literal: true
 
 # The shared document browser (M8 locked decisions 2/14): one rendering path
-# for Receipts & Bills and Statements. It renders a uniform
+# for the Documents page and the Statements vault. It renders a uniform
 # DocumentBrowser::Row list; per-page differences arrive as parameters.
+#
+# Milestone B (design D3) adds `layout:`: the Documents page is a thumbnail
+# `:grid` (the default — you recognise a document by its picture), while the
+# Statements vault keeps the `:list` of rows it reconciles with. Only the row
+# renderer changes; the header, filters, pagination and empty state are shared.
 class DocumentBrowserComponent < ApplicationComponent
-  renders_one :upload
+  LAYOUTS = %i[grid list].freeze
 
-  def initialize(family:, title:, url:, rows:, pagy:, filters: {}, source_filter: nil, tag_choices: [])
+  renders_one :upload
+  # The design's "needs you" strip (D5), documents-only. A slot so the vault
+  # never grows one, and so the browser stays a pure renderer.
+  renders_one :attention
+
+  def initialize(family:, title:, url:, rows:, pagy:, filters: {}, tag_choices: [], layout: :grid)
     @family = family
     @title = title
     @url = url
     @rows = rows
     @pagy = pagy
     @filters = filters
-    @source_filter = source_filter
     @tag_choices = tag_choices
+    @layout = LAYOUTS.include?(layout.to_sym) ? layout.to_sym : :grid
   end
 
-  attr_reader :family, :title, :url, :rows, :pagy, :filters, :source_filter, :tag_choices
+  attr_reader :family, :title, :url, :rows, :pagy, :filters, :tag_choices, :layout
 
   def documents? = family == :documents
+  def grid? = layout == :grid
 
-  # `source` is top-level (the M7-pinned shape), so it is not part of `filters`.
   def active_filters?
-    filters.values.any?(&:present?) ||
-      (documents? && source_filter.present? && source_filter.sort != DocumentLinksController::DEFAULT_SOURCES.sort)
+    filters.values.any?(&:present?)
   end
 end

@@ -1,0 +1,9 @@
+<div id="documents_attention" class="flex flex-wrap items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm">
+  <span class="font-medium text-primary"><%= t("document_browser.attention.title", count: total) %></span>
+  <span class="text-secondary">
+    <%= reasons.map { |count, key| t("document_browser.attention.reasons.#{key}", count: count) }.join(" · ") %>
+  </span>
+  <span class="ml-auto">
+    <%= render DS::Link.new(text: t("document_browser.attention.show"), href: documents_path(q: { attention: 1 }), variant: "outline", size: "sm") %>
+  </span>
+</div>

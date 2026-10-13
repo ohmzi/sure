@@ -1,0 +1,110 @@
+<%# locals: (row:) %>
+<%
+  # The tile's one state, in priority order (design D3/D5). Every input is a
+  # field DocumentBrowser::Row already carries — the link's status and failure
+  # message, its draft, and its archived statement. Nothing here re-reads the
+  # database beyond what the row factory loaded.
+  record = row.record
+  draft = record.receipt_imports.max_by(&:created_at)
+  statement = record.account_statement
+
+  state =
+    if row.failure_message.present?
+      :needs_you
+    elsif record.status == "processing" || (record.status == "queued" && row.failure_message.blank?)
+      :reading
+    elsif draft&.understanding_state == "understood" && draft.status != "complete"
+      draft.account_id.nil? ? :which_account : :review
+    elsif statement.present? && statement.account_id.nil?
+      :which_account
+    elsif record.status.in?(%w[linked verified])
+      :posted
+    elsif statement.present?
+      :review
+    end
+
+  state_label, state_tone =
+    case state
+    when :needs_you then [ t("document_browser.tile.states.needs_you"), :error ]
+    when :reading then [ t("document_browser.tile.states.reading"), :info ]
+    when :which_account then [ t("document_browser.tile.states.which_account"), :warning ]
+    when :review then [ t("document_browser.tile.states.review"), :warning ]
+    when :posted then [ t("document_browser.tile.states.posted"), :success ]
+    # No design state applies (e.g. a settled, unlinked row with no draft): the
+    # link's own status pill is the honest answer, exactly as the row showed it.
+    else [ row.statuses.first&.label, row.statuses.first&.tone || :neutral ]
+    end
+
+  amount = row.amount.is_a?(BigDecimal) ? row.amount.to_s("F") : row.amount
+  # The meta line below the title: what the read produced, when it produced it
+  # (the type is always known, so it anchors the line). A held row states its
+  # reason here instead — the tile explains itself.
+  meta_parts = [ row.doc_type_label ]
+  meta_parts << row.merchant if row.merchant.present?
+  meta_parts << amount if amount.present?
+  meta_parts << format_date(row.date) if row.date.present?
+  meta = state == :needs_you ? row.failure_message : meta_parts.join(" · ")
+
+  thumb = if row.thumb_url.present?
+    image_tag(row.thumb_url, alt: row.title, loading: "lazy", class: "h-full w-full object-cover")
+  else
+    content_tag(:div, icon(row.icon, size: "xl"),
+                class: "flex h-full w-full items-center justify-center text-secondary",
+                "aria-hidden": "true")
+  end
+%>
+<div id="<%= row.key %>" class="flex flex-col gap-2 min-w-0" data-document-state="<%= state %>">
+  <div class="relative aspect-[4/3] overflow-hidden rounded-lg bg-container-inset shadow-border-xs<%= " border border-dashed border-secondary" if state == :reading %>">
+    <% if state == :reading %>
+      <%# Nothing to show yet — the design's dashed box with the state centred. %>
+      <div class="absolute inset-0 flex items-center justify-center">
+        <%= render DS::Pill.new(label: state_label, tone: state_tone, marker: false) %>
+      </div>
+    <% else %>
+      <% if row.viewer_url.present? %>
+        <%= link_to row.viewer_url, data: { turbo_frame: "modal" }, class: "block h-full w-full", aria: { label: row.title } do %>
+          <%= thumb %>
+        <% end %>
+      <% else %>
+        <div class="h-full w-full"><%= thumb %></div>
+      <% end %>
+      <%# The status pill in the tile's corner (design D3). %>
+      <span class="absolute right-1.5 top-1.5">
+        <%= render DS::Pill.new(label: state_label, tone: state_tone, marker: false) %>
+      </span>
+    <% end %>
+  </div>
+
+  <div class="min-w-0 space-y-1">
+    <% if row.viewer_url.present? %>
+      <%= link_to row.title, row.viewer_url, data: { turbo_frame: "modal" },
+            class: "block truncate text-sm font-medium text-primary" %>
+    <% else %>
+      <p class="truncate text-sm font-medium text-primary"><%= row.title %></p>
+    <% end %>
+    <p class="truncate text-xs <%= state == :needs_you ? "text-destructive" : "text-secondary" %>">
+      <%= meta %>
+    </p>
+  </div>
+
+  <%# The document's affordances stay reachable from the tile (the design's
+      mockup omits them for brevity): "Review details" / "Reading…" / Retry /
+      Remove, the same primitives the row uses. %>
+  <div class="flex items-center gap-3">
+    <% row.actions.each do |action| %>
+      <% if action.url.blank? %>
+        <%= render DS::Button.new(text: action.label, variant: :outline, size: :sm,
+                                  disabled: true, title: action.label) %>
+      <% elsif action.method == :get %>
+        <%= link_to action.url, class: "flex items-center", aria: { label: action.label }, title: action.label do %>
+          <%= icon(action.icon, class: "w-5 h-5 text-primary") %>
+        <% end %>
+      <% else %>
+        <%= button_to action.url, method: action.method, class: "flex items-center",
+              aria: { label: action.label }, title: action.label do %>
+          <%= icon(action.icon, class: "w-5 h-5 text-secondary") %>
+        <% end %>
+      <% end %>
+    <% end %>
+  </div>
+</div>

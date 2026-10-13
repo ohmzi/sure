@@ -107,6 +107,7 @@ class Import::UploadsController < ApplicationController
       uploaded_file = upload_params[:import_file]
       normalized = Ofx::Parser.normalize_encoding(csv_str)
       duplicate = false
+      statement = nil
 
       ActiveRecord::Base.transaction do
         @import.account = account
@@ -117,6 +118,12 @@ class Import::UploadsController < ApplicationController
         @import.generate_rows_from_csv
         @import.sync_mappings
       end
+
+      # After the transaction commits — and only then. ActiveStorage defers the
+      # blob write to the commit, so the statement's bytes are unreadable from
+      # inside it; the unified Documents page's link is staged here, once the
+      # bytes are on the service (Task 3, Step 7).
+      statement.archive_document_link!(uploader: Current.user) if statement
 
       notice = duplicate ? t(".ofx_duplicate_notice") : t(".ofx_uploaded")
       redirect_to import_clean_path(@import), notice: notice

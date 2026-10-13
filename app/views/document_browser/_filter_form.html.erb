@@ -1,17 +1,22 @@
-<%# locals: (url:, filters:, source_filter:, documents:, tag_choices:) %>
+<%# locals: (url:, filters:, documents:, tag_choices:) %>
 <%= form_with url: url, method: :get, data: { controller: "auto-submit-form" },
       class: "flex flex-wrap items-center gap-2" do |form| %>
-  <%# The source boxes stay top-level (`source[]`, the M7-pinned shape the
-      wizard redirect writes); everything else rides in `q`. One GET form, so
-      the facets compose by construction — no hidden field is needed (M8 Task 5
-      records the deviation from M7 Task 10's separate search form). %>
   <% if documents %>
+    <%# The type facet (Milestone B, design D1): one page, so the type is a chip
+        rather than a second destination. "All" carries the token `all`, which
+        the SOURCES validation drops, so the default and cleared states filter
+        nothing; "Receipts & Bills" carries a comma-joined pair — the same shape
+        the old top-level source facet accepted. %>
+    <% selected_types = Array(filters[:type]).flat_map { |value| value.to_s.split(",") }.map(&:strip).select { |source| DocumentLink::SOURCES.include?(source) } %>
     <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
-      <% DocumentLink::SOURCES.each do |source| %>
+      <span class="text-sm text-secondary"><%= t("document_browser.filters.type") %></span>
+      <% [ [ "all", t("document_browser.filters.types.all"), selected_types.empty? ],
+           [ "statement", t("document_browser.filters.types.statements"), selected_types.include?("statement") ],
+           [ "receipt,bill", t("document_browser.filters.types.receipts_bills"), (selected_types & %w[receipt bill]).any? ] ].each do |value, label, checked| %>
         <label class="flex items-center gap-1.5 text-sm text-primary">
-          <%= check_box_tag "source[]", source, source_filter&.include?(source),
+          <%= check_box_tag "q[type][]", value, checked,
                 class: "checkbox checkbox--light", data: { "auto-submit-form-target": "auto" } %>
-          <%= t("documents.source.#{source}") %>
+          <%= label %>
         </label>
       <% end %>
     </div>

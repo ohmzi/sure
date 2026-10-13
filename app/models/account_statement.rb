@@ -102,6 +102,40 @@ class AccountStatement < ApplicationRecord
     where("period_start_on <= ? AND period_end_on >= ?", month_end, month_start)
   }
 
+  # The M1 native statement route stages its own DocumentLink and adopts the
+  # vault row onto it. The vault's OWN upload paths (the account tab's
+  # statement form, the vault inbox, the OFX import) create only the statement
+  # row — so without this the statement is invisible on the unified Documents
+  # page, which reads DocumentLink. Mirror the stored bytes into a settled link
+  # (Milestone B Task 3, Step 7), so DocumentLink is genuinely the spine every
+  # document has. Idempotent: a statement keeps one link, and the native route
+  # (already linked) returns it untouched.
+  def archive_document_link!(uploader: nil)
+    return archived_document_link if archived_document_link.present?
+
+    link = DocumentLink.link_from_upload!(family: family, uploader: uploader,
+                                          source: "statement", title: filename)
+    begin
+      DocumentLink.transaction(requires_new: true) do
+        original_file.blob.open do |io|
+          link.stage!(io: io, filename: filename, content_type: content_type)
+        end
+      end
+    rescue StandardError
+      # stage! failed after the row existed: reclaim the bytes and drop the row
+      # rather than leave a byte-less link that can never progress (the intake's
+      # own cleanup shape).
+      DocumentLink::Staging.delete(link.id.to_s)
+      link.destroy!
+      raise
+    end
+    # A statement is archived as-is: the vault already read it, so the link
+    # settles straight to `unlinked` rather than re-reading the bytes.
+    link.transition!(from: "queued", to: "unlinked")
+    link.update!(account_statement_id: id)
+    link
+  end
+
   class << self
     def statement_manager?(user)
       user&.admin? || user&.member?

@@ -166,6 +166,51 @@ class DocumentLink::SearchTest < ActiveSupport::TestCase
     assert_equal unfiltered, DocumentLink::Search.new(family: @family, filters: { status: %w[bogus] }).relation.pluck(:id)
   end
 
+  # -- the type facet (Milestone B, design D1) --------------------------------
+
+  test "the type facet narrows to one source and defaults to all of them" do
+    other = document_links(:queued_receipt)
+    other.update!(source: "statement")
+
+    all = DocumentLink::Search.new(family: @family, filters: {}).relation
+    receipts = DocumentLink::Search.new(family: @family, filters: { type: [ "receipt" ] }).relation
+
+    assert_operator receipts.count, :<=, all.count
+    assert receipts.all? { |l| l.source == "receipt" }
+    assert_includes all.pluck(:id), other.id
+    assert_not_includes receipts.pluck(:id), other.id
+  end
+
+  test "the type facet takes the receipts-bills chip's comma-joined value and drops unknown tokens" do
+    statement = document_links(:queued_receipt)
+    statement.update!(source: "statement")
+
+    receipts_bills = DocumentLink::Search.new(family: @family, filters: { type: [ "receipt,bill" ] }).relation
+    assert receipts_bills.pluck(:id).any?
+    assert receipts_bills.all? { |l| l.source.in?(%w[receipt bill]) }
+    assert_not_includes receipts_bills.pluck(:id), statement.id
+
+    # The All chip ("all") and any unknown token are dropped, never widening.
+    assert_equal DocumentLink::Search.new(family: @family).relation.pluck(:id),
+                 DocumentLink::Search.new(family: @family, filters: { type: %w[bogus all] }).relation.pluck(:id)
+  end
+
+  # -- the "needs you" filter (Milestone B, design D5) ------------------------
+
+  test "the attention filter narrows to the documents that need a person" do
+    held = document_links(:queued_receipt)
+    held.update!(failure_message: "no AI provider is configured")
+    settled = document_links(:unlinked_receipt)
+
+    ids = DocumentLink::Search.new(family: @family, filters: { attention: "1" }).relation.pluck(:id)
+    assert_includes ids, held.id
+    assert_not_includes ids, settled.id
+
+    # A blank/absent attention filter filters nothing (the strip's cleared state).
+    assert_equal DocumentLink::Search.new(family: @family).relation.pluck(:id),
+                 DocumentLink::Search.new(family: @family, filters: { attention: "" }).relation.pluck(:id)
+  end
+
   private
     # The expression the range/sort SQL evaluates — the display must equal it,
     # never merely "look plausible" (Ruling M8-C3).

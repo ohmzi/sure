@@ -160,6 +160,31 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert_nil link.confidence
   end
 
+  # -- the design's "needs you" scope (Milestone B, design D5) ----------------
+
+  test "needs_attention covers a document the reader could not finish" do
+    family = families(:dylan_family)
+    held = DocumentLink.create!(family: family, source: "other", status: "queued",
+                                original_filename: "x.pdf", failure_message: "no AI provider is configured")
+    settled = DocumentLink.create!(family: family, source: "receipt", status: "unlinked",
+                                   original_filename: "y.jpg")
+
+    scope = DocumentLink.needs_attention(family)
+
+    assert_includes scope, held
+    assert_not_includes scope, settled
+  end
+
+  test "needs_attention also covers a draft that settled ready to review" do
+    # The second branch: a ReceiptImport that reached `understood` but was never
+    # published is exactly what pending_review_count_for counts — the same
+    # documents the strip offers to show.
+    family = families(:dylan_family)
+    ready = document_links(:understood_receipt_link)
+
+    assert_includes DocumentLink.needs_attention(family), ready
+  end
+
   test "for_entry scopes to the entry" do
     assert_includes DocumentLink.for_entry(@entry), document_links(:linked_receipt)
     assert_not_includes DocumentLink.for_entry(@entry), document_links(:unlinked_receipt)

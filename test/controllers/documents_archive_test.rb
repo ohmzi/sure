@@ -19,33 +19,37 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     assert_select "#settings-nav-container", count: 0                     # settings layout absent
     assert_select "div[data-controller~='app-layout']"                    # main chrome present
     assert_select "a[href='#{transactions_path}']"                        # and the main nav with it
-    assert_select "h1", text: I18n.t("documents.index.receipts_bills_title") # the page owns its title now
+    assert_select "h1", text: I18n.t("documents.index.title") # the page owns its title now (one Documents page)
   end
 
-  test "the page defaults to receipt and bill, and the source filter narrows and widens" do
-    other = document_links(:queued_receipt)
-    other.update!(source: "statement") # a source outside the default pair
+  test "the page shows every type by default, and the type facet narrows and widens" do
+    # (Milestone B, design D1) The unified page is one list — statements and
+    # receipts together by default; the type is an in-page chip, not a source
+    # default.
+    statement = document_links(:queued_receipt)
+    statement.update!(source: "statement", title: "A statement document")
 
     get documents_path
     assert_match document_links(:held_bill).title.to_s, response.body
-    assert_no_match other.title.to_s, response.body
+    assert_match statement.title.to_s, response.body
 
-    get documents_path(source: "statement")
-    assert_match other.title.to_s, response.body
+    get documents_path(q: { type: %w[statement] })
+    assert_match statement.title.to_s, response.body
     assert_no_match document_links(:held_bill).title.to_s, response.body
 
-    get documents_path(source: "receipt,nope") # unknown tokens are dropped
+    get documents_path(q: { type: [ "receipt,nope" ] }) # unknown tokens are dropped
     assert_response :success
-    assert_no_match document_links(:held_bill).title.to_s, response.body
+    assert_no_match statement.title.to_s, response.body
   end
 
-  test "the archive lists the family's documents with status pills" do
+  test "the archive lists the family's documents as tiles with their state" do
     get documents_path
     assert_response :success
-    # Only images carry a thumbnail (their own stored bytes); the PDF row next
-    # to it renders its file-type icon instead.
+    # Only images carry a thumbnail (their own stored bytes); the PDF next to it
+    # renders its file-type icon instead, and a linked document reads "Posted"
+    # — the design's tile state, not the raw link status.
     assert_select "img[src=?]", file_document_path(document_links(:unlinked_receipt), kind: "thumb")
-    assert_match I18n.t("documents.status.linked"), response.body
+    assert_match I18n.t("document_browser.tile.states.posted"), response.body
   end
 
   test "the browser lists rows with thumbnails, statuses and the draft affordances" do
@@ -169,15 +173,15 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     assert_no_match "New receipt", response.body
   end
 
-  test "search applies within the source filter" do
+  test "search applies within the type filter" do
     held = document_links(:held_bill)
     held.update!(extracted_text: "WATER UTILITY DISTRICT")
     document_links(:unlinked_receipt).update!(extracted_text: "WATER", title: "Water receipt")
 
-    get documents_path(source: "receipt,bill", q: { search: "water" })
-    assert_response :success # both rows are in receipt|bill
+    get documents_path(q: { type: [ "receipt,bill" ], search: "water" })
+    assert_response :success # both rows are in receipt,bill
 
-    get documents_path(source: "bill", q: { search: "water" })
+    get documents_path(q: { type: [ "bill" ], search: "water" })
     assert_no_match "Water receipt", response.body
   end
 
@@ -186,7 +190,7 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     DocumentLink::Staging.expects(:open).never
     DocumentLink::Staging.expects(:write).never
 
-    get documents_path(source: "receipt,bill", q: { search: "coffee" })
+    get documents_path(q: { type: [ "receipt,bill" ], search: "coffee" })
     assert_response :success
   end
 

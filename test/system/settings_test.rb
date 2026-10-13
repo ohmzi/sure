@@ -24,10 +24,9 @@ class SettingsTest < ApplicationSystemTestCase
       [ "Feedback", feedback_path ]
     ]
 
-    # (repaired 2026-10-11, verifier F5) "Statement Vault" left this sequential
-    # loop: its page renders in the MAIN chrome now, so the loop's next
-    # click_link would find no settings sidebar. The entry itself stays (Ruling
-    # M7-L2's no-churn) and is pinned by its own test beside this one.
+    # (Milestone B, design D1) "Statement Vault" is no longer a settings entry
+    # — the vault merges into the one Documents entry — so the sequential loop
+    # below never meets it. Its retirement is pinned by its own test.
     if @user.admin?
       @settings_links += [
         [ "AI Prompts", settings_ai_prompts_path ],
@@ -50,14 +49,13 @@ class SettingsTest < ApplicationSystemTestCase
     end
   end
 
-  test "the settings sidebar keeps the Statement Vault entry and it leads out of the settings chrome" do
+  test "the settings sidebar carries the one Documents entry, not a Statements one" do
+    # (Milestone B, design D1) Statements stop being a settings destination of
+    # their own; the Documents entry stands in their place, and the vault is
+    # reached from the account tab's "Open inbox".
     open_settings_from_sidebar
-    assert_selector "a[href='#{account_statements_path}']"
-
-    click_link "Statement Vault", match: :first
-    assert_current_path account_statements_path
-    assert_selector "h1", text: I18n.t("account_statements.index.title") # the pinned title key
-    assert_no_selector "#settings-nav-container"                        # main chrome now
+    assert_no_selector "a[href='#{account_statements_path}']"
+    assert_selector "a[href='#{documents_path}']"
   end
 
   test "can update self hosting settings" do
@@ -130,10 +128,11 @@ class SettingsTest < ApplicationSystemTestCase
       assert_no_selector "li", text: "AI Prompts"
       assert_no_selector "li", text: "API Keys"
       assert_no_selector "li", text: "Bank sync"
-      # (repaired 2026-10-11, verifier F5) the vault's gate is admin OR member
-      # (AccountStatement.statement_manager? — Task 1's parity), so a member
-      # SEES this entry now; the admin-only entries above stay hidden.
-      assert_selector "li", text: "Statement Vault"
+      # (Milestone B, design D1) statements are no longer a settings entry of
+      # their own — one Documents entry — so the vault label is gone and the
+      # Documents entry stands in its place.
+      assert_no_selector "li", text: "Statement Vault"
+      assert_selector "li", text: "Documents"
     end
   end
 

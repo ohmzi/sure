@@ -95,6 +95,16 @@ class DocumentLink < ApplicationRecord
       scope.distinct.pluck(Arel.sql("unnest(tags)")).compact.sort
     end
 
+    # The design's "needs you" scope (Milestone B, design D5): documents that
+    # are waiting on a person. A held row (the reader stopped with a reason) or
+    # a draft waiting for review — the one query behind the strip's count and
+    # its list, and the filter behind its "Show them" action.
+    def needs_attention(family)
+      held = where(family: family).where.not(failure_message: nil)
+      held.or(where(family: family, id: ReceiptImport.where(understanding_state: "understood")
+                                                .where.not(status: "complete").select(:document_link_id)))
+    end
+
     # The sidebar's ready-to-review count (M8 Task 9, Ruling M8-L1 decision 3):
     # the family's documents whose receipt draft has settled into `understood`
     # and has NOT been published (`complete`) — the draft state the row's
@@ -176,18 +186,20 @@ class DocumentLink < ApplicationRecord
     draft&.purchase_date || created_at.to_date
   end
 
-  # The live row (M8 Task 9, Ruling M8-L1 decision 3): when a draft's
-  # understanding settles, the archive's row re-renders in place over the
-  # family stream every layout subscribes to, so "Reading…" flips to the review
-  # affordance without a reload. The replaced row comes from the same factory
-  # the index used; its viewer URL is the bare page URL (a broadcast has no
-  # request carrying the index's filters, and the row must stay openable). The
-  # replace is idempotent, so a repeated delivery is harmless.
+  # The live tile (M8 Task 9, Ruling M8-L1 decision 3; Milestone B Task 3): when
+  # a draft's understanding settles, the Documents grid's tile re-renders in
+  # place over the family stream every layout subscribes to, so "Reading…"
+  # flips to the review state without a reload. The replaced tile comes from the
+  # same factory the index used; its viewer URL is the bare page URL (a
+  # broadcast has no request carrying the index's filters, and the tile must
+  # stay openable). The replace is idempotent, so a repeated delivery is
+  # harmless. The target id (dom_id) is the link's, and only the Documents grid
+  # carries it — the Statements vault keys its rows by account_statement.
   def broadcast_row_update!
     row = DocumentBrowser::Row.for_document_link(
       self, viewer_url: Rails.application.routes.url_helpers.viewer_document_path(self)
     )
-    html = ApplicationController.render(partial: "document_browser/row", locals: { row: row }, formats: [ :html ])
+    html = ApplicationController.render(partial: "document_browser/tile", locals: { row: row }, formats: [ :html ])
     Turbo::StreamsChannel.broadcast_replace_to(family, target: ActionView::RecordIdentifier.dom_id(self), html: html)
   end
 

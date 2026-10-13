@@ -96,6 +96,33 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "application/x-ofx", import.account_statement.content_type
   end
 
+  test "an OFX upload also creates the statement's DocumentLink" do
+    # The import pipeline's own statement path must leave the same DocumentLink
+    # spine the Documents page reads (Milestone B Task 3, Step 7).
+    store = Pathname.new(Dir.mktmpdir("ofx-link"))
+    previous = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
+    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = store.to_s
+
+    import = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
+
+    assert_difference "DocumentLink.count", 1 do
+      patch import_upload_url(import), params: {
+        import: {
+          import_file: file_fixture_upload("imports/sample.ofx", "application/x-ofx"),
+          account_id: accounts(:depository).id
+        }
+      }
+    end
+
+    link = import.reload.account_statement.archived_document_link
+    assert link.present?
+    assert_equal "statement", link.source
+    assert link.stored_path.present?
+  ensure
+    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = previous
+    FileUtils.remove_entry(store) if store&.exist?
+  end
+
   test "rejects a malformed OFX file" do
     import = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
 

@@ -5,17 +5,27 @@
 
   <%= upload %>
 
+  <%# The design's "needs you" strip (D5), documents-only and absent when
+      nothing needs a person. %>
+  <%= attention if attention? %>
+
   <%= render "document_browser/filter_form", url: url, filters: filters,
-        source_filter: source_filter, documents: documents?, tag_choices: tag_choices %>
+        documents: documents?, tag_choices: tag_choices %>
 
   <% if rows.any? %>
-    <%# RB1 (Milestone B Task 1): the intake stream appends a freshly uploaded
-        row into this container on the Documents page (the statements page has no
-        intake). Task 3 replaces this list container with the thumbnail grid. %>
+    <%# RB1 (Milestone B Task 1, replaced by Task 3): the intake stream appends
+        a freshly uploaded tile into #documents_grid. The Documents page grows a
+        thumbnail grid; the Statements vault keeps its row list. %>
+    <% grid_classes = "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" %>
+    <% list_classes = "bg-container rounded-xl shadow-border-xs divide-y divide-subdued" %>
     <% grid_id = documents? ? "documents_grid" : nil %>
-    <div class="bg-container rounded-xl shadow-border-xs divide-y divide-subdued"<%= tag.attributes(id: grid_id) %>>
+    <div class="<%= grid? ? grid_classes : list_classes %>"<%= tag.attributes(id: grid_id) %>>
       <% rows.each do |row| %>
-        <%= render "document_browser/row", row: row %>
+        <% if grid? %>
+          <%= render "document_browser/tile", row: row %>
+        <% else %>
+          <%= render "document_browser/row", row: row %>
+        <% end %>
       <% end %>
     </div>
     <% if pagy.pages > 1 %>
@@ -25,8 +35,8 @@
     <% end %>
   <% elsif documents? %>
     <%# RB1: the append target must exist even when the page is empty — the
-        first drop lands here. Task 3 owns the real grid and its empty state. %>
-    <div id="documents_grid" class="bg-container rounded-xl shadow-border-xs divide-y divide-subdued"></div>
+        first drop lands here, and the grid is already the shape it grows into. %>
+    <div id="documents_grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"></div>
     <%= render "document_browser/empty", filtered: active_filters?, url: url, documents: true %>
   <% else %>
     <%= render "document_browser/empty", filtered: active_filters?, url: url, documents: false %>

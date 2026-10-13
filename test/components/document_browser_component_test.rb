@@ -32,7 +32,7 @@ class DocumentBrowserComponentTest < ViewComponent::TestCase
     )
     row = DocumentBrowser::Row.for_account_statement(statement)
 
-    render_inline(component(family: :statements, title: "Statements", rows: [ row ], url: @routes.account_statements_path))
+    render_inline(component(family: :statements, title: "Statements", rows: [ row ], url: @routes.account_statements_path, layout: :list))
 
     assert_selector "#document-browser"
     assert_text statement.filename
@@ -67,11 +67,11 @@ class DocumentBrowserComponentTest < ViewComponent::TestCase
   end
 
   private
-    def component(family: :documents, title: "Receipts & Bills", rows: @rows, filters: {}, url: @routes.documents_path, **opts)
+    def component(family: :documents, title: "Documents", rows: @rows, filters: {}, url: @routes.documents_path, **opts)
       DocumentBrowserComponent.new(
         family: family, title: title, url: url, rows: rows,
         pagy: Pagy.new(count: rows.size, page: 1), filters: filters,
-        source_filter: DocumentLinksController::DEFAULT_SOURCES, **opts
+        **opts
       )
     end
 end

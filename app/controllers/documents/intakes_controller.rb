@@ -1,14 +1,13 @@
 # frozen_string_literal: true
 
 # The ONLY upload endpoint (design: one dropzone). It answers a document upload
-# with a Turbo Stream that appends the new row, so the grid shows the document
-# the instant it is chosen and the reader flips that same row in place when it
+# with a Turbo Stream that appends the new TILE, so the grid shows the document
+# the instant it is chosen and the reader flips that same tile in place when it
 # settles — there is no wizard screen and no page change anywhere in this flow.
 #
-# RB1: until Task 3 lands the tile and the grid, the appended partial is the
-# EXISTING document_browser/row (the row factory and partial M8 already ship, so
-# the flow is complete and testable on its own). Task 3 swaps this one partial
-# name to the tile.
+# RB1: Task 1 appended document_browser/row as a temporary stand-in (the grid
+# and tile did not exist yet). Task 3 introduces both, so this appends the tile
+# — the same partial the grid itself renders.
 class Documents::IntakesController < ApplicationController
   # Guests are read-only by design, and the other document-upload path
   # (DocumentLinksController#create) refuses them — the intake must not be the
@@ -36,7 +35,7 @@ class Documents::IntakesController < ApplicationController
     def render_row(link)
       row = DocumentBrowser::Row.for_document_link(link, viewer_url: viewer_document_path(link))
       render turbo_stream: turbo_stream.append(
-        "documents_grid", partial: "document_browser/row", locals: { row: row }
+        "documents_grid", partial: "document_browser/tile", locals: { row: row }
       ), status: :ok
     end
 

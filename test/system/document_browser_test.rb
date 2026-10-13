@@ -83,13 +83,15 @@ class DocumentBrowserTest < ApplicationSystemTestCase
     assert_no_selector "dialog[open]"
   end
 
-  test "the statements page is a first-class page with its facets" do
+  test "the statements vault is a first-class page with its facets" do
+    # (Milestone B, design D1) The vault is no longer a sidebar destination —
+    # one Documents entry — but it survives for reconciliation, still on the
+    # main chrome, reached from the account tab's "Open inbox".
     statement = AccountStatement.create_from_upload!(
       family: families(:dylan_family), account: accounts(:depository),
       file: Rack::Test::UploadedFile.new(file_fixture("receipts/statement.pdf"), "application/pdf")
     )
-    visit root_path
-    click_link I18n.t("layouts.application.nav.statements")
+    visit account_statements_path
     assert_current_path account_statements_path
     assert_no_selector "#settings-nav-container"
     assert_text statement.filename

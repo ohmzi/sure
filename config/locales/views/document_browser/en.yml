@@ -2,6 +2,12 @@ en:
   document_browser:
     filters:
       search_placeholder: Search by text, title or file name
+      # The type facet (Milestone B, design D1): one page, the type as a chip.
+      type: Type
+      types:
+        all: All
+        statements: Statements
+        receipts_bills: Receipts & Bills
       # The status / review / extraction facet controls (M8 Task 9, Ruling
       # M8-L2).
       status: Status
@@ -42,6 +48,32 @@ en:
       extraction:
         processing: Extracting…
         extraction_failed: Extraction failed
+    # The one Documents page's tile states (Milestone B, design D3). Each
+    # derives from a field the row factory already carries.
+    tile:
+      states:
+        reading: Reading…
+        review: Review
+        which_account: Which account?
+        needs_you: Needs you
+        posted: Posted
+    # The "needs you" strip (design D5). It does not render at all when the
+    # count is zero.
+    attention:
+      title:
+        one: 1 document needs you
+        other: "%{count} documents need you"
+      reasons:
+        couldnt_read:
+          one: 1 couldn't be read
+          other: "%{count} couldn't be read"
+        needs_account:
+          one: 1 needs an account
+          other: "%{count} need an account"
+        ready:
+          one: 1 ready to review
+          other: "%{count} ready to review"
+      show: Show them
     viewer:
       previous: Previous
       next: Next
