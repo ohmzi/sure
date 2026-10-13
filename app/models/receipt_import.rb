@@ -198,6 +198,16 @@ class ReceiptImport < Import
         return
       end
 
+      # W3-1/W3-4: the document is ALREADY committed to an entry — the auto-post
+      # CORROBORATED a charge the account already held (or a matcher linked it).
+      # Minting here would create a second entry for that charge and STEAL the
+      # link's edge by re-pointing it, so the reviewed publish does nothing and
+      # settles the draft instead. Fails SAFE: never a second entry for one charge.
+      if document_link.entry_id.present?
+        Rails.logger.info("ReceiptImport #{id}: the document is already linked to an entry - nothing written")
+        return
+      end
+
       transaction do
         adapter = Account::ProviderImportAdapter.new(account)
         entry = adapter.import_transaction(
@@ -250,6 +260,7 @@ class ReceiptImport < Import
 
   def apply_manual_details!(total: nil, date: nil, payee: nil)
     updated = extracted_data&.deep_dup || {}
+    total_changed = false
     if total.present?
       parsed_total = begin
         BigDecimal(total.to_s.delete(","))
@@ -258,6 +269,11 @@ class ReceiptImport < Import
       end
       return false if parsed_total.nil? || !parsed_total.positive?
 
+      # W3-5: the `totals_agree` witness is the OCR/vision read's. A total that
+      # differs from what that read produced was never seen by it, so the
+      # agreement goes stale and must be cleared below. An UNCHANGED total is
+      # not an edit — the witness still stands.
+      total_changed = parsed_total != total_amount
       updated["total"] = parsed_total.to_s("F")
     end
     if date.present?
@@ -276,11 +292,25 @@ class ReceiptImport < Import
       update!(extracted_data: updated)
       update!(understanding_state: :understood, error: nil) if total_amount.present? && purchase_date.present?
       generate_rows_from_line_items!
+      clear_totals_agreement! if total_changed
     end
     true
   end
 
   private
+    # W3-5: the `totals_agree` witness is the OCR/vision read's, and a manual
+    # total edit invalidates it (spec §7.4). Clearing it (a nil, which the gate
+    # reads as "not agreement") fails SAFE — the draft falls to review rather
+    # than writing a number the witness never confirmed. The read is untouched
+    # otherwise; only this one agreement flag is dropped, so the "what I
+    # understood" panel still shows what the model read.
+    def clear_totals_agreement!
+      extraction = document_link&.extraction
+      return if extraction.nil? || extraction.validations.blank?
+
+      extraction.update!(validations: extraction.validations.merge("totals_agree" => nil))
+    end
+
     def split_into_line_items!(entry)
       splits = rows.ordered.map do |row|
         {

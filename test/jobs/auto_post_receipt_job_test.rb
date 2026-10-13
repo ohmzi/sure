@@ -200,19 +200,127 @@ class AutoPostReceiptJobTest < ActiveSupport::TestCase
                  "the refusal is a pure no-op on the document"
   end
 
-  test "an entry a human already recorded is never claimed" do
-    # `allow_heuristic_matching: false` — auto-post writes a new entry, never
-    # adopts the user's. The receipt's own identity is `document:<link id>`, so
-    # even with a same-amount manual row present, the writer mints its own.
-    create_transaction(account: @account, date: Date.new(2026, 9, 14), amount: 12, name: "Starbucks")
-    manual = @account.entries.find_by(external_id: nil, amount: 12)
+  # --- W3-1: never double-post a charge the account already holds ------------
+  #
+  # The milestone's hardest interaction (spec §8.6, statement-first ordering): if
+  # the account already recorded the charge — from a statement or a bank sync —
+  # the receipt must CORROBORATE it, not mint a second entry. Exactly one entry
+  # for one charge, always.
 
-    assert_difference -> { Entry.count }, 1 do
+  test "a receipt never double-posts a charge a statement already recorded" do
+    # The statement landed first and recorded the charge under its own identity
+    # (statement rows carry no external_id). The receipt's auto-post must attach
+    # to it as the §8.6 "corroborated by" edge, not create a duplicate.
+    statement_entry = create_transaction(
+      account: @account, date: Date.new(2026, 9, 16), amount: 12, name: "STARBUCKS"
+    )
+
+    assert_no_difference -> { Entry.count } do
       AutoPostReceiptJob.perform_now(@draft.id)
     end
 
-    assert_nil manual.reload.external_id, "the manual entry must be left exactly as it was"
-    assert_not_equal manual.id, posted_entry.id
+    assert_equal 1, Entry.where(account: @account, amount: 12, currency: "USD").count
+    link = @draft.document_link.reload
+    assert_equal "linked", link.status
+    assert_equal statement_entry.id, link.entry_id,
+                 "the receipt corroborates the charge the statement already recorded"
+  end
+
+  test "a receipt never double-posts a charge the bank sync already recorded" do
+    # The existing charge arrived by sync, so it carries an external_id. The
+    # match must reach it too (include_provider_entries), or a synced charge
+    # would be duplicated. Its identity is left exactly as it was.
+    synced = @account.entries.create!(
+      name: "STARBUCKS #1234", date: Date.new(2026, 9, 15), amount: 12,
+      currency: "USD", source: "simplefin", external_id: "simplefin_abc",
+      entryable: Transaction.new
+    )
+
+    assert_no_difference -> { Entry.count } do
+      AutoPostReceiptJob.perform_now(@draft.id)
+    end
+
+    assert_equal synced.id, @draft.document_link.reload.entry_id
+    assert_equal "simplefin_abc", synced.reload.external_id,
+                 "the synced entry's identity must be left exactly as it was"
+  end
+
+  test "an auto-post corroborates a same-charge row a person recorded, and writes no money" do
+    # A person typed the same charge by hand. Under statement-first ordering the
+    # receipt corroborates that row (spec §8.6) rather than minting a second
+    # entry for the one charge.
+    manual = create_transaction(account: @account, date: Date.new(2026, 9, 14), amount: 12, name: "Starbucks")
+
+    assert_no_difference -> { Entry.count } do
+      AutoPostReceiptJob.perform_now(@draft.id)
+    end
+
+    assert_nil manual.reload.external_id, "the manual entry's identity is left exactly as it was"
+    assert_equal manual.id, @draft.document_link.reload.entry_id,
+                 "the receipt is attached to the charge it corroborates"
+  end
+
+  test "a duplicate the receipt cannot safely corroborate falls to review, writing no money" do
+    # The charge is already held, so the writer must corroborate it. But the link
+    # is in a status that cannot record the edge (`failed` is outside both
+    # LINKABLE and PUBLISH_LINKABLE), so attaching is not safe: the auto-post
+    # falls to review rather than minting a second entry for the same charge.
+    create_transaction(account: @account, date: Date.new(2026, 9, 14), amount: 12, name: "Starbucks")
+    link = @draft.document_link
+    link.update_columns(status: "failed")
+
+    assert_no_difference -> { Entry.count } do
+      AutoPostReceiptJob.perform_now(@draft.id)
+    end
+
+    link.reload
+    assert_nil link.entry_id, "the edge could not be recorded, so nothing was written"
+    assert_equal "failed", link.status
+  end
+
+  # --- W3-4: never re-point a document already linked to an entry ------------
+
+  test "the writer does nothing for a document already linked to an entry" do
+    # A document already committed to an entry is done. The auto-post must not
+    # mint a second entry, and must never STEAL the existing edge by re-pointing
+    # the link at a new one.
+    other = create_transaction(account: @account, date: @draft.purchase_date, amount: 99, name: "Already linked")
+    link = @draft.document_link
+    link.link_to_entry!(other)
+    assert_equal other.id, link.reload.entry_id
+
+    assert_no_difference -> { Entry.count } do
+      AutoPostReceiptJob.perform_now(@draft.id)
+    end
+
+    link.reload
+    assert_equal other.id, link.entry_id, "the link must not be stolen or re-pointed"
+    assert_equal "linked", link.status
+  end
+
+  # --- W3-3: the gate is re-judged inside the lock ---------------------------
+
+  test "the gate is re-judged inside the row lock on the reloaded draft" do
+    # A TOCTOU window: the draft's stored witness is invalidated AFTER the job
+    # has read the draft but BEFORE it locks the row. A gate judged on the stale,
+    # pre-lock read would post money anyway; a gate judged inside the lock on the
+    # reloaded draft sees the invalidated witness and refuses.
+    original_with_lock = ReceiptImport.instance_method(:with_lock)
+    # The value that only a gate evaluated on the RELOADED draft can see: clear
+    # the OCR/vision witness in the DB. Captured as a local (the hook's `self` is
+    # the draft, not this test).
+    extraction = @draft.document_link.extraction
+    ReceiptImport.define_method(:with_lock) do |*args, &block|
+      extraction.update!(validations: { "totals_agree" => nil })
+      original_with_lock.bind(self).call(*args, &block)
+    end
+
+    assert_no_difference -> { Entry.count } do
+      AutoPostReceiptJob.perform_now(@draft.id)
+    end
+    assert_equal "unlinked", @draft.document_link.reload.status
+  ensure
+    ReceiptImport.define_method(:with_lock, original_with_lock)
   end
 
   # --- the provenance edge (fix round 1, finding 1) ---------------------------

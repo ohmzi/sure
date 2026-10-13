@@ -38,10 +38,11 @@ class AutoPost
     # the absence of the second witness that makes this safe.
     def totals_agree? = @extraction&.validations&.with_indifferent_access&.[]("totals_agree") == true
 
-    # `classified_by == "ai"` is the persisted form of "the classifier accepted
-    # this class" — `DocumentClassifier` writes "ai" only when it either
-    # corroborated the class or found it confidently asserted, and "fallback"
-    # otherwise. There is no separate `corroborated` column and this task does
-    # not add one.
-    def class_corroborated? = @draft.document_link&.classified_by == "ai"
+    # N6's fourth condition (§7.4): the class was CORROBORATED by the
+    # deterministic witness, not merely named by the model. `DocumentClassifier`
+    # writes this boolean to `document_links`; the gate reads it directly. A nil
+    # (a historical row, or any future write path that forgets to set it) reads
+    # as NOT corroborated — `true` and only `true`, the strict and safe reading:
+    # an unset witness must never post money.
+    def class_corroborated? = @draft.document_link&.classification_corroborated == true
 end

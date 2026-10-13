@@ -13,8 +13,9 @@ class AutoPostTest < ActiveSupport::TestCase
   # `stub_extraction`'s `classifications:` argument was never read by the gate
   # (which reads `draft.document_link.classified_by`, not the extraction). The
   # doubles now carry each flag to the thing the gate actually reads.
-  def stub_receipt(account: true, single: true, classified: true, total: true, date: true, undone: false)
-    link = Struct.new(:classified_by, :auto_post_undone?).new(classified ? "ai" : "fallback", undone)
+  def stub_receipt(account: true, single: true, corroborated: true, classified_by: "ai", total: true, date: true, undone: false)
+    link = Struct.new(:classified_by, :classification_corroborated, :auto_post_undone?)
+                .new(classified_by, corroborated, undone)
     Struct.new(:account, :total_amount, :purchase_date, :line_items_split?, :document_link).new(
       account ? accounts(:depository) : nil,
       total ? BigDecimal("12.34") : nil,
@@ -27,9 +28,9 @@ class AutoPostTest < ActiveSupport::TestCase
     Struct.new(:validations).new({ "totals_agree" => totals_agree })
   end
 
-  def allowed?(totals_agree: true, account: true, single: true, classified: true, total: true, date: true, undone: false)
+  def allowed?(totals_agree: true, account: true, single: true, corroborated: true, classified_by: "ai", total: true, date: true, undone: false)
     AutoPost.allowed?(
-      draft: stub_receipt(account: account, single: single, classified: classified, total: total, date: date, undone: undone),
+      draft: stub_receipt(account: account, single: single, corroborated: corroborated, classified_by: classified_by, total: total, date: date, undone: undone),
       extraction: stub_extraction(totals_agree: totals_agree)
     )
   end
@@ -39,7 +40,20 @@ class AutoPostTest < ActiveSupport::TestCase
     assert_not allowed?(totals_agree: false), "the two reads must agree on the total"
     assert_not allowed?(account: false), "an unresolved account can never auto-post"
     assert_not allowed?(single: false), "a split or batch is never auto-posted"
-    assert_not allowed?(classified: false), "an uncorroborated class is never auto-posted"
+    assert_not allowed?(corroborated: false), "an uncorroborated class is never auto-posted"
+  end
+
+  # N6's fourth condition is corroboration by DocumentClassifier, not merely "the
+  # ai named a class" (§7.4). The classifier's `corroborated` boolean is now
+  # persisted on the link; the gate must read THAT, so a class the deterministic
+  # witness never confirmed cannot post — even though it was classified by the ai.
+  test "a class the classifier did not corroborate refuses, even classified by the ai" do
+    assert allowed?(classified_by: "ai", corroborated: true),
+           "a corroborated class is the only way through"
+    assert_not allowed?(classified_by: "ai", corroborated: false),
+               "a confidently-asserted but uncorroborated class is not agreement"
+    assert_not allowed?(classified_by: "ai", corroborated: nil),
+               "NULL is not corroboration (stricter/safer for historical rows)"
   end
 
   test "resolved? needs all three: account, total and purchase date" do

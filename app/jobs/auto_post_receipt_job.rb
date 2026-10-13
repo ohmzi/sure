@@ -22,40 +22,77 @@ class AutoPostReceiptJob < ApplicationJob
     # tap. Checked here (not only at the enqueue site) so the writer never trusts
     # its caller.
     return unless draft.document_link.receipt?
-
-    extraction = draft.document_link.extraction
-    return unless AutoPost.allowed?(draft: draft, extraction: extraction)
     return unless Setting.auto_post_receipts?
-    return if draft.data_committed?
+
+    linked = false
 
     draft.with_lock do
+      # Every judgement below is made on the draft `with_lock` just RELOADED
+      # (W3-3), so the gate is never separated from the values actually written:
+      # a value that changed between the job's first read and this lock (a manual
+      # edit, a fresh read) is judged as it now stands, not as it was.
+      link = draft.document_link
+      return if link.nil?
+      return unless AutoPost.allowed?(draft: draft, extraction: link.extraction)
       return if draft.data_committed?
 
-      entry = Account::ProviderImportAdapter.new(draft.account).import_transaction(
-        external_id: "document:#{draft.document_link.id}",
-        source: "document",
-        amount: draft.total_amount,
-        # Import#default_currency is private; this is its exact rule
-        # (account&.currency || family.currency), written out so the job can read
-        # it through a public path. The gate has already guaranteed the account.
-        currency: draft.account.currency || draft.family.currency,
-        date: draft.purchase_date,
-        name: draft.payee.presence || draft.document_link.title.presence || "Receipt",
-        allow_heuristic_matching: false
-      )
-      entry.update!(import: draft, import_locked: true, ai_posted_at: Time.current)
+      # W3-4: a document already committed to an entry is done. Never mint a
+      # second entry for it, and never STEAL the existing edge by re-pointing the
+      # link at a new one.
+      return if link.entry_id.present?
 
-      # The provenance edge is not optional: an auto-posted entry with no document
-      # is exactly the provenance gap this milestone exists to close. Same shape
-      # as the reviewed publish — the write accepts PUBLISH_LINKABLE (a link the
-      # user DISMISSED in the reconciliations inbox is still a link this write
-      # must record), and a refusal RAISES inside the lock so the money rolls back
-      # rather than committing an entry with no edge.
-      unless draft.document_link.link_to_entry!(entry, from: DocumentLink::PUBLISH_LINKABLE)
-        raise "could not record the document provenance edge on #{draft.document_link.id}"
+      if (existing = existing_entry_for(draft))
+        # W3-1 (statement-first ordering): the account already holds this charge,
+        # so the receipt CORROBORATES it (spec §8.6) instead of minting a
+        # duplicate. If the edge cannot be recorded safely, this is a refusal —
+        # fall to review and write no money rather than commit a second entry.
+        return unless link.link_to_entry!(existing, from: DocumentLink::PUBLISH_LINKABLE)
+        linked = true
+      else
+        entry = Account::ProviderImportAdapter.new(draft.account).import_transaction(
+          external_id: "document:#{link.id}",
+          source: "document",
+          amount: draft.total_amount,
+          # Import#default_currency is private; this is its exact rule
+          # (account&.currency || family.currency), written out so the job can read
+          # it through a public path. The gate has already guaranteed the account.
+          currency: draft.account.currency || draft.family.currency,
+          date: draft.purchase_date,
+          name: draft.payee.presence || link.title.presence || "Receipt",
+          allow_heuristic_matching: false
+        )
+        entry.update!(import: draft, import_locked: true, ai_posted_at: Time.current)
+
+        # The provenance edge is not optional: an auto-posted entry with no document
+        # is exactly the provenance gap this milestone exists to close. Same shape
+        # as the reviewed publish — the write accepts PUBLISH_LINKABLE (a link the
+        # user DISMISSED in the reconciliations inbox is still a link this write
+        # must record), and a refusal RAISES inside the lock so the money rolls back
+        # rather than committing an entry with no edge.
+        unless link.link_to_entry!(entry, from: DocumentLink::PUBLISH_LINKABLE)
+          raise "could not record the document provenance edge on #{link.id}"
+        end
+        linked = true
       end
     end
 
-    draft.document_link.broadcast_row_update!
+    draft.document_link.reload.broadcast_row_update! if linked
   end
+
+  private
+    # The entry the account already holds for the charge this receipt is evidence
+    # of, if any (W3-1, spec N6/N13): the adapter's own reconciliation window —
+    # same amount and currency, a date within ±3 days. `include_provider_entries`
+    # because the existing charge may have arrived by bank sync or from a
+    # statement, not only by hand, and every one of those is money already
+    # written for this charge.
+    def existing_entry_for(draft)
+      Account::ProviderImportAdapter.new(draft.account).find_duplicate_transaction(
+        date: draft.purchase_date,
+        amount: draft.total_amount,
+        currency: draft.account.currency || draft.family.currency,
+        date_window: 3,
+        include_provider_entries: true
+      )
+    end
 end

@@ -51,3 +51,6 @@ understood_receipt_link:
   # The classifier's settled confidence for the read above (the panel's header).
   classified_by: ai
   classification_confidence: 0.96
+  # The deterministic witness agreed on this class (spec §7.4, N6): the auto-post
+  # gate requires it, so the fixture the auto-post tests post from must carry it.
+  classification_corroborated: true

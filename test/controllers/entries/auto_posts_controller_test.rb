@@ -41,6 +41,23 @@ class Entries::AutoPostsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_content
   end
 
+  # A reconciled row is bank-evidenced (spec N9): the statement proved this
+  # charge. Reversing it would drop money a bank record attested to and orphan
+  # the statement's reconciled chip, so the undo refuses it and leaves the row
+  # exactly as it was.
+  test "undo refuses a reconciled entry and leaves it in place" do
+    @entry.update!(reconciled_at: Time.current)
+    assert @entry.reconciled?
+
+    assert_no_difference -> { Entry.count } do
+      delete entry_auto_post_path(@entry)
+    end
+
+    assert_response :unprocessable_content
+    assert_equal I18n.t("entries.auto_posts.destroy.reconciled"), flash[:alert]
+    assert Entry.exists?(@entry.id), "the reconciled row survives the refused undo"
+  end
+
   # 🔴 The document must not be collateral damage. An entry the machine wrote
   # exists because a person handed it a document; undoing the entry detaches the
   # link and leaves the bytes, the read and the tile exactly where they were.

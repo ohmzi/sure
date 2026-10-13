@@ -25,6 +25,16 @@ class Entries::AutoPostsController < ApplicationController
     # A row a person typed is not the machine's to reverse.
     return head :unprocessable_content if entry.ai_posted_at.nil?
 
+    # A reconciled row is bank evidence (spec N9): the statement proved this
+    # charge, so reversing it would drop bank-evidenced money and orphan the
+    # statement's reconciled chip. The undo refuses and leaves the row exactly
+    # as it was. The copy names why, because a bare refusal the user cannot act
+    # on is a wall.
+    if entry.reconciled?
+      flash.now[:alert] = t(".reconciled")
+      return head :unprocessable_content
+    end
+
     # The document(s) this entry came from, captured BEFORE the destroy detaches
     # them (Entry's before_destroy :unlink_document_links). The undo must be
     # DURABLE: `data_committed?` is `entries.exists?`, so removing the entry

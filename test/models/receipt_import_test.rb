@@ -138,6 +138,26 @@ class ReceiptImportTest < ActiveSupport::TestCase
     assert_equal 1, draft.entries.where(parent_entry_id: nil).count
   end
 
+  # W3-1's hard requirement, on the reviewed-publish path: the auto-post
+  # corroborates a charge the account already holds by linking the document to
+  # it. A later manual publish of that same draft must then mint NOTHING — a
+  # second entry would double the charge and re-pointing the link would steal the
+  # corroboration edge.
+  test "publishing a draft whose document is already linked mints nothing and keeps the edge" do
+    draft = imports(:receipt_understood)
+    existing = create_transaction(account: accounts(:depository), date: Date.new(2026, 9, 16),
+                                  amount: 12, name: "STARBUCKS")
+    draft.document_link.link_to_entry!(existing)
+    assert_equal existing.id, draft.document_link.reload.entry_id
+
+    assert_no_difference -> { Entry.count } do
+      draft.publish
+    end
+
+    assert_equal existing.id, draft.reload.document_link.entry_id,
+                 "the existing corroboration edge must not be stolen"
+  end
+
   test "needs_understanding accepts a manual total and becomes publishable" do
     draft = imports(:receipt_draft)
 
@@ -150,6 +170,36 @@ class ReceiptImportTest < ActiveSupport::TestCase
 
   test "a garbage manual total is refused" do
     assert_not imports(:receipt_draft).apply_manual_details!(total: "not money")
+  end
+
+  # W3-5: the `totals_agree` witness (spec §7.4) belongs to the OCR/vision read.
+  # A total a person TYPED was never seen by that read, so editing the total must
+  # clear the stale agreement — otherwise the auto-post gate would post a number
+  # its witness never confirmed.
+  test "a manual total edit clears the totals_agree witness" do
+    draft = imports(:receipt_understood)
+    extraction = draft.document_link.extraction
+    assert_equal true, extraction.validations["totals_agree"],
+                 "the fixture's read must actually agree, or the test is vacuous"
+
+    assert draft.apply_manual_details!(total: "18.40")
+
+    assert_equal BigDecimal("18.40"), draft.reload.total_amount
+    assert_not extraction.reload.validations["totals_agree"],
+               "the stale witness must be cleared so the gate cannot post on it"
+  end
+
+  # The other half of W3-5: resubmitting the SAME total is not an edit — the
+  # witness still stands. Clearing on an unchanged value would refuse an
+  # otherwise-safe auto-post just because the review form always submits the total.
+  test "resubmitting the same total keeps the witness" do
+    draft = imports(:receipt_understood)
+    extraction = draft.document_link.extraction
+
+    assert draft.apply_manual_details!(total: draft.total_amount.to_s("F"))
+
+    assert_equal true, extraction.reload.validations["totals_agree"],
+                 "an unchanged total is not an edit; the OCR/vision witness still holds"
   end
 
   test "the duplicate hint is read-only" do

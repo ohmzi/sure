@@ -170,7 +170,8 @@ class DocumentUnderstandingJob < ApplicationJob
                  ocr_finished_at: Time.current)
     link.classify!(document_class: classification.document_class,
                    confidence: classification.confidence,
-                   classified_by: classification.classified_by)
+                   classified_by: classification.classified_by,
+                   corroborated: classification.corroborated)
     # Route while the link is still `processing` — settle! flips it to
     # `unlinked` immediately after, and link_to_entry! only accepts the
     # LINKABLE statuses (the routed draft is linked at PUBLISH, not here).

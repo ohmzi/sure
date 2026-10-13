@@ -178,11 +178,14 @@ class DocumentLink < ApplicationRecord
   def settle! = transition!(from: "processing", to: "unlinked", failure_message: nil)
 
   # The AI's class, written once the read settles. `source` is a fact about the
-  # document, decided by the read's DocumentClassifier.
-  def classify!(document_class:, confidence:, classified_by:)
+  # document, decided by the read's DocumentClassifier. `corroborated` is the
+  # classifier's deterministic-witness verdict (spec §7.4, N6) — persisted so
+  # the auto-post gate can require the witness, not merely the model's assertion.
+  def classify!(document_class:, confidence:, classified_by:, corroborated:)
     self.class.where(id: id).update_all(
       source: document_class, classified_by: classified_by,
-      classification_confidence: confidence, updated_at: Time.current
+      classification_confidence: confidence,
+      classification_corroborated: corroborated, updated_at: Time.current
     )
   end
 

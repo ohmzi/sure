@@ -38,3 +38,4 @@ en:
     auto_posts:
       destroy:
         undone: The transaction the app added was removed.
+        reconciled: This transaction is matched to a bank statement, so it can't be undone here.
