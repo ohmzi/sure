@@ -32,6 +32,14 @@ class Import::AccountsController < ApplicationController
     saved = @import.is_a?(PdfImport) ? @import.assign_account!(account) : @import.update(account: account)
     return redirect_back_or_to import_path(@import), alert: t("imports.update.account_locked") unless saved
 
+    # Spec N14's learned half. This screen is the assent line: the user has just
+    # confirmed which account the document belongs to, so that account may learn
+    # the card identity the read reported. Fill-only — a value the user typed is
+    # never overwritten (see Account#learn_card_identity). The write-back does
+    # NOT fire where the guess was merely made (the read/resolver), so an
+    # unconfirmed match can never become durable identity.
+    teach_account(account)
+
     # (Owner decision 2026-10-11, hotfix; the intake hotfix's shape, re-applied
     # on this lane by M8 Task 9) the intake is fire-and-forget: land the user on
     # the archive, where the document appears immediately with its live status,
@@ -42,6 +50,17 @@ class Import::AccountsController < ApplicationController
   end
 
   private
+    # The read that produced this draft, if the intake pipeline made one. The
+    # verdict is the model's own output, kept on the extraction; the account
+    # learns the card identity the document reported for it. An import with no
+    # extraction (hand-made, or pre-intake) teaches nothing.
+    def teach_account(account)
+      extraction = @import.document_extraction
+      return if extraction.nil?
+
+      account.learn_card_identity(DocumentUnderstanding.new(extraction.verdict))
+    end
+
     def set_import
       @import = Current.family.imports.find(params[:import_id])
     end

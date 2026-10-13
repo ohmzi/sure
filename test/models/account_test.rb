@@ -967,6 +967,45 @@ class AccountTest < ActiveSupport::TestCase
     assert account.card_identity?
   end
 
+  # --- Spec N14's learned half: Account#learn_card_identity -------------------
+
+  test "learn_card_identity fills a blank account, then holds it against later reads" do
+    account = accounts(:credit_card)
+    account.update!(last4: nil, account_network: nil)
+
+    account.learn_card_identity(DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"))
+    assert_equal "4242", account.last4
+    assert_equal "visa", account.account_network
+
+    # Once it knows its card, a disagreeing read is a no-op — never a rewrite.
+    account.learn_card_identity(DocumentUnderstanding.new("card_last4" => "1111", "card_network" => "amex"))
+    assert_equal "4242", account.reload.last4
+    assert_equal "visa", account.account_network
+  end
+
+  test "learn_card_identity never overwrites a typed network while the last4 is blank" do
+    # Fill-only is per field: the blank last4 is filled, but a network the user
+    # typed survives the model's reading.
+    account = accounts(:credit_card)
+    account.update!(last4: nil, account_network: "amex")
+
+    account.learn_card_identity(DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"))
+
+    assert_equal "4242", account.reload.last4, "the blank last4 is filled"
+    assert_equal "amex", account.account_network, "the user's typed network is never overwritten"
+  end
+
+  test "learn_card_identity leaves a field the reading did not supply alone" do
+    # A statement reports account_last4 but no card_network; the network stays nil.
+    account = accounts(:credit_card)
+    account.update!(last4: nil, account_network: nil)
+
+    account.learn_card_identity(DocumentUnderstanding.new("account_last4" => "1234"))
+
+    assert_equal "1234", account.reload.last4
+    assert_nil account.account_network
+  end
+
   test "a blank last4 and network normalize to nil so a non-card account stays valid" do
     # The form always submits these two fields, empty for a non-card account.
     # A blank text field arrives as "", which the `allow_nil` validations below

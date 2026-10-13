@@ -270,6 +270,18 @@ class DocumentUnderstandingJob < ApplicationJob
     # nothing is written and the wizard's step-3 screen asks — which stays the
     # ONLY place a user is asked which account a document belongs to.
     #
+    # This is NOT where an account learns its identity (Task 11). The write-back
+    # fires at the human's confirmation (Import::AccountsController#update), and
+    # cannot fire here even in principle: of the terms this call supplies, only
+    # last4 (0.35) is worth much — institution is 0.35, network 0.05, currency
+    # 0.05, and name is not supplied at all. Without the last4 term the ceiling
+    # is 0.45, below the 0.60 bar, so a match can only clear the bar when the
+    # account's last4 ALREADY equals the hint. Every account this could prefill
+    # therefore already has its card identity, and teaching a blank account from
+    # a prefill is impossible. A prefill is the resolver's unconfirmed guess;
+    # writing durable identity from it would launder that guess into state the
+    # fill-only rule then makes permanent.
+    #
     # The draft is found by whichever edge the leg created: a receipt/bill draft
     # (ReceiptImport) hangs off the document link, while the statement leg's
     # PdfImport is created against the vault row and its link to this document is

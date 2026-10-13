@@ -113,7 +113,59 @@ class Import::AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_equal accounts(:depository), statement.reload.account
   end
 
+  # --- Task 11: the confirmed match teaches the account its identity ----------
+  #
+  # Spec N14's learned half. The brief placed these in the job test, but they
+  # drive `patch import_account_path` — the real controller — and
+  # `ActiveSupport::TestCase` has no HTTP verbs or `sign_in`. They live here so
+  # the assertion is about the app's behaviour, not a test seam.
+
+  test "confirming the read teaches the account its own card identity" do
+    account = accounts(:credit_card)
+    account.update!(last4: nil, account_network: nil)
+    draft = read_receipt
+
+    # The user confirms on the step-3 screen, driven through the real controller.
+    patch import_account_path(draft), params: { import: { account_id: account.id } }
+
+    assert_equal "4242", account.reload.last4
+    assert_equal "visa", account.account_network
+  end
+
+  test "a learned last4 never overwrites one the user typed" do
+    account = accounts(:credit_card)
+    account.update!(last4: "9999", account_network: "amex")
+    draft = read_receipt
+
+    patch import_account_path(draft), params: { import: { account_id: account.id } }
+
+    assert_equal "9999", account.reload.last4, "a model's reading must never overwrite the user's value"
+    assert_equal "amex", account.account_network
+  end
+
   private
+    # A receipt read by the real pipeline, so the confirm below acts on the
+    # DocumentExtraction the job actually recorded rather than a hand-built seam.
+    def read_receipt
+      link = DocumentLink.create!(family: families(:dylan_family), created_by: users(:family_admin),
+                                  source: "other", status: "queued", original_filename: "receipt.png",
+                                  content_type: "image/png")
+      link.stage!(io: StringIO.new("PNG-#{SecureRandom.hex(4)}"), filename: "receipt.png",
+                  content_type: "image/png")
+      link.update!(status: "queued")
+      stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+      Provider::Registry.stubs(:preferred_llm_provider).returns(
+        OcrTestHelper::StubDocumentProvider.new(
+          "document_class" => "receipt", "total" => "12.34", "date" => "2026-10-01",
+          "payee" => "Acme Store", "currency" => "USD",
+          "card_last4" => "4242", "card_network" => "visa",
+          "line_items" => [ { "description" => "Coffee", "amount" => "12.34" } ]
+        )
+      )
+      DocumentUnderstandingJob.perform_now(link.id)
+      ReceiptImport.find_by!(document_link_id: link.id)
+    end
+
     # A statement-backed PdfImport, the seed shape M2's controller tests use.
     def statement_backed_import(account:)
       import = imports(:pdf)

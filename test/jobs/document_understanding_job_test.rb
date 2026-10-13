@@ -657,6 +657,25 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal accounts(:depository).id, import.account_id
   end
 
+  # --- Task 11: what a read teaches, and only on a human's word ----------------
+
+  test "an unconfirmed read never teaches the account its card identity" do
+    # Spec N14: the account learns from the first CONFIRMED match. The read alone
+    # is the AI's guess — even a read carrying a card_last4 — and writing durable
+    # identity from it would launder that guess into state the fill-only rule then
+    # makes permanent. This pins the assent line: the job never writes here; only
+    # the step-3 confirm (Import::AccountsController#update) does.
+    account = accounts(:credit_card)
+    account.update!(last4: nil, account_network: nil)
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_provider(FakeProvider.new(RECEIPT.merge("card_network" => "visa")))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_nil account.reload.last4, "only a human's confirmation writes durable identity"
+    assert_nil account.account_network
+  end
+
   # --- Task 11 fix round 1: the read heartbeat ---------------------------------
 
   test "each batch heartbeats the row so a long read never looks stale" do

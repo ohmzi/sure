@@ -593,6 +593,27 @@ class Account < ApplicationRecord
   # with no last4 resolves by institution and name alone.
   def card_identity? = last4.present?
 
+  # Spec N14's learned half: the first time a human confirms which account a
+  # document belongs to, the account it names learns the card identity the
+  # document itself reported. Called from Import::AccountsController#update —
+  # the one screen holding the user's explicit assent — with the read's verdict.
+  #
+  # Fill-only, per field: a value the user typed is never overwritten by a
+  # model's reading, and a field the reading did not supply is left alone. An
+  # account that already knows its card (`card_identity?`) is never touched at
+  # all, so a hand-typed `last4` survives a read that says something else.
+  def learn_card_identity(understanding)
+    return if card_identity?
+
+    # A card's own last4 wins; a statement supplies account_last4 instead.
+    last4 = understanding.card_last4.presence || understanding.account_last4
+
+    attributes = {}
+    attributes[:last4] = last4 if last4.present?
+    attributes[:account_network] = understanding.card_network if understanding.card_network.present? && account_network.blank?
+    update!(attributes) if attributes.any?
+  end
+
   def manual_crypto_exchange?
     accountable_type == "Crypto" &&
       accountable&.subtype == "exchange" &&
