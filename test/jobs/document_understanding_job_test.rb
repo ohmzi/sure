@@ -242,14 +242,16 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     stub_request(:post, "#{Ocr.url}/ocr").to_raise(Faraday::ConnectionFailed.new("refused"))
     stub_provider(FakeProvider.new(RECEIPT))
 
-    # The retry counter is already at the ceiling when the failure handler runs
-    # (the retry_on block fires instead of re-enqueueing) — the terminal state
-    # the per-attempt test above does not reach. Rails 8.1 tracks retries per
-    # exception class in `exception_executions`, keyed by the exception list's
-    # `to_s`; attempts: 8, and the handler adds one more.
-    job = DocumentUnderstandingJob.new(@link.id)
-    job.exception_executions = { "[Ocr::Error]" => 7 }
-    job.perform_now
+    # Drive the REAL retry ladder instead of seeding ActiveJob's internal
+    # `exception_executions` hash: perform_enqueued_jobs' block form performs the
+    # retry chain (including the `wait:`-scheduled re-enqueues), so each transient
+    # failure re-enqueues until the attempts are spent and the retry_on block
+    # lands the row terminally — the state the per-attempt test above never
+    # reaches. No ActiveJob-internal key is assumed, so a Rails change cannot
+    # silently stop exercising this path.
+    perform_enqueued_jobs(only: DocumentUnderstandingJob) do
+      DocumentUnderstandingJob.perform_later(@link.id)
+    end
 
     assert_equal "failed", @link.reload.status
     assert_includes @link.failure_message, "unreachable"
@@ -287,9 +289,10 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     stub_ocr_success(pages: [ { page: 1, text: "TOTAL 12.34", confidence: 0.97 } ])
     stub_provider(FakeProvider.new(RECEIPT, success: false))
 
-    job = DocumentUnderstandingJob.new(@link.id)
-    job.exception_executions = { "[Provider::Error]" => 7 }
-    job.perform_now
+    # Same real-ladder drive as the OCR exhaustion test: no ActiveJob internals.
+    perform_enqueued_jobs(only: DocumentUnderstandingJob) do
+      DocumentUnderstandingJob.perform_later(@link.id)
+    end
 
     assert_equal "failed", @link.reload.status
     assert_includes @link.failure_message, "AI provider unavailable"
