@@ -581,6 +581,7 @@ en:
       custom_column_requires_inflow: "Custom column imports require an inflow column to be selected"
       interrupted: "The background worker was interrupted before this finished. Imported data was rolled back — you can safely try again."
       presumed_lost: "Marked as failed after the background job was presumed lost. The imported data was rolled back — you can safely try again."
+      existing_charge: "A matching transaction is already recorded on this account, so this receipt was not posted again. This receipt needs your decision."
     document_types:
       bank_statement: Bank Statement
       credit_card_statement: Credit Card Statement
