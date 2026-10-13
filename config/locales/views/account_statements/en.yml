@@ -56,7 +56,7 @@ en:
       upload_description: Upload statements to the inbox, or choose an account to link immediately.
       upload_title: Upload statements
     link:
-      account_locked: This statement is being published right now; try again in a moment.
+      account_locked: This statement can no longer be re-targeted here.
       no_account: Choose an account before linking this statement.
       success: Linked statement to %{account}.
     period:

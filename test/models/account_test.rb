@@ -981,14 +981,14 @@ class AccountTest < ActiveSupport::TestCase
     account.update!(last4: nil, account_network: nil)
 
     account.learn_card_identity(
-      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), last4_in_ocr: true
+      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), ocr_text: "CARD 4242"
     )
     assert_equal "4242", account.last4
     assert_equal "visa", account.account_network
 
     # Once it knows its card, a disagreeing read is a no-op — never a rewrite.
     account.learn_card_identity(
-      DocumentUnderstanding.new("card_last4" => "1111", "card_network" => "amex"), last4_in_ocr: true
+      DocumentUnderstanding.new("card_last4" => "1111", "card_network" => "amex"), ocr_text: "CARD 1111"
     )
     assert_equal "4242", account.reload.last4
     assert_equal "visa", account.account_network
@@ -1002,11 +1002,28 @@ class AccountTest < ActiveSupport::TestCase
     account.update!(last4: nil, account_network: nil)
 
     account.learn_card_identity(
-      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), last4_in_ocr: false
+      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), ocr_text: "ACME STORE"
     )
 
     assert_nil account.reload.last4, "an unwitnessed last4 is never written"
     assert_nil account.account_network
+  end
+
+  test "learn_card_identity stores the witnessed account number, never a hallucinated card" do
+    # The read fabricated card_last4 "4242" while the page genuinely carries the
+    # ACCOUNT number "1234". The witness is number-specific, so the fabricated
+    # card never becomes durable identity; the witnessed account number is stored
+    # instead, and the network (a fact about the fabricated card) is not learned.
+    account = accounts(:credit_card)
+    account.update!(last4: nil, account_network: nil)
+
+    account.learn_card_identity(
+      DocumentUnderstanding.new("card_last4" => "4242", "account_last4" => "1234", "card_network" => "visa"),
+      ocr_text: "ACCOUNT 1234"
+    )
+
+    assert_equal "1234", account.reload.last4, "the hallucinated card number must never be written"
+    assert_nil account.account_network, "the network rode the unwitnessed card and is not learned"
   end
 
   test "learn_card_identity never overwrites a last4 the user typed" do
@@ -1014,7 +1031,7 @@ class AccountTest < ActiveSupport::TestCase
     account.update!(last4: "9999", account_network: "amex")
 
     account.learn_card_identity(
-      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), last4_in_ocr: true
+      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), ocr_text: "CARD 4242"
     )
 
     assert_equal "9999", account.reload.last4, "a model's reading must never overwrite the user's value"
@@ -1028,7 +1045,7 @@ class AccountTest < ActiveSupport::TestCase
     account.update!(last4: "9999", account_network: nil)
 
     account.learn_card_identity(
-      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), last4_in_ocr: true
+      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), ocr_text: "CARD 4242"
     )
 
     assert_equal "9999", account.reload.last4, "the typed last4 is not overwritten"
@@ -1040,7 +1057,7 @@ class AccountTest < ActiveSupport::TestCase
     account.update!(last4: nil, account_network: "amex")
 
     account.learn_card_identity(
-      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), last4_in_ocr: true
+      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), ocr_text: "CARD 4242"
     )
 
     assert_equal "4242", account.reload.last4, "the blank last4 is filled"
@@ -1052,7 +1069,7 @@ class AccountTest < ActiveSupport::TestCase
     account = accounts(:credit_card)
     account.update!(last4: nil, account_network: nil)
 
-    account.learn_card_identity(DocumentUnderstanding.new("account_last4" => "1234"), last4_in_ocr: true)
+    account.learn_card_identity(DocumentUnderstanding.new("account_last4" => "1234"), ocr_text: "ACCOUNT 1234")
 
     assert_equal "1234", account.reload.last4
     assert_nil account.account_network

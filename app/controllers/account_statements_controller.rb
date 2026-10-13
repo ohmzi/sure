@@ -134,10 +134,11 @@ class AccountStatementsController < ApplicationController
     account = Current.user.accessible_accounts.find(account_id)
     return unless require_account_permission!(account)
 
-    # A refused assignment (a concurrent publish made the import no longer
-    # re-targetable under its lock) must NOT report success: the statement is
-    # still unlinked, and telling the user otherwise is a silent lie about
-    # money-adjacent state.
+    # A refused assignment must NOT report success: the statement is still
+    # unlinked, and telling the user otherwise is a silent lie about
+    # money-adjacent state. `assign_account!` refuses when the import is no
+    # longer re-targetable — its data already landed, or a publish/revert holds
+    # the row — so the copy stays general rather than promising a retry.
     unless assign_statement_account(account)
       redirect_to account_statement_path(@statement), alert: t("account_statements.link.account_locked")
       return

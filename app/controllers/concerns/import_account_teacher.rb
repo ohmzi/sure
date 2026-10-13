@@ -1,17 +1,20 @@
 # frozen_string_literal: true
 
-# Shared by the two controllers where a human sets an import's account:
-# Import::AccountsController (the step-3 confirm screen) and ImportsController
-# (a statement review screen's inline account select). Both hold the same
+# Shared by the controllers where a human sets an import's account:
+# Import::AccountsController (the step-3 confirm screen), ImportsController
+# (a statement review screen's inline account select) and
+# AccountStatementsController (the statement page's picker). All hold the same
 # signal — a person has just said which account the document belongs to — so
-# both let that account learn its card identity from the read that produced the
+# all let that account learn its card identity from the read that produced the
 # draft (spec N14's learned half).
 #
-# This is only the derivation of Account#learn_card_identity's two inputs; the
-# rule itself, its per-field fill-only guards and its last4 witness gate live on
-# the model. The witness is the pipeline's own deterministic check
-# (DocumentUnderstandingJob.validate -> document_extractions.validations), so an
-# unconfirmed or unwitnessed read can never become durable identity.
+# This is only the derivation of Account#learn_card_identity's inputs; the rule
+# itself, its per-field fill-only guards and its NUMBER-SPECIFIC last4 witness
+# live on the model. The witness needs the page text, not a bare flag, because
+# the read reports two last4 candidates and a model can hallucinate one while
+# the other is genuinely on the page — so the OCR text (the same snapshot the
+# pipeline persisted) is handed to the model, which stores only a value it can
+# find there.
 module ImportAccountTeacher
   private
     def teach_account(account)
@@ -20,7 +23,7 @@ module ImportAccountTeacher
 
       account.learn_card_identity(
         DocumentUnderstanding.new(extraction.verdict),
-        last4_in_ocr: extraction.validations["last4_in_ocr"]
+        ocr_text: extraction.ocr_text
       )
     end
 end

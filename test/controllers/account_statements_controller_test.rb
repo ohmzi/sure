@@ -605,6 +605,7 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     link = DocumentLink.create!(family: @account.family, source: "statement", status: "unlinked",
                                 account_statement: statement, original_filename: "teach_picker.pdf")
     extraction = DocumentExtraction.record!(document_link: link, status: "succeeded",
+                                            ocr_text: "CARD 4242",
                                             verdict: { "card_last4" => "4242", "card_network" => "visa" },
                                             validations: { "last4_in_ocr" => true })
     PdfImport.find_or_create_from_statement!(statement: statement)
@@ -614,6 +615,31 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "4242", account.reload.last4
     assert_equal "visa", account.account_network
+  end
+
+  test "the picker never seeds the learned identity from an unwitnessed card number" do
+    # The read hallucinates card_last4 "4242" while the page carries the ACCOUNT
+    # number "1234". The witness is number-specific, so the fabricated card must
+    # not become the account's durable identity on this surface either.
+    account = accounts(:credit_card)
+    account.update!(last4: nil, account_network: nil)
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: "hallucinated.pdf", content_type: "application/pdf", content: "%PDF-1.4 hallucinated")
+    )
+    link = DocumentLink.create!(family: @account.family, source: "statement", status: "unlinked",
+                                account_statement: statement, original_filename: "hallucinated.pdf")
+    extraction = DocumentExtraction.record!(document_link: link, status: "succeeded",
+                                            ocr_text: "ACCOUNT 1234",
+                                            verdict: { "card_last4" => "4242", "account_last4" => "1234", "card_network" => "visa" },
+                                            validations: { "last4_in_ocr" => true })
+    PdfImport.find_or_create_from_statement!(statement: statement)
+             .update!(document_extraction: extraction)
+
+    patch link_account_statement_url(statement), params: { account_id: account.id }
+
+    assert_equal "1234", account.reload.last4, "the hallucinated card number must never be written"
+    assert_nil account.account_network, "the network rode the unwitnessed card and is not learned"
   end
 
   test "a refused assignment surfaces an alert instead of a false success" do

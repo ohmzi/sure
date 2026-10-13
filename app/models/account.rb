@@ -596,7 +596,7 @@ class Account < ApplicationRecord
   # Spec N14's learned half: the first time a human confirms which account a
   # document belongs to, the account it names learns the card identity the
   # document itself reported. Called from the two controllers holding that
-  # assent (ImportAccountTeacher) with the read's verdict and its last4 witness.
+  # assent (ImportAccountTeacher) with the read's verdict and the page text.
   #
   # Fill-only, PER FIELD: a value the user typed is never overwritten by a
   # model's reading, and a field the reading did not supply is left alone. There
@@ -605,19 +605,26 @@ class Account < ApplicationRecord
   # (a typed last4 with a blank network could never gain its network). The
   # per-field blank checks below do the whole "never overwrite" job.
   #
-  # Gated on the pipeline's deterministic last4 witness (spec's risk row): a
-  # durable identity is learned only from a reading whose card number the OCR
-  # text actually contains, never from an unwitnessed model claim. This write is
-  # sticky, and `last4` weighs 0.35 in the matcher, so a hallucinated last4 would
-  # not mislabel one document -- it would poison every future match for this
-  # account. The network rides the same witness: we learn no card identity from a
-  # reading whose card number we could not find on the page.
-  def learn_card_identity(understanding, last4_in_ocr:)
-    last4 = understanding.card_last4.presence || understanding.account_last4
+  # The witness is NUMBER-SPECIFIC (spec §7.5). A read reports two candidates —
+  # the card number and the account number — and a model can hallucinate one
+  # while the other is genuinely on the page, so a blanket "some last4 was seen"
+  # flag would write the fabricated one into permanent identity. This write is
+  # sticky and `last4` weighs 0.35 in the matcher, so a hallucinated last4 would
+  # not mislabel one document — it would poison every future match for this
+  # account. The value stored must therefore be a value the OCR text actually
+  # contains: the card's when the card number appears, else the account's when it
+  # appears, else nothing. The network rides the CARD's witness only — it is a
+  # fact about the card, and we learn no card identity from a reading whose card
+  # number we could not find on the page.
+  def learn_card_identity(understanding, ocr_text:)
+    text = ocr_text.to_s
+    card_last4 = witnessed_last4(understanding.card_last4, text)
+    account_last4 = witnessed_last4(understanding.account_last4, text)
+    last4 = card_last4 || account_last4
 
     attributes = {}
-    attributes[:last4] = last4 if last4.present? && last4_in_ocr && self.last4.blank?
-    attributes[:account_network] = understanding.card_network if last4_in_ocr && understanding.card_network.present? && account_network.blank?
+    attributes[:last4] = last4 if last4.present? && self.last4.blank?
+    attributes[:account_network] = understanding.card_network if card_last4.present? && understanding.card_network.present? && account_network.blank?
     update!(attributes) if attributes.any?
   end
 
@@ -838,6 +845,17 @@ class Account < ApplicationRecord
   end
 
   private
+
+    # Returns `value` only when it is present AND actually appears in the OCR
+    # text — the number-specific half of spec §7.5's witness. A blank or
+    # unwitnessed candidate returns nil, so the caller stores only a number the
+    # page carries.
+    def witnessed_last4(value, ocr_text)
+      digits = value.to_s.presence
+      return nil if digits.blank? || !ocr_text.to_s.include?(digits)
+
+      digits
+    end
 
     def assign_default_owner
       return if owner.present?
