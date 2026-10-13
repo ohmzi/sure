@@ -5,8 +5,11 @@ class ReconciliationsController < ApplicationController
   before_action :set_reconciliation, only: %i[link dismiss]
 
   def index
+    # A tombstone has left the archive: it appears in the inbox no more, so a
+    # soft-deleted document can never be linked or dismissed from here.
     scope = DocumentLink
               .where(family_id: Current.family.id, status: %w[suggested pending_review])
+              .not_deleted
               .order(updated_at: :desc)
 
     @pagy, @links = pagy(scope, limit: safe_per_page)
@@ -69,7 +72,9 @@ class ReconciliationsController < ApplicationController
     # association only; an unknown, malformed or foreign id raises
     # RecordNotFound — 404, the app's standard — and never reaches an action.
     def set_reconciliation
-      @link = Current.family.document_links.find(params[:id])
+      # A tombstone has left the archive. This by-id lookup is the one that would
+      # otherwise re-attach a live `entry_id` to a deleted row, so it 404s too.
+      @link = Current.family.document_links.not_deleted.find(params[:id])
     end
 
     # Only an entry the matcher actually produced may be linked, so a crafted

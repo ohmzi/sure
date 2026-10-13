@@ -348,7 +348,14 @@ class DocumentLink < ApplicationRecord
 
     transaction do
       delete_stored!
-      self.class.where(id: id).update_all(deleted_at: Time.current, updated_at: Time.current)
+      # The digest is the claim "these bytes are mine". A document that has given
+      # up its bytes gives up that claim too: the (family, content_sha256) unique
+      # index is predicated on `content_sha256 IS NOT NULL`, and Intake's dedup
+      # check matches any row holding the digest, so clearing it lets the same
+      # file be re-added instead of being refused as a duplicate while no visible
+      # copy exists.
+      self.class.where(id: id).update_all(deleted_at: Time.current, content_sha256: nil,
+                                          updated_at: Time.current)
     end
   end
 

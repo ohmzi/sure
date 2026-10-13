@@ -237,6 +237,26 @@ class ReconciliationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "dismissed", link.reload.status
   end
 
+  test "a soft-deleted document has left the inbox and cannot be resolved through it" do
+    # A suggested receipt has no linked entry, so it is deletable. Once deleted it
+    # must leave the inbox AND stop resolving by id -- the by-id lookup is the one
+    # that would re-attach a live entry to a tombstone.
+    entry, link = suggested_link
+    link.soft_delete!
+
+    get reconciliations_url
+    assert_response :success
+    assert_select "turbo-frame##{ActionView::RecordIdentifier.dom_id(link)}", count: 0
+
+    post link_reconciliation_url(link, entry_id: entry.id)
+    assert_response :not_found
+    assert_nil link.reload.entry_id, "the tombstone is never re-linked through the inbox"
+
+    post dismiss_reconciliation_url(link)
+    assert_response :not_found
+    assert_equal "suggested", link.reload.status, "and never re-dismissed"
+  end
+
   test "an unknown or malformed id is a 404 and never reaches the actions" do
     _entry, link = suggested_link
     missing = "00000000-0000-0000-0000-000000000000"

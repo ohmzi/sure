@@ -31,6 +31,22 @@ class DocumentLink::IntakeTest < ActiveSupport::TestCase
     end
   end
 
+  test "bytes whose archive copy was deleted can be re-added, not refused as a duplicate" do
+    # Delete a misread scan, then re-add the same one: the tombstone has given
+    # up its bytes (and their digest), so it no longer claims them.
+    archived = DocumentLink::Intake.call(family: @family, uploader: users(:family_admin), file: @file)
+    digest = archived.content_sha256
+    archived.soft_delete!
+    reintroduced = Rack::Test::UploadedFile.new(file_fixture("receipts/receipt.png"), "image/png")
+
+    reuploaded = DocumentLink::Intake.call(family: @family, uploader: users(:family_admin), file: reintroduced)
+
+    assert reuploaded.persisted?, "the identical file is archived again rather than refused"
+    assert_equal digest, reuploaded.content_sha256, "the re-added bytes are the same bytes"
+  ensure
+    DocumentLink::Staging.delete(reuploaded&.stored_path)
+  end
+
   test "an unknown explicit source is refused" do
     assert_raises(DocumentLink::Intake::InvalidSource) do
       DocumentLink::Intake.call(family: @family, uploader: users(:family_admin), file: @file, source: "invoice")

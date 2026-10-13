@@ -307,6 +307,19 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert EntryProvenance.for(entry).source_deleted?
   end
 
+  test "a soft-deleted document releases its bytes' digest claim" do
+    # The digest is the claim "these bytes are mine". A document that has given
+    # up its bytes must give up that claim, or re-adding the identical file is
+    # refused as a duplicate while no visible copy exists.
+    link = document_links(:linked_receipt)
+    link.entry.update!(reconciled_at: Time.current)
+    link.update!(content_sha256: "a" * 64)
+
+    link.soft_delete!
+
+    assert_nil link.reload.content_sha256
+  end
+
   test "a soft-deleted document leaves the archive" do
     link = document_links(:linked_receipt)
     link.entry.update!(reconciled_at: Time.current)
