@@ -272,6 +272,45 @@ class PdfImportTest < ActiveSupport::TestCase
     end
   end
 
+  test "a statement row matching an auto-posted receipt claims it instead of duplicating it" do
+    account = accounts(:depository)
+    link = document_links(:understood_receipt_link)
+    link.update!(entry_id: nil)
+
+    statement = create_pdf_statement(account: account)
+    statement_link = statement.archive_document_link!
+    # archive_document_link! caches a nil read of its own has_one while building
+    # the link, so re-read it before the import shares the same statement object.
+    statement.reload
+
+    # A receipt already auto-posted this charge (identity `document:<link id>`),
+    # the shape Milestone A's Task 8 minted.
+    draft = ReceiptImport.find_by!(document_link: link)
+    draft.update!(account: account, extracted_data: {
+      "total" => "12.34", "date" => "2026-10-03", "payee" => "Cafe", "line_items" => []
+    })
+    draft.import!
+    posted = draft.reload.document_link.entry
+    assert_not_nil posted, "the receipt must post its entry before the statement arrives"
+
+    # The statement covers the same money under a different identity entirely.
+    import = PdfImport.create_from_statement!(statement: statement)
+    import.update!(account: account, extracted_data: { "transactions" => [
+      { "date" => "2026-10-04", "amount" => "-12.34", "name" => "CAFE", "notes" => "" }
+    ] })
+    import.generate_rows_from_extracted_data
+
+    assert_no_difference -> { Entry.count } do
+      import.import!
+    end
+
+    posted.reload
+    assert_equal statement.id, posted.reconciled_by_statement_id,
+                 "the statement must claim the entry the receipt posted"
+    assert_includes posted.document_links.map(&:id), statement_link.id,
+                    "both documents must be visible on the one transaction"
+  end
+
   test "assigning account links statement backed import statement" do
     statement = create_pdf_statement(account: nil)
     import = PdfImport.create_from_statement!(statement: statement)

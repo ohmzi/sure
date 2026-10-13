@@ -557,6 +557,45 @@ class PdfImport < Import
         reconciled_by_statement_id: account_statement&.id,
         updated_at: at
       )
+
+      statement_link = account_statement&.archived_document_link
+      entries.each { |entry| claim!(entry, statement_link) }
+    end
+
+    # A statement line matching an entry that already exists -- an auto-posted
+    # receipt, a synced row, a hand-entered one -- CLAIMS it (spec N10): one
+    # transaction, two sources. Identity cannot see this (the receipt says
+    # `document:<link id>`, the statement says `stmt:<sha>:<row>` or, for a PDF,
+    # nothing at all), which is why the match is reconcile_entries!'s evidence
+    # match and never an id comparison. Attaching the statement's own link is
+    # what makes the corroboration durable: EntryProvenance#documents and the
+    # row's provenance chips both read `entry.document_links`.
+    #
+    # Never claims an entry this statement created. `find_duplicate_transaction`
+    # does not exclude them, so a REGENERATION (assign_account!, revert, a
+    # reprocess) re-judges the statement's own born entries as matched rows;
+    # attaching the statement's link to one would make
+    # EntryProvenance#corroborated? read true for a document corroborating itself.
+    # Two shapes count: an entry THIS import created, and one a SIBLING import
+    # for the same vault row created (a family date-format change mints a second
+    # import for one statement -- see create_from_statement!).
+    #
+    # The write goes through DocumentLink#link_to_entry! (the model's single
+    # writer for status + entry_id), not `entry.document_links <<`: the
+    # association is read-only by contract, and a raw append would leave a row
+    # carrying entry_id while still labelled `unlinked`.
+    def claim!(entry, statement_link)
+      return if statement_link.nil? || entry.import_id == id
+      return if entry.import_id.present? &&
+                PdfImport.where(id: entry.import_id, account_statement_id: account_statement&.id).exists?
+      return if entry.document_links.exists?(id: statement_link.id)
+
+      unless statement_link.link_to_entry!(entry)
+        Rails.logger.info(
+          "PdfImport #{id}: matched entry #{entry.id}, but statement link #{statement_link.id} " \
+          "would not link from status #{statement_link.status.inspect}"
+        )
+      end
     end
 
     # Regeneration can empty the row set (everything now matches) or refill it

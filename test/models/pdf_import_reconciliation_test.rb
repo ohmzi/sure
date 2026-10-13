@@ -387,6 +387,58 @@ class PdfImportReconciliationTest < ActiveSupport::TestCase
     assert_not @import.reconciled_anything?
   end
 
+  test "a statement never claims an entry it created itself" do
+    @statement.archive_document_link!
+    @statement.reload
+
+    @import.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: -12.34, name: "Cafe") ] })
+    @import.generate_rows_from_extracted_data
+    assert_equal 1, @import.reload.rows_count
+
+    @import.import!
+    born = @import.entries.sole
+    assert_equal @statement.id, born.reconciled_by_statement_id, "born reconciled: the statement is its own evidence"
+
+    # A regeneration re-judges every line against what the account holds now --
+    # including this import's own born entries, which find_duplicate_transaction
+    # does not exclude. Without the self-attach guard, claim! would hang the
+    # statement's own link on its own entry and the document would corroborate
+    # itself.
+    @import.generate_rows_from_extracted_data
+    @import.import!
+
+    born.reload
+    assert_not_includes born.document_links.map(&:id), @statement.archived_document_link.id,
+                        "a statement must not claim the entry it created itself"
+    assert_not EntryProvenance.for(born).corroborated?,
+               "a document's own entry must not read as corroborated by that same document"
+  end
+
+  test "a sibling import of the same statement never claims the statement's own born entries" do
+    @statement.archive_document_link!
+    @statement.reload
+
+    @import.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: -12.34, name: "Cafe") ] })
+    @import.generate_rows_from_extracted_data
+    @import.import!
+    born = @import.entries.sole
+
+    # A date-format change makes the first import non-reusable, so a second one
+    # is minted for the SAME vault row on the same account. Its row generation
+    # re-judges the statement's lines against the account, and this statement's
+    # own born entry is among the candidates -- the same self-attach hazard.
+    @family.update!(date_format: "%d.%m.%Y")
+    sibling = PdfImport.create_from_statement!(statement: @statement)
+    assert_not_equal @import, sibling, "the changed format must mint a second import"
+    sibling.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: -12.34, name: "Cafe") ] })
+    sibling.generate_rows_from_extracted_data
+    assert_equal 0, sibling.reload.rows_count, "the born entry matches, so nothing is offered"
+
+    born.reload
+    assert_not_includes born.document_links.map(&:id), @statement.archived_document_link.id,
+                        "a sibling import must not claim this statement's own born entry"
+  end
+
   private
 
     def create_statement
