@@ -41,4 +41,33 @@ class Account::DocumentMatcherTest < ActiveSupport::TestCase
   test "the auto bar is above the minimum floor" do
     assert_operator Account::DocumentMatcher::AUTO_PREFILL_BAR, :>, Account::DocumentMatcher::MINIMUM_CONFIDENCE
   end
+
+  # --- The OCR second witness (spec §7.5) -------------------------------------
+
+  test "a last4 match backed by the OCR witness clears the auto bar on its own" do
+    # The read gave card_last4 "4242" and the page text contains it. With no
+    # institution to lean on, the witnessed last4 must be able to prefill.
+    match = Account::DocumentMatcher.best_match(
+      family: @family, account_last4_hint: "4242", last4_witness: true
+    )
+
+    assert_equal @card.id, match.account.id
+    assert_operator match.confidence, :>=, Account::DocumentMatcher::AUTO_PREFILL_BAR
+  end
+
+  test "a last4 match the OCR never saw stays below the auto bar" do
+    match = Account::DocumentMatcher.best_match(
+      family: @family, account_last4_hint: "4242", currency: "USD"
+    )
+
+    assert_operator match.confidence, :<, Account::DocumentMatcher::AUTO_PREFILL_BAR
+  end
+
+  test "a witnessed last4 does not resolve two accounts that share it" do
+    @chequing.update!(institution_name: "Chase", last4: "4242")
+
+    assert_nil Account::DocumentMatcher.best_match(
+      family: @family, account_last4_hint: "4242", last4_witness: true
+    )
+  end
 end

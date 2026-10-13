@@ -185,6 +185,26 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert_includes DocumentLink.needs_attention(family), ready
   end
 
+  test "needs_attention also covers a statement the read left without an account" do
+    # The third branch: the live Triangle read produced a statement with no
+    # account. Before this, the strip ignored it entirely, so "1 needs an
+    # account" never counted the very document the owner was stuck on.
+    family = families(:dylan_family)
+    statement = AccountStatement.create_from_upload!(
+      family: family, account: nil,
+      file: uploaded_file(filename: "unmatched_statement.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    link = DocumentLink.create!(family: family, source: "statement", status: "unlinked",
+                                account_statement: statement, original_filename: "unmatched_statement.csv")
+
+    scope = DocumentLink.needs_attention(family)
+
+    assert_includes scope, link
+
+    statement.link_to_account!(accounts(:depository))
+    assert_not_includes DocumentLink.needs_attention(family), link
+  end
+
   test "for_entry scopes to the entry" do
     assert_includes DocumentLink.for_entry(@entry), document_links(:linked_receipt)
     assert_not_includes DocumentLink.for_entry(@entry), document_links(:unlinked_receipt)

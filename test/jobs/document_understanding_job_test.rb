@@ -688,6 +688,46 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal accounts(:depository).id, import.account_id
   end
 
+  test "a seeded last4 backed by the OCR witness prefills without asking" do
+    # The document-only read: no institution to lean on, so the only signal is
+    # the card number the page carries. Spec §7.5's second witness — the last4
+    # actually present in the OCR text — is what lets the column match clear the
+    # prefill bar instead of sitting below it.
+    accounts(:credit_card).update!(last4: "4242", institution_name: nil)
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nCARD 4242\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal accounts(:credit_card).id, ReceiptImport.find_by!(document_link_id: @link.id).account_id
+  end
+
+  test "a seeded last4 the OCR never saw leaves the account blank for the ask" do
+    accounts(:credit_card).update!(last4: "4242", institution_name: nil)
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_nil ReceiptImport.find_by!(document_link_id: @link.id).account_id
+  end
+
+  test "the read prefers the card's last4 over the account-number last4" do
+    # The live read reported card_last4 "7891" (the card) and account_last4
+    # "7512" (the account number). Resolving on the account number would file
+    # the statement under the wrong identity; the card's own last4 wins.
+    accounts(:credit_card).update!(last4: "7891", institution_name: nil)
+    accounts(:depository).update!(last4: "7512", institution_name: nil)
+    verdict = STATEMENT.merge("institution_name" => nil, "account_last4" => "7512", "card_last4" => "7891")
+    stub_ocr_success(pages: [ { page: 1, text: "CARD 7891\nACCOUNT 7512", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(verdict))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal accounts(:credit_card).id, import.account_id
+  end
+
   # --- Task 11: what a read teaches, and only on a human's word ----------------
 
   test "an unconfirmed read never teaches the account its card identity" do

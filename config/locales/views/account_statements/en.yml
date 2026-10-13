@@ -9,6 +9,11 @@ en:
       open_inbox: Inbox
       statements_title: Statements
       year_label: Coverage year
+    assign_account:
+      label: Account
+      placeholder: Choose an account
+      submit: Link account
+      no_accounts: No accounts are available to link yet.
     balance:
       unknown: Unknown
     coverage:

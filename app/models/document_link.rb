@@ -107,15 +107,21 @@ class DocumentLink < ApplicationRecord
     end
 
     # The design's "needs you" scope (Milestone B, design D5): documents that
-    # are waiting on a person. A held row (the reader stopped with a reason) or
-    # a draft waiting for review — the one query behind the strip's count and
-    # its list, and the filter behind its "Show them" action.
+    # are waiting on a person. A held row (the reader stopped with a reason), a
+    # draft waiting for review, or a statement with no account yet — the three
+    # asks behind the strip's count, its list, and its "Show them" filter.
     def needs_attention(family)
       held = where(family: family).where.not(failure_message: nil)
       # A tombstone has left the archive, so it can never be "waiting on a
       # person" -- the strip's list and its count both drop it.
-      held.or(where(family: family, id: ReceiptImport.where(understanding_state: "understood")
-                                                .where.not(status: "complete").select(:document_link_id)))
+      ready_drafts = ReceiptImport.where(understanding_state: "understood")
+                                  .where.not(status: "complete").select(:document_link_id)
+      # A statement the read produced but never resolved to an account: the
+      # "Which account?" tile state. `AccountStatement.unmatched` is exactly
+      # "no account, not rejected", the same line the picker gates on.
+      unmatched_statements = AccountStatement.unmatched.select(:id)
+      held.or(where(family: family, id: ready_drafts))
+          .or(where(family: family, account_statement_id: unmatched_statements))
           .not_deleted
     end
 

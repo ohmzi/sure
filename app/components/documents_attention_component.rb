@@ -28,19 +28,31 @@ class DocumentsAttentionComponent < ApplicationComponent
   def total = @total ||= scope.count
   def couldnt_read = @couldnt_read ||= scope.where.not(failure_message: nil).count
 
-  # A draft that resolved (understood) but carries no account: the tile's
-  # "Which account?" state, and the strip's "needs an account".
-  def needs_account
-    @needs_account ||= scope.where(failure_message: nil)
-                            .joins(:receipt_imports)
-                            .where(receipt_imports: { account_id: nil })
-                            .distinct
-                            .count
-  end
+  # A resolved draft OR a statement row that arrived with no account: the tile's
+  # "Which account?" state, and the strip's "needs an account". The two live in
+  # different places (a receipt draft on its import, a statement on its vault
+  # row) and a join cannot span them without dropping a row, so they are counted
+  # apart and summed. A held row is excluded: "couldn't be read" is its own ask,
+  # and it is counted there.
+  def needs_account = @needs_account ||= drafts_needing_account + statements_needing_account
 
   # The rest of the scope: a resolved draft with an account, unpublished.
   def ready = total - couldnt_read - needs_account
 
   private
     def scope = @scope ||= DocumentLink.needs_attention(family)
+
+    def drafts_needing_account
+      scope.where(failure_message: nil)
+           .joins(:receipt_imports)
+           .where(receipt_imports: { account_id: nil })
+           .distinct
+           .count
+    end
+
+    def statements_needing_account
+      scope.where(failure_message: nil, account_statement_id: AccountStatement.unmatched.select(:id))
+           .distinct
+           .count
+    end
 end

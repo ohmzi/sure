@@ -130,7 +130,7 @@ class AccountStatementsController < ApplicationController
     account = Current.user.accessible_accounts.find(account_id)
     return unless require_account_permission!(account)
 
-    @statement.link_to_account!(account)
+    assign_statement_account(account)
     redirect_to post_link_path(@statement), notice: t("account_statements.link.success", account: account.name)
   end
 
@@ -248,6 +248,27 @@ class AccountStatementsController < ApplicationController
 
     def post_link_path(statement)
       statement.account ? account_path(statement.account, tab: "statements") : account_statement_path(statement)
+    end
+
+    # The statement's account is assigned through the SAME seam the import
+    # review screen uses (spec N14): a reassignable PDF import's
+    # `assign_account!` moves BOTH the import and this statement — the import
+    # keeps winning publishes and its rows stay judged against the right account
+    # — and that seam is also where the account learns its card identity on the
+    # human's word. A statement with no import to re-target (a CSV/OFX vault
+    # row, or one already published) falls back to the statement-only writer.
+    def assign_statement_account(account)
+      import = @statement.assignable_pdf_import
+
+      if import
+        import.assign_account!(account)
+      else
+        @statement.link_to_account!(account)
+      end
+
+      # The import seam moves a SEPARATE AccountStatement instance, so reload to
+      # read the account the redirect below keys off.
+      @statement.reload
     end
 
     def flash_for_upload(created:, duplicates:, validation_errors: [])

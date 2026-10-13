@@ -548,6 +548,63 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert statement.linked?
   end
 
+  test "an unmatched statement page offers a real account picker" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: "picker_statement.pdf", content_type: "application/pdf", content: "%PDF-1.4 statement")
+    )
+
+    get account_statement_url(statement)
+
+    assert_response :success
+    assert_select "form[action='#{link_account_statement_path(statement)}'] select[name='account_id']"
+    # The metadata form must still not carry an account select — the picker is
+    # its own affordance in the linking panel.
+    assert_select "select[name='account_statement[account_id]']", count: 0
+  end
+
+  test "the picker assigns through the statement's import, moving both" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: "via_import.pdf", content_type: "application/pdf", content: "%PDF-1.4 via import")
+    )
+    import = PdfImport.find_or_create_from_statement!(statement: statement)
+    assert_nil import.account_id
+
+    patch link_account_statement_url(statement), params: { account_id: @account.id }
+
+    assert_redirected_to account_url(@account, tab: "statements")
+    assert_equal @account, statement.reload.account
+    assert_equal @account, import.reload.account,
+                 "the import must move with the statement, or publishing its rows is stranded"
+  end
+
+  test "the picker links a statement that has no import" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: "no_import.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    assert_nil statement.latest_reusable_pdf_import
+
+    patch link_account_statement_url(statement), params: { account_id: @account.id }
+
+    assert_equal @account, statement.reload.account
+    assert statement.linked?
+  end
+
+  test "the picker is hidden from a viewer who cannot manage the statement" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: "readonly_picker.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    sign_in users(:intro_user) # a guest, not a statement manager
+
+    # A guest cannot even view an unmatched statement.
+    get account_statement_url(statement)
+
+    assert_response :not_found
+  end
+
   test "deletes statement" do
     statement = AccountStatement.create_from_upload!(
       family: @account.family,

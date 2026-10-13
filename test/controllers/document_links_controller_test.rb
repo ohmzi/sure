@@ -323,6 +323,26 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_select "#document_link_#{link.id}", text: /#{Regexp.escape(I18n.t("document_browser.tile.states.which_account"))}/
   end
 
+  test "a statement that needs an account is counted in the strip and given an action in the viewer" do
+    statement = AccountStatement.create_from_upload!(
+      family: @family, account: nil,
+      file: uploaded_file(filename: "needs_account.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    link = DocumentLink.create!(family: @family, source: "statement", status: "unlinked",
+                                account_statement: statement, original_filename: "needs_account.csv")
+
+    get documents_path
+
+    assert_select "#documents_attention",
+                  text: /#{Regexp.escape(I18n.t("document_browser.attention.reasons.needs_account", count: 1))}/
+
+    get viewer_document_path(link)
+
+    # The tile's "Which account?" leads nowhere; this is the working affordance,
+    # and it points at the statement page's picker.
+    assert_select "a[href='#{account_statement_path(statement)}']"
+  end
+
   test "the attention strip counts what needs a person, breaks it down, and offers to show them" do
     held = document_links(:held_bill)
     held.update_columns(failure_message: "no AI provider is configured")

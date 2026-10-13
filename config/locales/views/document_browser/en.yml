@@ -45,6 +45,7 @@ en:
     row:
       retry: Retry
       remove: Remove
+      assign_account: Which account?
       extraction:
         processing: Extracting…
         extraction_failed: Extraction failed

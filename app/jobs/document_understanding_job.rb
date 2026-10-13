@@ -175,7 +175,10 @@ class DocumentUnderstandingJob < ApplicationJob
     # Route while the link is still `processing` — settle! flips it to
     # `unlinked` immediately after, and link_to_entry! only accepts the
     # LINKABLE statuses (the routed draft is linked at PUBLISH, not here).
-    route(link, understanding, classification)
+    # The OCR text rides along: the account resolver's last4 witness (§7.5) is
+    # "the digits actually appear on the page", and validate already reads the
+    # same text.
+    route(link, understanding, classification, ocr_text: result.text)
     link.settle!
     link.broadcast_row_update!
   rescue Ocr::Error, Provider::Error => e
@@ -289,7 +292,7 @@ class DocumentUnderstandingJob < ApplicationJob
     # find_or_create (never create) because a retry, a reaper re-enqueue or a
     # reprocess must adopt the draft it already made, not mint a second set of
     # rows.
-    def route(link, understanding, classification)
+    def route(link, understanding, classification, ocr_text:)
       case classification.document_class
       when "receipt", "bill"
         draft = ReceiptImport.find_or_create_from_document_link!(document_link: link)
@@ -308,8 +311,9 @@ class DocumentUnderstandingJob < ApplicationJob
       end
 
       # Task 10: resolve the draft's account from the AI's hints, above the bar
-      # only. Runs for every class; a class with no draft resolves to nil.
-      resolve_account(link, understanding)
+      # only. Runs for every class; a class with no draft resolves to nil. The
+      # OCR text rides along so the resolver can apply §7.5's last4 witness.
+      resolve_account(link, understanding, ocr_text: ocr_text)
     end
 
     # Prefill only when the hints resolve to one account above the bar. Below it
@@ -318,15 +322,11 @@ class DocumentUnderstandingJob < ApplicationJob
     #
     # This is NOT where an account learns its identity (Task 11). The write-back
     # fires at the human's confirmation (Import::AccountsController#update), and
-    # cannot fire here even in principle: of the terms this call supplies, only
-    # last4 (0.35) is worth much — institution is 0.35, network 0.05, currency
-    # 0.05, and name is not supplied at all. Without the last4 term the ceiling
-    # is 0.45, below the 0.60 bar, so a match can only clear the bar when the
-    # account's last4 ALREADY equals the hint. Every account this could prefill
-    # therefore already has its card identity, and teaching a blank account from
-    # a prefill is impossible. A prefill is the resolver's unconfirmed guess;
-    # writing durable identity from it would launder that guess into state the
-    # fill-only rule then makes permanent.
+    # cannot fire here even in principle: a prefill is the resolver's unconfirmed
+    # guess, and teaching a blank account from it would launder that guess into
+    # state the fill-only rule then makes permanent. Since the last4 term is only
+    # boosted by the OCR witness below, a prefill can only name an account whose
+    # last4 ALREADY equals a number the page carries — never a fabricated one.
     #
     # The draft is found by whichever edge the leg created: a receipt/bill draft
     # (ReceiptImport) hangs off the document link, and the statement leg's
@@ -335,13 +335,24 @@ class DocumentUnderstandingJob < ApplicationJob
     # fallback remains for a statement row whose import predates that link and
     # has none to backfill (a statement with no archived document copy at all),
     # so a lookup by document_link alone would still miss such a statement.
-    def resolve_account(link, understanding)
+    #
+    # The last4 hint is the CARD's when the read reported one. The card number
+    # ("7891" in the live Triangle read) is the document's card identity; the
+    # account-number last4 ("7512") is a weaker, bank-side hint and only used
+    # when no card number was read. Spec §7.5's second witness rides the chosen
+    # hint: the digits must appear in the OCR text before the column match is
+    # worth the prefill weight.
+    def resolve_account(link, understanding, ocr_text:)
+      last4_hint = understanding.card_last4.presence || understanding.account_last4
+      witnessed = last4_hint.present? && ocr_text.to_s.include?(last4_hint.to_s)
+
       match = Account::DocumentMatcher.best_match(
         family: link.family,
         institution_hint: understanding.institution_name,
-        account_last4_hint: understanding.account_last4.presence || understanding.card_last4,
+        account_last4_hint: last4_hint,
         card_network: understanding.card_network,
-        currency: understanding.currency
+        currency: understanding.currency,
+        last4_witness: witnessed
       )
       return nil if match.nil? || match.confidence < Account::DocumentMatcher::AUTO_PREFILL_BAR
 

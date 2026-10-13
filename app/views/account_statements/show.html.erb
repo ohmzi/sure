@@ -142,6 +142,14 @@
           <% else %>
             <p class="text-sm text-secondary"><%= t(".no_suggestion") %></p>
           <% end %>
+
+          <%# The account affordance (the owner's "I can't select which account
+              it applies to"). A suggestion one tap above is a shortcut; this is
+              the free choice, and it is what the tile's "Which account?" state
+              and the "needs you" strip lead to. %>
+          <% if @can_manage_statement && @statement.needs_account? %>
+            <%= render "account_statements/assign_account", statement: @statement %>
+          <% end %>
         </div>
 
         <div class="rounded-xl bg-container-inset p-4">

@@ -168,6 +168,16 @@ class DocumentBrowser::Row
     private
       def document_actions(link, draft, routes)
         actions = []
+        # A statement the read never resolved to an account: the tile says
+        # "Which account?" but the tile is purely visual, so the WORKING
+        # affordance lives here, in the viewer, and leads to the statement page's
+        # picker. The page gates the picker on the viewer's permission, so this
+        # action is safe to offer to anyone who can already see the document.
+        statement = link.account_statement
+        if statement&.needs_account?
+          actions << Action.new(label: I18n.t("document_browser.row.assign_account"), icon: "link",
+                                url: routes.account_statement_path(statement), method: :get, tone: :neutral)
+        end
         if draft
           # (repaired 2026-10-11, verifier F8) the awaiting_ocr draft keeps a
           # VISIBLE affordance with a nil url — the row partial renders it as

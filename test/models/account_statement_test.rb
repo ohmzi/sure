@@ -751,6 +751,37 @@ class AccountStatementTest < ActiveSupport::TestCase
     assert_nil AccountStatement::AccountMatcher.new(statement).best_match
   end
 
+  test "needs_account? is true only for an account-less, not-rejected statement" do
+    linked = AccountStatement.create_from_upload!(
+      family: @family, account: @account,
+      file: uploaded_file(filename: "na_linked.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    assert_not linked.needs_account?
+
+    unmatched = AccountStatement.create_from_upload!(
+      family: @family, account: nil,
+      file: uploaded_file(filename: "na_unmatched.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,2\n")
+    )
+    assert unmatched.needs_account?
+
+    unmatched.reject_match!
+    assert_not unmatched.needs_account?, "a rejected match is not waiting on a person"
+  end
+
+  test "assignable_pdf_import is the reassignable import and nil once data has landed" do
+    statement = AccountStatement.create_from_upload!(
+      family: @family, account: nil,
+      file: uploaded_file(filename: "assignable.pdf", content_type: "application/pdf", content: "%PDF-1.4 assignable")
+    )
+    assert_nil statement.assignable_pdf_import, "no import yet"
+
+    import = PdfImport.find_or_create_from_statement!(statement: statement)
+    assert_equal import, statement.reload.assignable_pdf_import
+
+    import.update!(status: :importing)
+    assert_nil statement.assignable_pdf_import, "an import mid-publish is not re-targetable"
+  end
+
   test "coverage year selection spans historical account data through last completed month" do
     account = Account.create!(
       family: @family,

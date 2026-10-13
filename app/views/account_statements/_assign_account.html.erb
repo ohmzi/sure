@@ -1,0 +1,21 @@
+<%# locals: (statement:) %>
+<%#
+  The account picker for a statement that has none. It posts to the statement's
+  own link action, which assigns through the PDF import's seam
+  (AccountStatementsController#assign_statement_account -> PdfImport#assign_account!)
+  so the statement AND its import move together. The select field is intentionally
+  `account_id` (not `account_statement[account_id]`): the metadata form must not
+  carry an account select — see the controller test — so this is a separate,
+  purpose-built affordance in the linking panel.
+%>
+<% accounts = Current.user.accessible_accounts.visible.alphabetically.pluck(:name, :id) %>
+<% if accounts.any? %>
+  <%= styled_form_with url: link_account_statement_path(statement), method: :patch, class: "space-y-2 mt-3" do |form| %>
+    <%= form.select :account_id, accounts,
+                    { include_blank: t(".placeholder") },
+                    { "aria-label": t(".label") } %>
+    <%= form.submit t(".submit") %>
+  <% end %>
+<% else %>
+  <p class="text-sm text-secondary"><%= t(".no_accounts") %></p>
+<% end %>

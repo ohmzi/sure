@@ -15,7 +15,7 @@
       :reading
     elsif draft&.understanding_state == "understood" && draft.status != "complete"
       draft.account_id.nil? ? :which_account : :review
-    elsif statement.present? && statement.account_id.nil?
+    elsif statement&.needs_account?
       :which_account
     elsif record.status.in?(%w[linked verified])
       :posted
