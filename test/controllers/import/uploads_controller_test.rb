@@ -123,12 +123,12 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     FileUtils.remove_entry(store) if store&.exist?
   end
 
-  test "an OFX upload sets the statement's link on the OFX import too (N9)" do
-    # W3-8: with the link only on the statement, an OFX-born row hangs off no
-    # import.document_link, so it read `import_file` (EntryProvenance) and its
-    # document's delete-block could not see the row (DocumentLink#derived_entries)
-    # -- the document deleted while its rows were unreconciled (spec N9). The
-    # import must carry the statement's own archived link.
+  test "an OFX row stays a bank export, but its document is delete-blocked while unreconciled (N9)" do
+    # R-W3B1: an OFX/QFX bank export is an "Import file" (spec §8.6), so its row
+    # keeps reading "from a bank export" -- the import must NOT carry a
+    # document_link. N9's delete-block is achieved instead by DocumentLink#
+    # derived_entries following the statement's id, so the statement's document
+    # still refuses to delete while any of its rows are unreconciled.
     store = Pathname.new(Dir.mktmpdir("ofx-import-link"))
     previous = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
     ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = store.to_s
@@ -145,18 +145,21 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     import.reload
     link = import.account_statement.archived_document_link
     assert link.present?
-    assert_equal link.id, import.document_link_id,
-                 "the OFX import must carry the statement's archived link"
+    assert_nil import.document_link_id,
+               "an OFX import must not carry a document_link (OFX is an Import file)"
 
-    # The behaviour the link buys, end to end: an OFX-born row now reads "from a
-    # document" and its document refuses to delete while the row is unreconciled.
     entry = entries(:transaction_entry)
     entry.update!(import: import, source: "ofx", reconciled_at: nil, import_locked: true)
     entry.document_links.delete_all
 
-    assert_equal "document", EntryProvenance.for(entry.reload).primary
-    assert_includes link.derived_entries, entry
+    assert_equal "import_file", EntryProvenance.for(entry.reload).primary,
+                 "an OFX row must keep reading as a bank export"
+    assert_equal "from a bank export", EntryProvenance.for(entry).label
+
+    assert_includes link.derived_entries, entry,
+                    "the statement's document must reach its OFX rows for the N9 delete-block"
     assert_not link.deletable?
+    assert_includes link.deletion_blockers, entry.name
   ensure
     ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = previous
     FileUtils.remove_entry(store) if store&.exist?

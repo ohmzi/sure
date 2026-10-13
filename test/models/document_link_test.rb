@@ -272,6 +272,28 @@ class DocumentLinkTest < ActiveSupport::TestCase
                     "the refusal must name the statement row that is in the way"
   end
 
+  # The STATEMENT route (R-W3B1). An OFX import carries NO document_link -- an
+  # OFX/QFX bank export is an "Import file", not a "Document" (spec §8.6) -- so
+  # the produced-entry route via `imports.document_link_id` cannot see its rows.
+  # `derived_entries` must reach them through the statement instead, or the
+  # statement's document would delete while its rows were unreconciled (N9).
+  test "a statement's OFX rows block its link's deletion via account_statement_id" do
+    statement = statement_with_archived_link
+    link = statement.archived_document_link
+    import = OfxImport.create!(
+      family: @family, account: accounts(:depository), account_statement: statement
+    )
+    assert_nil import.document_link_id, "an OFX import must not carry a document_link"
+
+    entry = entries(:transaction_entry)
+    entry.update!(import: import, source: "ofx", reconciled_at: nil)
+
+    assert_includes link.derived_entries, entry,
+                    "the statement's document must reach its OFX rows for the N9 delete-block"
+    assert_not link.deletable?
+    assert_includes link.deletion_blockers, entry.name
+  end
+
   test "derived_entries reaches an entry the document was only matched to" do
     # The CORROBORATED route: a document the matcher attached to an existing
     # entry hangs off `document_links.entry_id`. Missing this route would orphan
@@ -397,5 +419,18 @@ class DocumentLinkTest < ActiveSupport::TestCase
       )
       statement.archive_document_link!
       PdfImport.create_from_statement!(statement: statement.reload)
+    end
+
+    # A statement carrying its own archived document link, no import yet — so a
+    # test can attach an import (an OFX one, with no document_link) itself.
+    def statement_with_archived_link
+      statement = AccountStatement.create_from_upload!(
+        family: @family,
+        account: nil,
+        file: uploaded_file(filename: "statement.pdf", content_type: "application/pdf",
+                            content: file_fixture("imports/sample_bank_statement.pdf").binread)
+      )
+      statement.archive_document_link!
+      statement.reload
     end
 end

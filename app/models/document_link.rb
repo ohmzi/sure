@@ -323,15 +323,21 @@ class DocumentLink < ApplicationRecord
   # when it is clear, the bytes go and the row stays as a tombstone, so the entry
   # it produced still tells the truth about where it came from.
 
-  # Every entry this document produced or corroborates. Two routes, and both
-  # matter: an entry a draft produced hangs off `entries.import_id ->
-  # imports.document_link_id`, and an entry a document was merely MATCHED to
-  # hangs off `document_links.entry_id`. Missing the first would let a delete
-  # cascade over money; missing the second would orphan a corroboration.
+  # Every entry this document produced or corroborates. Three routes, and each
+  # matters: an entry a draft produced hangs off `entries.import_id ->
+  # imports.document_link_id`; an entry a STATEMENT's import produced hangs off
+  # `entries.import_id -> imports.account_statement_id` (an OFX/QFX bank export
+  # carries NO document_link -- it is an "Import file", spec §8.6 -- so the
+  # document_link route alone cannot see its rows); and an entry a document was
+  # merely MATCHED to hangs off `document_links.entry_id`. Missing any of them
+  # would let a delete cascade over money or orphan a corroboration.
   def derived_entries
     produced = Entry.where(import_id: Import.where(document_link_id: id).select(:id))
     corroborated = Entry.where(id: entry_id)
-    Entry.where(id: produced.select(:id)).or(Entry.where(id: corroborated.select(:id)))
+    scope = produced.or(corroborated)
+    return scope if account_statement_id.blank?
+
+    scope.or(Entry.where(import_id: Import.where(account_statement_id: account_statement_id).select(:id)))
   end
 
   # The refusal NAMES what is in the way -- a blocking rule the user cannot act

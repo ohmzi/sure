@@ -38,7 +38,6 @@ module Documents
       html = render(partial: "documents/provenance", locals: { entry: entry.reload })
 
       assert_includes html, I18n.t("entries.provenance.manual")
-      assert_not_includes html, "viewer_document_path", "a manual entry must link to no document"
       assert_no_match(/href="[^"]*documents/, html)
     end
 

@@ -124,17 +124,12 @@ class Import::UploadsController < ApplicationController
       # inside it; the unified Documents page's link is staged here, once the
       # bytes are on the service (Task 3, Step 7).
       #
-      # The same link goes on the IMPORT, not just the statement (spec N9). An
-      # OFX row hangs off `entries.import_id -> imports.document_link_id`, so
-      # without this the row reads "from a bank export" (EntryProvenance) and
-      # DocumentLink#derived_entries cannot see the row — the document would
-      # delete while its rows were still unreconciled. The archive must follow
-      # the commit (see above), so the import's link is written here rather than
-      # at save! inside the transaction.
-      if statement
-        link = statement.archive_document_link!(uploader: Current.user)
-        @import.update!(document_link: link) if link
-      end
+      # The link stays on the STATEMENT only. An OFX/QFX bank export is an
+      # "Import file", not a "Document" (spec §8.6), so the import must NOT carry
+      # a document_link or its rows would read "from a document". The N9
+      # delete-block reaches those rows through the statement instead --
+      # DocumentLink#derived_entries follows `imports.account_statement_id`.
+      statement.archive_document_link!(uploader: Current.user) if statement
 
       notice = duplicate ? t(".ofx_duplicate_notice") : t(".ofx_uploaded")
       redirect_to import_clean_path(@import), notice: notice

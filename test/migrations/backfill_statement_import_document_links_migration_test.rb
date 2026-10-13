@@ -3,11 +3,12 @@
 require "test_helper"
 require Rails.root.join("db/migrate/20261013120000_backfill_statement_import_document_links")
 
-# W3-9: a statement-backed import created before the OFX `document_link` fix (or
-# any PdfImport/OfxImport whose statement archived its link after the import was
-# written) carries no document_link, so its rows read `import_file` and the
-# statement's document could delete over them (spec N9). The backfill points each
-# such import at its statement's own archived link.
+# W3-9: a statement-backed PdfImport created before the fix that sets its
+# document_link at creation time (or whose statement archived the link after the
+# import was written) carries no link, so its rows read `import_file` instead of
+# "from a document". The backfill points each such PdfImport at its statement's
+# own archived link. PdfImport ONLY (R-W3B1): an OFX import must not carry a
+# document_link -- it is an "Import file" (spec §8.6).
 class BackfillStatementImportDocumentLinksMigrationTest < ActiveSupport::TestCase
   test "sets the statement's archived link on a statement-backed PdfImport" do
     statement = statement_with_link
@@ -19,14 +20,19 @@ class BackfillStatementImportDocumentLinksMigrationTest < ActiveSupport::TestCas
     assert_equal statement.archived_document_link.id, import.reload.document_link_id
   end
 
-  test "sets it on a statement-backed OfxImport" do
+  test "does not backfill a statement-backed OfxImport (R-W3B1)" do
+    # An OFX/QFX bank export is an "Import file" (spec §8.6): it must keep
+    # reading "from a bank export", so the backfill is PdfImport only. Its N9
+    # delete-block is reached through the statement's id, not a link on the
+    # import.
     statement = statement_with_link
     import = OfxImport.create!(family: families(:dylan_family), account: accounts(:depository))
     import.update_columns(account_statement_id: statement.id, document_link_id: nil)
 
     run_migration
 
-    assert_equal statement.archived_document_link.id, import.reload.document_link_id
+    assert_nil import.reload.document_link_id,
+               "an OFX import must never carry a document_link"
   end
 
   test "never overwrites a document_link that is already set" do
@@ -50,7 +56,7 @@ class BackfillStatementImportDocumentLinksMigrationTest < ActiveSupport::TestCas
     assert_nil import.reload.document_link_id
   end
 
-  test "does not touch an import type outside PdfImport/OfxImport" do
+  test "does not touch an import type outside PdfImport" do
     statement = statement_with_link
     import = imports(:sure)
     import.update_columns(account_statement_id: statement.id, document_link_id: nil)
@@ -58,7 +64,7 @@ class BackfillStatementImportDocumentLinksMigrationTest < ActiveSupport::TestCas
     run_migration
 
     assert_nil import.reload.document_link_id,
-               "a non-statement-backed import type must not be backfilled"
+               "a non-PdfImport import type must not be backfilled"
   end
 
   test "is a no-op on an empty set and can be run again" do
