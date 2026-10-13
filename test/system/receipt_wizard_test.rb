@@ -12,7 +12,11 @@ class ReceiptWizardTest < ApplicationSystemTestCase
     @account = accounts(:depository)
     users(:family_admin).update!(default_account: @account)
     # The read's account resolver (Account::DocumentMatcher) prefills this
-    # account from the AI's institution/last4 hints, so the journey can assert it.
+    # account from the read's institution/last4 hints — but only when spec §7.5's
+    # second witness holds: the last4 the read reports must ALSO appear in the
+    # OCR text. The stub below therefore prints the card's four digits (`VISA
+    # ****4242`), so the prefill legitimately happens and the journey can assert
+    # it. The digits are the witness; nothing else about the stub changed.
     @account.update!(institution_name: "Chase", last4: "4242", account_network: "visa")
     # NO `DocumentLink.where(status: "unlinked").delete_all` here (M1's
     # document_bridge_test line): that line belongs to the entry-page link panel
@@ -25,7 +29,7 @@ class ReceiptWizardTest < ApplicationSystemTestCase
     # runs in this process.
     @previous_adapter = ActiveJob::Base.queue_adapter
     ActiveJob::Base.queue_adapter = :inline
-    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 4.75", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 4.75\nVISA ****4242", confidence: 0.97, image: "iVBORw0KGgo=" } ])
     stub_document_provider
     # The inline adapter cannot enqueue FUTURE jobs, and Import#publish's
     # post-commit `family.sync_later` fan-out enqueues them deep inside Sync's

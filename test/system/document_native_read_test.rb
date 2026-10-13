@@ -11,6 +11,9 @@ require "application_system_test_case"
 class DocumentNativeReadTest < ApplicationSystemTestCase
   # The read's verdict. institution/last4 resolve to the seeded account below
   # (spec N14), so the journey can also assert the prefill reached the draft.
+  # §7.5's second witness rides along: the default OCR text below prints the
+  # card's four digits, so the last4 hint is genuinely witnessed and the prefill
+  # legitimately clears the bar.
   LATTE = {
     "document_class" => "receipt", "institution_name" => "Chase",
     "total" => "4.75", "date" => "2026-09-14", "payee" => "Latte Lane Cafe",
@@ -44,7 +47,7 @@ class DocumentNativeReadTest < ApplicationSystemTestCase
   # real Provider::Openai is constructed, which needs a configured
   # OPENAI_ACCESS_TOKEN this environment does not have; the registry double is
   # the seam the pipeline actually calls.
-  def stub_read(text: "LATTE LANE CAFE\n2026-09-14\nTOTAL 4.75")
+  def stub_read(text: "LATTE LANE CAFE\n2026-09-14\nTOTAL 4.75\nVISA ****4242")
     stub_ocr_success(pages: [ { page: 1, text: text, confidence: 0.97, image: "aGk=" } ])
     stub_document_provider(LATTE)
   end
