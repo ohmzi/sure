@@ -25,8 +25,19 @@ class Entries::AutoPostsController < ApplicationController
     # A row a person typed is not the machine's to reverse.
     return head :unprocessable_content if entry.ai_posted_at.nil?
 
-    entry.destroy!           # detaches its document links via before_destroy
-    entry.sync_account_later # recompute the balance from the row that is gone
+    # The document(s) this entry came from, captured BEFORE the destroy detaches
+    # them (Entry's before_destroy :unlink_document_links). The undo must be
+    # DURABLE: `data_committed?` is `entries.exists?`, so removing the entry
+    # clears the draft's committed flag, and a reprocess would otherwise re-run
+    # the gate and silently re-post what the user just took back. Recording the
+    # reversal on the document -- the identity the auto-post is keyed on -- lets
+    # the gate refuse it forever. The reviewed publish is untouched: redoing by
+    # hand is still the user's call.
+    documents = entry.document_links.to_a
+
+    entry.destroy!                    # detaches its document links via before_destroy
+    documents.each(&:mark_auto_post_undone!)
+    entry.sync_account_later          # recompute the balance from the row that is gone
 
     redirect_back fallback_location: transactions_path, notice: t(".undone")
   end

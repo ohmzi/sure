@@ -14,16 +14,28 @@
   ) %>
 
   <%# The corroborating documents -- additive, never a second primary: each is a
-      chip that opens the document it came from. %>
+      chip that opens the document it came from. A document the user deleted is
+      still named -- the entry's provenance must not silently vanish -- but it
+      has left the archive, so it renders as a dead source with no link. %>
   <% provenance.documents.each do |document| %>
-    <%= link_to viewer_document_path(document), class: "inline-flex min-w-0 max-w-full" do %>
+    <% if document.deleted_at.present? %>
       <%= render DS::Pill.new(
-        label: document.title.presence || document.original_filename,
-        tone: :indigo,
+        label: t("entries.provenance.source_deleted", name: document.title.presence || document.original_filename),
+        tone: :warning,
         marker: false,
-        icon: "file-text",
+        icon: "file-x",
         truncate: true
       ) %>
+    <% else %>
+      <%= link_to viewer_document_path(document), class: "inline-flex min-w-0 max-w-full" do %>
+        <%= render DS::Pill.new(
+          label: document.title.presence || document.original_filename,
+          tone: :indigo,
+          marker: false,
+          icon: "file-text",
+          truncate: true
+        ) %>
+      <% end %>
     <% end %>
   <% end %>
 

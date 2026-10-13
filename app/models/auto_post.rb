@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# The four conditions under which a receipt may post itself (spec N6).
+# The conditions under which a receipt may post itself (spec N6).
 #
 # A pure decision, deliberately not a condition inside a job: this is the only
 # place the program writes money without a human clicking, so it must be
@@ -16,10 +16,16 @@ class AutoPost
   end
 
   def allowed?
-    single_transaction? && resolved? && totals_agree? && class_corroborated?
+    !undone? && single_transaction? && resolved? && totals_agree? && class_corroborated?
   end
 
   private
+    # The user already reversed this document's auto-post (spec N6, Task 9's
+    # undo). That reversal is DURABLE: the document records it, so a reprocess
+    # never silently re-posts money the user took back. The reviewed publish is
+    # deliberately untouched -- redoing by hand is still the user's call.
+    def undone? = @draft.document_link&.auto_post_undone? == true
+
     # "Exactly one transaction" — not a batch and not a split. A statement is a
     # batch by definition; a receipt whose line items sum exactly becomes a
     # split (and consequently several entries), which is not one thing to write.

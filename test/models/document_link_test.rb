@@ -231,4 +231,121 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert link.record_content!("SECOND READ", refresh: true)
     assert_equal "SECOND READ", link.reload.extracted_text
   end
+
+  # -- delete-block and tombstone (spec N9) ----------------------------------
+  #
+  # Money is never silently cascaded, and a document's provenance is never
+  # silently lost. The delete is refused while anything derived is unreconciled;
+  # when it is clear, the BYTES go and the ROW stays, so the entry it produced
+  # still tells the truth about where it came from.
+
+  test "derived_entries reaches an entry through its draft's document link" do
+    # The PRODUCED route: an entry a draft made hangs off
+    # `entries.import_id -> imports.document_link_id`. Guarding only the
+    # matched-link route would let a delete cascade over money this document
+    # created.
+    entry = entries(:transaction_entry)
+    entry.update!(import: imports(:receipt_understood), reconciled_at: nil)
+    link = document_links(:understood_receipt_link)
+
+    assert_includes link.derived_entries, entry
+    assert_not link.deletable?
+  end
+
+  test "derived_entries reaches an entry the document was only matched to" do
+    # The CORROBORATED route: a document the matcher attached to an existing
+    # entry hangs off `document_links.entry_id`. Missing this route would orphan
+    # a corroboration on delete.
+    link = document_links(:linked_receipt)
+    link.entry.update!(reconciled_at: nil)
+
+    assert_includes link.derived_entries, link.entry
+    assert_not link.deletable?
+  end
+
+  test "a document with an unreconciled derived entry refuses to be deleted" do
+    link = document_links(:linked_receipt)
+    link.entry.update!(reconciled_at: nil)
+
+    assert_not link.deletable?
+    assert link.deletion_blockers.any?, "the blocker must name what is in the way, not just be true"
+  end
+
+  test "the refusal NAMES the entry that is in the way" do
+    link = document_links(:linked_receipt)
+    link.entry.update!(reconciled_at: nil)
+
+    assert_equal [ "Starbucks" ], link.deletion_blockers
+  end
+
+  test "a document whose derived entries are all reconciled can be deleted" do
+    link = document_links(:linked_receipt)
+    link.entry.update!(reconciled_at: Time.current)
+
+    assert link.deletable?
+    assert_empty link.deletion_blockers
+  end
+
+  test "soft_delete! refuses while a derived entry is unreconciled" do
+    link = document_links(:linked_receipt)
+    link.entry.update!(reconciled_at: nil)
+
+    assert_raises(RuntimeError) { link.soft_delete! }
+    assert_nil link.reload.deleted_at, "a refused delete writes nothing"
+  end
+
+  test "a soft-deleted document keeps telling the ledger where the entry came from" do
+    link = document_links(:linked_receipt)
+    link.entry.update!(reconciled_at: Time.current)
+    entry = link.entry
+
+    link.soft_delete!
+
+    assert_not_nil link.reload.deleted_at
+    assert_equal "document", EntryProvenance.for(entry.reload).primary,
+                 "the entry must not silently become 'manual'"
+    assert EntryProvenance.for(entry).source_deleted?
+  end
+
+  test "a soft-deleted document leaves the archive" do
+    link = document_links(:linked_receipt)
+    link.entry.update!(reconciled_at: Time.current)
+    link.soft_delete!
+
+    assert_not_includes DocumentLink::Search.new(family: link.family, filters: {}).relation.map(&:id), link.id
+  end
+
+  test "a soft-deleted document leaves the needs-you strip" do
+    family = families(:dylan_family)
+    held = DocumentLink.create!(family: family, source: "receipt", status: "queued",
+                                original_filename: "held.pdf", failure_message: "no AI provider is configured")
+    assert_includes DocumentLink.needs_attention(family), held
+
+    held.soft_delete!
+
+    assert_not_includes DocumentLink.needs_attention(family), held
+  end
+
+  test "a soft-deleted document stops counting as ready to review" do
+    family = families(:dylan_family)
+    link = DocumentLink.create!(family: family, source: "receipt", status: "unlinked", original_filename: "ready.jpg")
+    ReceiptImport.create!(family: family, document_link: link, status: :pending,
+                          understanding_state: :understood, signage_convention: "inflows_negative")
+    before = DocumentLink.pending_review_count_for(family)
+
+    link.soft_delete!
+
+    assert_equal before - 1, DocumentLink.pending_review_count_for(family)
+  end
+
+  # The carried-in Task 9 gap: an undo must survive a reprocess. The document
+  # records that its auto-post was reversed, so the gate can never silently
+  # re-post what the user took back.
+  test "a document remembers that its auto-post was undone" do
+    link = document_links(:linked_receipt)
+    assert_not link.auto_post_undone?
+
+    assert link.mark_auto_post_undone!
+    assert link.reload.auto_post_undone?
+  end
 end

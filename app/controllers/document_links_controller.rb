@@ -37,7 +37,7 @@ class DocumentLinksController < ApplicationController
     @rows = @links.map { |link| DocumentBrowser::Row.for_document_link(link, viewer_url: viewer_document_path(link, document_browser_viewer_params)) }
     # The tag facet's choices come from the stored snapshot (M8 Task 6), never
     # a live external call.
-    @tag_choices = DocumentLink.tag_snapshot_names(Current.family.document_links)
+    @tag_choices = DocumentLink.tag_snapshot_names(Current.family.document_links.not_deleted)
     @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("documents.index.title"), documents_path ] ]
     # Ruling 4: explicit view path — implicit render under this controller would
     # resolve to document_links/index, but spec §6 and Task 8 pin the views at
@@ -180,8 +180,17 @@ class DocumentLinksController < ApplicationController
   end
 
   def destroy
-    @link.delete_stored!
-    @link.destroy!
+    # Spec N9: money is never silently cascaded. Refuse while anything derived
+    # is unreconciled, and NAME what is in the way -- a blocking rule the user
+    # cannot act on, or cannot see, is a wall. When it is clear, the bytes go and
+    # the row stays as a tombstone, so the entry it produced still tells the
+    # truth about where it came from.
+    unless @link.deletable?
+      return redirect_back_or_to documents_path,
+                                alert: t("documents.destroy.blocked", entries: @link.deletion_blockers.to_sentence)
+    end
+
+    @link.soft_delete!
     redirect_back_or_to documents_path, notice: t("documents.destroy.removed")
   end
 
@@ -208,7 +217,9 @@ class DocumentLinksController < ApplicationController
     def link_display_title(link) = link.title.presence || link.original_filename
 
     def set_link
-      @link = Current.family.document_links.find(params[:id])
+      # A tombstone has left the archive: the viewer, its bytes and its actions
+      # are all gone (404), so a stale URL cannot resurrect a deleted document.
+      @link = Current.family.document_links.not_deleted.find(params[:id])
     end
 
     def require_document_copy!

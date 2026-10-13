@@ -229,6 +229,10 @@ class DocumentUnderstandingJob < ApplicationJob
       return unless document_class == "receipt"
       return unless draft.understood?
       return unless Setting.auto_post_receipts?
+      # A reprocess must not silently re-post money the user took back (the
+      # carried-in Task 9 gap): the document remembers the reversal, and the gate
+      # re-checks it at write time too -- this only avoids the dead enqueue.
+      return if draft.document_link&.auto_post_undone?
 
       AutoPostReceiptJob.perform_later(draft.id)
     end

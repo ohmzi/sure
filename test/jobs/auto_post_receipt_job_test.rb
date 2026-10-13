@@ -183,6 +183,23 @@ class AutoPostReceiptJobTest < ActiveSupport::TestCase
     end
   end
 
+  # The carried-in Task 9 gap, at the writer: the undo removed the entry and
+  # cleared the draft's `data_committed?`, so a reprocess re-enqueues this job.
+  # The DURABLE reversal on the document is what stops the machine silently
+  # re-posting money the user took back.
+  test "a document whose auto-post the user undid is never re-posted" do
+    @draft.document_link.update!(auto_post_undone_at: Time.current)
+    before = @draft.document_link.reload.attributes.slice("status", "entry_id")
+
+    assert_no_difference -> { Entry.count } do
+      AutoPostReceiptJob.perform_now(@draft.id)
+    end
+
+    link = @draft.document_link.reload
+    assert_equal before, link.attributes.slice("status", "entry_id"),
+                 "the refusal is a pure no-op on the document"
+  end
+
   test "an entry a human already recorded is never claimed" do
     # `allow_heuristic_matching: false` — auto-post writes a new entry, never
     # adopts the user's. The receipt's own identity is `document:<link id>`, so

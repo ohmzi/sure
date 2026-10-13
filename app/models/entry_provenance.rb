@@ -79,6 +79,12 @@ class EntryProvenance
 
   def label = I18n.t("entries.provenance.#{primary}")
 
+  # The document that produced this entry is gone: its bytes are deleted but the
+  # row survives precisely so this question has an honest answer. The entry is
+  # NOT edited or reattributed -- it still belongs to a document; that document
+  # simply no longer exists (task 10, spec N9).
+  def source_deleted? = documents.any? { |link| link.deleted_at.present? }
+
   private
     def document_backed?
       documents.any? ||

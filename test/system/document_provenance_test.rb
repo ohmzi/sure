@@ -37,6 +37,26 @@ class DocumentProvenanceTest < ApplicationSystemTestCase
     assert_no_selector "[data-provenance] a"
   end
 
+  # Spec N9, the soft delete: the document's bytes are gone, but the entry keeps
+  # telling the truth. It still reads "from a document" -- provenance is never
+  # silently rewritten to "entered by you" -- and the source is named as gone,
+  # with no link, because a tombstone has left the archive.
+  test "a deleted source document is still named, but as gone" do
+    entry = entries(:transaction_entry)
+    link = document_links(:understood_receipt_link)
+    link.update!(entry_id: entry.id)
+    entry.update!(reconciled_at: Time.current)
+    link.soft_delete!
+
+    visit transaction_path(entry.reload)
+
+    title = link.title.presence || link.original_filename
+    assert_text I18n.t("entries.provenance.document")
+    assert_selector "[data-provenance]", text: I18n.t("entries.provenance.source_deleted", name: title)
+    assert_no_selector "[data-provenance] a[href='#{viewer_document_path(link)}']",
+                       text: title
+  end
+
   test "a value changed after the read is marked as edited" do
     entry = entries(:transaction_entry)
     link = document_links(:understood_receipt_link)

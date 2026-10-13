@@ -78,6 +78,21 @@ class Entries::AutoPostsControllerTest < ActionDispatch::IntegrationTest
     assert_match title, response.body
   end
 
+  # The undo is DURABLE (the carried-in Task 9 gap): a reprocess re-enqueues the
+  # auto-post because the undo cleared the draft's `data_committed?`. The
+  # document records the reversal, so the machine cannot silently re-post what
+  # the user took back.
+  test "undo records the reversal on the document, so a reprocess cannot re-post" do
+    link = document_links(:understood_receipt_link)
+    link.link_to_entry!(@entry)
+    assert_not link.reload.auto_post_undone?
+
+    delete entry_auto_post_path(@entry)
+
+    assert link.reload.auto_post_undone?,
+           "the document must remember that its auto-post was undone"
+  end
+
   # The undo releases only the links that point at THIS entry. A document linked
   # to some other transaction is not this undo's to touch (Task 7's scoping
   # precedent: detach by the link's own id and the entry it belongs to).

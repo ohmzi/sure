@@ -37,6 +37,7 @@ en:
       queued: Retrying the upload.
     destroy:
       removed: Document removed.
+      blocked: "This document is linked to transactions that are not reconciled yet, so it cannot be removed: %{entries}. Reconcile or remove those first."
     card:
       retry: Retry
       remove: Remove

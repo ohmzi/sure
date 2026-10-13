@@ -13,8 +13,8 @@ class AutoPostTest < ActiveSupport::TestCase
   # `stub_extraction`'s `classifications:` argument was never read by the gate
   # (which reads `draft.document_link.classified_by`, not the extraction). The
   # doubles now carry each flag to the thing the gate actually reads.
-  def stub_receipt(account: true, single: true, classified: true, total: true, date: true)
-    link = Struct.new(:classified_by).new(classified ? "ai" : "fallback")
+  def stub_receipt(account: true, single: true, classified: true, total: true, date: true, undone: false)
+    link = Struct.new(:classified_by, :auto_post_undone?).new(classified ? "ai" : "fallback", undone)
     Struct.new(:account, :total_amount, :purchase_date, :line_items_split?, :document_link).new(
       account ? accounts(:depository) : nil,
       total ? BigDecimal("12.34") : nil,
@@ -27,9 +27,9 @@ class AutoPostTest < ActiveSupport::TestCase
     Struct.new(:validations).new({ "totals_agree" => totals_agree })
   end
 
-  def allowed?(totals_agree: true, account: true, single: true, classified: true, total: true, date: true)
+  def allowed?(totals_agree: true, account: true, single: true, classified: true, total: true, date: true, undone: false)
     AutoPost.allowed?(
-      draft: stub_receipt(account: account, single: single, classified: classified, total: total, date: date),
+      draft: stub_receipt(account: account, single: single, classified: classified, total: total, date: date, undone: undone),
       extraction: stub_extraction(totals_agree: totals_agree)
     )
   end
@@ -53,5 +53,15 @@ class AutoPostTest < ActiveSupport::TestCase
   test "a nil totals_agree (not checkable) is not agreement" do
     assert_not allowed?(totals_agree: nil),
                "nil means the cheap read could not check the total — that is not agreement"
+  end
+
+  test "a document whose auto-post the user undid is never re-posted" do
+    # The carried-in Task 9 gap: the undo clears the draft's `data_committed?`,
+    # so a reprocess re-runs this gate. The DURABLE reversal on the document is
+    # what refuses it — without this the machine would silently re-post money
+    # the user took back.
+    assert allowed?, "the gate is otherwise open"
+    assert_not allowed?(undone: true),
+               "an undone auto-post must not re-post on reprocess"
   end
 end

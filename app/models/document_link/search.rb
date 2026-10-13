@@ -52,7 +52,10 @@ class DocumentLink::Search
   end
 
   def relation
-    @scope = @family.document_links.includes(:account_statement, :receipt_imports)
+    # Tombstones have left the archive: the grid, the strip's filter and the
+    # viewer's prev/next all read through this relation, so one `not_deleted`
+    # here hides a soft-deleted document from every one of them (spec N9).
+    @scope = @family.document_links.not_deleted.includes(:account_statement, :receipt_imports)
     @scope = @scope.where(source: @sources) if @sources
     @scope = @scope.where(source: type_filters) if type_filters.any?
     @scope = @scope.where(status: status_filters) if status_filters.any?

@@ -467,13 +467,43 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "destroy removes the row and its staged bytes" do
+  test "destroy is refused while an entry this document produced is unreconciled, and names it" do
+    # @link is document_links(:linked_receipt); its entry is entries(:transaction),
+    # unreconciled by default. Spec N9: money is never silently cascaded.
+    @link.entry.update!(reconciled_at: nil)
+
+    assert_no_difference "DocumentLink.count" do
+      delete document_path(@link)
+    end
+    assert_nil @link.reload.deleted_at, "a refused delete writes nothing"
+    assert_redirected_to documents_path
+    assert_match @link.entry.name, flash[:alert],
+                 "the refusal must NAME what is in the way, not just refuse"
+  end
+
+  test "destroy tombstones the row and removes its staged bytes once the money is settled" do
+    @link.entry.update!(reconciled_at: Time.current)
     DocumentLink::Staging.write(io: StringIO.new("x"), id: @link.id)
     @link.update_columns(stored_path: DocumentLink::Staging.root.join(@link.id).to_s)
     path = @link.reload.stored_path
-    assert_difference "DocumentLink.count", -1 do
+
+    assert_no_difference "DocumentLink.count" do
       delete document_path(@link)
     end
-    assert_not File.exist?(path)
+
+    assert_not_nil @link.reload.deleted_at, "the row survives as a tombstone"
+    assert_not File.exist?(path), "the bytes are gone"
+    assert_redirected_to documents_path
+    assert_equal I18n.t("documents.destroy.removed"), flash[:notice]
+  end
+
+  test "destroy leaves a tombstone out of the archive" do
+    @link.entry.update!(reconciled_at: Time.current)
+    delete document_path(@link)
+
+    get documents_path
+    assert_response :success
+    assert_no_match @link.title, response.body,
+                    "a soft-deleted document must not appear in the Documents grid"
   end
 end

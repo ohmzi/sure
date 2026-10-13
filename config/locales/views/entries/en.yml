@@ -27,6 +27,7 @@ en:
       synced: synced from your bank
       manual: entered by you
       edited: edited by you
+      source_deleted: "%{name} (deleted)"
     # The audit surface for an entry the app posted on its own (spec N6).
     auto_post:
       badge: added by the app

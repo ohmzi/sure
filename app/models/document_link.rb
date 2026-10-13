@@ -57,6 +57,9 @@ class DocumentLink < ApplicationRecord
 
   scope :for_entry, ->(entry) { where(entry_id: entry.respond_to?(:id) ? entry.id : entry) }
   scope :ordered, -> { order(created_at: :desc) }
+  # The archive (grid, strip, viewer walk) reads through here: a tombstone has
+  # left the archive, so every one of those scopes must compose `not_deleted`.
+  scope :not_deleted, -> { where(deleted_at: nil) }
 
   # The "the job died" shape (Task 11): mid-read or queued, has bytes, no stated
   # hold, and has not moved in a bound. DocumentReaperJob's scope — and it is
@@ -109,8 +112,11 @@ class DocumentLink < ApplicationRecord
     # its list, and the filter behind its "Show them" action.
     def needs_attention(family)
       held = where(family: family).where.not(failure_message: nil)
+      # A tombstone has left the archive, so it can never be "waiting on a
+      # person" -- the strip's list and its count both drop it.
       held.or(where(family: family, id: ReceiptImport.where(understanding_state: "understood")
                                                 .where.not(status: "complete").select(:document_link_id)))
+          .not_deleted
     end
 
     # The sidebar's ready-to-review count (M8 Task 9, Ruling M8-L1 decision 3):
@@ -123,7 +129,7 @@ class DocumentLink < ApplicationRecord
       ready = ReceiptImport.where(understanding_state: "understood")
                            .where.not(status: "complete")
                            .select(:document_link_id)
-      where(family: family).where(id: ready).count
+      where(family: family).not_deleted.where(id: ready).count
     end
   end
 
@@ -305,5 +311,57 @@ class DocumentLink < ApplicationRecord
 
   def dismiss!
     transition!(from: STATUSES - %w[verified dismissed], to: "dismissed")
+  end
+
+  # --- delete-block and tombstone (spec N9) ---------------------------------
+  #
+  # Money is never silently cascaded, and a document's provenance is never
+  # silently lost. The delete is refused while anything DERIVED is unreconciled;
+  # when it is clear, the bytes go and the row stays as a tombstone, so the entry
+  # it produced still tells the truth about where it came from.
+
+  # Every entry this document produced or corroborates. Two routes, and both
+  # matter: an entry a draft produced hangs off `entries.import_id ->
+  # imports.document_link_id`, and an entry a document was merely MATCHED to
+  # hangs off `document_links.entry_id`. Missing the first would let a delete
+  # cascade over money; missing the second would orphan a corroboration.
+  def derived_entries
+    produced = Entry.where(import_id: Import.where(document_link_id: id).select(:id))
+    corroborated = Entry.where(id: entry_id)
+    Entry.where(id: produced.select(:id)).or(Entry.where(id: corroborated.select(:id)))
+  end
+
+  # The refusal NAMES what is in the way -- a blocking rule the user cannot act
+  # on, and cannot see, is a wall. Unreconciled entries only: a reconciled entry
+  # is settled evidence, safe to leave behind as a tombstoned provenance trail.
+  def deletion_blockers
+    derived_entries.reject(&:reconciled?).map(&:name)
+  end
+
+  def deletable? = deletion_blockers.empty?
+
+  # The bytes go, the row stays. Guarded by `deletable?` so a soft delete can
+  # never cascade over an unreconciled entry: the row is hidden from the archive
+  # but keeps answering "where did this entry come from" forever.
+  def soft_delete!
+    raise "document has unreconciled derived entries" unless deletable?
+
+    transaction do
+      delete_stored!
+      self.class.where(id: id).update_all(deleted_at: Time.current, updated_at: Time.current)
+    end
+  end
+
+  def deleted? = deleted_at.present?
+
+  # The carried-in Task 9 gap. `data_committed?` is `entries.exists?`, so the
+  # auto-post undo clears it and a reprocess would silently re-post what the user
+  # took back. This records the reversal ON THE DOCUMENT -- the identity the
+  # auto-post is keyed on -- so the gate can refuse it durably. The reviewed
+  # publish is unaffected: the user can still redo by publishing by hand.
+  def auto_post_undone? = auto_post_undone_at.present?
+
+  def mark_auto_post_undone!
+    self.class.where(id: id).update_all(auto_post_undone_at: Time.current, updated_at: Time.current) == 1
   end
 end
