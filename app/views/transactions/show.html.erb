@@ -160,6 +160,7 @@
 
     <% dialog.with_section(title: t(".provenance"), open: true) do %>
       <%= render "documents/provenance", entry: @entry %>
+      <%= render "entries/auto_post", entry: @entry %>
     <% end %>
 
     <% dialog.with_section(title: t(".documents"), open: true) do %>

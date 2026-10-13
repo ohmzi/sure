@@ -15,3 +15,10 @@ transfer_in:
 transaction_entry:
   kind: standard
   category: food_and_drink
+
+# The hand-entered counterpart (Milestone B Task 9): a plain standard
+# transaction with a category, so it is a fully ordinary row a person typed --
+# the shape the AI-posted filter must never match and undo must refuse.
+depository_transaction:
+  kind: standard
+  category: food_and_drink

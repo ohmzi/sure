@@ -21,6 +21,10 @@ class Transaction::Search
   attribute :tags, array: true
   attribute :ai_status, array: true
   attribute :attachment_status, array: true
+  # The "Written by the app" audit filter (spec N6): the rows an auto-post
+  # wrote on its own. See EntrySearch.apply_ai_posted_filter for the one
+  # definition of what it means.
+  attribute :ai_posted, :string
   attribute :active_accounts_only, :boolean, default: true
 
   attr_reader :family, :accessible_account_ids
@@ -53,6 +57,7 @@ class Transaction::Search
       query = EntrySearch.apply_date_filters(query, start_date, end_date)
       query = EntrySearch.apply_amount_filter(query, amount, amount_operator)
       query = EntrySearch.apply_accounts_filter(query, accounts, account_ids)
+      query = EntrySearch.apply_ai_posted_filter(query, ai_posted)
 
       query
     end

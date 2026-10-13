@@ -1,0 +1,19 @@
+<%# locals: (form:) %>
+<%# The audit filter (spec N6): show only the rows the app posted on its own.
+    A single toggle, so there is one unambiguous meaning -- "written by the
+    app" -- and no second state to read. %>
+<div class="p-2 space-y-3">
+  <div class="flex items-center gap-3" data-filter-name="ai_posted">
+    <%= form.check_box :ai_posted,
+                           {
+                             checked: ActiveModel::Type::Boolean.new.cast(@q[:ai_posted]),
+                             class: "checkbox checkbox--light"
+                           },
+                           "true",
+                           nil %>
+    <div>
+      <%= form.label :ai_posted, t(".label"), value: "true", class: "text-sm text-primary" %>
+      <p class="text-xs text-secondary"><%= t(".description") %></p>
+    </div>
+  </div>
+</div>

@@ -12,7 +12,10 @@ module TransactionsHelper
       { key: "tag_filter", label: t("transactions.search.filters.tag"), icon: "tags" },
       { key: "merchant_filter", label: t("transactions.search.filters.merchant"), icon: "store" },
       { key: "ai_filter", label: t("transactions.search.filters.ai"), icon: "sparkles" },
-      { key: "attachment_filter", label: t("transactions.search.filters.attachment"), icon: "paperclip" }
+      { key: "attachment_filter", label: t("transactions.search.filters.attachment"), icon: "paperclip" },
+      # The auto-post audit filter (spec N6): narrow the ledger to exactly the
+      # rows the app wrote on its own.
+      { key: "ai_posted_filter", label: t("transactions.search.filters.ai_posted"), icon: "bot" }
     ]
   end
 

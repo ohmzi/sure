@@ -221,6 +221,7 @@
             amount -- the inline pill cluster beside the name cannot take it
             without squeezing the name to nothing. %>
         <%= render "documents/provenance", entry: entry %>
+        <%= render "entries/auto_post", entry: entry %>
         <%= content_tag :p,
             transaction.transfer? && view_ctx == "global" ? "+/- #{format_money(entry.amount_money.abs)}" : format_money(-entry.amount_money),
             class: ["privacy-sensitive", "text-green-600": entry.amount.negative?] %>

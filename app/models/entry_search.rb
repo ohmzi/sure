@@ -12,6 +12,10 @@ class EntrySearch
   attribute :account_ids, array: true
   attribute :start_date, :string
   attribute :end_date, :string
+  # The audit toggle (spec N6): "show me only what the app posted". Stored as its
+  # raw param and read through a boolean cast, so absent/blank/"false" all mean
+  # "no filter" and only an explicit truthy value narrows the ledger.
+  attribute :ai_posted, :string
 
   class << self
     def apply_search_filter(scope, search)
@@ -68,6 +72,19 @@ class EntrySearch
       scope.where(id: Entry.uncategorized_transactions.select(:id))
     end
 
+    # The rows a machine wrote on its own (spec N6). The column is the whole
+    # answer: `ai_posted_at` is written by exactly one place -- the auto-post
+    # job -- and no user-facing parameter permits it, so a row a person typed is
+    # always nil and can never match. Anything that is not an explicit truthy
+    # value (absent, "", "false") leaves the ledger untouched.
+    def apply_ai_posted_filter(scope, ai_posted)
+      return scope unless ActiveModel::Type::Boolean.new.cast(ai_posted)
+
+      # Qualified on the entries table: the ledger scope joins `transactions`
+      # too, and an unqualified column would resolve against it.
+      scope.where.not(entries: { ai_posted_at: nil })
+    end
+
     def apply_status_filter(scope, statuses)
       return scope unless statuses.present?
       return scope if statuses.uniq.sort == %w[confirmed pending] # Both selected = no filter
@@ -111,6 +128,7 @@ class EntrySearch
     query = self.class.apply_accounts_filter(query, accounts, account_ids)
     query = self.class.apply_status_filter(query, status)
     query = self.class.apply_uncategorized_filter(query, uncategorized)
+    query = self.class.apply_ai_posted_filter(query, ai_posted)
     query
   end
 end

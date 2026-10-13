@@ -27,3 +27,13 @@ en:
       synced: synced from your bank
       manual: entered by you
       edited: edited by you
+    # The audit surface for an entry the app posted on its own (spec N6).
+    auto_post:
+      badge: added by the app
+      source: the document it came from
+      undo: Undo
+      undo_confirm_title: Undo this transaction?
+      undo_confirm_body: The app added it from a document. Undoing removes the transaction; the document stays in your Documents.
+    auto_posts:
+      destroy:
+        undone: The transaction the app added was removed.

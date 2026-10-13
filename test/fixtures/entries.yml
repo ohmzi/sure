@@ -55,3 +55,18 @@ transaction_entry:
   account: depository
   entryable_type: Transaction
   entryable: transaction_entry
+
+# The hand-entered counterpart the AI-posted filter and the undo guard need
+# (Milestone B Task 9; flagged as missing since Task 5). By construction this
+# row has no import, no provider `source` and no document link, so it can only
+# ever read "entered by you": the audit filter must leave it out, and undo must
+# refuse it. The date sits in the previous month so it stays out of the current
+# month's budget and report totals.
+depository_transaction:
+  name: Hand-entered coffee
+  date: <%= 40.days.ago.to_date %>
+  amount: 7
+  currency: USD
+  account: depository
+  entryable_type: Transaction
+  entryable: depository_transaction

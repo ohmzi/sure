@@ -586,6 +586,14 @@ Rails.application.routes.draw do
     end
   end
 
+  # Undo of a write the app made on its own (spec N6). A singular nested member
+  # so the path names the entry it reverses: DELETE /entries/:entry_id/auto_post.
+  # `only: []` — this is not an entries resource, it is one affordance hanging
+  # off an entry.
+  resources :entries, only: [] do
+    resource :auto_post, only: :destroy, module: :entries
+  end
+
   resources :transactions, only: %i[index new create show update destroy] do
     resource :split, only: %i[new create edit update destroy]
     resource :transfer_match, only: %i[new create]

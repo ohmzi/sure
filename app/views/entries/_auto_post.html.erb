@@ -1,0 +1,45 @@
+<%# locals: (entry:) %>
+<%# The audit surface for a write the app made on its own (spec N6). It names
+    the machine as the author, links the document that caused the write, and
+    offers the one action that reverses it -- so undoing is an informed act, not
+    a blind delete. Rendered only while the entry carries `ai_posted_at`; a row
+    a person typed has nothing to undo here, and the controller refuses it
+    anyway.
+
+    `frame: "_top"` because the row lives inside a turbo frame keyed to the
+    entry: after the undo the frame no longer exists in the response, so the
+    navigation must break out to the whole page. %>
+<% if entry.ai_posted_at.present? %>
+  <% document = entry.import&.document_link %>
+  <span class="inline-flex flex-wrap items-center gap-2" data-auto-post="<%= dom_id(entry) %>">
+    <%= render DS::Pill.new(
+      label: t("entries.auto_post.badge"),
+      tone: :indigo,
+      marker: false,
+      icon: "bot"
+    ) %>
+
+    <% if document %>
+      <%= link_to t("entries.auto_post.source"),
+            viewer_document_path(document),
+            class: "text-xs text-secondary underline hover:text-primary" %>
+    <% end %>
+
+    <%= render DS::Button.new(
+      text: t("entries.auto_post.undo"),
+      icon: "undo-2",
+      variant: "ghost",
+      size: :sm,
+      class: "text-destructive",
+      href: entry_auto_post_path(entry),
+      method: :delete,
+      confirm: CustomConfirm.new(
+        title: t("entries.auto_post.undo_confirm_title"),
+        body: t("entries.auto_post.undo_confirm_body"),
+        btn_text: t("entries.auto_post.undo"),
+        destructive: true
+      ),
+      frame: "_top"
+    ) %>
+  </span>
+<% end %>

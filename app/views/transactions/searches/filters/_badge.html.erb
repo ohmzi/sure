@@ -62,6 +62,11 @@
       <%= icon("paperclip", size: "sm") %>
       <p><%= t(".attachment_#{param_value}") %></p>
     </div>
+  <% elsif param_key == "ai_posted" %>
+    <div class="flex items-center gap-2 px-1">
+      <%= icon("bot", size: "sm") %>
+      <p><%= t(".ai_posted") %></p>
+    </div>
   <% else %>
     <div class="flex items-center gap-2">
       <p><%= param_value %></p>

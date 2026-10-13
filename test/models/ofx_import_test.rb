@@ -124,11 +124,12 @@ class OfxImportTest < ActiveSupport::TestCase
     @import.sync_mappings
     @import.publish
 
-    # Ruling M2-L2: 6 = the depository fixture's 3 pre-existing Transaction
+    # Ruling M2-L2: 7 = the depository fixture's 4 pre-existing Transaction
     # entries (entries.yml: Starbucks, "Payment to credit card account",
-    # "Provenance subject") + the manual "Grocery run" + the 2 imported rows
-    # (the grocery row is correctly claimed as a duplicate, not re-created).
-    assert_equal 6, @account.entries.where(entryable_type: "Transaction").count
+    # "Provenance subject", "Hand-entered coffee") + the manual "Grocery run" +
+    # the 2 imported rows (the grocery row is correctly claimed as a duplicate,
+    # not re-created).
+    assert_equal 7, @account.entries.where(entryable_type: "Transaction").count
     assert_equal 2, @account.entries.where(source: "ofx").count
   end
 end
