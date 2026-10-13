@@ -58,7 +58,7 @@ class DocumentViewerTest < ApplicationSystemTestCase
     within "[data-document-understanding]" do
       assert_text I18n.t("documents.understanding.not_read_yet")
       assert_text "no AI provider is configured"
-      assert_selector "a[href='#{settings_hosting_path}']",
+      assert_selector "a[href='#{settings_hosting_path(anchor: "ai-provider")}']",
                       text: I18n.t("documents.understanding.unread.set_up_provider")
       assert_selector "a[href='#{new_transaction_path}']",
                       text: I18n.t("documents.understanding.unread.enter_by_hand")
@@ -75,7 +75,7 @@ class DocumentViewerTest < ApplicationSystemTestCase
     within "[data-document-understanding]" do
       assert_text I18n.t("documents.understanding.reading")
       assert_no_text I18n.t("documents.understanding.not_read_yet")
-      assert_no_selector "a[href='#{settings_hosting_path}']"
+      assert_no_selector "a[href='#{settings_hosting_path(anchor: "ai-provider")}']"
     end
   end
 
