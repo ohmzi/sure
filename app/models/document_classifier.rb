@@ -16,7 +16,6 @@ class DocumentClassifier
   STATEMENT_TEXT = /statement|account\s+summary|opening\s+balance|closing\s+balance|minimum\s+payment|new\s+balance/i
   RECEIPT_TEXT   = /receipt|thank\s+you\s+for\s+your\s+(purchase|order)|subtotal|amount\s+due|total/i
   STATEMENT_FILENAME = /statement|stmt/i
-  HIGH_CONFIDENCE = 0.6
 
   def self.call(ai_verdict:, filename: nil, content_type: nil, ocr_text: nil)
     new(ai_verdict:, filename:, content_type:, ocr_text:).call

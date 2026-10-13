@@ -172,7 +172,7 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     @link.reload
 
     assert_equal "queued", @link.status
-    assert_includes @link.failure_message, "found no text"
+    assert_includes @link.failure_message, "could not be read"
     assert_nil @link.extraction
     assert_not_nil @link.stored_path, "the original bytes must survive an unreadable read"
   end
@@ -204,7 +204,7 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     @link.reload
 
     assert_equal "queued", @link.status
-    assert_includes @link.failure_message, "found no text"
+    assert_includes @link.failure_message, "could not be read"
     assert_nil @link.extraction
     assert_not_nil @link.stored_path
   end
@@ -292,18 +292,30 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     # mark_processing!, and re-ran the whole read — OCR sidecar plus a paid
     # provider call. A route failure (here: the draft creation raising, as the
     # statement vault's DuplicateUploadError or a PG::UniqueViolation would) must
-    # end the attempt, not schedule another paid read.
+    # end the attempt, not schedule another paid read. The exception is also
+    # kept out of the message the archive renders (cleanup wave): the row gets a
+    # plain sentence and the raw exception goes to the log.
     stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
     stub_provider(FakeProvider.new(RECEIPT))
     ReceiptImport.stubs(:find_or_create_from_document_link!)
                  .raises(StandardError.new("vault refused: duplicate upload"))
 
-    DocumentUnderstandingJob.perform_now(@link.id) # must not raise
+    log = StringIO.new
+    original_logger = Rails.logger
+    Rails.logger = ActiveSupport::Logger.new(log)
+    begin
+      DocumentUnderstandingJob.perform_now(@link.id) # must not raise
+    ensure
+      Rails.logger = original_logger
+    end
 
     @link.reload
     assert_equal "queued", @link.status
-    assert_includes @link.failure_message, "read failed"
-    assert_includes @link.failure_message, "duplicate upload"
+    assert_includes @link.failure_message, "could not be read"
+    assert_no_match(/StandardError|duplicate upload/, @link.failure_message,
+                    "raw exception text must never reach the user")
+    assert_includes log.string, "duplicate upload",
+                    "the exception is kept in the log, where it belongs"
     assert_enqueued_jobs 0, only: DocumentUnderstandingJob
   end
 

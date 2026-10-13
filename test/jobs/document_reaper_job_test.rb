@@ -125,7 +125,7 @@ class DocumentReaperJobTest < ActiveSupport::TestCase
     # updated_at to now and the row would fall out of the scope for freshness,
     # not for the hold — passing the test for the wrong reason.
     held = with_staged_bytes
-    held.update!(failure_message: "the OCR engine found no text in this document (no_text)",
+    held.update!(failure_message: "This document could not be read (no_text)",
                  updated_at: 2.hours.ago)
 
     assert_enqueued_jobs 0, only: DocumentUnderstandingJob do

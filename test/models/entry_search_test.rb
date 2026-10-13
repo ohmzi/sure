@@ -38,7 +38,9 @@ class EntrySearchTest < ActiveSupport::TestCase
     assert_nil @human.ai_posted_at, "a hand-typed row must not carry the marker"
     assert_not_includes EntrySearch.new(ai_posted: "true").build_query(Entry.all), @human
 
-    # And it cannot be worked around with a value the toggle never means.
+    # Any casing ActiveModel::Type::Boolean casts truthy ("TRUE" included) just
+    # applies the filter; the nil column is what keeps the hand-typed row out,
+    # so no value a user could type can surface it.
     assert_not_includes EntrySearch.new(ai_posted: "TRUE").build_query(Entry.all), @human
   end
 end

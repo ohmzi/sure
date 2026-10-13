@@ -63,8 +63,9 @@ normalised to a single page, honouring its EXIF orientation.
   OCR is poor, so a text-less photo is a success, not a failure.
 - `422` — the service could not produce a page the engine can read: a file that
   cannot be opened (a malformed PDF, a corrupt image, an empty upload), or a
-  document none of whose pages is at least `MIN_SIDE` px on each side. This is a
-  *normal* outcome the app must be able to see, not a server fault.
+  document with any page smaller than `MIN_SIDE` px on a side — a single
+  degenerate page withholds the whole document. This is a *normal* outcome the
+  app must be able to see, not a server fault.
 - `5xx` — a retryable fault.
 
 ## Configuration

@@ -65,7 +65,14 @@ class DocumentUnderstandingJob < ApplicationJob
   end
   discard_on ActiveRecord::RecordNotFound
 
-  UNREADABLE_MESSAGE = "the OCR engine found no text in this document".freeze
+  # The user-facing wording for a read that produced nothing usable. Since
+  # Ruling R14 a 422 from the sidecar means the service could not RENDER the
+  # page (a corrupt file, a degenerate page) — not that the engine found no
+  # text — so the message must say "could not be read", not "found no text".
+  # The same sentence also covers the empty-200 read (no `pages` at all), where
+  # there is no page to name; "document" is therefore the word that is right for
+  # both paths. The `(code)` suffix the caller appends stays the diagnostic.
+  UNREADABLE_MESSAGE = "This document could not be read".freeze
   NO_PROVIDER_MESSAGE = "no AI provider is configured".freeze
 
   # The deterministic cross-checks. Pure, so the review screen can call them and
@@ -192,7 +199,16 @@ class DocumentUnderstandingJob < ApplicationJob
     # so a bounded retry ladder would only burn more paid reads on a
     # deterministic failure. The row is held with its reason and recoverable
     # through `reprocess!`; a fresh read after that starts from a clean state.
-    DocumentLink.find_by(id: document_link_id)&.hold!(message: "read failed: #{e.class}: #{e.message}")
+    #
+    # The exception goes to the LOG, never into the message the archive shows:
+    # `failure_message` is rendered verbatim on the row, tile and panel, so
+    # "read failed: ActiveRecord::RecordNotUnique: ..." or a
+    # DuplicateUploadError's internals would put raw exception text in front of
+    # the owner. The user gets one plain sentence; the detail lives in the log.
+    Rails.logger.error(
+      "DocumentUnderstandingJob read failed for document_link #{document_link_id}: #{e.class}: #{e.message}"
+    )
+    DocumentLink.find_by(id: document_link_id)&.hold!(message: "This document could not be read. Retry it from the archive.")
   end
 
   private

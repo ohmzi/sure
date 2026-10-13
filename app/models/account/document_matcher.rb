@@ -14,9 +14,9 @@ class Account::DocumentMatcher
   Match = Struct.new(:account, :confidence, keyword_init: true)
 
   MINIMUM_CONFIDENCE = "0.35".to_d
-  # Above this, the account is prefilled without asking. Deliberately well above
-  # the floor: a wrong prefill is a silently wrong ledger, a missing prefill is
-  # one tap.
+  # At or above this, the account is prefilled without asking. Deliberately well
+  # above the floor: a wrong prefill is a silently wrong ledger, a missing
+  # prefill is one tap.
   AUTO_PREFILL_BAR = "0.6".to_d
 
   WEIGHT_INSTITUTION = "0.35".to_d
