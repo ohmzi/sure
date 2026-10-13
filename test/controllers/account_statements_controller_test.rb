@@ -84,8 +84,10 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{account_statement_path(statement)}']" # the Details action
     assert_select "a[href='#{viewer_account_statement_path(statement)}']" # the viewer link beside it (Task 4)
     assert_match I18n.t("account_statements.status.linked"), response.body
-    # the upload card survives (vault parity)
-    assert_select "input[type='file'][name='account_statement[files][]']"
+    # (Milestone B, design D1) The vault is an inbox: its own upload form is
+    # gone, so the Documents dropzone is the one way a document enters.
+    assert_select "input[type='file'][name='account_statement[files][]']", count: 0
+    assert_select "form[action='#{account_statements_path}'][method='post']", count: 0
   end
 
   test "an unmatched statement keeps its suggestion actions in the browser" do

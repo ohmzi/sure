@@ -2,20 +2,23 @@
 <%= form_with url: url, method: :get, data: { controller: "auto-submit-form" },
       class: "flex flex-wrap items-center gap-2" do |form| %>
   <% if documents %>
-    <%# The type facet (Milestone B, design D1): one page, so the type is a chip
-        rather than a second destination. "All" carries the token `all`, which
-        the SOURCES validation drops, so the default and cleared states filter
-        nothing; "Receipts & Bills" carries a comma-joined pair — the same shape
-        the old top-level source facet accepted. %>
+    <%# The type facet (Milestone B, design D1): one page, so the type is a
+        chip rather than a second destination. It is a SINGLE-select radio
+        group, not checkboxes: three independent checkboxes let "All" submit
+        alongside a still-checked type, so from a filtered state All would
+        visibly do nothing. A radio group submits exactly one value, so All
+        (the empty value) genuinely clears the facet. The values are validated
+        against DocumentLink::SOURCES the way the old top-level source facet
+        was; "Receipts & Bills" carries the comma-joined pair. %>
     <% selected_types = Array(filters[:type]).flat_map { |value| value.to_s.split(",") }.map(&:strip).select { |source| DocumentLink::SOURCES.include?(source) } %>
     <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
       <span class="text-sm text-secondary"><%= t("document_browser.filters.type") %></span>
-      <% [ [ "all", t("document_browser.filters.types.all"), selected_types.empty? ],
+      <% [ [ "", t("document_browser.filters.types.all"), selected_types.empty? ],
            [ "statement", t("document_browser.filters.types.statements"), selected_types.include?("statement") ],
            [ "receipt,bill", t("document_browser.filters.types.receipts_bills"), (selected_types & %w[receipt bill]).any? ] ].each do |value, label, checked| %>
         <label class="flex items-center gap-1.5 text-sm text-primary">
-          <%= check_box_tag "q[type][]", value, checked,
-                class: "checkbox checkbox--light", data: { "auto-submit-form-target": "auto" } %>
+          <%= radio_button_tag "q[type][]", value, checked,
+                class: "radio", data: { "auto-submit-form-target": "auto" } %>
           <%= label %>
         </label>
       <% end %>

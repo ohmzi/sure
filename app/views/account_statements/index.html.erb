@@ -3,38 +3,16 @@
       rows: @rows, pagy: @pagy, filters: @filters, tag_choices: @tag_choices,
       layout: :list
     ) do |browser| %>
+  <%# The vault is an inbox now, not a second upload door (Milestone B, design
+      D1 — the owner's deletions name "the separate Statements page and its own
+      upload form"): the table's upload form is gone, so the Documents dropzone
+      is the only way in. The storage summary it carried stays. %>
   <% browser.with_upload do %>
     <%= render DS::Card.new do %>
-      <div class="flex items-start justify-between gap-3 mb-4">
-        <div>
-          <p class="text-sm font-medium text-primary"><%= t(".upload_title") %></p>
-          <p class="text-xs text-secondary"><%= t(".upload_description") %></p>
-        </div>
-        <div class="text-right">
-          <p class="text-xs text-secondary"><%= t(".storage_used") %></p>
-          <p class="text-sm font-medium text-primary"><%= number_to_human_size(@total_storage_bytes) %></p>
-        </div>
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs text-secondary"><%= t(".storage_used") %></p>
+        <p class="text-sm font-medium text-primary"><%= number_to_human_size(@total_storage_bytes) %></p>
       </div>
-
-      <%= styled_form_with url: account_statements_path, scope: :account_statement, multipart: true, class: "grid gap-3 lg:grid-cols-[1fr_16rem_auto] lg:items-end" do |form| %>
-        <%= form.file_field :files,
-                            label: t("account_statements.form.files_label"),
-                            multiple: true,
-                            accept: AccountStatement::ACCEPTED_FILE_EXTENSIONS.join(",") %>
-        <%# Its own row on wide screens, so the three fields line up with each
-            other rather than with the bottom of this hint. Stacked, it still
-            follows the file field it describes. %>
-        <p class="text-xs text-secondary -mt-1 lg:col-start-1 lg:row-start-2"><%= t("account_statements.form.files_hint", max_size: AccountStatement::MAX_FILE_SIZE / 1.megabyte) %> <%= t("account_statements.form.period_hint") %></p>
-        <%= form.collection_select :account_id,
-                                   @accounts,
-                                   :id,
-                                   :name,
-                                   { include_blank: t(".leave_unmatched"), label: t(".account_label") },
-                                   { data: { testid: "account-statement-account-select" } } %>
-        <div>
-          <%= form.submit t("account_statements.form.inbox_upload") %>
-        </div>
-      <% end %>
     <% end %>
   <% end %>
 <% end %>

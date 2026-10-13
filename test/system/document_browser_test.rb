@@ -83,6 +83,21 @@ class DocumentBrowserTest < ApplicationSystemTestCase
     assert_no_selector "dialog[open]"
   end
 
+  test "the type facet is single-select — the All chip clears a chosen type" do
+    # (Review ruling 1) The three chips used to be independent checkboxes, so
+    # from a filtered state All submitted alongside the still-checked type and
+    # visibly did nothing. As a radio group, All submits the empty value and
+    # the facet clears — proved end to end here, through the auto-submit.
+    statement = document_links(:queued_receipt)
+    statement.update!(source: "statement", title: "Statement to filter")
+
+    visit documents_path(q: { type: [ "statement" ] })
+    assert_no_text document_links(:held_bill).title # narrowed to statements
+
+    find("label", text: I18n.t("document_browser.filters.types.all"), match: :first).click
+    assert_text document_links(:held_bill).title, wait: 5
+  end
+
   test "the statements vault is a first-class page with its facets" do
     # (Milestone B, design D1) The vault is no longer a sidebar destination —
     # one Documents entry — but it survives for reconciliation, still on the

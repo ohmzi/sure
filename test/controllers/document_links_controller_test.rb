@@ -254,14 +254,30 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_no_match document_links(:held_bill).title.to_s, response.body
   end
 
-  test "the type chips render All / Statements / Receipts & Bills and carry the active choice" do
+  test "the type chips render All / Statements / Receipts & Bills as a single-select group" do
     get documents_path
-    assert_select "input[name='q[type][]'][value='all'][checked='checked']"
-    assert_select "input[name='q[type][]'][value='statement'][checked='checked']", count: 0
+    assert_select "input[type='radio'][name='q[type][]'][value=''][checked='checked']"
+    assert_select "input[type='radio'][name='q[type][]'][value='statement'][checked='checked']", count: 0
+    assert_select "input[type='radio'][name='q[type][]']", count: 3
 
     get documents_path(q: { type: [ "statement" ] })
-    assert_select "input[name='q[type][]'][value='statement'][checked='checked']"
-    assert_select "input[name='q[type][]'][value='all'][checked='checked']", count: 0
+    assert_select "input[type='radio'][name='q[type][]'][value='statement'][checked='checked']"
+    assert_select "input[type='radio'][name='q[type][]'][value=''][checked='checked']", count: 0
+  end
+
+  test "the All chip genuinely clears the type facet" do
+    # Review ruling 1: three independent checkboxes let All submit alongside a
+    # still-checked type, so All did nothing from a filtered state. A radio
+    # group submits exactly one value — the empty one All carries — so it
+    # clears. This asserts what the All radio actually submits.
+    statement = document_links(:queued_receipt)
+    statement.update!(source: "statement", title: "Bank statement")
+
+    get documents_path(q: { type: [ "" ] })
+
+    assert_response :success
+    assert_match document_links(:held_bill).title.to_s, response.body
+    assert_match statement.title.to_s, response.body
   end
 
   test "the grid renders each document as a tile keyed by its link" do

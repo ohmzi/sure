@@ -1,0 +1,22 @@
+<%# locals: (row:, container_class: "flex items-center gap-3") %>
+<%# One rendering path for a document's actions, shared by the row and the tile
+    so the two renderers cannot drift (review ruling 3). An action with a nil
+    url is a VISIBLE-but-disabled affordance (the awaiting_ocr "Reading…"): the
+    label stays on screen, no href, so the state is never dropped. %>
+<div class="<%= container_class %>">
+  <% row.actions.each do |action| %>
+    <% if action.url.blank? %>
+      <%= render DS::Button.new(text: action.label, variant: :outline, size: :sm,
+                                disabled: true, title: action.label) %>
+    <% elsif action.method == :get %>
+      <%= link_to action.url, class: "flex items-center", aria: { label: action.label }, title: action.label do %>
+        <%= icon(action.icon, class: "w-5 h-5 text-primary") %>
+      <% end %>
+    <% else %>
+      <%= button_to action.url, method: action.method, class: "flex items-center",
+            aria: { label: action.label }, title: action.label do %>
+        <%= icon(action.icon, class: "w-5 h-5 text-secondary") %>
+      <% end %>
+    <% end %>
+  <% end %>
+</div>

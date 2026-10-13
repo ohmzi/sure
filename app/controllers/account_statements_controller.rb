@@ -19,7 +19,6 @@ class AccountStatementsController < ApplicationController
       Current.family.document_links.where(account_statement_id: visible_storage_scope.select(:id))
     )
     @total_storage_bytes = visible_storage_scope.sum(:byte_size)
-    @accounts = Current.user.accessible_accounts.visible.alphabetically
     @breadcrumbs = [
       [ t("breadcrumbs.home"), root_path ],
       [ t("account_statements.index.title"), account_statements_path ]
@@ -27,7 +26,9 @@ class AccountStatementsController < ApplicationController
     # The Statements page is a first-class destination now (M8 locked decision
     # 1): default layout, no settings chrome. One list over the vault's
     # per-user visible scope — the unmatched/linked split is replaced by the
-    # review/extraction facets (locked decision 9).
+    # review/extraction facets (locked decision 9). (Milestone B, design D1:
+    # the page's own upload form is gone — the Documents dropzone is the one
+    # way in — so the account select it carried is gone too.)
   end
 
   # GET /account_statements/:id/viewer — the modal (M8 Task 4). Prev/next

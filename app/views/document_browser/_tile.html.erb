@@ -23,17 +23,22 @@
       :review
     end
 
-  state_label, state_tone =
-    case state
-    when :needs_you then [ t("document_browser.tile.states.needs_you"), :error ]
-    when :reading then [ t("document_browser.tile.states.reading"), :info ]
-    when :which_account then [ t("document_browser.tile.states.which_account"), :warning ]
-    when :review then [ t("document_browser.tile.states.review"), :warning ]
-    when :posted then [ t("document_browser.tile.states.posted"), :success ]
-    # No design state applies (e.g. a settled, unlinked row with no draft): the
-    # link's own status pill is the honest answer, exactly as the row showed it.
-    else [ row.statuses.first&.label, row.statuses.first&.tone || :neutral ]
-    end
+  # The state pill's label and tone. The tones come from the SAME constant the
+  # row reads (DocumentBrowser::Row::STATUS_TONES), never new literals, so a
+  # retune of the palette reaches the tile (review ruling 4). Each state borrows
+  # the link vocabulary that carries its meaning today: a held read is `failed`,
+  # an in-flight one `processing`, a document waiting on a person
+  # `pending_review`, a published one `verified`.
+  tile_states = {
+    needs_you: [ t("document_browser.tile.states.needs_you"), DocumentBrowser::Row::STATUS_TONES.fetch("failed") ],
+    reading: [ t("document_browser.tile.states.reading"), DocumentBrowser::Row::STATUS_TONES.fetch("processing") ],
+    which_account: [ t("document_browser.tile.states.which_account"), DocumentBrowser::Row::STATUS_TONES.fetch("pending_review") ],
+    review: [ t("document_browser.tile.states.review"), DocumentBrowser::Row::STATUS_TONES.fetch("pending_review") ],
+    posted: [ t("document_browser.tile.states.posted"), DocumentBrowser::Row::STATUS_TONES.fetch("verified") ]
+  }
+  # No design state applies (e.g. a settled, unlinked row with no draft): the
+  # link's own status pill is the honest answer, exactly as the row showed it.
+  state_label, state_tone = tile_states.fetch(state, [ row.statuses.first&.label, row.statuses.first&.tone || :neutral ])
 
   amount = row.amount.is_a?(BigDecimal) ? row.amount.to_s("F") : row.amount
   # The meta line below the title: what the read produced, when it produced it
@@ -88,23 +93,8 @@
   </div>
 
   <%# The document's affordances stay reachable from the tile (the design's
-      mockup omits them for brevity): "Review details" / "Reading…" / Retry /
-      Remove, the same primitives the row uses. %>
-  <div class="flex items-center gap-3">
-    <% row.actions.each do |action| %>
-      <% if action.url.blank? %>
-        <%= render DS::Button.new(text: action.label, variant: :outline, size: :sm,
-                                  disabled: true, title: action.label) %>
-      <% elsif action.method == :get %>
-        <%= link_to action.url, class: "flex items-center", aria: { label: action.label }, title: action.label do %>
-          <%= icon(action.icon, class: "w-5 h-5 text-primary") %>
-        <% end %>
-      <% else %>
-        <%= button_to action.url, method: action.method, class: "flex items-center",
-              aria: { label: action.label }, title: action.label do %>
-          <%= icon(action.icon, class: "w-5 h-5 text-secondary") %>
-        <% end %>
-      <% end %>
-    <% end %>
-  </div>
+      mockup omits them for brevity). One shared renderer with the row, so the
+      two cannot drift (review ruling 3). Task 4's viewer absorbs them — keep
+      this row until it lands so the review/retry/remove paths do not regress. %>
+  <%= render "document_browser/actions", row: row %>
 </div>
