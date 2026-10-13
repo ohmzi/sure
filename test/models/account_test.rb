@@ -949,7 +949,14 @@ class AccountTest < ActiveSupport::TestCase
     account = accounts(:depository)
 
     account.last4 = "12345"
+    assert_not account.valid?, "five digits exceeds the length bound"
+
+    # A four-character value within the length bound but not all digits must
+    # still be rejected — this is the format regex, which the length bound alone
+    # would let through.
+    account.last4 = "12a4"
     assert_not account.valid?
+    assert account.errors.of_kind?(:last4, :invalid)
 
     account.last4 = "1234"
     account.account_network = "visa"

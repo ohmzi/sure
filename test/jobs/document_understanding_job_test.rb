@@ -260,15 +260,26 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     stub_ocr_success(pages: [ { page: 1, text: "TOTAL 12.34", confidence: 0.97 } ])
     stub_provider(FakeProvider.new(RECEIPT, success: false))
 
-    DocumentUnderstandingJob.perform_now(@link.id)
+    log = StringIO.new
+    original_logger = Rails.logger
+    Rails.logger = ActiveSupport::Logger.new(log)
+    begin
+      DocumentUnderstandingJob.perform_now(@link.id)
+    ensure
+      Rails.logger = original_logger
+    end
     @link.reload
 
     # Fix round 2: a provider failure is transient far more often than terminal,
     # and a held row is excluded from the sweep (finding 2) — so it joins the
     # same bounded ladder as an OCR blip (parked queued + reason, retry
-    # scheduled) rather than waiting for a human.
+    # scheduled) rather than waiting for a human. The reason the user reads is a
+    # sentence (cleanup wave, item 3); the provider's raw message stays in the log.
     assert_equal "queued", @link.status
-    assert_includes @link.failure_message, "AI provider failed"
+    assert_includes @link.failure_message, "retry is scheduled"
+    assert_no_match(/AI provider failed/, @link.failure_message,
+                    "the provider's raw message must not reach the user")
+    assert_includes log.string, "AI provider failed", "the exception stays in the log"
     assert_enqueued_jobs 1, only: DocumentUnderstandingJob
   end
 

@@ -33,6 +33,11 @@ class DocumentUnderstandingJob < ApplicationJob
     def size = io.size
   end
 
+  # The bounded retry ladder for a transient failure. One constant drives both
+  # the policy (`attempts:`) and the terminal copy, so "after N attempts" cannot
+  # drift from how many attempts are actually configured.
+  RETRY_ATTEMPTS = 8
+
   # An OCR failure is transient far more often than it is terminal — the sidecar
   # is restarting, the GPU is busy, the weights are still loading. Retry with
   # backoff; only a service that ANSWERED and said "unreadable" lands terminally.
@@ -45,9 +50,9 @@ class DocumentUnderstandingJob < ApplicationJob
   # It uses abandon!, not fail! (fix round 2): during the backoff the row is
   # parked `queued` (await_retry!), so fail!'s `processing`-only guard would
   # no-op and leave a spent row parked forever.
-  retry_on Ocr::Error, wait: :polynomially_longer, attempts: 8 do |job, error|
+  retry_on Ocr::Error, wait: :polynomially_longer, attempts: RETRY_ATTEMPTS do |job, error|
     DocumentLink.find_by(id: job.arguments.first)&.abandon!(
-      message: "OCR service unreachable after 8 attempts: #{error.message}"
+      message: "OCR service unreachable after #{RETRY_ATTEMPTS} attempts: #{error.message}"
     )
   end
 
@@ -57,10 +62,10 @@ class DocumentUnderstandingJob < ApplicationJob
   # bounded retry ladder as an OCR blip instead (fix round 2, the transient
   # self-healing the reviewer flagged): parked during the backoff, then either a
   # successful read settles the row or the ladder is spent and abandon! lands it
-  # terminally. Bounded at 8 attempts.
-  retry_on Provider::Error, wait: :polynomially_longer, attempts: 8 do |job, error|
+  # terminally. Bounded by RETRY_ATTEMPTS.
+  retry_on Provider::Error, wait: :polynomially_longer, attempts: RETRY_ATTEMPTS do |job, error|
     DocumentLink.find_by(id: job.arguments.first)&.abandon!(
-      message: "AI provider unavailable after 8 attempts: #{error.message}"
+      message: "AI provider unavailable after #{RETRY_ATTEMPTS} attempts: #{error.message}"
     )
   end
   discard_on ActiveRecord::RecordNotFound
@@ -179,7 +184,16 @@ class DocumentUnderstandingJob < ApplicationJob
     # would race this one. The retry still finds the row, and mark_processing!
     # clears the mark when it restarts, so a crash after the restart stays
     # sweepable.
-    link&.await_retry!(message: "retry scheduled: #{e.message}")
+    #
+    # The user reads a sentence, never the exception (item 3, cleanup wave):
+    # this reason stays on the row for the WHOLE backoff window, and `Ocr::Error`
+    # carries raw upstream text verbatim on `:unreachable` / `:bad_response`
+    # ("Failed to open TCP connection to ocr:9000 (Connection refused)"). The
+    # reason is named per code; the raw text goes to the log.
+    Rails.logger.warn(
+      "DocumentUnderstandingJob retry scheduled for document_link #{document_link_id}: #{e.class}: #{e.message}"
+    )
+    link&.await_retry!(message: retry_message(e))
     raise
   rescue ActiveRecord::RecordNotFound
     # A vanished link is discarded (the `discard_on` above), never held: there is
@@ -212,6 +226,21 @@ class DocumentUnderstandingJob < ApplicationJob
   end
 
   private
+    # The transient-retry reason the user reads, chosen by error code — never
+    # the raw exception text, which belongs in the log. Both the OCR codes the
+    # client can raise and a provider failure get their own sentence.
+    def retry_message(error)
+      return "The AI provider is unavailable; a retry is scheduled." if error.is_a?(Provider::Error)
+
+      case error.code
+      when :not_configured then "The OCR service is not configured; a retry is scheduled."
+      when :unreachable then "The OCR service is unreachable; a retry is scheduled."
+      when :server_error then "The OCR service reported an error; a retry is scheduled."
+      when :bad_response then "The OCR service returned an unexpected response; a retry is scheduled."
+      else "This document could not be read; a retry is scheduled."
+      end
+    end
+
     def read(link)
       link.stored_io do |io|
         return Ocr.client.recognize(io: io, filename: link.original_filename.to_s,

@@ -32,12 +32,44 @@ class Ocr::ClientTest < ActiveSupport::TestCase
     assert_equal %w[iVBORw0KGgo= iVBORw0KGg1=], result.page_images
   end
 
-  test "an unreachable service raises a typed error" do
+  test "an unreachable service raises Ocr::Error(:unreachable)" do
     stub_request(:post, "http://ocr:9000/ocr").to_raise(Faraday::ConnectionFailed.new("refused"))
 
-    assert_raises(Ocr::Error) do
+    error = assert_raises(Ocr::Error) do
       @client.recognize(io: StringIO.new("b"), filename: "r.png", content_type: "image/png")
     end
+    assert_equal :unreachable, error.code
+  end
+
+  test "a 5xx from the sidecar raises Ocr::Error(:server_error)" do
+    stub_request(:post, "http://ocr:9000/ocr").to_return(status: 503, body: "busy")
+
+    error = assert_raises(Ocr::Error) do
+      @client.recognize(io: StringIO.new("b"), filename: "r.png", content_type: "image/png")
+    end
+    assert_equal :server_error, error.code
+  end
+
+  test "a body that is not JSON raises Ocr::Error(:bad_response)" do
+    stub_request(:post, "http://ocr:9000/ocr").to_return(status: 200, body: "not json",
+                                                         headers: { "Content-Type" => "application/json" })
+
+    error = assert_raises(Ocr::Error) do
+      @client.recognize(io: StringIO.new("b"), filename: "r.png", content_type: "image/png")
+    end
+    assert_equal :bad_response, error.code
+  end
+
+  test "an unconfigured client raises Ocr::Error(:not_configured) before any request" do
+    # No HTTP stub is set for this URL, so a request would raise WebMock's
+    # NetConnectNotAllowedError instead — the guarded Ocr::Error proves the client
+    # never reached the wire.
+    client = Ocr::Client.new(url: nil)
+
+    error = assert_raises(Ocr::Error) do
+      client.recognize(io: StringIO.new("b"), filename: "r.png", content_type: "image/png")
+    end
+    assert_equal :not_configured, error.code
   end
 
   test "an unreadable document surfaces the 422 rather than raising" do
