@@ -211,14 +211,22 @@ class DocumentUnderstandingJob < ApplicationJob
       link.hold!(message: "#{UNREADABLE_MESSAGE} (#{code})")
     end
 
-    # A receipt/bill draft that reached `understood` MAY post itself (spec N6) —
-    # the gate, not this call, decides, and it re-checks at write time. Enqueued,
+    # A RECEIPT draft that reached `understood` MAY post itself (spec N6) — the
+    # gate, not this call, decides, and it re-checks at write time. Enqueued,
     # never run inline: the read settles first (link.settle! runs after route),
     # and the writer re-reads the draft and re-judges the gate, so a job that
     # trusted this caller would be one refactor away from writing money it
     # should not. Enqueued only when the household switch is on; off, the
     # reviewed publish is the only path that writes money.
-    def enqueue_auto_post(draft)
+    #
+    # Only receipts, never bills (Ruling RB8). A receipt is evidence of payment —
+    # if it exists, the money moved. A bill is an invoice that may be unpaid, so
+    # auto-posting it would write an expense that never happened; a bill is read
+    # and drafted, then waits for the one tap. The class comes from the
+    # classification in hand, not from `link.source`: classify! writes the column
+    # with a direct UPDATE, so the in-memory link's `source` is still stale here.
+    def enqueue_auto_post(draft, document_class)
+      return unless document_class == "receipt"
       return unless draft.understood?
       return unless Setting.auto_post_receipts?
 
@@ -240,7 +248,7 @@ class DocumentUnderstandingJob < ApplicationJob
         # that produced it. Written here, at the one seam that has both the
         # draft and its extraction in hand.
         draft.update!(document_extraction: link.extraction)
-        enqueue_auto_post(draft)
+        enqueue_auto_post(draft, classification.document_class)
       when "statement"
         route_statement(link, understanding)
       else

@@ -402,6 +402,21 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     Setting.auto_post_receipts = true
   end
 
+  test "a bill is routed but never enqueued for auto-post" do
+    # Ruling RB8: a receipt is evidence of payment; a bill is an invoice that may
+    # be unpaid. It still lands as a reviewable draft — it just never posts itself.
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_provider(FakeProvider.new(RECEIPT.merge("document_class" => "bill")))
+
+    assert_no_enqueued_jobs(only: AutoPostReceiptJob) do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+
+    draft = ReceiptImport.find_by!(document_link_id: @link.id)
+    assert_equal "understood", draft.understanding_state, "the bill is still read and reviewable"
+    assert_equal "bill", @link.reload.source
+  end
+
   test "re-running the read does not mint a second draft" do
     stub_ocr_success(pages: [ { page: 1, text: "TOTAL 12.34", confidence: 0.97 } ])
     stub_provider(FakeProvider.new(RECEIPT))

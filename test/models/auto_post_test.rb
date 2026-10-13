@@ -13,11 +13,13 @@ class AutoPostTest < ActiveSupport::TestCase
   # `stub_extraction`'s `classifications:` argument was never read by the gate
   # (which reads `draft.document_link.classified_by`, not the extraction). The
   # doubles now carry each flag to the thing the gate actually reads.
-  def stub_receipt(account: true, single: true, classified: true)
+  def stub_receipt(account: true, single: true, classified: true, total: true, date: true)
     link = Struct.new(:classified_by).new(classified ? "ai" : "fallback")
     Struct.new(:account, :total_amount, :purchase_date, :line_items_split?, :document_link).new(
       account ? accounts(:depository) : nil,
-      BigDecimal("12.34"), Date.new(2026, 10, 3), !single, link
+      total ? BigDecimal("12.34") : nil,
+      date ? Date.new(2026, 10, 3) : nil,
+      !single, link
     )
   end
 
@@ -25,9 +27,9 @@ class AutoPostTest < ActiveSupport::TestCase
     Struct.new(:validations).new({ "totals_agree" => totals_agree })
   end
 
-  def allowed?(totals_agree: true, account: true, single: true, classified: true)
+  def allowed?(totals_agree: true, account: true, single: true, classified: true, total: true, date: true)
     AutoPost.allowed?(
-      draft: stub_receipt(account: account, single: single, classified: classified),
+      draft: stub_receipt(account: account, single: single, classified: classified, total: total, date: date),
       extraction: stub_extraction(totals_agree: totals_agree)
     )
   end
@@ -38,6 +40,14 @@ class AutoPostTest < ActiveSupport::TestCase
     assert_not allowed?(account: false), "an unresolved account can never auto-post"
     assert_not allowed?(single: false), "a split or batch is never auto-posted"
     assert_not allowed?(classified: false), "an uncorroborated class is never auto-posted"
+  end
+
+  test "resolved? needs all three: account, total and purchase date" do
+    # Each clause is a separate way to be unresolved, so each is pinned on its
+    # own — loosening `resolved?` to any one of them must fail a test.
+    assert_not allowed?(account: false), "no account, no auto-post"
+    assert_not allowed?(total: false), "no total, no auto-post"
+    assert_not allowed?(date: false), "no purchase date, no auto-post"
   end
 
   test "a nil totals_agree (not checkable) is not agreement" do
