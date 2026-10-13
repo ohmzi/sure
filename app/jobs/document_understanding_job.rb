@@ -211,6 +211,20 @@ class DocumentUnderstandingJob < ApplicationJob
       link.hold!(message: "#{UNREADABLE_MESSAGE} (#{code})")
     end
 
+    # A receipt/bill draft that reached `understood` MAY post itself (spec N6) —
+    # the gate, not this call, decides, and it re-checks at write time. Enqueued,
+    # never run inline: the read settles first (link.settle! runs after route),
+    # and the writer re-reads the draft and re-judges the gate, so a job that
+    # trusted this caller would be one refactor away from writing money it
+    # should not. Enqueued only when the household switch is on; off, the
+    # reviewed publish is the only path that writes money.
+    def enqueue_auto_post(draft)
+      return unless draft.understood?
+      return unless Setting.auto_post_receipts?
+
+      AutoPostReceiptJob.perform_later(draft.id)
+    end
+
     # The money-adjacent seam: a receipt or a bill becomes a reviewable draft,
     # filled from the same three-method contract `apply_extraction!` has always
     # consumed. Nothing here writes money — the reviewed publish does that.
@@ -226,6 +240,7 @@ class DocumentUnderstandingJob < ApplicationJob
         # that produced it. Written here, at the one seam that has both the
         # draft and its extraction in hand.
         draft.update!(document_extraction: link.extraction)
+        enqueue_auto_post(draft)
       when "statement"
         route_statement(link, understanding)
       else

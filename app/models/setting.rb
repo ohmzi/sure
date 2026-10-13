@@ -219,6 +219,13 @@ class Setting < RailsSettings::Base
   field :demo_family_refresh_enabled, type: :boolean, default: false
   field :demo_family_refresh_family_id, type: :string, default: nil
 
+  # The household switch for the auto-post gate (spec N6). Defaults ON — the
+  # owner chose to run auto-post live from the first deploy rather than ramped
+  # off — so a fresh install reads as on. Turning it off restores the reviewed
+  # publish as the only path that writes money; the gate's four conditions are
+  # the per-receipt safety story, and this is the household's.
+  field :auto_post_receipts, type: :boolean, default: true
+
   def self.validate_onboarding_state!(state)
     return if ONBOARDING_STATES.include?(state)
 

@@ -379,6 +379,29 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal BigDecimal("12.34"), draft.total_amount
   end
 
+  test "a routed receipt enqueues the auto-post" do
+    # The read never writes money itself (D8): it hands the settled draft to the
+    # writer, which re-checks the gate at write time. Enqueued, not run inline.
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    assert_enqueued_with(job: AutoPostReceiptJob) do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+  end
+
+  test "with the household switch off no auto-post is enqueued" do
+    Setting.auto_post_receipts = false
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    assert_no_enqueued_jobs(only: AutoPostReceiptJob) do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+  ensure
+    Setting.auto_post_receipts = true
+  end
+
   test "re-running the read does not mint a second draft" do
     stub_ocr_success(pages: [ { page: 1, text: "TOTAL 12.34", confidence: 0.97 } ])
     stub_provider(FakeProvider.new(RECEIPT))
