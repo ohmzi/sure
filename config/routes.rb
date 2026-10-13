@@ -392,6 +392,7 @@ Rails.application.routes.draw do
     resource :hosting, only: %i[show update] do
       delete :clear_cache, on: :collection
       delete :disconnect_external_assistant, on: :collection
+      post :detect_local_models, on: :collection
     end
     resource :payment, only: :show
     resource :security, only: :show

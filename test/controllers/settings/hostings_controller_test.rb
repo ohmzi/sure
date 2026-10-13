@@ -1345,6 +1345,111 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # --- Local model detection (owner report 2026-10-13, wave 4) ---
+
+  test "detect_local_models returns the discovered models with a recommendation" do
+    with_self_hosting do
+      stub_request(:get, "http://localhost:11434/v1/models")
+        .to_return(
+          status: 200,
+          headers: { "Content-Type" => "application/json" },
+          body: { object: "list", data: [ { id: "llama3.1:8b" }, { id: "qwen2.5vl:3b" } ] }.to_json
+        )
+
+      post detect_local_models_settings_hosting_url,
+           params: { setting: { local_llm_base_url: "http://localhost:11434/v1" } },
+           as: :json
+
+      assert_response :success
+      payload = JSON.parse(response.body)
+      assert_equal "ok", payload["status"]
+      assert_equal "http://localhost:11434/v1", payload["base_url"]
+      assert_equal "ollama", payload["server"]
+      assert_equal "qwen2.5vl:3b", payload["recommended_model"]
+      assert_equal %w[llama3.1:8b qwen2.5vl:3b], payload["models"].map { |m| m["id"] }
+      assert_equal true, payload["models"].find { |m| m["id"] == "qwen2.5vl:3b" }["recommended"]
+      assert_equal false, payload["models"].find { |m| m["id"] == "llama3.1:8b" }["recommended"]
+      assert payload["models"].all? { |m| m["suitability"].present? }
+    end
+  end
+
+  test "detect_local_models reports not_found with per-candidate attempts, still HTTP 200" do
+    with_self_hosting do
+      stub_request(:get, %r{/v1/models}).to_raise(Errno::ECONNREFUSED)
+      stub_request(:get, %r{/api/tags}).to_raise(Errno::ECONNREFUSED)
+
+      post detect_local_models_settings_hosting_url, as: :json
+
+      assert_response :success
+      payload = JSON.parse(response.body)
+      assert_equal "not_found", payload["status"]
+      assert payload["attempts"].is_a?(Array)
+      assert payload["attempts"].any?
+      assert payload["attempts"].all? { |attempt| attempt["url"].present? && attempt["outcome"].present? }
+      assert_equal "refused", payload["attempts"].first["outcome"]
+    end
+  end
+
+  test "detect_local_models reports a reachable but empty server as empty" do
+    with_self_hosting do
+      stub_request(:get, %r{/v1/models})
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { object: "list", data: [] }.to_json)
+
+      post detect_local_models_settings_hosting_url, as: :json
+
+      assert_response :success
+      payload = JSON.parse(response.body)
+      assert_equal "empty", payload["status"]
+      assert payload["base_url"].present?
+    end
+  end
+
+  test "detect_local_models never sends the cloud key — it probes with the local placeholder token" do
+    with_self_hosting do
+      Setting.openai_access_token = "cloud-secret-key"
+      Setting.local_llm_token = nil
+
+      request = stub_request(:get, "http://localhost:11434/v1/models")
+        .with(headers: { "Authorization" => "Bearer #{Setting::LOCAL_LLM_PLACEHOLDER_TOKEN}" })
+        .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                   body: { object: "list", data: [ { id: "qwen2.5vl:3b" } ] }.to_json)
+
+      post detect_local_models_settings_hosting_url,
+           params: { setting: { local_llm_base_url: "http://localhost:11434/v1" } },
+           as: :json
+
+      assert_requested request
+    end
+  end
+
+  test "a non-admin cannot detect local models" do
+    with_self_hosting do
+      sign_in users(:family_member)
+      post detect_local_models_settings_hosting_url, as: :json
+
+      assert_redirected_to settings_hosting_url
+      assert_equal I18n.t("settings.hostings.not_authorized"), flash[:alert]
+    end
+  end
+
+  test "the Local panel renders a Detect button, a model picker, an advanced disclosure and a recommendation" do
+    with_self_hosting do
+      Setting.local_llm_model = "qwen2.5vl:3b"
+
+      get settings_hosting_url
+
+      assert_response :success
+      assert_select "#ai-provider"
+      assert_select "[data-local-model-detection-target='button']", text: /Detect/
+      assert_select "select[name='setting[local_llm_model]']"
+      assert_select "select[name='setting[local_llm_model]'] option[value='qwen2.5vl:3b']"
+      assert_select "[data-local-model-detection-target='recommendation']"
+      assert_select "input[name='setting[local_llm_base_url]']"
+      assert_select "input[name='setting[local_llm_token]']"
+    end
+  end
+
   private
     def enable_preview_features!
       @user = users(:family_admin)

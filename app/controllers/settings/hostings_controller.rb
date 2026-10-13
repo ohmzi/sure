@@ -15,7 +15,7 @@ class Settings::HostingsController < ApplicationController
 
   guard_feature unless: -> { self_hosted? }
 
-  before_action :ensure_admin, only: [ :update, :clear_cache, :disconnect_external_assistant ]
+  before_action :ensure_admin, only: [ :update, :clear_cache, :disconnect_external_assistant, :detect_local_models ]
   before_action :ensure_super_admin_for_onboarding, only: :update
 
   def show
@@ -329,6 +329,58 @@ class Settings::HostingsController < ApplicationController
   rescue => e
     Rails.logger.error("[External Assistant] Disconnect failed: #{e.message}")
     redirect_to settings_hosting_path, alert: t("settings.hostings.update.failure")
+  end
+
+  # Probes the user's own hardware for a running OpenAI-compatible server and
+  # returns its installed models plus a recommendation for the document read.
+  # Runs ON DEMAND (the Detect button), never on page load: the Docker-to-host
+  # hop can be firewalled, and a synchronous probe in `show` would stall the
+  # settings page. All logic lives in LocalLlm; this stays thin and returns 200
+  # for every business outcome so the client renders a message rather than
+  # treating "no server" as a crash.
+  def detect_local_models
+    # Probe whatever the user has typed (the advanced field) first, else the
+    # stored base URL — so a previously-saved working address is checked before
+    # the defaults.
+    submitted = hosting_params[:local_llm_base_url].to_s.strip.presence
+    base_url = submitted || Setting.local_llm_base_url.presence
+    # The local endpoint's OWN token only — the cloud key is never sent to a
+    # probe of an attacker-influenceable URL (see LocalLlm::Discovery).
+    token = Setting.local_llm_token.presence || Setting::LOCAL_LLM_PLACEHOLDER_TOKEN
+
+    result = LocalLlm::Discovery.new(base_url: base_url, token: token).call
+
+    if result.models.empty?
+      render json: { status: "empty", base_url: result.base_url, server: result.server.to_s }
+    else
+      recommender = LocalLlm::Recommender.new(result.models)
+      recommendation = recommender.recommendation
+
+      render json: {
+        status: "ok",
+        base_url: result.base_url,
+        server: result.server.to_s,
+        recommended_model: recommendation&.dig(:top_pick),
+        recommendation: recommendation && {
+          model: recommendation[:top_pick],
+          tier: recommendation[:tier].to_s,
+          reason: recommendation[:reason]
+        },
+        models: result.models.map { |model|
+          {
+            id: model[:id],
+            label: model[:label],
+            suitability: recommender.suitability_for(model[:id]),
+            recommended: recommendation&.dig(:top_pick) == model[:id]
+          }
+        }
+      }
+    end
+  rescue LocalLlm::Discovery::NotFound => e
+    render json: { status: "not_found", attempts: e.attempts }, status: :ok
+  rescue => e
+    Rails.logger.error("Local model detection failed: #{e.class}: #{e.message}")
+    render json: { status: "error", message: t("settings.hostings.local_settings.detect_error") }, status: :ok
   end
 
   private

@@ -131,7 +131,7 @@ en:
         provider_local: Local (self-hosted)
         provider_help: Switching providers takes effect on the next chat. Configure the active provider's credentials below.
         not_configured_hint: "Add a %{provider} API key below to activate it."
-        local_not_configured_hint: Choose a local model below to activate it.
+        local_not_configured_hint: Detect your server below, then pick a model to activate it.
         data_retention_heading: Data handling
         data_retention: API inputs are not used to train models by default; the providers' hosted APIs retain data for ~30 days for trust & safety. Custom or self-hosted endpoints follow your own policy.
       anthropic_settings:
@@ -148,20 +148,41 @@ en:
       local_settings:
         title: Local (self-hosted, CPU)
         description: Point the app at an OpenAI-compatible server on your own hardware. Nothing leaves your machine, but it runs on CPU, so reads are slower and less accurate on dense statement tables than a cloud model.
+        detect_button: Detect my local models
+        detecting: Looking for a local server…
+        found: "Found %{server} at %{url}."
+        no_models_pulled: "A server answered at %{url}, but it has no models installed. Pull a vision model (for example, ollama pull qwen2.5vl:3b) and try again."
+        not_found_title: "No local server responded."
+        cause_timeout: "it timed out — the host is likely dropping connections from the app's container. Run Ollama with OLLAMA_HOST=0.0.0.0:11434 and allow the Docker bridge to reach port 11434, or run Ollama as a service on this app's compose network."
+        cause_refused: "the connection was refused — nothing is listening there. Start the server and bind it to all interfaces (Ollama: OLLAMA_HOST=0.0.0.0:11434)."
+        cause_bad_status: "the endpoint answered with an error status — check the base URL."
+        cause_invalid_body: "the endpoint answered, but not with a model list — check the base URL."
+        cause_invalid_url: "that is not a valid http(s) URL."
+        cause_unknown: "there was no usable answer."
+        detect_error: "Could not check for local models."
+        model_label: Model
+        model_placeholder: "a vision model you have pulled, e.g. qwen2.5vl:3b"
+        model_help: The app ships no model, so pick one you have installed. It must accept image input — a text-only model cannot read documents.
+        manual_option: "Enter a model id manually…"
+        manual_label: Model id
+        manual_help: Type the exact id of a model you have pulled (for example, qwen2.5vl:3b).
+        advanced_summary: "Advanced: server address and token"
         base_url_label: Base URL
         base_url_placeholder: "http://host.docker.internal:11434/v1 (default)"
-        base_url_help: Must be reachable from the app's own network. The default maps to the host machine; use http://127.0.0.1:11434/v1 only if the app runs directly on the host.
-        model_label: Model
-        model_placeholder: "a vision model you have pulled, e.g. llama3.2-vision"
-        model_help: The app ships no model — name one you have installed. It must accept image input; a text-only model cannot read documents.
+        base_url_help: Must be reachable from the app's own network. The default maps to the host machine; use http://127.0.0.1:11434/v1 only if the app runs directly on the host. Detection fills this in for you when it finds your server.
         token_label: API Token (Optional)
         token_placeholder: Leave blank to use the local placeholder
         token_help: Sent as the bearer token to your local endpoint only. A cloud key configured under OpenAI is never sent here. Leave blank unless your endpoint requires a token.
+        recommend_best: "Best for reading your documents: %{model} — %{reason}"
+        recommend_best_lead: "Best for reading your documents:"
+        recommend_selected: "%{model}: %{suitability}"
+        recommend_none: "None of your installed models look vision-capable. Pull one of: qwen2.5vl:3b (best on CPU), qwen3-vl:4b-instruct, or qwen2.5vl:7b. The app sends page images, so a text-only model cannot read documents."
+        recommend_detect_first: "Detect your server to see which of your installed models can read documents."
         requirements_heading: What you need to run
-        requirements_run: Install an OpenAI-compatible server on the host. Ollama is the tested option — install it, then pull a vision-capable model (for example, ollama pull llama3.2-vision).
+        requirements_run: Install an OpenAI-compatible server on the host. Ollama is the tested option — install it, then pull a vision-capable model (for example, ollama pull qwen2.5vl:3b).
         requirements_bind: Start Ollama listening on all interfaces, or the app cannot reach it from its container — run "OLLAMA_HOST=0.0.0.0:11434 ollama serve" (a host-run Ollama binds 127.0.0.1 by default).
-        requirements_vision: Set the model id above to the one you pulled. A text-only model will fail to read documents, so pick a vision model.
-        requirements_token: No API key is usually needed — the server ignores the placeholder token. Set the token above only if your endpoint requires one; it is stored separately from any cloud key.
+        requirements_vision: If detection cannot reach your server, either allow the Docker bridge to reach port 11434, or run Ollama as a service on this app's compose network and use http://ollama:11434/v1.
+        requirements_token: No API key is usually needed — the server ignores the placeholder token. Set the token under Advanced only if your endpoint requires one; it is stored separately from any cloud key.
       categorization_provider_selector:
         title: Transaction Categorization
         preview_pill: Preview

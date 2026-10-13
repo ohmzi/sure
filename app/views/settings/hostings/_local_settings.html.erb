@@ -1,14 +1,72 @@
-<%# The "Local" provider panel (spec N5, owner report 2026-10-13): point the
-    OpenAI-compatible client at a server on the user's own hardware so nothing
-    leaves the box. Honest by construction — the app ships no model, so the
-    user names one, and is told it must accept images (a text-only model cannot
-    read documents). Backed by Setting.local_llm_base_url / local_llm_model /
-    local_llm_token; the client is built from these at read time, so the cloud
-    key is never sent here and a provider switch never rewrites the cloud fields. %>
-<div class="space-y-4">
+<%# The "Local" provider panel (spec N5, owner report 2026-10-13). A user points
+    the OpenAI-compatible client at a server on their own hardware so nothing
+    leaves the box. The owner's follow-up: don't make me type an address, an IP
+    and an API key — detect the server, give me a list of models to pick from,
+    and recommend the best one for the OCR/document read.
+
+    So: Detect is the primary action (a button, never a page-load probe — the
+    Docker-to-host hop can be firewalled and a synchronous probe would stall the
+    page); the model is a picker; the base URL and token are demoted into an
+    "Advanced" disclosure; and the recommendation names the best installed
+    vision model. Backed by Setting.local_llm_base_url / local_llm_model /
+    local_llm_token; the cloud key is never sent here. %>
+<%
+  stored_model = @local_llm_model_input || Setting.local_llm_model
+  stored_base_url = @local_llm_base_url_input || Setting.local_llm_base_url
+  model_locked = ENV["LOCAL_LLM_MODEL"].present?
+  base_url_locked = ENV["LOCAL_LLM_BASE_URL"].present?
+  token_locked = ENV["LOCAL_LLM_TOKEN"].present?
+
+  recommender = LocalLlm::Recommender.new(stored_model.present? ? [ { id: stored_model } ] : [])
+  recommendation = recommender.recommendation
+
+  manual_selected = stored_model.blank?
+  select_options = []
+  if stored_model.present?
+    select_options << [ stored_model, stored_model, {
+      "data-suitability": recommender.suitability_for(stored_model),
+      "data-recommended": (recommendation&.dig(:top_pick) == stored_model).to_s
+    } ]
+  end
+  select_options << [ t(".manual_option"), "", { "data-manual": "true" } ]
+
+  detection_strings = {
+    busy: t(".detecting"),
+    found: t(".found"),
+    empty: t(".no_models_pulled"),
+    not_found: t(".not_found_title"),
+    cause_timeout: t(".cause_timeout"),
+    cause_refused: t(".cause_refused"),
+    cause_bad_status: t(".cause_bad_status"),
+    cause_invalid_body: t(".cause_invalid_body"),
+    cause_invalid_url: t(".cause_invalid_url"),
+    cause_unknown: t(".cause_unknown"),
+    best_lead: t(".recommend_best_lead"),
+    selected: t(".recommend_selected"),
+    none: t(".recommend_none"),
+    manual: t(".manual_option"),
+    error: t(".detect_error")
+  }
+%>
+<div class="space-y-4"
+     data-controller="local-model-detection"
+     data-local-model-detection-url-value="<%= detect_local_models_settings_hosting_path %>"
+     data-local-model-detection-strings-value="<%= detection_strings.to_json %>">
   <div>
     <h2 class="font-medium mb-1"><%= t(".title") %></h2>
     <p class="text-secondary text-sm mb-4"><%= t(".description") %></p>
+  </div>
+
+  <div class="space-y-2">
+    <div class="flex items-center gap-3">
+      <%= render DS::Button.new(
+            text: t(".detect_button"),
+            icon: "search",
+            variant: :primary,
+            data: { "local-model-detection-target": "button", action: "local-model-detection#detect" }) %>
+      <p class="text-xs text-secondary" role="status" aria-live="polite"
+         data-local-model-detection-target="status"></p>
+    </div>
   </div>
 
   <%= styled_form_with model: Setting.new,
@@ -19,41 +77,82 @@
                          controller: "auto-submit-form",
                          "auto-submit-form-trigger-event-value": "blur"
                        } do |form| %>
-    <%= form.text_field :local_llm_base_url,
-                        label: t(".base_url_label"),
-                        placeholder: t(".base_url_placeholder"),
-                        value: @local_llm_base_url_input || Setting.local_llm_base_url,
-                        autocomplete: "off",
-                        autocapitalize: "none",
-                        spellcheck: "false",
-                        inputmode: "url",
-                        disabled: ENV["LOCAL_LLM_BASE_URL"].present?,
-                        data: { "auto-submit-form-target": "auto" } %>
-    <p class="text-xs text-secondary mt-1"><%= t(".base_url_help") %></p>
+    <div data-local-model-detection-target="recommendation">
+      <% if recommendation %>
+        <%= render DS::Alert.new(variant: :info) do %>
+          <p><%= t(".recommend_best", model: recommendation[:top_pick], reason: recommendation[:reason]) %></p>
+        <% end %>
+      <% elsif stored_model.present? %>
+        <%= render DS::Alert.new(variant: :warning) do %>
+          <p><%= t(".recommend_none") %></p>
+        <% end %>
+      <% else %>
+        <%= render DS::Alert.new(variant: :info) do %>
+          <p><%= t(".recommend_detect_first") %></p>
+        <% end %>
+      <% end %>
+    </div>
 
-    <%= form.text_field :local_llm_model,
-                        label: t(".model_label"),
-                        placeholder: t(".model_placeholder"),
-                        value: @local_llm_model_input || Setting.local_llm_model,
-                        autocomplete: "off",
-                        autocapitalize: "none",
-                        spellcheck: "false",
-                        inputmode: "text",
-                        disabled: ENV["LOCAL_LLM_MODEL"].present?,
-                        data: { "auto-submit-form-target": "auto" } %>
+    <%= form.select :local_llm_model,
+                    options_for_select(select_options, stored_model.presence || ""),
+                    { label: t(".model_label") },
+                    { disabled: model_locked,
+                      data: { "local-model-detection-target": "select",
+                              "auto-submit-form-target": "auto",
+                              autosubmit_trigger_event: "change",
+                              action: "change->local-model-detection#syncManual" } } %>
     <p class="text-xs text-secondary mt-1"><%= t(".model_help") %></p>
 
-    <%= form.password_field :local_llm_token,
-                            label: t(".token_label"),
-                            placeholder: t(".token_placeholder"),
-                            value: (Setting.local_llm_token.present? && Setting.local_llm_token != Setting::LOCAL_LLM_PLACEHOLDER_TOKEN ? "********" : nil),
+    <%# Manual fallback: revealed only when the picker's "enter manually" option
+        is chosen or detection could not reach the server. Disabled while hidden
+        so it never silently submits a duplicate local_llm_model. %>
+    <div data-local-model-detection-target="manualWrapper" <%= "hidden" unless manual_selected %>>
+      <%= form.text_field :local_llm_model,
+                          label: t(".manual_label"),
+                          placeholder: t(".model_placeholder"),
+                          value: stored_model,
+                          id: "setting_local_llm_model_manual",
+                          autocomplete: "off",
+                          autocapitalize: "none",
+                          spellcheck: "false",
+                          inputmode: "text",
+                          disabled: !manual_selected || model_locked,
+                          data: { "local-model-detection-target": "manualField",
+                                  "auto-submit-form-target": "auto" } %>
+      <p class="text-xs text-secondary mt-1"><%= t(".manual_help") %></p>
+    </div>
+
+    <%= render DS::Disclosure.new(variant: :inline) do |disclosure| %>
+      <% disclosure.with_summary_content do %>
+        <span class="text-sm text-secondary hover:text-primary transition-colors"><%= t(".advanced_summary") %></span>
+      <% end %>
+      <div class="mt-3 space-y-4 pt-3 border-t border-primary">
+        <%= form.text_field :local_llm_base_url,
+                            label: t(".base_url_label"),
+                            placeholder: t(".base_url_placeholder"),
+                            value: stored_base_url,
                             autocomplete: "off",
                             autocapitalize: "none",
                             spellcheck: "false",
-                            inputmode: "text",
-                            disabled: ENV["LOCAL_LLM_TOKEN"].present?,
-                            data: { "auto-submit-form-target": "auto" } %>
-    <p class="text-xs text-secondary mt-1"><%= t(".token_help") %></p>
+                            inputmode: "url",
+                            disabled: base_url_locked,
+                            data: { "local-model-detection-target": "baseUrlField",
+                                    "auto-submit-form-target": "auto" } %>
+        <p class="text-xs text-secondary mt-1"><%= t(".base_url_help") %></p>
+
+        <%= form.password_field :local_llm_token,
+                                label: t(".token_label"),
+                                placeholder: t(".token_placeholder"),
+                                value: (Setting.local_llm_token.present? && Setting.local_llm_token != Setting::LOCAL_LLM_PLACEHOLDER_TOKEN ? "********" : nil),
+                                autocomplete: "off",
+                                autocapitalize: "none",
+                                spellcheck: "false",
+                                inputmode: "text",
+                                disabled: token_locked,
+                                data: { "auto-submit-form-target": "auto" } %>
+        <p class="text-xs text-secondary mt-1"><%= t(".token_help") %></p>
+      </div>
+    <% end %>
   <% end %>
 
   <%= render DS::Note.new(title: t(".requirements_heading")) do %>
