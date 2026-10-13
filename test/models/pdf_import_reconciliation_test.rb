@@ -437,6 +437,33 @@ class PdfImportReconciliationTest < ActiveSupport::TestCase
     born.reload
     assert_not_includes born.document_links.map(&:id), @statement.archived_document_link.id,
                         "a sibling import must not claim this statement's own born entry"
+    assert_not EntryProvenance.for(born).corroborated?,
+               "a sibling import's claim must not make the statement corroborate itself"
+  end
+
+  test "re-targeting the statement's account detaches the corroboration it recorded" do
+    @statement.archive_document_link!
+    @statement.reload
+    statement_link = @statement.archived_document_link
+
+    matched = create_transaction(account: @account, date: @date, amount: 50, name: "Coffee")
+    @import.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: -50, name: "Coffee") ] })
+    @import.generate_rows_from_extracted_data
+    assert_includes matched.reload.document_links.map(&:id), statement_link.id,
+                    "the statement claims the entry it matched"
+
+    other = @family.accounts.create!(
+      name: "Re-targeted Checking", balance: 0, currency: "USD", accountable: Depository.new
+    )
+    @import.assign_account!(other)
+
+    matched.reload
+    assert_nil matched.reconciled_by_statement_id,
+               "the statement no longer backs an entry on the account it left"
+    assert_not_includes matched.document_links.map(&:id), statement_link.id,
+                        "a released entry must not keep listing the statement as a corroborating document"
+    assert_not EntryProvenance.for(matched).corroborated?,
+               "the two provenance signals must agree that the statement is gone"
   end
 
   private

@@ -585,7 +585,18 @@ class PdfImport < Import
     # association is read-only by contract, and a raw append would leave a row
     # carrying entry_id while still labelled `unlinked`.
     def claim!(entry, statement_link)
-      return if statement_link.nil? || entry.import_id == id
+      if statement_link.nil?
+        # The other skip below (a refused transition) logs too, so an operator
+        # can tell "this statement has no archived document link" apart from
+        # "the archive failed" -- both otherwise look like a silent no-op.
+        Rails.logger.info(
+          "PdfImport #{id}: matched entry #{entry.id}, but the statement has no archived " \
+          "document link to corroborate with (nothing recorded)"
+        )
+        return
+      end
+
+      return if entry.import_id == id
       return if entry.import_id.present? &&
                 PdfImport.where(id: entry.import_id, account_statement_id: account_statement&.id).exists?
       return if entry.document_links.exists?(id: statement_link.id)
@@ -616,14 +627,31 @@ class PdfImport < Import
     # unscoped release would clear reconciliations another account still relies
     # on. Nothing is reconciled while no account is assigned, so a blank scope
     # has nothing to release.
+    #
+    # The claim! corroboration is released with the mark it was recorded
+    # alongside: leaving the statement's link on the entry would keep the entry
+    # showing the statement as a source while reconciled_by_statement_id is nil
+    # -- two provenance signals disagreeing about one entry (spec §8.6's
+    # "silently lies"). Only THIS statement's link is detached: the entry's
+    # other documents (a receipt's own link) are not this statement's to unlink.
     def release_reconciliations!(account_scope_id)
       return if account_statement.blank? || account_scope_id.blank?
 
-      Entry.reconciled_by(account_statement).where(account_id: account_scope_id).update_all(
+      # The ids are read before the UPDATE, or the relation would come back
+      # empty and there would be nothing left to detach.
+      released_ids = Entry.reconciled_by(account_statement).where(account_id: account_scope_id).pluck(:id)
+      return if released_ids.empty?
+
+      Entry.where(id: released_ids).update_all(
         reconciled_at: nil,
         reconciled_by_statement_id: nil,
         updated_at: Time.current
       )
+
+      statement_link = account_statement.archived_document_link
+      return if statement_link.blank?
+
+      DocumentLink.where(id: statement_link.id, entry_id: released_ids).find_each(&:unlink!)
     end
 
     # Reverting a statement import unwinds its evidence as well as its rows. The

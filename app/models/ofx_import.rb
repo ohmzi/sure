@@ -56,6 +56,17 @@ class OfxImport < Import
         # A transaction the account already holds (manual entry or a provider
         # sync): claim nothing, create nothing. Name is deliberately excluded
         # from the match for the same reason PdfImport excludes it.
+        #
+        # The PDF statement path records the corroboration here (PdfImport#claim!),
+        # so an OFX export covering the same charge leaves the entry without the
+        # "one transaction, two sources" evidence. Deliberately not extended yet:
+        # this match never marks the entry reconciled, and
+        # PdfImport#release_reconciliations! -- what detaches a statement's claim
+        # when the statement moves accounts -- selects exactly the entries the
+        # statement has marked. An OFX claim would therefore survive a statement
+        # move and lie about an old account's entry. Giving OFX the mark (and the
+        # matching revert/re-target release) is a reconciliation-lifecycle
+        # decision, not this import's.
         if (existing = adapter.find_duplicate_transaction(
               date: row.date_iso,
               amount: row.signed_amount,
