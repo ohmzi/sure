@@ -1,0 +1,33 @@
+# One read of a document (Milestone A). The link's `extraction` is the latest,
+# so this row is what the viewer's "what I understood" panel reads for
+# `understood_receipt_link` — the documented subject of the panel test.
+#
+# The values are chosen to exercise every render state at once: a confident
+# field (payee), an unsure one (total, below the 0.6 bar -> "check this"), and
+# the three validator outcomes (true / not-checkable / false).
+understood_receipt_extraction:
+  family: dylan_family
+  document_link: understood_receipt_link
+  provider: openai
+  model: deepseek-flash
+  ocr_engine: paddleocr
+  page_count: 1
+  status: succeeded
+  ocr_text: "LATTE LANE\nTOTAL 12.00"
+  verdict:
+    document_class: receipt
+    institution_name: Latte Lane
+    total: "12.00"
+    date: "2026-09-14"
+    payee: Latte Lane
+    currency: USD
+  field_confidence:
+    institution_name: 0.9
+    total: 0.54
+    date: 0.97
+    payee: 0.94
+  validations:
+    totals_agree: true
+    line_items_sum: ~
+    last4_in_ocr: false
+    date_parses: true

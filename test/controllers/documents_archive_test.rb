@@ -52,22 +52,35 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     assert_match I18n.t("document_browser.tile.states.posted"), response.body
   end
 
-  test "the browser lists rows with thumbnails, statuses and the draft affordances" do
+  test "the browser lists tiles with thumbnails, statuses and no action row" do
     get documents_path
     assert_select "img[src=?]", file_document_path(document_links(:unlinked_receipt), kind: "thumb")
     assert_match I18n.t("documents.status.linked"), response.body
-    # (repaired 2026-10-11, verifier F8) receipt_draft is awaiting_ocr: its row
-    # must keep the VISIBLE disabled "Reading…" affordance (the old `if enabled`
-    # dropped it and left the label dead). "Review details" comes from
-    # receipt_understood's row (Latte Lane), not from receipt_draft's — and the
-    # I18n.exists? pins make the test fail on a missing key instead of matching
-    # "Translation missing: …" on both sides (verifier F4).
+    # The tile is purely visual now (Milestone B Task 4): the document's
+    # affordances (Review details / Reading… / Retry / Remove) moved into the
+    # viewer, so none renders on the grid.
+    assert_select "#documents_grid a[href='#{import_path(imports(:receipt_understood))}']", count: 0
+    assert_select "#documents_grid button[disabled]", count: 0
+  end
+
+  test "the draft affordances live in the viewer now, not the tile" do
+    # (Milestone B Task 4) The tile's action row was absorbed by the viewer:
+    # Review details / Reading… / Retry / Remove are reached from the document
+    # itself, so a tile is a picture and nothing else. This is the receipt_draft
+    # row: awaiting_ocr keeps the VISIBLE disabled "Reading…" affordance (the old
+    # `if enabled` dropped it and left the label dead).
     assert I18n.exists?("imports.receipt_import.reading")
     assert I18n.exists?("imports.receipt_import.review_details")
     # add_details is the needs_understanding row's label (no fixture reaches that
     # state here); pin it explicitly so dropping the key cannot go unnoticed.
     assert I18n.exists?("imports.receipt_import.add_details")
-    assert_select "button[disabled]"                                       # the Reading… affordance renders
+
+    draft = imports(:receipt_draft)
+    get viewer_document_path(draft.document_link)
+    assert_response :success
+    assert_select "button[disabled]" # the Reading… affordance renders
+
+    get viewer_document_path(imports(:receipt_understood).document_link)
     assert_select "a[href='#{import_path(imports(:receipt_understood))}']" # the enabled Review details link
   end
 

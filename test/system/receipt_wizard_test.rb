@@ -63,13 +63,16 @@ class ReceiptWizardTest < ApplicationSystemTestCase
 
     draft = ReceiptImport.order(:created_at).last
     assert_equal @account, draft.account
-    # The inline read settles the draft during the POST, so the appended row
-    # already carries the ready affordance (the action renders as an icon link,
-    # so pin it by href and title — the flip test's pattern).
+    # The inline read settles the draft during the POST, so the appended tile
+    # already carries the review state — and the Review affordance itself is now
+    # reached from the document (the viewer the tile opens; Milestone B Task 4),
+    # not from the tile.
     assert_equal "understood", draft.understanding_state
     within "#document_link_#{draft.document_link.id}" do
-      assert_selector "a[href='#{import_path(draft)}'][title='#{I18n.t("imports.receipt_import.review_details")}']"
+      assert_text I18n.t("document_browser.tile.states.review")
+      find("a", match: :first).click
     end
+    assert_selector "a[href='#{import_path(draft)}'][title='#{I18n.t("imports.receipt_import.review_details")}']"
   end
 
   test "a receipt from a member with no default account still becomes a reviewable draft" do
@@ -84,38 +87,47 @@ class ReceiptWizardTest < ApplicationSystemTestCase
     assert_equal "understood", draft.understanding_state
   end
 
-  test "a settling draft flips its row to the review affordance without a reload" do
-    # (M8 Task 9, Ruling M8-L1 decision 3) The archive row re-renders in place
-    # when the draft's understanding settles — no manual reload.
+  test "a settling draft flips its tile in place, and the viewer carries the review affordance" do
+    # (M8 Task 9, Ruling M8-L1 decision 3; Milestone B Task 4) The archive tile
+    # re-renders in place when the draft's understanding settles — no manual
+    # reload. The tile is purely visual now, so the flip is its state; the
+    # draft's Review affordance is reached from the document itself.
     draft = imports(:receipt_draft)
     link = draft.document_link
     visit documents_path
+    # The seeded link is settled (`unlinked`) while its draft still awaits OCR,
+    # so the tile carries no review state yet.
     within "#document_link_#{link.id}" do
-      assert_button I18n.t("imports.receipt_import.reading"), disabled: true
+      assert_text I18n.t("documents.status.unlinked")
     end
 
     # Settle outside the browser: stage the link's bytes and run the native
-    # read, which settles the draft and broadcasts the replaced row.
+    # read, which settles the draft and broadcasts the replaced tile.
     link.update_columns(status: "queued",
                         stored_path: DocumentLink::Staging.write(io: StringIO.new("PNG"), id: link.id))
     DocumentUnderstandingJob.perform_now(link.id)
+    # The job mutated the database, not this in-memory copy: reload so the
+    # re-broadcast below renders the settled tile, not the pre-read one.
+    link.reload
 
-    # The row's GET actions render as icon links (the label lives in title and
-    # aria-label), so the flip is pinned by the Review-details href — absent in
-    # the "Reading…" row. The stream subscription may still be connecting on a
-    # fast machine, and the row replace is idempotent: re-broadcast until the
-    # flipped row lands.
+    # The stream subscription may still be connecting on a fast machine, and the
+    # tile replace is idempotent: re-broadcast until the flipped tile lands.
     page.document.synchronize(Capybara.default_max_wait_time) do
-      unless page.has_selector?("#document_link_#{link.id} a[href='#{import_path(draft)}']")
+      unless page.has_selector?("#document_link_#{link.id}", text: I18n.t("document_browser.tile.states.review"))
+        link.reload
         link.broadcast_row_update!
-        raise Capybara::ExpectationNotMet, "the row has not flipped to the review affordance yet"
+        raise Capybara::ExpectationNotMet, "the tile has not flipped to the review state yet"
       end
     end
 
     within "#document_link_#{link.id}" do
-      assert_selector "a[href='#{import_path(draft)}'][title='#{I18n.t("imports.receipt_import.review_details")}']"
-      assert_no_button I18n.t("imports.receipt_import.reading")
+      assert_text I18n.t("document_browser.tile.states.review")
+      assert_no_text I18n.t("documents.status.unlinked")
     end
+
+    # The Review affordance itself lives in the viewer the tile opens.
+    find("#document_link_#{link.id} a", match: :first).click
+    assert_selector "a[href='#{import_path(draft)}'][title='#{I18n.t("imports.receipt_import.review_details")}']"
   end
 
   test "a settled receipt reviews and publishes into one expense" do

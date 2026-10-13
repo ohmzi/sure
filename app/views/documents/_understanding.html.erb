@@ -1,0 +1,92 @@
+<%# locals: (panel:) %>
+<%# The per-document "what I understood" panel (spec §9, design D4). Read beside
+    the document: what it decided (the settled class, the confidence, the account
+    it resolved to), what it read (each field with its confidence, the doubts
+    marked "check this"), the checks (pass / not checkable / fail), and what it
+    became. An unread document is never an empty panel: it states the reason and
+    the two ways forward. %>
+<div class="flex h-full min-h-0 flex-col gap-5 overflow-auto" data-document-understanding>
+  <h3 class="font-medium text-primary"><%= t(".title") %></h3>
+
+  <% if panel.read? %>
+    <%# What it decided: the class the router settled on, how sure it was, and
+        the account the read resolved to (nil is said, not left blank). %>
+    <div class="space-y-1">
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="font-medium text-primary"><%= t("documents.source.#{panel.document_class}") %></span>
+        <% if panel.classification_confidence.to_f.positive? %>
+          <span class="text-sm text-secondary">
+            <%= t(".confidence", percent: (panel.classification_confidence.to_f * 100).round) %>
+          </span>
+        <% end %>
+      </div>
+      <p class="text-sm text-secondary"><%= panel.account&.name || t(".no_account") %></p>
+    </div>
+
+    <%# The class is shown in the header above ("what it decided"), so it is not
+        repeated here; every other field is, with its own confidence. %>
+    <% read_fields = panel.fields.reject { |field| field.label == "type" } %>
+    <% if read_fields.any? %>
+      <section class="space-y-1.5">
+        <p class="text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".read") %></p>
+        <% read_fields.each do |field| %>
+          <div class="flex items-baseline gap-2 text-sm" data-field="<%= field.label %>">
+            <span class="w-28 shrink-0 text-secondary"><%= field.label %></span>
+            <span class="min-w-0 truncate text-primary"><%= field.value %></span>
+            <span class="ml-auto shrink-0 text-right <%= field.unsure? ? "text-warning" : "text-secondary" %>">
+              <% if field.confidence.present? %>
+                <%= t(".confidence", percent: (field.confidence * 100).round) %><% if field.unsure? %>, <%= t(".check_this") %><% end %>
+              <% end %>
+            </span>
+          </div>
+        <% end %>
+      </section>
+    <% end %>
+
+    <% if panel.checks.any? %>
+      <section class="space-y-1.5">
+        <p class="text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".checks") %></p>
+        <% panel.checks.each do |check| %>
+          <div class="flex items-center gap-2 text-sm">
+            <% if check.state.nil? %>
+              <%= icon("minus", size: "sm", color: "default") %>
+            <% elsif check.state %>
+              <%= icon("check", size: "sm", color: "success") %>
+            <% else %>
+              <%= icon("x", size: "sm", color: "destructive") %>
+            <% end %>
+            <span class="text-primary"><%= check.label %></span>
+            <% if check.state.nil? %>
+              <span class="ml-auto shrink-0 text-xs text-secondary"><%= t(".not_checkable") %></span>
+            <% end %>
+          </div>
+        <% end %>
+      </section>
+    <% end %>
+
+    <section class="space-y-1.5">
+      <p class="text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".became") %></p>
+      <% if panel.outcomes.any? %>
+        <% panel.outcomes.each do |outcome| %>
+          <div class="flex items-center gap-2 text-sm">
+            <span class="text-secondary"><%= outcome.label %></span>
+            <span class="text-primary"><%= t(".state.#{outcome.detail}", default: outcome.detail) %></span>
+          </div>
+        <% end %>
+      <% else %>
+        <p class="text-sm text-secondary"><%= t(".nothing_yet") %></p>
+      <% end %>
+    </section>
+  <% else %>
+    <%# Unread: the reason the read did not happen, then the two ways forward. %>
+    <div class="space-y-2">
+      <p class="font-medium text-primary"><%= t(".not_read_yet") %></p>
+      <p class="text-sm text-secondary"><%= panel.empty_reason %></p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <%= render DS::Link.new(text: t(".unread.set_up_provider"), href: settings_hosting_path, variant: "primary", size: "sm") %>
+      <span class="text-sm text-secondary"><%= t(".unread.or") %></span>
+      <%= render DS::Link.new(text: t(".unread.enter_by_hand"), href: new_transaction_path, variant: "outline", size: "sm") %>
+    </div>
+  <% end %>
+</div>

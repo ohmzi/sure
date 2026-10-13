@@ -48,3 +48,6 @@ understood_receipt_link:
   title: Latte Lane
   original_filename: latte.png
   content_type: image/png
+  # The classifier's settled confidence for the read above (the panel's header).
+  classified_by: ai
+  classification_confidence: 0.96

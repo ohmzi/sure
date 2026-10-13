@@ -20,6 +20,9 @@ en:
     create:
       queued: Document queued for processing.
       held: The upload is held on this server; retry it once processing is available.
+    # The document's own page — the viewer without the dialog (Task 4).
+    show:
+      back: Back to documents
     # The native read refuses to mint a statement vault row for an uploader who
     # may not manage statements (Task 2). Because the intake no longer asks the
     # user what a document is, this reason lands on the document's own row — the
@@ -56,6 +59,39 @@ en:
       verified: Verified
       dismissed: Dismissed
       failed: Failed
+    # The per-document "what I understood" panel (Milestone B, design D4; spec
+    # §9). It shows the read *and* its doubts — every field with its confidence,
+    # the validator results, and what the document became — and, when there is no
+    # read, the reason plus the two ways forward rather than an empty panel.
+    understanding:
+      title: What I understood
+      read: What it read
+      checks: Checks
+      became: It became
+      confidence: "%{percent}% confident"
+      check_this: check this
+      not_checkable: Not checkable
+      no_account: No account yet
+      nothing_yet: Nothing became of this document yet.
+      draft: Draft
+      entry: Entry
+      # `empty_reason`'s fallback when the read itself carries no stated error:
+      # one line per extraction status, so a non-succeeded read always says why.
+      not_read_yet: Not read yet
+      pending: Still reading
+      succeeded: Read
+      failed: The read failed
+      # The draft's own state, in the words a person reads (outcomes' detail).
+      state:
+        awaiting_ocr: Still reading
+        needs_understanding: Needs your input
+        understood: Ready to review
+      # The unread state's two ways forward: let the app read it, or key it in
+      # yourself. Never a dead end.
+      unread:
+        set_up_provider: Set up a provider
+        or: or
+        enter_by_hand: Enter it by hand
   # DocumentIntake: the content router's copy. A file it cannot place is refused
   # with this message on the bar; nothing is archived.
   document_intake:

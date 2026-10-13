@@ -24,7 +24,7 @@ class DocumentLinksController < ApplicationController
   # entry, one list, statements and receipts together by default, the type in an
   # in-page facet (DocumentLink::Search#type_filters). The old top-level `source`
   # pair narrowed it to receipt|bill; the type facet replaces it.
-  before_action :set_link, only: %i[file viewer link unlink retry destroy]
+  before_action :set_link, only: %i[file viewer show link unlink retry destroy]
   before_action :require_document_copy!, only: %i[link unlink]
   before_action :require_non_guest!, only: %i[create link unlink retry destroy]
   rescue_from ActionController::ParameterMissing, with: :bad_request
@@ -52,6 +52,10 @@ class DocumentLinksController < ApplicationController
     # The modal does not link to itself: the row presenter is built without a
     # viewer_url here (that field exists for the index rows).
     @row = DocumentBrowser::Row.for_document_link(@link)
+    # The read's view-model (Milestone B Task 4): what the viewer shows beside
+    # the document — the fields, their confidences, the checks, and what it
+    # became — or, unread, the reason and the two ways forward.
+    @panel = DocumentPanel.new(@link)
     previous_link, next_link = document_browser_neighbours(@link)
     @previous_url = previous_link && viewer_document_path(previous_link, document_browser_viewer_params)
     @previous_title = previous_link && link_display_title(previous_link)
@@ -61,6 +65,21 @@ class DocumentLinksController < ApplicationController
     # would resolve to document_links/viewer; the view lives at
     # app/views/documents/ with the rest of the page.
     render "documents/viewer"
+  end
+
+  # GET /documents/:id — the document on its own page. The modal above is the way
+  # in from the grid; this is the stable, shareable URL (`Row#details_url`) for
+  # the same document-left / what-was-understood-right content, with no dialog to
+  # open and no JavaScript needed.
+  def show
+    @row = DocumentBrowser::Row.for_document_link(@link)
+    @panel = DocumentPanel.new(@link)
+    @breadcrumbs = [
+      [ t("breadcrumbs.home"), root_path ],
+      [ t("documents.index.title"), documents_path ],
+      [ @row.title, nil ]
+    ]
+    render "documents/show"
   end
 
   def create

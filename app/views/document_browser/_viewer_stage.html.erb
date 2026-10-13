@@ -1,0 +1,26 @@
+<%# locals: (row:) %>
+<%# The document's own bytes (M8's centre stage): the PDF over Milestone A's
+    proxy, the image lightbox, or an honest empty state. Shared by the two viewer
+    modes — the lightbox and the split — so the two cannot render the document
+    differently. %>
+<% if row.file_url.present? && row.kind == :pdf %>
+  <iframe src="<%= row.file_url %>" title="<%= row.title %>" class="grow w-full rounded-lg border border-secondary bg-container-inset"></iframe>
+<% elsif row.file_url.present? && row.kind == :image %>
+  <div class="grow min-h-0 overflow-auto rounded-lg bg-container-inset flex items-center justify-center"
+       data-action="wheel->document-viewer#zoom click->document-viewer#toggleZoom">
+    <img src="<%= row.file_url %>" alt="<%= row.title %>" data-document-viewer-target="image"
+         class="max-h-full max-w-full object-contain transition-transform">
+  </div>
+<% else %>
+  <% copy = row.kind == :unsupported ? [ t("document_browser.viewer.unsupported_title"), t("document_browser.viewer.unsupported_description") ] : [ t("document_browser.viewer.unavailable_title"), t("document_browser.viewer.unavailable_description") ] %>
+  <%= render DS::EmptyState.new(icon: row.icon, title: copy[0], description: copy[1]) do |es| %>
+    <% es.with_action do %>
+      <% if row.download_url.present? %>
+        <%= render DS::Link.new(text: t("document_browser.viewer.download"), href: row.download_url, variant: "primary") %>
+      <% elsif (action = row.actions.find { |a| a.url }) %>
+        <%# (repaired 2026-10-11, verifier F8) an awaiting_ocr "Reading…" action carries a nil url and is skipped here — it renders as the row's disabled affordance, never as this CTA. %>
+        <%= render DS::Button.new(text: action.label, href: action.url, method: action.method, variant: "primary") %>
+      <% end %>
+    <% end %>
+  <% end %>
+<% end %>

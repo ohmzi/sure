@@ -539,7 +539,7 @@ Rails.application.routes.draw do
   # override). Publishing stays on imports#publish.
   resources :receipt_imports, only: %i[update]
 
-  resources :documents, controller: "document_links", only: %i[index create destroy] do
+  resources :documents, controller: "document_links", only: %i[index show create destroy] do
     member do
       get :file
       get :viewer

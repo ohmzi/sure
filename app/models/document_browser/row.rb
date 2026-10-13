@@ -83,7 +83,11 @@ class DocumentBrowser::Row
         # row/viewer Download affordance actually downloads.
         download_url: (routes.file_document_path(link, kind: "original", download: true) if ready),
         viewer_url: viewer_url,
-        details_url: nil,
+        # The document's own page (Milestone B Task 4): the stable, dialog-free
+        # URL for the same document-left / what-was-understood-right content.
+        # Parity with `for_account_statement`; the grid's entry point stays the
+        # modal (viewer_url).
+        details_url: routes.document_path(link),
         actions: document_actions(link, draft, routes),
         failure_message: link.failure_message
       )

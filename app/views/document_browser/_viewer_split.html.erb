@@ -1,0 +1,13 @@
+<%# locals: (row:, panel:) %>
+<%# The split (Milestone B, design D4): the document on the left, what was
+    understood on the right. When there is a read worth showing the document
+    yields room to the panel; a document with no read keeps most of the width and
+    carries the unread panel — its reason and the two ways forward — beside it. %>
+<div class="flex min-h-0 grow flex-col gap-4 lg:flex-row">
+  <div class="flex min-h-0 min-w-0 flex-col <%= panel.split? ? "lg:flex-[1.15]" : "grow" %>">
+    <%= render "document_browser/viewer_stage", row: row %>
+  </div>
+  <aside class="min-h-0 shrink-0 border-secondary lg:w-80 lg:overflow-y-auto lg:border-l lg:pl-4">
+    <%= render "documents/understanding", panel: panel %>
+  </aside>
+</div>

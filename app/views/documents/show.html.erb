@@ -1,0 +1,27 @@
+<%# The document's own page (Milestone B Task 4): the viewer without the dialog.
+    Reached from `Row#details_url` and by a direct link; it renders the same
+    document-left / what-was-understood-right split the modal shows, with no
+    JavaScript required. %>
+<div class="p-4 lg:p-6" data-controller="document-viewer">
+  <header class="flex flex-wrap items-center justify-between gap-3 pb-4">
+    <div class="min-w-0">
+      <h1 class="truncate text-xl font-medium text-primary"><%= @row.title %></h1>
+      <p class="text-sm text-secondary"><%= @row.doc_type_label %></p>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+      <% @row.statuses.each do |status| %>
+        <%= render DS::Pill.new(label: status.label, tone: status.tone, marker: false) %>
+      <% end %>
+      <%= render "document_browser/actions", row: @row, container_class: "flex items-center gap-3" %>
+      <%= render DS::Link.new(text: t(".back"), href: documents_path) %>
+    </div>
+  </header>
+
+  <div class="flex h-[78vh] min-h-0 flex-col">
+    <% if @panel.shows_panel? %>
+      <%= render "document_browser/viewer_split", row: @row, panel: @panel %>
+    <% else %>
+      <%= render "document_browser/viewer_stage", row: @row %>
+    <% end %>
+  </div>
+</div>

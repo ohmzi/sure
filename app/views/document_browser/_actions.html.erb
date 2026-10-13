@@ -1,8 +1,10 @@
 <%# locals: (row:, container_class: "flex items-center gap-3") %>
-<%# One rendering path for a document's actions, shared by the row and the tile
-    so the two renderers cannot drift (review ruling 3). An action with a nil
-    url is a VISIBLE-but-disabled affordance (the awaiting_ocr "Reading…"): the
-    label stays on screen, no href, so the state is never dropped. %>
+<%# One rendering path for a document's actions, shared by the row (the
+    Statements vault's list) and the viewer (Milestone B Task 4 — the viewer
+    absorbed the Documents grid tile's action row, so the tile is purely visual
+    and these are reached from the document itself). An action with a nil url is
+    a VISIBLE-but-disabled affordance (the awaiting_ocr "Reading…"): the label
+    stays on screen, no href, so the state is never dropped. %>
 <div class="<%= container_class %>">
   <% row.actions.each do |action| %>
     <% if action.url.blank? %>

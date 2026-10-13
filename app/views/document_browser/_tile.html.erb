@@ -92,9 +92,7 @@
     </p>
   </div>
 
-  <%# The document's affordances stay reachable from the tile (the design's
-      mockup omits them for brevity). One shared renderer with the row, so the
-      two cannot drift (review ruling 3). Task 4's viewer absorbs them — keep
-      this row until it lands so the review/retry/remove paths do not regress. %>
-  <%= render "document_browser/actions", row: row %>
+  <%# The tile is purely visual (Milestone B, design D3): the document's
+      affordances — Review details / Retry / Remove — moved into the viewer
+      (Task 4), which every tile opens. Nothing is unreachable from here. %>
 </div>
