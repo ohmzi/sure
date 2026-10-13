@@ -81,6 +81,10 @@ en:
       pending: Still reading
       succeeded: Read
       failed: The read failed
+      # A read in flight (the tile's "Reading…"): it is working, not unread, and
+      # it offers nothing to configure.
+      reading: Reading…
+      reading_reason: This document is being read. Its details will appear here when the read finishes.
       # The draft's own state, in the words a person reads (outcomes' detail).
       state:
         awaiting_ocr: Still reading

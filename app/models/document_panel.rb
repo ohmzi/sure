@@ -7,9 +7,9 @@
 #
 # Two readers decide the viewer's shape: `split?` (there is a read worth showing,
 # so the lightbox becomes a document-left / panel-right split) and `shows_panel?`
-# (there is anything to say at all — a read with fields, or an unread document
-# that owes the reader a reason). A read that produced no fields is the one case
-# that stays a picture.
+# (there is anything to say at all — a read with fields, an unread document that
+# owes the reader a reason, or a read still in flight). A read that produced no
+# fields is the one case that stays a picture.
 class DocumentPanel
   # Below this, a field is a doubt and renders as "check this" rather than as a
   # plain fact. The design's per-field confidence gate; there is no global one.
@@ -46,10 +46,26 @@ class DocumentPanel
     @link = link
   end
 
-  attr_reader :link
+  # Memoized on purpose. `DocumentLink#extraction` is an un-memoized
+  # `order(...).first`, and one viewer render reads it through several readers
+  # (`shows_panel?` -> `read?`/`fields` -> `split?` -> ...): without this, every
+  # reader fired its own SELECT. The panel is built once per request and the
+  # link's reads cannot change mid-render, so caching the latest read here is
+  # correct. `defined?` (not `||=`) so a link with no read caches the nil too.
+  def extraction
+    return @extraction if defined?(@extraction)
 
-  def extraction = @link.extraction
+    @extraction = @link.extraction
+  end
+
   def read? = extraction.present? && extraction.status == "succeeded"
+
+  # The read is in flight: the row is queued or processing with nothing held, and
+  # no read has landed yet (or a `pending` row has). This is NOT "unread" — the
+  # document is being read — and it must not be told to configure a provider it
+  # is already using. It is the state the tile shows as "Reading…".
+  def reading? = @link.failure_message.blank? &&
+                 (extraction.nil? ? @link.status.in?(%w[queued processing]) : extraction.status == "pending")
 
   # The design's rule: a picture stays a picture; a document with something to
   # say opens split, because a read the user cannot see is the problem itself.
@@ -71,6 +87,10 @@ class DocumentPanel
   def account = draft&.account || @link.account_statement&.account
 
   def empty_reason
+    # A read in flight is not a document that failed to be read: it says it is
+    # being read, and never that a provider needs configuring.
+    return I18n.t("documents.understanding.reading_reason") if reading?
+
     if extraction
       # A read that ran and did not succeed: its own stated reason, else the
       # status itself (pending / failed).
@@ -111,19 +131,27 @@ class DocumentPanel
   end
 
   private
+    def routes = Rails.application.routes.url_helpers
+
     def draft = @draft ||= @link.receipt_imports.max_by(&:created_at)
 
+    # Both outcomes carry their link: the traceability ("which document did this
+    # come from", spec §9's "each linked") is why the milestone exists, so the
+    # panel must not stop one click short of the thing it produced.
     def draft_outcome
       return nil unless draft
 
-      Outcome.new(label: I18n.t("documents.understanding.draft"), url: nil,
-                  detail: draft.understanding_state)
+      Outcome.new(label: I18n.t("documents.understanding.draft"),
+                  url: routes.import_path(draft), detail: draft.understanding_state)
     end
 
     def entry_outcome
       entry = @link.entry
       return nil unless entry
 
-      Outcome.new(label: I18n.t("documents.understanding.entry"), url: nil, detail: entry.name)
+      # `transaction_path`, as the controller's own `link` action redirects the
+      # same edge today (`redirect_to transaction_path(entry)`).
+      Outcome.new(label: I18n.t("documents.understanding.entry"),
+                  url: routes.transaction_path(entry), detail: entry.name)
     end
 end

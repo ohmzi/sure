@@ -70,7 +70,13 @@
         <% panel.outcomes.each do |outcome| %>
           <div class="flex items-center gap-2 text-sm">
             <span class="text-secondary"><%= outcome.label %></span>
-            <span class="text-primary"><%= t(".state.#{outcome.detail}", default: outcome.detail) %></span>
+            <% detail = t(".state.#{outcome.detail}", default: outcome.detail) %>
+            <%# Each outcome is linked to the thing it produced (spec §9). %>
+            <% if outcome.url.present? %>
+              <%= render DS::Link.new(text: detail, href: outcome.url) %>
+            <% else %>
+              <span class="text-primary"><%= detail %></span>
+            <% end %>
           </div>
         <% end %>
       <% else %>
@@ -78,15 +84,19 @@
       <% end %>
     </section>
   <% else %>
-    <%# Unread: the reason the read did not happen, then the two ways forward. %>
+    <%# Unread. A read still in flight says so and offers nothing to configure;
+        a document that was never read owes the reader the reason and the two
+        ways forward. Never an empty panel, never a false "not read". %>
     <div class="space-y-2">
-      <p class="font-medium text-primary"><%= t(".not_read_yet") %></p>
+      <p class="font-medium text-primary"><%= panel.reading? ? t(".reading") : t(".not_read_yet") %></p>
       <p class="text-sm text-secondary"><%= panel.empty_reason %></p>
     </div>
-    <div class="flex flex-wrap items-center gap-2">
-      <%= render DS::Link.new(text: t(".unread.set_up_provider"), href: settings_hosting_path, variant: "primary", size: "sm") %>
-      <span class="text-sm text-secondary"><%= t(".unread.or") %></span>
-      <%= render DS::Link.new(text: t(".unread.enter_by_hand"), href: new_transaction_path, variant: "outline", size: "sm") %>
-    </div>
+    <% unless panel.reading? %>
+      <div class="flex flex-wrap items-center gap-2">
+        <%= render DS::Link.new(text: t(".unread.set_up_provider"), href: settings_hosting_path, variant: "primary", size: "sm") %>
+        <span class="text-sm text-secondary"><%= t(".unread.or") %></span>
+        <%= render DS::Link.new(text: t(".unread.enter_by_hand"), href: new_transaction_path, variant: "outline", size: "sm") %>
+      </div>
+    <% end %>
   <% end %>
 </div>

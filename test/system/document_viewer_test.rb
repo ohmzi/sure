@@ -2,9 +2,10 @@ require "application_system_test_case"
 
 # The viewer's two modes (Milestone B Task 4, design D4): a document with a read
 # worth showing opens as a split — the document left, what was understood right —
-# and a document with no read states the reason and the two ways forward rather
-# than rendering an empty panel. `understood_receipt_link` carries a succeeded
-# extraction fixture; `held_bill` is unread with the live host's hold reason.
+# a document with no read states the reason and the two ways forward, and a
+# document still being read says so. `understood_receipt_link` carries a succeeded
+# extraction fixture; `held_bill` is unread with the live host's hold reason;
+# `queued_receipt` is in flight.
 class DocumentViewerTest < ApplicationSystemTestCase
   setup do
     ensure_tailwind_build
@@ -39,8 +40,10 @@ class DocumentViewerTest < ApplicationSystemTestCase
       assert_text "OCR and AI agree on the total"
       assert_text I18n.t("documents.understanding.not_checkable")
 
-      # what it became
+      # what it became — each outcome links to the thing it produced
       assert_text I18n.t("documents.understanding.state.understood")
+      assert_selector "a[href='#{import_path(imports(:receipt_understood))}']",
+                      text: I18n.t("documents.understanding.state.understood")
     end
   end
 
@@ -59,6 +62,20 @@ class DocumentViewerTest < ApplicationSystemTestCase
                       text: I18n.t("documents.understanding.unread.set_up_provider")
       assert_selector "a[href='#{new_transaction_path}']",
                       text: I18n.t("documents.understanding.unread.enter_by_hand")
+    end
+  end
+
+  test "a document being read says Reading, not that it cannot be read" do
+    # Just uploaded: queued, nothing held, no read yet. The viewer must not
+    # report it as unread, nor offer a provider to configure.
+    link = document_links(:queued_receipt)
+
+    visit viewer_document_path(link)
+
+    within "[data-document-understanding]" do
+      assert_text I18n.t("documents.understanding.reading")
+      assert_no_text I18n.t("documents.understanding.not_read_yet")
+      assert_no_selector "a[href='#{settings_hosting_path}']"
     end
   end
 

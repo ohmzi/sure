@@ -43,6 +43,70 @@ class DocumentPanelTest < ActiveSupport::TestCase
     assert_equal "no AI provider is configured", panel.empty_reason
   end
 
+  test "a document being read is not told it cannot be read" do
+    # queued_receipt is queued with nothing held and no read yet: the read is in
+    # flight. It is NOT unread, and it must never be offered a provider to
+    # configure — it is already using one.
+    panel = DocumentPanel.new(document_links(:queued_receipt))
+
+    assert panel.reading?, "a queued document with nothing held is being read"
+    assert_not panel.read?
+    assert_equal I18n.t("documents.understanding.reading_reason"), panel.empty_reason
+    assert_no_match(/provider/i, panel.empty_reason)
+  end
+
+  test "a pending read row is still 'reading', not 'not read yet'" do
+    link = document_links(:queued_receipt)
+    DocumentExtraction.record!(document_link: link, provider: "openai", status: "pending")
+
+    panel = DocumentPanel.new(link.reload)
+
+    assert panel.reading?
+    assert_no_match(/not read yet/i, panel.empty_reason)
+  end
+
+  test "a held read is not 'reading' — it names the hold" do
+    link = document_links(:queued_receipt)
+    link.update_columns(failure_message: "no AI provider is configured")
+
+    panel = DocumentPanel.new(link)
+
+    assert_not panel.reading?, "a held read is not in flight"
+    assert_equal "no AI provider is configured", panel.empty_reason
+  end
+
+  test "the latest read is loaded once, not once per reader" do
+    link = document_links(:understood_receipt_link)
+    latest = link.extraction
+    link.expects(:extraction).once.returns(latest)
+
+    panel = DocumentPanel.new(link)
+
+    # Each of these readers used to fire its own SELECT through the link.
+    assert panel.shows_panel?
+    assert panel.fields.any?
+    assert panel.checks.any?
+    assert panel.empty_reason.present?
+  end
+
+  test "outcomes link to what the document became" do
+    panel = DocumentPanel.new(document_links(:understood_receipt_link))
+
+    assert panel.outcomes.all? { |outcome| outcome.url.present? },
+           "each outcome must link to the thing it produced (spec §9)"
+    draft = panel.outcomes.find { |outcome| outcome.label.match?(/draft/i) }
+    assert_match %r{/imports/}, draft.url
+  end
+
+  test "the entry outcome links to the entry" do
+    panel = DocumentPanel.new(document_links(:linked_receipt))
+
+    entry = panel.outcomes.find { |outcome| outcome.label.match?(/entry/i) }
+
+    assert_not_nil entry
+    assert_match %r{/transactions/}, entry.url
+  end
+
   test "outcomes name what the document became" do
     panel = DocumentPanel.new(document_links(:understood_receipt_link))
 
