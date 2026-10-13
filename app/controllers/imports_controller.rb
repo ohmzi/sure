@@ -2,6 +2,7 @@ require "stringio"
 
 class ImportsController < ApplicationController
   include SettingsHelper
+  include ImportAccountTeacher
 
   before_action :set_import, only: %i[show update publish destroy revert apply_template cancel summary]
   before_action :require_statement_import_permission!, only: %i[update publish destroy revert apply_template cancel]
@@ -30,6 +31,13 @@ class ImportsController < ApplicationController
       else
         @import.update!(account: account)
       end
+
+      # Spec N14's learned half. This is the second assent line (after
+      # Import::AccountsController#update): the review screen's inline account
+      # select for a statement, confirmed by a human. The account now learns the
+      # card identity the read reported — fill-only and gated on the read's
+      # last4 witness (see Account#learn_card_identity).
+      teach_account(account)
     end
 
     redirect_to import_path(@import), notice: t("imports.update.account_saved", default: "Account saved.")

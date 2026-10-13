@@ -689,6 +689,27 @@ class ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_select 'select[name="import[account_id]"] option', text: "Plaid Depository Account", count: 0
   end
 
+  test "confirming a statement's account on the review screen teaches the account its identity" do
+    # Spec N14's second assent line. A PdfImport's nav has no account step, so a
+    # below-bar statement gets its account from this screen's inline select
+    # (imports/_pdf_import.html.erb -> ImportsController#update). It must teach
+    # exactly as the step-3 confirm does, or N14's learned half is inert for
+    # every statement the resolver could not confidently prefill.
+    account = accounts(:credit_card)
+    account.update!(last4: nil, account_network: nil)
+    import = imports(:pdf)
+    import.update!(document_extraction: DocumentExtraction.record!(
+      document_link: document_links(:queued_receipt), status: "succeeded",
+      ocr_text: "CHASE CARD 4242", verdict: { "card_last4" => "4242", "card_network" => "visa" },
+      validations: { "last4_in_ocr" => true }
+    ))
+
+    patch import_path(import), params: { import: { account_id: account.id } }
+
+    assert_equal "4242", account.reload.last4
+    assert_equal "visa", account.account_network
+  end
+
   test "the clean screen renders for a configured statement import" do
     import = imports(:pdf)
     import.update!(account: accounts(:depository), date_format: "%Y-%m-%d",

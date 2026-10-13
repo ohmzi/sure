@@ -119,6 +119,11 @@ class Import::AccountsControllerTest < ActionDispatch::IntegrationTest
   # drive `patch import_account_path` — the real controller — and
   # `ActiveSupport::TestCase` has no HTTP verbs or `sign_in`. They live here so
   # the assertion is about the app's behaviour, not a test seam.
+  #
+  # The read's OCR text carries the digits ("4242"): the durable write is gated
+  # on the pipeline's own last4 witness (the spec's risk-row mitigation), so a
+  # read whose card number is NOT on the page teaches nothing. The brief's
+  # original OCR text ("CHASE") would fail that gate — corrected here.
 
   test "confirming the read teaches the account its own card identity" do
     account = accounts(:credit_card)
@@ -153,7 +158,7 @@ class Import::AccountsControllerTest < ActionDispatch::IntegrationTest
       link.stage!(io: StringIO.new("PNG-#{SecureRandom.hex(4)}"), filename: "receipt.png",
                   content_type: "image/png")
       link.update!(status: "queued")
-      stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+      stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nCARD 4242\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
       Provider::Registry.stubs(:preferred_llm_provider).returns(
         OcrTestHelper::StubDocumentProvider.new(
           "document_class" => "receipt", "total" => "12.34", "date" => "2026-10-01",

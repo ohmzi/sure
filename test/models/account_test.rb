@@ -973,23 +973,68 @@ class AccountTest < ActiveSupport::TestCase
     account = accounts(:credit_card)
     account.update!(last4: nil, account_network: nil)
 
-    account.learn_card_identity(DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"))
+    account.learn_card_identity(
+      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), last4_in_ocr: true
+    )
     assert_equal "4242", account.last4
     assert_equal "visa", account.account_network
 
     # Once it knows its card, a disagreeing read is a no-op — never a rewrite.
-    account.learn_card_identity(DocumentUnderstanding.new("card_last4" => "1111", "card_network" => "amex"))
+    account.learn_card_identity(
+      DocumentUnderstanding.new("card_last4" => "1111", "card_network" => "amex"), last4_in_ocr: true
+    )
     assert_equal "4242", account.reload.last4
     assert_equal "visa", account.account_network
   end
 
+  test "learn_card_identity refuses a last4 the OCR text never contained" do
+    # The spec's risk row: a model can emit a validly-typed, wrong last4, so the
+    # durable write is gated on the pipeline's last4 witness. An unwitnessed
+    # reading teaches nothing — not the last4, and not the network.
+    account = accounts(:credit_card)
+    account.update!(last4: nil, account_network: nil)
+
+    account.learn_card_identity(
+      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), last4_in_ocr: false
+    )
+
+    assert_nil account.reload.last4, "an unwitnessed last4 is never written"
+    assert_nil account.account_network
+  end
+
+  test "learn_card_identity never overwrites a last4 the user typed" do
+    account = accounts(:credit_card)
+    account.update!(last4: "9999", account_network: "amex")
+
+    account.learn_card_identity(
+      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), last4_in_ocr: true
+    )
+
+    assert_equal "9999", account.reload.last4, "a model's reading must never overwrite the user's value"
+    assert_equal "amex", account.account_network
+  end
+
+  test "learn_card_identity completes a blank network while keeping a typed last4" do
+    # No account-level `card_identity?` short-circuit: the per-field checks do
+    # the "never overwrite" job, so a partially-filled account can still finish.
+    account = accounts(:credit_card)
+    account.update!(last4: "9999", account_network: nil)
+
+    account.learn_card_identity(
+      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), last4_in_ocr: true
+    )
+
+    assert_equal "9999", account.reload.last4, "the typed last4 is not overwritten"
+    assert_equal "visa", account.account_network, "the blank network is filled"
+  end
+
   test "learn_card_identity never overwrites a typed network while the last4 is blank" do
-    # Fill-only is per field: the blank last4 is filled, but a network the user
-    # typed survives the model's reading.
     account = accounts(:credit_card)
     account.update!(last4: nil, account_network: "amex")
 
-    account.learn_card_identity(DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"))
+    account.learn_card_identity(
+      DocumentUnderstanding.new("card_last4" => "4242", "card_network" => "visa"), last4_in_ocr: true
+    )
 
     assert_equal "4242", account.reload.last4, "the blank last4 is filled"
     assert_equal "amex", account.account_network, "the user's typed network is never overwritten"
@@ -1000,7 +1045,7 @@ class AccountTest < ActiveSupport::TestCase
     account = accounts(:credit_card)
     account.update!(last4: nil, account_network: nil)
 
-    account.learn_card_identity(DocumentUnderstanding.new("account_last4" => "1234"))
+    account.learn_card_identity(DocumentUnderstanding.new("account_last4" => "1234"), last4_in_ocr: true)
 
     assert_equal "1234", account.reload.last4
     assert_nil account.account_network

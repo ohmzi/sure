@@ -595,22 +595,29 @@ class Account < ApplicationRecord
 
   # Spec N14's learned half: the first time a human confirms which account a
   # document belongs to, the account it names learns the card identity the
-  # document itself reported. Called from Import::AccountsController#update —
-  # the one screen holding the user's explicit assent — with the read's verdict.
+  # document itself reported. Called from the two controllers holding that
+  # assent (ImportAccountTeacher) with the read's verdict and its last4 witness.
   #
-  # Fill-only, per field: a value the user typed is never overwritten by a
-  # model's reading, and a field the reading did not supply is left alone. An
-  # account that already knows its card (`card_identity?`) is never touched at
-  # all, so a hand-typed `last4` survives a read that says something else.
-  def learn_card_identity(understanding)
-    return if card_identity?
-
-    # A card's own last4 wins; a statement supplies account_last4 instead.
+  # Fill-only, PER FIELD: a value the user typed is never overwritten by a
+  # model's reading, and a field the reading did not supply is left alone. There
+  # is deliberately NO account-level `card_identity?` short-circuit here: it
+  # fired before these checks and blocked completing a partially-filled account
+  # (a typed last4 with a blank network could never gain its network). The
+  # per-field blank checks below do the whole "never overwrite" job.
+  #
+  # Gated on the pipeline's deterministic last4 witness (spec's risk row): a
+  # durable identity is learned only from a reading whose card number the OCR
+  # text actually contains, never from an unwitnessed model claim. This write is
+  # sticky, and `last4` weighs 0.35 in the matcher, so a hallucinated last4 would
+  # not mislabel one document -- it would poison every future match for this
+  # account. The network rides the same witness: we learn no card identity from a
+  # reading whose card number we could not find on the page.
+  def learn_card_identity(understanding, last4_in_ocr:)
     last4 = understanding.card_last4.presence || understanding.account_last4
 
     attributes = {}
-    attributes[:last4] = last4 if last4.present?
-    attributes[:account_network] = understanding.card_network if understanding.card_network.present? && account_network.blank?
+    attributes[:last4] = last4 if last4.present? && last4_in_ocr && self.last4.blank?
+    attributes[:account_network] = understanding.card_network if last4_in_ocr && understanding.card_network.present? && account_network.blank?
     update!(attributes) if attributes.any?
   end
 
