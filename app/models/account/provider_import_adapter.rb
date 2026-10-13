@@ -777,6 +777,39 @@ class Account::ProviderImportAdapter
     # Convert date to Date object if it's a string
     date = Date.parse(date.to_s) unless date.is_a?(Date)
 
+    candidates = duplicate_transactions(
+      date: date, amount: amount, currency: currency, name: name,
+      exclude_entry_ids: exclude_entry_ids, date_window: date_window,
+      include_provider_entries: include_provider_entries
+    ).order(created_at: :asc)
+
+    # Exact-date search keeps the original oldest-first behaviour.
+    return candidates.first if date_window.to_i.zero?
+
+    # A windowed search prefers the closest date, falling back to oldest-created
+    # on a tie. Done in Ruby because the candidate set is already narrowed to one
+    # account, one amount and one currency within a few days -- a handful of rows.
+    candidates.to_a.min_by { |entry| [ (entry.date - date).abs, entry.created_at ] }
+  end
+
+  # The candidate entries a duplicate lookup considers, as a relation rather than
+  # a single pick — so a caller can apply its OWN tie-break or post-filter (W3-1's
+  # identity check needs every candidate, not just the closest date).
+  # `find_duplicate_transaction` is this query plus its ordering; the query lives
+  # here so the two can never drift.
+  #
+  # @param date [Date, String] Transaction date
+  # @param amount [BigDecimal, Numeric] Transaction amount
+  # @param currency [String] Currency code
+  # @param name [String, nil] Optional exact name filter
+  # @param exclude_entry_ids [Set, Array, nil] Entry IDs to exclude
+  # @param date_window [Integer] days either side of `date` to consider
+  # @param include_provider_entries [Boolean] when false (the default) only
+  #   manual and CSV-imported entries are considered
+  # @return [ActiveRecord::Relation<Entry>]
+  def duplicate_transactions(date:, amount:, currency:, name: nil, exclude_entry_ids: nil, date_window: 0, include_provider_entries: false)
+    date = Date.parse(date.to_s) unless date.is_a?(Date)
+
     # Look for entries on the same account with:
     # 1. Same date (or within date_window of it)
     # 2. Same amount (exact match)
@@ -805,15 +838,7 @@ class Account::ProviderImportAdapter
     # Exclude already claimed entries if provided
     query = query.where.not(id: exclude_entry_ids) if exclude_entry_ids.present?
 
-    candidates = query.order(created_at: :asc)
-
-    # Exact-date search keeps the original oldest-first behaviour.
-    return candidates.first if date_window.to_i.zero?
-
-    # A windowed search prefers the closest date, falling back to oldest-created
-    # on a tie. Done in Ruby because the candidate set is already narrowed to one
-    # account, one amount and one currency within a few days -- a handful of rows.
-    candidates.to_a.min_by { |entry| [ (entry.date - date).abs, entry.created_at ] }
+    query
   end
 
   # Finds a pending transaction that likely matches a newly posted transaction

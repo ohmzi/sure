@@ -15,24 +15,25 @@ class AutoPostReceiptJob < ApplicationJob
     draft = ReceiptImport.find(receipt_import_id)
     return if draft.document_link.nil?
 
-    # Only a RECEIPT auto-posts. A receipt is evidence of payment — if it
-    # exists, the money moved. A BILL is an invoice that may be unpaid, and
-    # auto-posting it would write an expense that never happened. N6 grants
-    # auto-post to receipts; a bill is read and drafted, then waits for the one
-    # tap. Checked here (not only at the enqueue site) so the writer never trusts
-    # its caller.
-    return unless draft.document_link.receipt?
-    return unless Setting.auto_post_receipts?
-
     linked = false
 
     draft.with_lock do
       # Every judgement below is made on the draft `with_lock` just RELOADED
       # (W3-3), so the gate is never separated from the values actually written:
       # a value that changed between the job's first read and this lock (a manual
-      # edit, a fresh read) is judged as it now stands, not as it was.
+      # edit, a fresh read) is judged as it now stands, not as it was. That
+      # includes the class-driven guards and the household switch.
       link = draft.document_link
       return if link.nil?
+
+      # Only a RECEIPT auto-posts. A receipt is evidence of payment — if it
+      # exists, the money moved. A BILL is an invoice that may be unpaid, and
+      # auto-posting it would write an expense that never happened. N6 grants
+      # auto-post to receipts; a bill is read and drafted, then waits for the one
+      # tap. Re-checked here (not only at the enqueue site) so the writer never
+      # trusts its caller.
+      return unless link.receipt?
+      return unless Setting.auto_post_receipts?
       return unless AutoPost.allowed?(draft: draft, extraction: link.extraction)
       return if draft.data_committed?
 
@@ -41,13 +42,25 @@ class AutoPostReceiptJob < ApplicationJob
       # link at a new one.
       return if link.entry_id.present?
 
-      if (existing = existing_entry_for(draft))
-        # W3-1 (statement-first ordering): the account already holds this charge,
-        # so the receipt CORROBORATES it (spec §8.6) instead of minting a
-        # duplicate. If the edge cannot be recorded safely, this is a refusal —
-        # fall to review and write no money rather than commit a second entry.
+      # W3-1: a receipt may CORROBORATE a charge the account already holds only
+      # when a positive identity signal confirms it is the same charge. No payee
+      # is no signal, so the receipt falls to review rather than linking a
+      # stranger.
+      return if draft.payee.blank?
+
+      if (existing = draft.corroborated_entry)
+        # A same-charge candidate whose name carries the same identity as the
+        # payee: corroborate it (spec §8.6) instead of minting a duplicate. If
+        # the edge cannot be recorded safely, this is a refusal — fall to review
+        # and write no money.
         return unless link.link_to_entry!(existing, from: DocumentLink::PUBLISH_LINKABLE)
         linked = true
+      elsif draft.same_charge_candidates.exists?
+        # The account already holds this charge, but nothing identifies it as
+        # THIS receipt's. Linking it would be the provenance lie this milestone
+        # exists to prevent, and minting would double the charge — so fall to
+        # review. (An unrelated same-amount charge is not this receipt's money.)
+        return
       else
         entry = Account::ProviderImportAdapter.new(draft.account).import_transaction(
           external_id: "document:#{link.id}",
@@ -78,21 +91,4 @@ class AutoPostReceiptJob < ApplicationJob
 
     draft.document_link.reload.broadcast_row_update! if linked
   end
-
-  private
-    # The entry the account already holds for the charge this receipt is evidence
-    # of, if any (W3-1, spec N6/N13): the adapter's own reconciliation window —
-    # same amount and currency, a date within ±3 days. `include_provider_entries`
-    # because the existing charge may have arrived by bank sync or from a
-    # statement, not only by hand, and every one of those is money already
-    # written for this charge.
-    def existing_entry_for(draft)
-      Account::ProviderImportAdapter.new(draft.account).find_duplicate_transaction(
-        date: draft.purchase_date,
-        amount: draft.total_amount,
-        currency: draft.account.currency || draft.family.currency,
-        date_window: 3,
-        include_provider_entries: true
-      )
-    end
 end

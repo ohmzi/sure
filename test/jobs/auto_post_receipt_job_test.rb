@@ -278,6 +278,59 @@ class AutoPostReceiptJobTest < ActiveSupport::TestCase
     assert_equal "failed", link.status
   end
 
+  # --- W3-1 identity signal: a wrong "corroborated by" edge is the provenance
+  # lie this milestone exists to prevent -------------------------------------
+  #
+  # An existing entry only counts as the SAME charge when the receipt's payee and
+  # the entry's name carry the same identity. Amount/date alone is not enough.
+
+  test "an unrelated same-amount entry is not corroborated: the receipt falls to review" do
+    # Same amount, currency and window — but a different merchant. Linking it
+    # would make the receipt read as "corroborated by" a charge it isn't (and
+    # block the receipt's own deletion); minting would double the account. So the
+    # auto-post falls to review and writes nothing.
+    unrelated = create_transaction(account: @account, date: Date.new(2026, 9, 15),
+                                   amount: 12, name: "Uber Ride")
+
+    assert_no_difference -> { Entry.count } do
+      AutoPostReceiptJob.perform_now(@draft.id)
+    end
+
+    link = @draft.document_link.reload
+    assert_equal "unlinked", link.status
+    assert_nil link.entry_id, "the receipt must not be linked to an unrelated charge"
+    assert_equal 0, DocumentLink.where(entry_id: unrelated.id).count,
+                 "and the unrelated entry gets no document of its own"
+  end
+
+  test "a same-charge entry whose name matches the payee is corroborated" do
+    # The identity rule is loose on formatting: "STARBUCKS 1234" and the payee
+    # "Starbucks" name the same merchant, so this IS the receipt's charge.
+    existing = create_transaction(account: @account, date: Date.new(2026, 9, 16),
+                                  amount: 12, name: "STARBUCKS 1234")
+
+    assert_no_difference -> { Entry.count } do
+      AutoPostReceiptJob.perform_now(@draft.id)
+    end
+
+    assert_equal existing.id, @draft.document_link.reload.entry_id
+  end
+
+  test "a receipt with no payee falls to review rather than posting" do
+    # No payee is no identity signal, so the receipt can neither be corroborated
+    # (nothing to match) nor safely minted (there might be an unidentified charge
+    # it is evidence of). It falls to review.
+    @draft.update!(extracted_data: @draft.extracted_data.merge("payee" => nil))
+
+    assert_no_difference -> { Entry.count } do
+      AutoPostReceiptJob.perform_now(@draft.id)
+    end
+
+    link = @draft.document_link.reload
+    assert_equal "unlinked", link.status
+    assert_nil link.entry_id
+  end
+
   # --- W3-4: never re-point a document already linked to an entry ------------
 
   test "the writer does nothing for a document already linked to an entry" do
@@ -312,6 +365,27 @@ class AutoPostReceiptJobTest < ActiveSupport::TestCase
     extraction = @draft.document_link.extraction
     ReceiptImport.define_method(:with_lock) do |*args, &block|
       extraction.update!(validations: { "totals_agree" => nil })
+      original_with_lock.bind(self).call(*args, &block)
+    end
+
+    assert_no_difference -> { Entry.count } do
+      AutoPostReceiptJob.perform_now(@draft.id)
+    end
+    assert_equal "unlinked", @draft.document_link.reload.status
+  ensure
+    ReceiptImport.define_method(:with_lock, original_with_lock)
+  end
+
+  # W3-3 (finding 2): the receipt/bill guard and the household switch are part of
+  # the gate too, so they are re-read inside the lock on the reloaded document —
+  # not from the stale pre-lock read.
+  test "the receipt/bill guard is re-read inside the lock on the reloaded document" do
+    original_with_lock = ReceiptImport.instance_method(:with_lock)
+    link = @draft.document_link
+    ReceiptImport.define_method(:with_lock) do |*args, &block|
+      # Re-typed as a BILL in the window after the job's first read but before
+      # the lock. A guard read on the stale draft would still auto-post it.
+      link.update_columns(source: "bill")
       original_with_lock.bind(self).call(*args, &block)
     end
 

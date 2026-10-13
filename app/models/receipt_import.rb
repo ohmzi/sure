@@ -11,6 +11,14 @@
 # conversion exists.
 class ReceiptImport < Import
   UNDERSTANDING_STATES = %w[awaiting_ocr understood needs_understanding].freeze
+  # The window, in days either side of a receipt's date, within which the account
+  # may already hold the charge the receipt is evidence of (W3-1). The same small
+  # window the statement reconciliation uses: a receipt's posting date routinely
+  # differs by a day or two from the date a statement or sync recorded.
+  CORROBORATION_DATE_WINDOW = 3
+  # A "significant" token for the identity rule: 3+ alphanumerics, so a bare "12"
+  # or a one-letter initial cannot count as a shared identity.
+  IDENTITY_TOKEN = /[a-z0-9]{3,}/
 
   belongs_to :document_link, optional: true
 
@@ -198,13 +206,16 @@ class ReceiptImport < Import
         return
       end
 
-      # W3-1/W3-4: the document is ALREADY committed to an entry — the auto-post
-      # CORROBORATED a charge the account already held (or a matcher linked it).
-      # Minting here would create a second entry for that charge and STEAL the
-      # link's edge by re-pointing it, so the reviewed publish does nothing and
-      # settles the draft instead. Fails SAFE: never a second entry for one charge.
-      if document_link.entry_id.present?
-        Rails.logger.info("ReceiptImport #{id}: the document is already linked to an entry - nothing written")
+      # W3-1/W3-4: the document is ALREADY committed to an entry. Treat it as
+      # settled ONLY when that entry is actually THIS receipt's charge — the same
+      # identity signal (name vs payee) the auto-post requires before it
+      # corroborates. A link to an UNRELATED entry is not this receipt's money (a
+      # legacy or matcher mis-link), and treating it as done would silently drop
+      # the charge; falling through to mint the receipt's own entry recovers it.
+      # The identity check is what tells "already recorded" from "recorded
+      # somewhere else" — never a second entry for the one charge.
+      if document_link.entry_id.present? && corroborates?(document_link.entry)
+        Rails.logger.info("ReceiptImport #{id}: the document is already linked to this charge - nothing written")
         return
       end
 
@@ -256,6 +267,62 @@ class ReceiptImport < Import
     Account::ProviderImportAdapter.new(account).find_duplicate_transaction(
       date: purchase_date, amount: total_amount, currency: default_currency
     )
+  end
+
+  # --- W3-1: the corroboration seam (spec §8.6) ------------------------------
+
+  # Candidate charges the account already holds for this receipt: same amount,
+  # currency and a date within the corroboration window. `include_provider_entries`
+  # because an existing charge may have arrived by bank sync or from a statement,
+  # not only by hand — any of those is money already written for this charge.
+  # Empty when the draft is not yet resolved.
+  def same_charge_candidates
+    return Entry.none unless account.present? && total_amount.present? && purchase_date.present?
+
+    Account::ProviderImportAdapter.new(account).duplicate_transactions(
+      date: purchase_date, amount: total_amount,
+      currency: account.currency || family.currency,
+      date_window: CORROBORATION_DATE_WINDOW, include_provider_entries: true
+    )
+  end
+
+  # The entry this receipt CORROBORATES (spec §8.6, W3-1): a same-charge candidate
+  # whose name carries the same identity as this receipt's payee. Returns nil when
+  # none does — and nil when the payee is blank, because a blank payee is no
+  # identity signal at all. A nil means the caller must NOT link: a wrong
+  # "corroborated by" edge is the provenance lie this milestone exists to prevent,
+  # so the caller fails safe rather than guessing.
+  def corroborated_entry
+    return nil if payee.blank?
+
+    same_charge_candidates.find { |entry| corroborates?(entry) }
+  end
+
+  # The W3-1 identity signal: a candidate's name and this receipt's payee carry
+  # the same identity. See `identity_match?`.
+  def corroborates?(entry)
+    self.class.identity_match?(payee, entry&.name)
+  end
+
+  class << self
+    # The identity rule, pure and shared by every writer that decides whether a
+    # receipt corroborates an existing charge (W3-1): two labels name the same
+    # thing when, case- and whitespace-normalised, one contains the other or they
+    # share a significant token (3+ alphanumerics). Loose enough for "STARBUCKS
+    # 1234" vs "Starbucks"; strict enough to reject an unrelated same-amount charge.
+    def identity_match?(a, b)
+      a = normalize_identity(a)
+      b = normalize_identity(b)
+      return false if a.blank? || b.blank?
+
+      a.include?(b) || b.include?(a) || (a.scan(IDENTITY_TOKEN) & b.scan(IDENTITY_TOKEN)).any?
+    end
+
+    private
+
+      def normalize_identity(text)
+        text.to_s.downcase.gsub(/[^a-z0-9]+/, " ").strip
+      end
   end
 
   def apply_manual_details!(total: nil, date: nil, payee: nil)

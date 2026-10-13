@@ -158,6 +158,38 @@ class ReceiptImportTest < ActiveSupport::TestCase
                  "the existing corroboration edge must not be stolen"
   end
 
+  test "the identity rule is loose on formatting but rejects an unrelated name" do
+    # Shared by the auto-post's corroboration and this writer's settle guard
+    # (W3-1): "STARBUCKS 1234" and "Starbucks" are the same merchant; a different
+    # merchant at the same amount is not.
+    assert ReceiptImport.identity_match?("Starbucks", "STARBUCKS 1234")
+    assert ReceiptImport.identity_match?("Latte Lane Cafe", "latte lane")
+    assert ReceiptImport.identity_match?("AMZN Mktp", "Amazon Mktp US")
+    assert_not ReceiptImport.identity_match?("Starbucks", "Uber Ride")
+    assert_not ReceiptImport.identity_match?("Starbucks", nil)
+    assert_not ReceiptImport.identity_match?("", "Starbucks")
+  end
+
+  # W3-1, applying the same identity rule on the reviewed-publish side: a document
+  # mis-linked to an UNRELATED entry (a legacy or matcher link) is not "already
+  # recorded", so publishing mints the receipt's own charge rather than silently
+  # dropping it — and records the real edge in place of the false one.
+  test "publishing a document mis-linked to an unrelated entry records the receipt's own charge" do
+    draft = imports(:receipt_understood)
+    unrelated = create_transaction(account: accounts(:depository), date: Date.new(2026, 9, 16),
+                                   amount: 99, name: "Uber Ride")
+    draft.document_link.link_to_entry!(unrelated)
+
+    assert_difference -> { Entry.count }, 1 do
+      draft.publish
+    end
+
+    own = Entry.find_by(account: accounts(:depository), external_id: "document:#{draft.document_link_id}")
+    assert_not_nil own, "the receipt's charge is recorded, not silently dropped"
+    assert_equal own.id, draft.reload.document_link.entry_id,
+                 "the false edge is replaced by the receipt's real one"
+  end
+
   test "needs_understanding accepts a manual total and becomes publishable" do
     draft = imports(:receipt_draft)
 
