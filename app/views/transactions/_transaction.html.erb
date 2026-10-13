@@ -216,6 +216,11 @@
             <%= icon "lock", size: "sm", class: "text-secondary" %>
           <% end %>
         <% end %>
+        <%# Where this row came from (spec N13): one primary source, plus any
+            corroborating documents and an "edited" badge. Trailing, by the
+            amount -- the inline pill cluster beside the name cannot take it
+            without squeezing the name to nothing. %>
+        <%= render "documents/provenance", entry: entry %>
         <%= content_tag :p,
             transaction.transfer? && view_ctx == "global" ? "+/- #{format_money(entry.amount_money.abs)}" : format_money(-entry.amount_money),
             class: ["privacy-sensitive", "text-green-600": entry.amount.negative?] %>

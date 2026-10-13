@@ -240,4 +240,20 @@ module TransactionsHelper
   rescue StandardError
     value.to_s
   end
+
+  # The glyph beside an entry's primary source on the provenance pill (spec
+  # N13). One per source, so the four read apart at a glance. Presentation only:
+  # the resolver owns which source it is, this helper owns how it is drawn.
+  PROVENANCE_ICONS = {
+    "document" => "receipt-text",
+    "import_file" => "file-text",
+    "synced" => "refresh-ccw",
+    "manual" => "pencil"
+  }.freeze
+
+  # @param primary [String] one of EntryProvenance::SOURCES
+  # @return [String] the lucide icon name for that source
+  def entry_provenance_icon(primary)
+    PROVENANCE_ICONS.fetch(primary.to_s, "file-text")
+  end
 end

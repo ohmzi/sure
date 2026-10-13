@@ -1,0 +1,40 @@
+<%# locals: (entry:) %>
+<%# Where this entry came from (spec N13): exactly one primary source, plus the
+    documents that corroborate it as additive chips and an "edited by you"
+    overlay. Read-only -- it renders, it writes nothing. Hosted by the
+    transaction row (the trailing indicator cluster) and the detail drawer (the
+    header and the section beside the documents panel). %>
+<% provenance = entry.provenance %>
+<div class="flex flex-wrap items-center gap-1" data-provenance="<%= dom_id(entry) %>">
+  <%= render DS::Pill.new(
+    label: provenance.label,
+    tone: :neutral,
+    marker: false,
+    icon: entry_provenance_icon(provenance.primary)
+  ) %>
+
+  <%# The corroborating documents -- additive, never a second primary: each is a
+      chip that opens the document it came from. %>
+  <% provenance.documents.each do |document| %>
+    <%= link_to viewer_document_path(document), class: "inline-flex min-w-0 max-w-full" do %>
+      <%= render DS::Pill.new(
+        label: document.title.presence || document.original_filename,
+        tone: :indigo,
+        marker: false,
+        icon: "file-text",
+        truncate: true
+      ) %>
+    <% end %>
+  <% end %>
+
+  <%# A displayed value no longer equals what the document said. An untouched
+      AI read never carries this. %>
+  <% if provenance.edited? %>
+    <%= render DS::Pill.new(
+      label: t("entries.provenance.edited"),
+      tone: :warning,
+      marker: false,
+      icon: "pencil-line"
+    ) %>
+  <% end %>
+</div>

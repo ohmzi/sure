@@ -27,7 +27,13 @@ class TransactionsController < ApplicationController
     base_scope = @search.transactions_scope
                        .reverse_chronological
                        .includes(
-                         { entry: :account },
+                         # The provenance fragment (spec N13) reads, per row, the
+                         # entry's document_links and each link's latest
+                         # document_extractions read, plus the entry's import. Left
+                         # un-preloaded that is a query per row on the busiest
+                         # surface in the app. `DocumentLink#extraction` reads the
+                         # loaded collection, so `document_extractions` must be here.
+                         { entry: [ :account, { import: :document_link }, { document_links: :document_extractions } ] },
                          :category, :merchant, :tags,
                          # Union of #2643 counterpart UI + Skylight category-menu N+1:
                          # - outflow rows need inflow_transaction (to_account) for both

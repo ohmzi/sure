@@ -1893,11 +1893,43 @@ end
     assert_match I18n.t("transactions.show.category_set_on_outflow"), response.body
   end
 
+  # Ruling RB7 (Milestone B Task 6): the list renders provenance per row, and
+  # `EntryProvenance#edited?` reads each linked document's latest extraction via
+  # `DocumentLink#extraction`, which only stays query-free when its collection is
+  # preloaded. The preload lives on the list query; this pins that it reaches the
+  # reader. The assertion is on the SHAPE, not an absolute total: the number of
+  # `document_extractions` queries must not scale with the number of rows.
+  test "index preloads document links and their extractions for the provenance fragment" do
+    3.times do |i|
+      entry = create_transaction(name: "Document-backed #{i}", amount: 100 + i, date: Date.current - i.days)
+      link = DocumentLink.create!(
+        family: @user.family, created_by: @user,
+        status: "unlinked", source: "receipt",
+        title: "Receipt #{i}", original_filename: "receipt-#{i}.png",
+        content_type: "image/png"
+      )
+      DocumentExtraction.record!(
+        document_link: link, provider: "openai", model: "test-model",
+        ocr_engine: "test-engine", page_count: 1, status: "succeeded",
+        verdict: { "total" => "1.00", "date" => Date.current.to_s }
+      )
+      link.link_to_entry!(entry)
+    end
+
+    queries = capture_sql_queries { get transactions_url(per_page: 50) }
+    assert_response :success
+    normalized = queries.map { |sql| normalize_sql_query(sql) }
+
+    assert_equal 1, normalized.count { |sql| sql.include?("from document_extractions") },
+      "one document_extractions query for the whole page, never one per row"
+    assert_empty single_record_lookups(normalized, table: "document_links", column: "entry_id"),
+      "document_links must be preloaded on the list, not loaded once per row"
+  end
+
   private
     def rendered_entry_ids
       css_select("turbo-frame[id^='entry_']").map { |node| node["id"].delete_prefix("entry_") }
     end
-
     def normalize_sql_query(sql)
       sql.to_s.squish.gsub(/[`"]/, "").downcase
     end

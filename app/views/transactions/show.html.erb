@@ -158,6 +158,10 @@
       <%= render "transactions/attachments", transaction: @entry.transaction, can_upload: can_annotate_entry?, can_delete: can_edit_entry? %>
     <% end %>
 
+    <% dialog.with_section(title: t(".provenance"), open: true) do %>
+      <%= render "documents/provenance", entry: @entry %>
+    <% end %>
+
     <% dialog.with_section(title: t(".documents"), open: true) do %>
       <%= render DocumentLinkPanelComponent.new(entry: @entry) %>
     <% end %>
