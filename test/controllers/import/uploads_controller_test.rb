@@ -123,6 +123,45 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     FileUtils.remove_entry(store) if store&.exist?
   end
 
+  test "an OFX upload sets the statement's link on the OFX import too (N9)" do
+    # W3-8: with the link only on the statement, an OFX-born row hangs off no
+    # import.document_link, so it read `import_file` (EntryProvenance) and its
+    # document's delete-block could not see the row (DocumentLink#derived_entries)
+    # -- the document deleted while its rows were unreconciled (spec N9). The
+    # import must carry the statement's own archived link.
+    store = Pathname.new(Dir.mktmpdir("ofx-import-link"))
+    previous = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
+    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = store.to_s
+
+    import = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
+
+    patch import_upload_url(import), params: {
+      import: {
+        import_file: file_fixture_upload("imports/sample.ofx", "application/x-ofx"),
+        account_id: accounts(:depository).id
+      }
+    }
+
+    import.reload
+    link = import.account_statement.archived_document_link
+    assert link.present?
+    assert_equal link.id, import.document_link_id,
+                 "the OFX import must carry the statement's archived link"
+
+    # The behaviour the link buys, end to end: an OFX-born row now reads "from a
+    # document" and its document refuses to delete while the row is unreconciled.
+    entry = entries(:transaction_entry)
+    entry.update!(import: import, source: "ofx", reconciled_at: nil, import_locked: true)
+    entry.document_links.delete_all
+
+    assert_equal "document", EntryProvenance.for(entry.reload).primary
+    assert_includes link.derived_entries, entry
+    assert_not link.deletable?
+  ensure
+    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = previous
+    FileUtils.remove_entry(store) if store&.exist?
+  end
+
   test "rejects a malformed OFX file" do
     import = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
 

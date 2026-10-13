@@ -123,7 +123,18 @@ class Import::UploadsController < ApplicationController
       # blob write to the commit, so the statement's bytes are unreadable from
       # inside it; the unified Documents page's link is staged here, once the
       # bytes are on the service (Task 3, Step 7).
-      statement.archive_document_link!(uploader: Current.user) if statement
+      #
+      # The same link goes on the IMPORT, not just the statement (spec N9). An
+      # OFX row hangs off `entries.import_id -> imports.document_link_id`, so
+      # without this the row reads "from a bank export" (EntryProvenance) and
+      # DocumentLink#derived_entries cannot see the row — the document would
+      # delete while its rows were still unreconciled. The archive must follow
+      # the commit (see above), so the import's link is written here rather than
+      # at save! inside the transaction.
+      if statement
+        link = statement.archive_document_link!(uploader: Current.user)
+        @import.update!(document_link: link) if link
+      end
 
       notice = duplicate ? t(".ofx_duplicate_notice") : t(".ofx_uploaded")
       redirect_to import_clean_path(@import), notice: notice

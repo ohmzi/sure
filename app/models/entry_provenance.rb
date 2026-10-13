@@ -46,17 +46,36 @@ class EntryProvenance
   # receipt whose only origin is its own document is not corroborated.
   #
   # The identity is `import.document_link_id` because that IS the creating
-  # document for the shape this task's spec calls out (a receipt, source
-  # "document", whose import is a ReceiptImport carrying the receipt link).
-  # Known gap: a STATEMENT-created entry (a PdfImport) has no
-  # `document_link_id` -- its creating document lives on `account_statement`,
-  # not on the import -- so if a statement's own link were ever attached to the
-  # entry it would read as corroboration. It does not arise from the published
-  # paths (nothing attaches a statement-born entry's own link; Task 7's `claim!`
-  # only touches pre-existing MATCHED entries).
+  # document: a receipt's ReceiptImport carries the receipt link, and a
+  # statement's PdfImport carries the statement's own archived link
+  # (`create_from_statement!`). So a statement-born entry's creating document is
+  # on the import too, and attaching the statement's own link to such an entry
+  # would NOT read as corroboration -- it equals the creating link and reads as
+  # the source (Task 7's `claim!` still only touches pre-existing MATCHED
+  # entries, whose import is not this statement's).
   def corroborated?
     creating_link_id = @entry.import&.document_link_id
     documents.any? { |document| document.id != creating_link_id }
+  end
+
+  # The document that PRODUCED this entry, when it is not already one of
+  # `documents`. A statement-born row hangs off `import.document_link` (spec N13:
+  # import_id -> import -> document_link), the statement's archived copy, and
+  # that link lives on the import, never on `entry.document_links` -- so the
+  # corroboration chips render nothing for a row whose whole origin is that
+  # document, and the row names "from a document" with no chip back to it. This
+  # exposes the producing link so the row can offer the same chip. It is the
+  # SOURCE, not corroboration: it is deliberately kept out of `documents`, which
+  # `corroborated?` reads, so a document can never corroborate the entry it
+  # created. When the producing link IS attached to the entry (a receipt, whose
+  # link carries the entry_id), it is already a `document` and returns nil here,
+  # so the view renders it exactly once.
+  def producing_document
+    return @producing_document if defined?(@producing_document)
+
+    link = @entry.import&.document_link
+    @producing_document =
+      link && documents.none? { |document| document.id == link.id } ? link : nil
   end
 
   # "edited by you" (spec N13): the displayed value no longer equals what the

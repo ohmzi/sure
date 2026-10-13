@@ -85,6 +85,52 @@ class EntryProvenanceTest < ActiveSupport::TestCase
                "a document must never corroborate the entry it created itself"
   end
 
+  # W3-7: the row names "from a document" but, for a statement-born row, the
+  # chip list reads `entry.document_links`, which is empty by design -- the
+  # creating document hangs off the import, not the entry. `producing_document`
+  # is that creating document (spec N13: import_id -> import -> document_link),
+  # so the view can offer the same chip it shows for a corroborating document.
+  test "a statement-born entry exposes its producing document for a chip" do
+    import = statement_backed_import
+    entry = entries(:transaction_entry)
+    entry.update!(source: nil, external_id: nil, import: import, import_locked: true)
+    entry.document_links.delete_all
+
+    provenance = EntryProvenance.for(entry.reload)
+    assert_equal import.document_link.id, provenance.producing_document&.id,
+                 "the statement import's own link is the producing document"
+    assert_empty provenance.documents, "it is not attached to the entry's document_links"
+    assert_not provenance.corroborated?,
+               "the producing document must never read as corroborating the entry it created"
+  end
+
+  test "a producing document already attached to the entry is not listed twice" do
+    # A receipt's creating link IS attached to its entry (entry_id), so it is
+    # already in `documents`; producing_document must yield nothing or the
+    # view would render the same document as two chips.
+    entry = receipt_born_entry
+
+    provenance = EntryProvenance.for(entry)
+    assert_includes provenance.documents.map(&:id), entry.import.document_link_id
+    assert_nil provenance.producing_document
+  end
+
+  test "an entry with no producing import has no producing document" do
+    entry = entries(:transaction_entry)
+    entry.update!(source: nil, external_id: nil, import: nil, import_locked: false)
+    entry.document_links.delete_all
+
+    assert_nil EntryProvenance.for(entry.reload).producing_document
+  end
+
+  test "a raw import with no document link has no producing document" do
+    entry = entries(:transaction_entry)
+    entry.update!(source: nil, external_id: nil, import: imports(:transaction), import_locked: false)
+    entry.document_links.delete_all
+
+    assert_nil EntryProvenance.for(entry.reload).producing_document
+  end
+
   test "it never returns anything outside the four" do
     Entry.find_each do |entry|
       assert_includes EntryProvenance::SOURCES, EntryProvenance.for(entry).primary

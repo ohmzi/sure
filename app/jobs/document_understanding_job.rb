@@ -329,10 +329,12 @@ class DocumentUnderstandingJob < ApplicationJob
     # fill-only rule then makes permanent.
     #
     # The draft is found by whichever edge the leg created: a receipt/bill draft
-    # (ReceiptImport) hangs off the document link, while the statement leg's
-    # PdfImport is created against the vault row and its link to this document is
-    # the AccountStatement — `Imports` carries no document_link for it. Looking up
-    # only by document_link silently found nothing for every statement.
+    # (ReceiptImport) hangs off the document link, and the statement leg's
+    # PdfImport now carries the document link too -- `create_from_statement!`
+    # sets it to the statement's archived copy (spec N13). The `account_statement`
+    # fallback remains for a statement row whose import predates that link and
+    # has none to backfill (a statement with no archived document copy at all),
+    # so a lookup by document_link alone would still miss such a statement.
     def resolve_account(link, understanding)
       match = Account::DocumentMatcher.best_match(
         family: link.family,

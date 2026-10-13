@@ -13,11 +13,17 @@
     icon: entry_provenance_icon(provenance.primary)
   ) %>
 
-  <%# The corroborating documents -- additive, never a second primary: each is a
-      chip that opens the document it came from. A document the user deleted is
-      still named -- the entry's provenance must not silently vanish -- but it
-      has left the archive, so it renders as a dead source with no link. %>
-  <% provenance.documents.each do |document| %>
+  <%# The document that PRODUCED this entry, then the corroborating documents.
+      A statement-born row's creating document hangs off its import, not
+      `entry.document_links`, so without the producing document the row would
+      name "from a document" yet offer no chip back to it. The producing document
+      is the source, never corroboration (it is not part of `provenance.documents`,
+      which `corroborated?` reads), and it is never double-listed: when it is also
+      attached to the entry, `producing_document` is nil and the `documents` loop
+      renders it once. A document the user deleted is still named -- the entry's
+      provenance must not silently vanish -- but it has left the archive, so it
+      renders as a dead source with no link. %>
+  <% ([ provenance.producing_document ] + provenance.documents).compact.each do |document| %>
     <% if document.deleted_at.present? %>
       <%= render DS::Pill.new(
         label: t("entries.provenance.source_deleted", name: document.title.presence || document.original_filename),
