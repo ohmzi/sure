@@ -371,6 +371,11 @@ class Entry < ApplicationRecord
     reconciled_at.present?
   end
 
+  # Where this entry came from, as exactly one of four sources plus a
+  # corroborating list (spec N13). Read-only: it derives from data already held
+  # and never writes. See EntryProvenance.
+  def provenance = EntryProvenance.for(self)
+
   # @param statement [AccountStatement, nil] the statement providing the evidence
   def mark_reconciled!(statement: nil, at: Time.current)
     update!(reconciled_at: at, reconciled_by_statement: statement)

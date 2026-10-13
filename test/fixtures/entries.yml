@@ -42,3 +42,16 @@ transfer_in:
   account: credit_card
   entryable_type: Transaction
   entryable: transfer_in
+
+# The neutral transaction entry the provenance resolver's specs start from
+# (Milestone B, Tasks 5/6/9): no import, no provider source, no document link,
+# and an amount (25) that does not match the `understood_receipt_link` read
+# (12.00), so a spec can set it to match or diverge at will.
+transaction_entry:
+  name: Provenance subject
+  date: <%= 6.days.ago.to_date %>
+  amount: 25
+  currency: USD
+  account: depository
+  entryable_type: Transaction
+  entryable: transaction_entry

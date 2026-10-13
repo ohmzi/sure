@@ -6,3 +6,12 @@ transfer_out:
   kind: payment
 transfer_in:
   kind: transfer
+
+# A plain transaction entry with no import, no provider source and no linked
+# document -- the neutral subject the provenance resolver's specs (Milestone B,
+# Tasks 5/6/9) start from before mutating it into one shape or another. It
+# carries a category and an old date so it stays out of the uncategorized
+# budget drilldown (`.take(3)`) and off the days other specs target.
+transaction_entry:
+  kind: standard
+  category: food_and_drink
