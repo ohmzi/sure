@@ -11,13 +11,17 @@
       <% if entry.transaction.transfer? %>
         <%= icon "arrow-left-right", size: "sm", class: "text-secondary" %>
       <% end %>
-      <% if entry.linked? %>
+      <%# Gated on a genuine provider link, not `Entry#linked?`: a
+          document-created entry carries external_id "document:<id>" (Milestone
+          A's replay-safe identity), so `linked?` would claim "Linked with
+          provider" for an entry whose provenance is a document. %>
+      <% if entry.provenance.primary == "synced" %>
         <span title="<%= t("transactions.transaction.linked_with_provider", provider: entry.account.provider_name&.titleize) %>" class="text-secondary">
           <%= icon("refresh-ccw", size: "sm") %>
         </span>
       <% end %>
     </h3>
-    <div class="flex flex-wrap items-center gap-2">
+    <div class="flex items-center gap-2">
       <span class="text-sm text-secondary">
         <%= entry.date ? I18n.l(entry.date, format: :long) : "—" %>
       </span>
@@ -30,10 +34,6 @@
           title: t("transactions.transaction.pending_tooltip")
         ) %>
       <% end %>
-      <%# Where this entry came from (spec N13) — the richer form of the thin
-          "linked with provider" icon above, and the only signal a manual entry
-          has. %>
-      <%= render "documents/provenance", entry: entry %>
     </div>
   </div>
 </div>

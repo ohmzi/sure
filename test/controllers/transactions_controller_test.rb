@@ -1930,6 +1930,7 @@ end
     def rendered_entry_ids
       css_select("turbo-frame[id^='entry_']").map { |node| node["id"].delete_prefix("entry_") }
     end
+
     def normalize_sql_query(sql)
       sql.to_s.squish.gsub(/[`"]/, "").downcase
     end

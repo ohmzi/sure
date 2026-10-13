@@ -41,9 +41,18 @@ class DocumentProvenanceTest < ApplicationSystemTestCase
     entry = entries(:transaction_entry)
     link = document_links(:understood_receipt_link)
     link.update!(entry_id: entry.id)
-    entry.update!(amount: entry.amount + 10)
-    visit transaction_path(entry.reload)
+    # Start from a value that still MATCHES the read (total "12.00", date
+    # 2026-09-14), so the badge's arrival is the edit -- not the fixture's own
+    # mismatch. `transaction_entry` defaults to 25, which would make the badge
+    # show before any change and pass this test vacuously.
+    entry.update!(amount: 12, date: Date.new(2026, 9, 14))
 
+    visit transaction_path(entry.reload)
+    assert_no_selector "[data-provenance]", text: I18n.t("entries.provenance.edited")
+
+    entry.update!(amount: 12 + 10)
+
+    visit transaction_path(entry.reload)
     assert_text I18n.t("entries.provenance.edited")
     assert_selector "[data-provenance]", text: I18n.t("entries.provenance.edited")
   end
