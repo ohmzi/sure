@@ -19,11 +19,6 @@ class ReceiptImport < Import
   # A "significant" token for the identity rule: 3+ alphanumerics, so a bare "12"
   # or a one-letter initial cannot count as a shared identity.
   IDENTITY_TOKEN = /[a-z0-9]{3,}/
-  # Raised when the reviewed publish would record a second entry for a charge the
-  # account already holds (spec N10). `Import#publish` rescues it into a failed
-  # draft carrying the reason, so the Publish click is never a silent no-op — the
-  # review surface shows why and the account owner decides.
-  ExistingChargeError = Class.new(StandardError)
 
   belongs_to :document_link, optional: true
 
@@ -211,24 +206,25 @@ class ReceiptImport < Import
         return
       end
 
-      # W3-1 (fix round 2): never mint a second entry for a charge the account
-      # already holds (spec N10), and never re-point a document's link.
-      #
-      # A document already linked KEEPS its link. When that link is THIS receipt's
-      # own identity-confirmed charge there is nothing to do; otherwise the money
-      # may or may not already be recorded, so the publish mints nothing and
-      # surfaces the reason for the account owner to decide — never a silent
-      # no-op, and never a re-point that would orphan the existing edge.
+      # W3-1 (final): a document already linked means the charge is already
+      # recorded. KEEP the link (never re-point, never mint a second entry) and
+      # settle — publishing must not wall on a document that is already done.
       if document_link.entry_id.present?
-        return if corroborates?(document_link.entry)
-
-        raise ExistingChargeError, self.class.existing_charge_message
+        Rails.logger.info("ReceiptImport #{id}: the document is already linked - nothing written")
+        return
       end
 
-      # Unlinked, but the account already holds a charge for this receipt: do not
-      # mint a duplicate — leave the document unlinked and surface the reason.
-      if same_charge_candidates.exists?
-        raise ExistingChargeError, self.class.existing_charge_message
+      # Unlinked: when a same-charge candidate carries the receipt's identity, the
+      # charge is already recorded — CORROBORATE it (link it, spec §8.6) and mint
+      # nothing. Otherwise MINT the receipt's own entry: a person explicitly
+      # publishing is confirming a real, distinct charge, and two same-amount
+      # charges are legitimate. Either way never a second entry for a charge we
+      # can positively identify.
+      if (existing = corroborated_entry)
+        unless document_link.link_to_entry!(existing, from: DocumentLink::PUBLISH_LINKABLE)
+          raise "could not record the document provenance edge on #{document_link.id}"
+        end
+        return
       end
 
       transaction do
@@ -317,15 +313,6 @@ class ReceiptImport < Import
   end
 
   class << self
-    # The message a refused publish carries (spec N10): names why, so the review
-    # surface is actionable. Resolved at publish time, so it follows the locale.
-    def existing_charge_message
-      I18n.t(
-        "imports.errors.existing_charge",
-        default: "A matching transaction is already recorded on this account, so this receipt was not posted again. This receipt needs your decision."
-      )
-    end
-
     # The identity rule, pure and shared by every writer that decides whether a
     # receipt corroborates an existing charge (W3-1): two labels name the same
     # thing when, case- and whitespace-normalised, one contains the other or they

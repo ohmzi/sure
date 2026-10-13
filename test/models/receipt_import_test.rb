@@ -125,43 +125,57 @@ class ReceiptImportTest < ActiveSupport::TestCase
     assert_equal 0, draft.entries.find_by(parent_entry_id: nil).child_entries.count
   end
 
-  # W3-1 (spec N10): the reviewed publish never records a second entry for a
-  # charge the account already holds. The manual entry is neither claimed nor
-  # duplicated; the draft is surfaced so the account owner decides.
-  test "publishing neither claims nor duplicates an existing same-charge entry" do
-    manual = create_transaction(account: accounts(:depository), date: Date.new(2026, 9, 14),
-                                amount: 12, name: "Lunch")
+  # (d) W3-1: the reviewed publish never CLAIMS (adopts the identity of) an
+  # existing manual entry — a same-amount row that does not identity-match is a
+  # distinct charge, so the publish mints the receipt's OWN entry.
+  test "publishing never claims an existing manual entry" do
+    account = accounts(:depository)
+    manual = create_transaction(account: account, date: Date.new(2026, 9, 14), amount: 12, name: "Lunch")
     draft = imports(:receipt_understood)
 
-    assert_no_difference -> { Entry.count } do
-      draft.publish
-    end
+    draft.publish
 
     manual.reload
     assert_nil manual.external_id, "the manual entry must not be claimed"
     assert_equal BigDecimal("12.00"), draft.reload.total_amount # sanity
-    assert_not draft.complete?, "and it must not be duplicated either — held for a decision"
-    assert_equal ReceiptImport.existing_charge_message, draft.error
+    assert_equal 1, draft.entries.where(parent_entry_id: nil).count
   end
 
-  # W3-1's hard requirement, on the reviewed-publish path: the auto-post
-  # corroborates a charge the account already holds by linking the document to
-  # it. A later manual publish of that same draft must then mint NOTHING — a
-  # second entry would double the charge and re-pointing the link would steal the
-  # corroboration edge.
-  test "publishing a draft whose document is already linked mints nothing and keeps the edge" do
+  # (a) A legitimate charge is never boxed out by an unrelated same-amount row.
+  # The auto-post fell to review (no identity match); the owner then publishes, so
+  # the receipt's own entry must reach the ledger — one entry, no wall.
+  test "publishing an unlinked draft alongside an unrelated same-amount charge mints a distinct entry" do
+    create_transaction(account: accounts(:depository), date: Date.new(2026, 9, 16),
+                       amount: 12, name: "Uber Ride")
     draft = imports(:receipt_understood)
+    assert_nil draft.document_link.entry_id, "the draft must start unlinked"
+
+    assert_difference -> { Entry.count }, 1 do
+      draft.publish
+    end
+
+    own = Entry.find_by(account: accounts(:depository), external_id: "document:#{draft.document_link_id}")
+    assert_not_nil own, "the legitimate charge must reach the ledger"
+    assert_equal own.id, draft.reload.document_link.entry_id, "its own entry records the edge"
+  end
+
+  # (b) An identity-matching same-charge candidate IS this receipt's charge, so
+  # publishing CORROBORATES it — links it (spec §8.6), mints nothing.
+  test "publishing an unlinked draft with an identity-matching charge corroborates it" do
     existing = create_transaction(account: accounts(:depository), date: Date.new(2026, 9, 16),
-                                  amount: 12, name: "STARBUCKS")
-    draft.document_link.link_to_entry!(existing)
-    assert_equal existing.id, draft.document_link.reload.entry_id
+                                  amount: 12, name: "Starbucks")
+    draft = imports(:receipt_understood)
+    assert_nil draft.document_link.entry_id, "the draft must start unlinked"
+    assert draft.corroborates?(existing), "the fixture must identity-match"
 
     assert_no_difference -> { Entry.count } do
       draft.publish
     end
 
-    assert_equal existing.id, draft.reload.document_link.entry_id,
-                 "the existing corroboration edge must not be stolen"
+    draft.reload
+    assert_equal existing.id, draft.document_link.reload.entry_id,
+                 "the receipt corroborates the charge, minting nothing"
+    assert draft.complete?, "and the draft settles"
   end
 
   test "the identity rule is loose on formatting but rejects an unrelated name" do
@@ -176,84 +190,26 @@ class ReceiptImportTest < ActiveSupport::TestCase
     assert_not ReceiptImport.identity_match?("", "Starbucks")
   end
 
-  # W3-1 (spec N10, fix round 2): the reviewed publish never re-points a
-  # document's link, and never mints a second entry. A document linked to an
-  # entry that is NOT this receipt's identity-confirmed charge is kept as-is and
-  # surfaced — never re-pointed (which would orphan the existing edge) and never
-  # duplicated.
-  test "publishing a mis-linked document keeps the link and surfaces the reason" do
-    draft = imports(:receipt_understood)
-    other = create_transaction(account: accounts(:depository), date: Date.new(2026, 9, 16),
-                               amount: 99, name: "Uber Ride")
-    draft.document_link.link_to_entry!(other)
-
-    assert_no_difference -> { Entry.count } do
-      draft.publish
-    end
-
-    draft.reload
-    assert_equal other.id, draft.document_link.reload.entry_id, "the link must not be re-pointed"
-    assert_equal ReceiptImport.existing_charge_message, draft.error
-  end
-
-  # W3-1 case (a): a document linked to a same-charge entry whose name does NOT
-  # overlap the payee (a legacy pre-fix auto-post link, or a manual link). The
-  # publish mints nothing, does not re-point, and the linked entry keeps its
-  # provenance.
-  test "publishing a draft linked to a same-charge entry that does not identity-match mints nothing" do
-    draft = imports(:receipt_understood)
-    existing = create_transaction(account: accounts(:depository), date: Date.new(2026, 9, 15),
-                                  amount: 12, name: "SQ *COFFEE")
-    draft.document_link.link_to_entry!(existing)
-    assert_not draft.corroborates?(existing), "the fixture must not accidentally identity-match"
-
-    assert_no_difference -> { Entry.count } do
-      draft.publish
-    end
-
-    draft.reload
-    assert_equal existing.id, draft.document_link.reload.entry_id, "the link must not be re-pointed"
-    assert_includes existing.reload.document_links.map(&:id), draft.document_link_id,
-                    "the linked entry keeps the receipt as its provenance"
-    assert_equal ReceiptImport.existing_charge_message, draft.error
-  end
-
-  # W3-1 case (b): an unlinked draft with a same-charge candidate already in the
-  # account — the auto-deferral flow. The publish mints nothing and surfaces the
-  # reason rather than silently no-op-ing.
-  test "publishing an unlinked draft with a same-charge entry mints nothing and surfaces the reason" do
-    create_transaction(account: accounts(:depository), date: Date.new(2026, 9, 16),
-                       amount: 12, name: "COFFEE PLACE")
-    draft = imports(:receipt_understood)
-    assert_nil draft.document_link.entry_id, "the draft must start unlinked"
-
-    assert_no_difference -> { Entry.count } do
-      draft.publish
-    end
-
-    draft.reload
-    assert_not draft.complete?, "the publish did not silently succeed"
-    assert_equal ReceiptImport.existing_charge_message, draft.error
-    assert_nil draft.document_link.reload.entry_id, "the document stays unlinked"
-  end
-
-  # W3-1 case (c): a genuine identity match still settles as before — the
-  # auto-post corroborated this receipt's own charge, so publishing completes the
-  # draft with no second entry and the link kept.
-  test "publishing a draft linked to its own confirmed charge settles without minting" do
+  # (c) A document already linked means the charge is already recorded: publishing
+  # settles to complete — minting nothing, never re-pointing, never walling.
+  test "publishing an already-linked document settles without minting or re-pointing" do
     draft = imports(:receipt_understood)
     existing = create_transaction(account: accounts(:depository), date: Date.new(2026, 9, 16),
-                                  amount: 12, name: "Starbucks")
+                                  amount: 12, name: "SQ *COFFEE")
     draft.document_link.link_to_entry!(existing)
-    assert draft.corroborates?(existing), "the fixture must identity-match, or this is not case (c)"
+    assert_not draft.corroborates?(existing),
+               "the fixture must not identity-match — a linked document settles regardless"
 
     assert_no_difference -> { Entry.count } do
       draft.publish
     end
 
     draft.reload
-    assert draft.complete?, "the confirmed charge settles the draft"
-    assert_equal existing.id, draft.document_link.reload.entry_id, "the link is kept"
+    assert draft.complete?, "a linked document settles"
+    assert_not draft.failed?, "publishing a linked document must not wall"
+    assert_equal existing.id, draft.document_link.reload.entry_id, "the link is kept, never re-pointed"
+    assert_includes existing.reload.document_links.map(&:id), draft.document_link_id,
+                    "the linked entry keeps the receipt as its provenance"
   end
 
   test "needs_understanding accepts a manual total and becomes publishable" do
