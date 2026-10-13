@@ -240,14 +240,12 @@ class Settings::HostingsController < ApplicationController
       end
     end
 
-    # "Local" (spec N5) is the OpenAI-compatible protocol pointed at a CPU
-    # endpoint (Ollama on the host). The local preset lives in its own Settings
-    # so the panel can prefill it; selecting Local mirrors it into the client's
-    # own settings (see configure_local_llm!). Only touch the client when the
-    # request actually concerns the AI provider, so an unrelated save cannot
-    # rewrite it. Persist the preset first, then mirror from the stored values.
+    # The "Local" preset (spec N5) lives entirely in its own Settings; the
+    # OpenAI-compatible client reads them at build time (Provider::Registry), so
+    # a provider switch never rewrites the cloud fields and the cloud key is
+    # never sent to the local endpoint.
     persist_local_llm_settings!
-    configure_local_llm! if local_llm_relevant? && Setting.llm_provider == "local"
+    update_encrypted_setting(:local_llm_token)
 
     update_encrypted_setting(:jev_api_key)
 
@@ -337,7 +335,7 @@ class Settings::HostingsController < ApplicationController
     # Strong parameters for the self-hosting settings form.
     def hosting_params
       return ActionController::Parameters.new unless params.key?(:setting)
-      params.require(:setting).permit(:onboarding_state, :require_email_confirmation, :invite_only_default_family_id, :demo_family_refresh_enabled, :demo_family_refresh_family_id, :brand_fetch_client_id, :brand_fetch_high_res_logos, :twelve_data_api_key, :tiingo_api_key, :eodhd_api_key, :alpha_vantage_api_key, :tinkoff_invest_api_key, :mansa_api_key, :rentcast_api_key, :realie_api_key, :chimnie_api_key, :openai_access_token, :openai_uri_base, :openai_model, :openai_json_mode, :anthropic_access_token, :anthropic_base_url, :anthropic_model, :jev_api_key, :jev_endpoint, :jev_model, :llm_provider, :local_llm_base_url, :local_llm_model, :llm_context_window, :llm_max_response_tokens, :llm_max_items_per_call, :openai_request_timeout, :ai_response_timeout, :ai_health_probe_timeout, :exchange_rate_provider, :securities_provider, :syncs_include_pending, :auto_sync_enabled, :auto_sync_time, :external_assistant_url, :external_assistant_token, :external_assistant_model, securities_providers: [])
+      params.require(:setting).permit(:onboarding_state, :require_email_confirmation, :invite_only_default_family_id, :demo_family_refresh_enabled, :demo_family_refresh_family_id, :brand_fetch_client_id, :brand_fetch_high_res_logos, :twelve_data_api_key, :tiingo_api_key, :eodhd_api_key, :alpha_vantage_api_key, :tinkoff_invest_api_key, :mansa_api_key, :rentcast_api_key, :realie_api_key, :chimnie_api_key, :openai_access_token, :openai_uri_base, :openai_model, :openai_json_mode, :anthropic_access_token, :anthropic_base_url, :anthropic_model, :jev_api_key, :jev_endpoint, :jev_model, :llm_provider, :local_llm_base_url, :local_llm_model, :local_llm_token, :llm_context_window, :llm_max_response_tokens, :llm_max_items_per_call, :openai_request_timeout, :ai_response_timeout, :ai_health_probe_timeout, :exchange_rate_provider, :securities_provider, :syncs_include_pending, :auto_sync_enabled, :auto_sync_time, :external_assistant_url, :external_assistant_token, :external_assistant_model, securities_providers: [])
     end
 
     def load_external_assistant_models
@@ -523,6 +521,7 @@ class Settings::HostingsController < ApplicationController
 
     # Persists the "Local" preset (spec N5) under its own Settings. A blank
     # submission clears it so the base URL falls back to the constant default.
+    # The token is handled by update_encrypted_setting (masked-placeholder aware).
     def persist_local_llm_settings!
       if hosting_params.key?(:local_llm_base_url)
         Setting.local_llm_base_url = hosting_params[:local_llm_base_url].to_s.strip.presence
@@ -530,32 +529,5 @@ class Settings::HostingsController < ApplicationController
       if hosting_params.key?(:local_llm_model)
         Setting.local_llm_model = hosting_params[:local_llm_model].to_s.strip.presence
       end
-    end
-
-    # Whether this request concerns the AI provider (its selector or the Local
-    # preset), so an unrelated save never rewrites the OpenAI-compatible client.
-    def local_llm_relevant?
-      hosting_params.key?(:llm_provider) ||
-        hosting_params.key?(:local_llm_base_url) ||
-        hosting_params.key?(:local_llm_model)
-    end
-
-    # Points the OpenAI-compatible client at the local endpoint. The client
-    # reads Setting.openai_uri_base / openai_model, so Local mirrors the preset
-    # into them instead of teaching every reader about a new provider value.
-    # With no model named the client is deliberately left unconfigured (base URL
-    # set, model nil), so the page keeps telling the user to choose one rather
-    # than reading as ready.
-    def configure_local_llm!
-      base_url = Setting.local_llm_base_url.to_s.strip.presence || Setting::LOCAL_LLM_DEFAULT_BASE_URL
-      model = Setting.local_llm_model.to_s.strip.presence
-
-      Setting.openai_uri_base = base_url
-      Setting.openai_model = model
-
-      return if model.blank?
-      return unless ENV["OPENAI_ACCESS_TOKEN"].blank? && Setting.openai_access_token.blank?
-
-      Setting.openai_access_token = Setting::LOCAL_LLM_PLACEHOLDER_TOKEN
     end
 end

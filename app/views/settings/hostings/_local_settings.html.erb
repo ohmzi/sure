@@ -2,8 +2,9 @@
     OpenAI-compatible client at a server on the user's own hardware so nothing
     leaves the box. Honest by construction — the app ships no model, so the
     user names one, and is told it must accept images (a text-only model cannot
-    read documents). Backed by Setting.local_llm_base_url / local_llm_model;
-    selecting Local mirrors them into the client's own settings. %>
+    read documents). Backed by Setting.local_llm_base_url / local_llm_model /
+    local_llm_token; the client is built from these at read time, so the cloud
+    key is never sent here and a provider switch never rewrites the cloud fields. %>
 <div class="space-y-4">
   <div>
     <h2 class="font-medium mb-1"><%= t(".title") %></h2>
@@ -28,6 +29,7 @@
                         inputmode: "url",
                         disabled: ENV["LOCAL_LLM_BASE_URL"].present?,
                         data: { "auto-submit-form-target": "auto" } %>
+    <p class="text-xs text-secondary mt-1"><%= t(".base_url_help") %></p>
 
     <%= form.text_field :local_llm_model,
                         label: t(".model_label"),
@@ -40,10 +42,23 @@
                         disabled: ENV["LOCAL_LLM_MODEL"].present?,
                         data: { "auto-submit-form-target": "auto" } %>
     <p class="text-xs text-secondary mt-1"><%= t(".model_help") %></p>
+
+    <%= form.password_field :local_llm_token,
+                            label: t(".token_label"),
+                            placeholder: t(".token_placeholder"),
+                            value: (Setting.local_llm_token.present? && Setting.local_llm_token != Setting::LOCAL_LLM_PLACEHOLDER_TOKEN ? "********" : nil),
+                            autocomplete: "off",
+                            autocapitalize: "none",
+                            spellcheck: "false",
+                            inputmode: "text",
+                            disabled: ENV["LOCAL_LLM_TOKEN"].present?,
+                            data: { "auto-submit-form-target": "auto" } %>
+    <p class="text-xs text-secondary mt-1"><%= t(".token_help") %></p>
   <% end %>
 
   <%= render DS::Note.new(title: t(".requirements_heading")) do %>
     <p><%= t(".requirements_run") %></p>
+    <p><%= t(".requirements_bind") %></p>
     <p><%= t(".requirements_vision") %></p>
     <p><%= t(".requirements_token") %></p>
   <% end %>

@@ -23,7 +23,14 @@ class Provider::Registry
     # one actually has credentials so an install that swaps providers (or has only
     # one configured) keeps working. Returns nil when neither is configured —
     # callers guard on that.
+    #
+    # "Local" (spec N5) is a no-egress choice: it resolves ONLY to the local
+    # endpoint. With no local model named there is nothing to read with, so it
+    # resolves to nil — the document is held and the reason shown — and never
+    # silently falls back to a cloud provider.
     def preferred_llm_provider
+      return openai if Setting.llm_provider == "local"
+
       order = Setting.llm_provider == "anthropic" ? %i[anthropic openai] : %i[openai anthropic]
       order.each do |name|
         provider = get_provider(name)
@@ -77,6 +84,12 @@ class Provider::Registry
       end
 
       def openai
+        # The "Local" selection (spec N5) is the OpenAI-compatible protocol
+        # pointed at the user's own hardware, with its OWN credentials — built
+        # here, from the local settings, so the cloud key in Setting.openai_* is
+        # never sent to the local URL and a provider switch never rewrites it.
+        return local_openai if Setting.llm_provider == "local"
+
         access_token = ENV["OPENAI_ACCESS_TOKEN"].presence || Setting.openai_access_token
 
         return nil unless access_token.present?
@@ -88,6 +101,20 @@ class Provider::Registry
           Rails.logger.error("Custom OpenAI provider configured without a model; please set OPENAI_MODEL or Setting.openai_model")
           return nil
         end
+
+        Provider::Openai.new(access_token, uri_base: uri_base, model: model)
+      end
+
+      # The local endpoint's client. Reads Setting.local_llm_base_url / model /
+      # token only. With no model named it returns nil (unconfigured) rather than
+      # building a half-client, so the "no AI provider is configured" hold stands
+      # until the user names a vision model.
+      def local_openai
+        model = Setting.local_llm_model.presence
+        return nil if model.blank?
+
+        uri_base = Setting.local_llm_base_url.presence || Setting::LOCAL_LLM_DEFAULT_BASE_URL
+        access_token = Setting.local_llm_token.presence || Setting::LOCAL_LLM_PLACEHOLDER_TOKEN
 
         Provider::Openai.new(access_token, uri_base: uri_base, model: model)
       end

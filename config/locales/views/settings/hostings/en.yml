@@ -150,13 +150,18 @@ en:
         description: Point the app at an OpenAI-compatible server on your own hardware. Nothing leaves your machine, but it runs on CPU, so reads are slower and less accurate on dense statement tables than a cloud model.
         base_url_label: Base URL
         base_url_placeholder: "http://host.docker.internal:11434/v1 (default)"
+        base_url_help: Must be reachable from the app's own network. The default maps to the host machine; use http://127.0.0.1:11434/v1 only if the app runs directly on the host.
         model_label: Model
         model_placeholder: "a vision model you have pulled, e.g. llama3.2-vision"
         model_help: The app ships no model — name one you have installed. It must accept image input; a text-only model cannot read documents.
+        token_label: API Token (Optional)
+        token_placeholder: Leave blank to use the local placeholder
+        token_help: Sent as the bearer token to your local endpoint only. A cloud key configured under OpenAI is never sent here. Leave blank unless your endpoint requires a token.
         requirements_heading: What you need to run
-        requirements_run: Install an OpenAI-compatible server. Ollama is the tested option — install it on the host, then pull a vision-capable model (for example, ollama pull llama3.2-vision).
+        requirements_run: Install an OpenAI-compatible server on the host. Ollama is the tested option — install it, then pull a vision-capable model (for example, ollama pull llama3.2-vision).
+        requirements_bind: Start Ollama listening on all interfaces, or the app cannot reach it from its container — run "OLLAMA_HOST=0.0.0.0:11434 ollama serve" (a host-run Ollama binds 127.0.0.1 by default).
         requirements_vision: Set the model id above to the one you pulled. A text-only model will fail to read documents, so pick a vision model.
-        requirements_token: No API key is needed. The app uses a placeholder token for the local endpoint; the server ignores it.
+        requirements_token: No API key is usually needed — the server ignores the placeholder token. Set the token above only if your endpoint requires one; it is stored separately from any cloud key.
       categorization_provider_selector:
         title: Transaction Categorization
         preview_pill: Preview

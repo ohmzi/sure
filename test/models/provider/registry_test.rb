@@ -142,4 +142,59 @@ class Provider::RegistryTest < ActiveSupport::TestCase
 
     assert_nil Provider::Registry.preferred_llm_provider
   end
+
+  # --- Local provider (spec N5) ---
+
+  # F1: the local endpoint is built with its OWN token (the non-secret
+  # placeholder by default), never the cloud key — so a stored DeepSeek/OpenAI
+  # key is never sent to a LAN or mistyped local URL.
+  test "local provider is built from the local settings, never the cloud key" do
+    ClimateControl.modify("OPENAI_ACCESS_TOKEN" => nil) do
+      Setting.stubs(:llm_provider).returns("local")
+      Setting.stubs(:local_llm_model).returns("llama3.2-vision")
+      Setting.stubs(:local_llm_base_url).returns("http://host.docker.internal:11434/v1")
+      Setting.stubs(:local_llm_token).returns(nil)
+      # A cloud key IS configured — it must not be used for the local endpoint.
+      Setting.stubs(:openai_access_token).returns("cloud-secret-key")
+
+      Provider::Openai.expects(:new)
+        .with("ollama-local", uri_base: "http://host.docker.internal:11434/v1", model: "llama3.2-vision")
+        .returns(:local_client)
+
+      assert_equal :local_client, Provider::Registry.get_provider(:openai)
+    end
+  end
+
+  test "local provider uses a configured local token and the default base url" do
+    Setting.stubs(:llm_provider).returns("local")
+    Setting.stubs(:local_llm_model).returns("llama3.2-vision")
+    Setting.stubs(:local_llm_base_url).returns(nil)
+    Setting.stubs(:local_llm_token).returns("my-lan-token")
+
+    Provider::Openai.expects(:new)
+      .with("my-lan-token", uri_base: "http://host.docker.internal:11434/v1", model: "llama3.2-vision")
+      .returns(:local_client)
+
+    assert_equal :local_client, Provider::Registry.get_provider(:openai)
+  end
+
+  test "preferred_llm_provider resolves to the local provider when local is selected" do
+    Setting.stubs(:llm_provider).returns("local")
+    Provider::Registry.stubs(:openai).returns(:local_client)
+    # Even with a working cloud provider, local must win.
+    Provider::Registry.stubs(:anthropic).returns(:anthropic_client)
+
+    assert_equal :local_client, Provider::Registry.preferred_llm_provider
+  end
+
+  # F5: local with no model resolves to nil — never a cloud fallback — even when
+  # a cloud provider is fully configured.
+  test "preferred_llm_provider returns nil for local with no model, not a cloud fallback" do
+    Setting.stubs(:llm_provider).returns("local")
+    Setting.stubs(:local_llm_model).returns(nil)
+    Setting.stubs(:openai_access_token).returns("cloud-key")
+    Setting.stubs(:anthropic_access_token).returns("cloud-anthropic-key")
+
+    assert_nil Provider::Registry.preferred_llm_provider
+  end
 end

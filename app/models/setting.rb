@@ -20,13 +20,15 @@ class Setting < RailsSettings::Base
   # hardware — Ollama on the host, reached from the container via the Docker
   # host alias. The base URL defaults there; the model has NO default, because
   # the app ships no model and a text-only id cannot read documents — the user
-  # must name a vision-capable model they have pulled.
+  # must name a vision-capable model they have pulled. The token is the LOCAL
+  # endpoint's own credential, defaulting to a non-secret placeholder (Ollama
+  # ignores it): the path never reuses the cloud key, so a stored DeepSeek/OpenAI
+  # key is never sent to a LAN or mistyped local URL.
   LOCAL_LLM_DEFAULT_BASE_URL = "http://host.docker.internal:11434/v1".freeze
-  # Ollama ignores the bearer token, but the OpenAI-compatible client still
-  # needs one to be constructed (docs/hosting/ai.md uses the same placeholder).
   LOCAL_LLM_PLACEHOLDER_TOKEN = "ollama-local".freeze
   field :local_llm_base_url, type: :string, default: ENV["LOCAL_LLM_BASE_URL"].presence || LOCAL_LLM_DEFAULT_BASE_URL
   field :local_llm_model, type: :string, default: ENV["LOCAL_LLM_MODEL"]
+  field :local_llm_token, type: :string, default: ENV["LOCAL_LLM_TOKEN"].presence || LOCAL_LLM_PLACEHOLDER_TOKEN
 
   # Jev (TypeSafe) — a classification provider, not an LLM. Reachable either
   # through OpenRouter's Decisions API (the default) or TypeSafe's own endpoint.
@@ -133,6 +135,7 @@ class Setting < RailsSettings::Base
       chimnie_api_key
       openai_access_token
       anthropic_access_token
+      local_llm_token
       jev_api_key
       external_assistant_token
     ].freeze
