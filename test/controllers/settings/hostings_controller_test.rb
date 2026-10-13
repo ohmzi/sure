@@ -1447,6 +1447,51 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
       assert_select "[data-local-model-detection-target='recommendation']"
       assert_select "input[name='setting[local_llm_base_url]']"
       assert_select "input[name='setting[local_llm_token]']"
+      # Detect must be able to persist the recommended pick without a page reload.
+      assert_select "[data-local-model-detection-persist-url-value='#{persist_local_model_settings_hosting_path}']"
+    end
+  end
+
+  test "persist_local_model saves the detected model and base url" do
+    with_self_hosting do
+      Setting.local_llm_model = nil
+
+      post persist_local_model_settings_hosting_url,
+           params: { setting: { local_llm_model: "qwen2.5vl:3b", local_llm_base_url: "http://localhost:11434/v1" } },
+           as: :json
+
+      assert_response :success
+      payload = JSON.parse(response.body)
+      assert_equal "ok", payload["status"]
+      Setting.clear_cache
+      assert_equal "qwen2.5vl:3b", Setting.local_llm_model
+      assert_equal "http://localhost:11434/v1", Setting.local_llm_base_url
+    end
+  end
+
+  test "persist_local_model ignores a blank model rather than clearing the setting" do
+    with_self_hosting do
+      Setting.local_llm_model = "qwen2.5vl:3b"
+
+      post persist_local_model_settings_hosting_url,
+           params: { setting: { local_llm_model: "", local_llm_base_url: "http://localhost:11434/v1" } },
+           as: :json
+
+      assert_response :success
+      Setting.clear_cache
+      assert_equal "qwen2.5vl:3b", Setting.local_llm_model
+    end
+  end
+
+  test "a non-admin cannot persist a local model" do
+    with_self_hosting do
+      sign_in users(:family_member)
+      post persist_local_model_settings_hosting_url,
+           params: { setting: { local_llm_model: "qwen2.5vl:3b" } },
+           as: :json
+
+      assert_redirected_to settings_hosting_url
+      assert_equal I18n.t("settings.hostings.not_authorized"), flash[:alert]
     end
   end
 

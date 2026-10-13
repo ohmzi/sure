@@ -160,6 +160,7 @@ en:
         cause_invalid_url: "that is not a valid http(s) URL."
         cause_unknown: "there was no usable answer."
         detect_error: "Could not check for local models."
+        save_error: "Could not save the local model settings."
         model_label: Model
         model_placeholder: "a vision model you have pulled, e.g. qwen2.5vl:3b"
         model_help: The app ships no model, so pick one you have installed. It must accept image input — a text-only model cannot read documents.

@@ -68,6 +68,33 @@ class LocalLlm::RecommenderTest < ActiveSupport::TestCase
     assert_equal :good, recommender.classify("qwen2.5vl:13b")
   end
 
+  test "accepts the hyphenated qwen2.5-vl spelling as well as qwen2.5vl" do
+    r = recommender
+
+    assert_equal :recommended, r.classify("qwen2.5-vl:3b")
+    assert r.vision_capable?("qwen2.5-vl:3b")
+    assert_equal "qwen2.5-vl:3b", recommender("qwen2.5vl:7b", "qwen2.5-vl:3b").recommendation[:top_pick]
+  end
+
+  test "gemma3 is vision-capable only at its multimodal sizes" do
+    r = recommender
+
+    assert_equal :fair, r.classify("gemma3:4b")
+    assert_equal :fair, r.classify("gemma3:12b")
+    assert_equal :fair, r.classify("gemma3:27b")
+    assert_equal :fair, r.classify("gemma3:4b-it-qat")
+    assert r.vision_capable?("gemma3:4b")
+
+    # Gemma 3 1B has no vision tower — it cannot read page images.
+    assert_equal :text_only, r.classify("gemma3:1b")
+    refute r.vision_capable?("gemma3:1b")
+  end
+
+  test "a text-only gemma3 is never recommended" do
+    assert_nil recommender("gemma3:1b", "llama3.1:8b").recommendation
+    assert_equal "qwen2.5vl:3b", recommender("gemma3:1b", "qwen2.5vl:3b").recommendation[:top_pick]
+  end
+
   test "vision capability spans every non-text tier" do
     r = recommender
 

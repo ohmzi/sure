@@ -13,6 +13,11 @@ class LocalLlm::Recommender
   # never recommended — it cannot read the images at all.
   TIERS = %i[recommended needs_instruct good fair heavy light vision_unknown text_only].freeze
 
+  # Only these Gemma 3 sizes ship a vision tower. The 1B is text-only, so it can
+  # never read the page images the document read sends — it must not be offered
+  # as vision-capable, however good the family's larger sizes are.
+  GEMMA3_VISION_SIZES = %w[4b 12b 27b].freeze
+
   # Per-model one-liners shown beside each option in the picker.
   SUITABILITY = {
     recommended: "Best fit — reads page images and dense tables, and is quick enough on CPU.",
@@ -46,19 +51,21 @@ class LocalLlm::Recommender
     return :text_only if name.blank?
 
     # Qwen2.5-VL: the 3b is the CPU top pick, everything else in the family is
-    # the accuracy fallback. Compare the parameter token exactly so a ":13b" tag
-    # is not mistaken for ":3b".
-    if name.match?(/qwen2\.5vl/)
+    # the accuracy fallback. Accept both "qwen2.5vl" and the hyphenated
+    # "qwen2.5-vl". Compare the parameter token exactly so a ":13b" tag is not
+    # mistaken for ":3b".
+    if name.match?(/qwen2\.5-?vl/)
       return size_token(name).start_with?("3b") ? :recommended : :good
     end
 
     # Qwen3-VL: only the -instruct tag is flat-JSON-safe; the bare/default tag
     # is the thinking variant that emits long chain-of-thought.
-    if name.match?(/qwen3-vl/)
+    if name.match?(/qwen3-?vl/)
       return name.include?("instruct") ? :recommended : :needs_instruct
     end
 
-    return :fair if name.match?(/minicpm-v|gemma3/)
+    return :fair if name.match?(/minicpm-v/)
+    return gemma3_vision?(name) ? :fair : :text_only if name.match?(/gemma3/)
     return :heavy if name.match?(/llama3\.2-vision/)
     return :light if name.match?(/granite3\.2-vision|moondream/)
     return :vision_unknown if name.match?(/(^|[^a-z])vl|vision|llava/)
@@ -93,5 +100,15 @@ class LocalLlm::Recommender
     # The tag after the colon, e.g. "qwen2.5vl:3b-instruct" -> "3b-instruct".
     def size_token(name)
       name.split(":").last.to_s
+    end
+
+    # Gemma 3 is vision-capable only for the multimodal sizes; a bare tag or
+    # "latest" is the family default (27b, multimodal). Any other size (1b) has
+    # no vision tower.
+    def gemma3_vision?(name)
+      token = size_token(name)
+      return true if token == name || token == "latest"
+
+      GEMMA3_VISION_SIZES.any? { |size| token.start_with?(size) }
     end
 end

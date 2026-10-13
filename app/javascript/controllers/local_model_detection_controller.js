@@ -18,7 +18,7 @@ export default class extends Controller {
     "manualField",
     "manualWrapper",
   ];
-  static values = { url: String, strings: Object };
+  static values = { url: String, persistUrl: String, strings: Object };
 
   connect() {
     this.locked = this.hasSelectTarget && this.selectTarget.disabled;
@@ -43,7 +43,7 @@ export default class extends Controller {
           },
         }),
       });
-      this.#handle(await response.json());
+      await this.#handle(await response.json());
     } catch (error) {
       this.#setStatus(
         this.stringsValue?.error || "Could not check for local models.",
@@ -62,10 +62,10 @@ export default class extends Controller {
     this.#recommendForSelection();
   }
 
-  #handle(payload) {
+  async #handle(payload) {
     switch (payload.status) {
       case "ok":
-        this.#applyModels(payload);
+        await this.#applyModels(payload);
         break;
       case "empty":
         this.#setStatus(
@@ -81,7 +81,7 @@ export default class extends Controller {
     }
   }
 
-  #applyModels(payload) {
+  async #applyModels(payload) {
     if (this.hasBaseUrlFieldTarget && payload.base_url) {
       this.baseUrlFieldTarget.value = payload.base_url;
     }
@@ -96,19 +96,64 @@ export default class extends Controller {
       });
       select.appendChild(this.#manualOption());
 
-      const pick = payload.recommended_model || models[0]?.id;
-      if (pick) select.value = pick;
+      // Pre-select the recommended model. With no recommendation, leave the
+      // picker on the manual option rather than quietly selecting a text-only
+      // model that cannot read documents.
+      select.value = payload.recommended_model || "";
       if (!this.locked) select.disabled = false;
     }
 
     this.#renderRecommendation(payload);
     this.#toggleManual();
 
+    // Persist the detected pick without a reload, so clicking Detect and walking
+    // away still leaves a working Local configuration. On failure #persist
+    // surfaces the error and we keep it.
+    if (payload.recommended_model) {
+      const saved = await this.#persist(
+        payload.recommended_model,
+        payload.base_url,
+      );
+      if (!saved) return;
+    }
+
     const server = (payload.server || "").toString();
     this.#setStatus(
       this.#fill(this.stringsValue.found, { server, url: payload.base_url }),
       "ok",
     );
+  }
+
+  // Saves the detected model + base URL through the dedicated JSON endpoint
+  // (keeps the detected list on screen; no full-page reload). Returns true on
+  // success, false after surfacing a failure status.
+  async #persist(model, baseUrl) {
+    if (!this.hasPersistUrlValue) return true;
+
+    try {
+      const response = await fetch(this.persistUrlValue, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-CSRF-Token": this.#csrfToken(),
+        },
+        body: JSON.stringify({
+          setting: {
+            local_llm_model: model,
+            local_llm_base_url: baseUrl || "",
+          },
+        }),
+      });
+      const payload = await response.json();
+      if (payload.status === "ok") return true;
+
+      this.#setStatus(payload.message || this.stringsValue.save_error, "error");
+      return false;
+    } catch (error) {
+      this.#setStatus(this.stringsValue.save_error, "error");
+      return false;
+    }
   }
 
   #modelOption(model) {

@@ -12,20 +12,22 @@ class LocalLlm::DiscoveryTest < ActiveSupport::TestCase
       @calls = []
     end
 
-    def new(base_url:, token:, **)
-      Entry.new(@responders, @calls, base_url, token)
+    def new(base_url:, token:, open_timeout: nil, read_timeout: nil)
+      Entry.new(@responders, @calls, base_url, token, open_timeout, read_timeout)
     end
 
     class Entry
-      def initialize(responders, calls, base_url, token)
+      def initialize(responders, calls, base_url, token, open_timeout, read_timeout)
         @responders = responders
         @calls = calls
         @base_url = base_url
         @token = token
+        @open_timeout = open_timeout
+        @read_timeout = read_timeout
       end
 
       def models
-        @calls << { base_url: @base_url, token: @token }
+        @calls << { base_url: @base_url, token: @token, open_timeout: @open_timeout, read_timeout: @read_timeout }
         outcome = @responders[@base_url]
         raise outcome if outcome.is_a?(Exception)
 
@@ -140,6 +142,35 @@ class LocalLlm::DiscoveryTest < ActiveSupport::TestCase
     assert_equal 1, catalog.calls.size, "no candidate may be probed after the budget is spent"
     assert_equal 3, error.attempts.size
     assert_match(/budget/i, error.attempts.last[:detail].to_s)
+  end
+
+  test "uses the default per-candidate timeouts when the budget is ample" do
+    catalog = RecordingCatalog.new("http://a:11434/v1" => [ { id: "qwen2.5vl:3b" } ])
+
+    LocalLlm::Discovery.new(candidates: [ "http://a:11434/v1" ], catalog: catalog, token: "tok").call
+
+    call = catalog.calls.first
+    assert_equal LocalLlm::Discovery::OPEN_TIMEOUT, call[:open_timeout]
+    assert_equal LocalLlm::Discovery::READ_TIMEOUT, call[:read_timeout]
+  end
+
+  test "clamps per-candidate timeouts to the remaining budget" do
+    catalog = RecordingCatalog.new("http://a:11434/v1" => [ { id: "qwen2.5vl:3b" } ])
+    # deadline = 0 + 8, then 1s remains, so both timeouts clamp to 1.0.
+    ticks = [ 0.0, 7.0 ]
+    clock = -> { ticks.shift || 7.0 }
+
+    LocalLlm::Discovery.new(
+      candidates: [ "http://a:11434/v1" ],
+      catalog: catalog,
+      token: "tok",
+      total_budget: 8.0,
+      clock: clock
+    ).call
+
+    call = catalog.calls.first
+    assert_equal 1.0, call[:open_timeout]
+    assert_equal 1.0, call[:read_timeout]
   end
 
   test "classifies the server by port and host" do

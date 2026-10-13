@@ -15,7 +15,7 @@ class Settings::HostingsController < ApplicationController
 
   guard_feature unless: -> { self_hosted? }
 
-  before_action :ensure_admin, only: [ :update, :clear_cache, :disconnect_external_assistant, :detect_local_models ]
+  before_action :ensure_admin, only: [ :update, :clear_cache, :disconnect_external_assistant, :detect_local_models, :persist_local_model ]
   before_action :ensure_super_admin_for_onboarding, only: :update
 
   def show
@@ -381,6 +381,23 @@ class Settings::HostingsController < ApplicationController
   rescue => e
     Rails.logger.error("Local model detection failed: #{e.class}: #{e.message}")
     render json: { status: "error", message: t("settings.hostings.local_settings.detect_error") }, status: :ok
+  end
+
+  # Persists the model + base URL Detect found, without a page reload — so a
+  # user who clicks Detect and walks away ends up with a working Local
+  # configuration, and the full detected list stays on screen. A blank model is
+  # ignored (never clears a saved one); a blank base URL is ignored likewise.
+  def persist_local_model
+    model = hosting_params[:local_llm_model].to_s.strip
+    base_url = hosting_params[:local_llm_base_url].to_s.strip
+
+    Setting.local_llm_model = model if model.present?
+    Setting.local_llm_base_url = base_url if base_url.present?
+
+    render json: { status: "ok", model: Setting.local_llm_model, base_url: Setting.local_llm_base_url }
+  rescue => e
+    Rails.logger.error("Local model persist failed: #{e.class}: #{e.message}")
+    render json: { status: "error", message: t("settings.hostings.local_settings.save_error") }, status: :ok
   end
 
   private

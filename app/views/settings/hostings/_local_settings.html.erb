@@ -45,12 +45,14 @@
     selected: t(".recommend_selected"),
     none: t(".recommend_none"),
     manual: t(".manual_option"),
-    error: t(".detect_error")
+    error: t(".detect_error"),
+    save_error: t(".save_error")
   }
 %>
 <div class="space-y-4"
      data-controller="local-model-detection"
      data-local-model-detection-url-value="<%= detect_local_models_settings_hosting_path %>"
+     data-local-model-detection-persist-url-value="<%= persist_local_model_settings_hosting_path %>"
      data-local-model-detection-strings-value="<%= detection_strings.to_json %>">
   <div>
     <h2 class="font-medium mb-1"><%= t(".title") %></h2>
