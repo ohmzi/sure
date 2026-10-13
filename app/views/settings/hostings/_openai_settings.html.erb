@@ -8,6 +8,16 @@
     <% end %>
   </div>
 
+  <%# Pointing the OpenAI-compatible client elsewhere is the whole reason this
+      panel exists, but nothing told the user how — the owner's report was
+      "no findable place to enter a DeepSeek key" (2026-10-13). Name the two
+      endpoints people actually want, including the honesty that a text-only
+      model cannot read document images. %>
+  <%= render DS::Note.new(title: t(".compatible_heading")) do %>
+    <p><%= t(".compatible_deepseek") %></p>
+    <p><%= t(".compatible_local") %></p>
+  <% end %>
+
   <%= styled_form_with model: Setting.new,
                        url: settings_hosting_path,
                        method: :patch,

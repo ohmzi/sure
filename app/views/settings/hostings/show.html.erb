@@ -2,8 +2,13 @@
 <%= settings_section title: t(".ai_assistant") do %>
   <%= render "settings/hostings/assistant_settings" %>
 <% end %>
-<%= settings_section title: t(".general") do %>
-  <div class="space-y-6"
+<%# The AI provider gets its own titled section (spec N5, owner report
+    2026-10-13) — it was buried under "General Settings" beside unrelated
+    options, so a user hunting for where to enter a key or pick a local model
+    could not find it. The anchor `ai-provider` is the destination the
+    document hold panel links to. %>
+<%= settings_section title: t(".ai_provider"), subtitle: t(".ai_provider_description") do %>
+  <div id="ai-provider" class="space-y-6"
        data-controller="provider-settings"
        data-provider-settings-active-value="<%= Setting.llm_provider %>">
     <%= render "settings/hostings/llm_provider_selector" %>
@@ -15,9 +20,17 @@
                 hidden: Setting.llm_provider != "anthropic" do %>
       <%= render "settings/hostings/anthropic_settings" %>
     <% end %>
+    <%= tag.div data: { "provider-settings-target": "panel", provider: "local" },
+                hidden: Setting.llm_provider != "local" do %>
+      <%= render "settings/hostings/local_settings" %>
+    <% end %>
+  </div>
+<% end %>
+<%= settings_section title: t(".general") do %>
+  <div class="space-y-6">
     <%# Jev is a classification provider, not an LLM: it answers typed questions
-        and cannot generate text. This sits outside the panels above so the
-        llm_provider selector never shows or hides it — that selector governs
+        and cannot generate text. This sits outside the provider panels above so
+        the llm_provider selector never shows or hides it — that selector governs
         chat and PDF, which Jev can never serve. The panel renders its own
         credential fields once Jev is selected.
 

@@ -27,6 +27,8 @@ en:
         demo_refresh: Demo data refresh
         general: General Settings
         ai_assistant: AI Assistant
+        ai_provider: AI Provider
+        ai_provider_description: Choose which model reads your documents and powers chat — a cloud provider (OpenAI, DeepSeek) or a model running on your own hardware.
         financial_data_providers: Financial Data Providers
         property_valuation_providers: Property Valuation Providers
         sync_settings: Sync Settings
@@ -120,14 +122,16 @@ en:
         high_res_label: Enable high-resolution logos
         high_res_description: When enabled, logos will be retrieved at 120x120 resolution instead of 40x40. This provides sharper images on high-DPI displays.
       llm_provider_selector:
-        title: AI Provider
+        title: Choose a provider
         description: Choose which LLM powers AI chat, merchant detection and PDF processing. Transaction categorization is configured separately below.
         env_configured_message: Successfully configured through the LLM_PROVIDER environment variable.
         provider_label: Active LLM provider
         provider_openai: OpenAI
         provider_anthropic: Anthropic (Claude)
+        provider_local: Local (self-hosted)
         provider_help: Switching providers takes effect on the next chat. Configure the active provider's credentials below.
         not_configured_hint: "Add a %{provider} API key below to activate it."
+        local_not_configured_hint: Choose a local model below to activate it.
         data_retention_heading: Data handling
         data_retention: API inputs are not used to train models by default; the providers' hosted APIs retain data for ~30 days for trust & safety. Custom or self-hosted endpoints follow your own policy.
       anthropic_settings:
@@ -141,6 +145,18 @@ en:
         model_label: Default Model (Optional)
         model_placeholder: "claude-sonnet-4-6 (default)"
         model_help: Used for chat and PDF processing. Batch operations (categorize, merchant detection) default to Haiku for cost.
+      local_settings:
+        title: Local (self-hosted, CPU)
+        description: Point the app at an OpenAI-compatible server on your own hardware. Nothing leaves your machine, but it runs on CPU, so reads are slower and less accurate on dense statement tables than a cloud model.
+        base_url_label: Base URL
+        base_url_placeholder: "http://host.docker.internal:11434/v1 (default)"
+        model_label: Model
+        model_placeholder: "a vision model you have pulled, e.g. llama3.2-vision"
+        model_help: The app ships no model — name one you have installed. It must accept image input; a text-only model cannot read documents.
+        requirements_heading: What you need to run
+        requirements_run: Install an OpenAI-compatible server. Ollama is the tested option — install it on the host, then pull a vision-capable model (for example, ollama pull llama3.2-vision).
+        requirements_vision: Set the model id above to the one you pulled. A text-only model will fail to read documents, so pick a vision model.
+        requirements_token: No API key is needed. The app uses a placeholder token for the local endpoint; the server ignores it.
       categorization_provider_selector:
         title: Transaction Categorization
         preview_pill: Preview
@@ -182,6 +198,9 @@ en:
       openai_settings:
         description: Enter the access token and optionally configure a custom OpenAI-compatible provider
         env_configured_message: Successfully configured through environment variables.
+        compatible_heading: Pointing at another provider
+        compatible_deepseek: "DeepSeek: set Base URL to https://api.deepseek.com/v1 and a model id that accepts images. DeepSeek's chat and reasoner models (deepseek-chat, deepseek-reasoner) reject images; use an image-capable model such as deepseek-flash."
+        compatible_local: "Local: run an OpenAI-compatible server (Ollama at http://127.0.0.1:11434/v1, or http://host.docker.internal:11434/v1 from this app's container) and set a vision-capable model id — the model must accept images to read documents."
         access_token_label: Access Token
         access_token_placeholder: Enter your access token here
         uri_base_label: API Base URL (Optional)

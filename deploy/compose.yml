@@ -69,6 +69,12 @@ services:
       context: ..
       dockerfile: Dockerfile
     command: ./bin/rails server
+    # spec N5's "Local" AI provider runs Ollama on the *host*. Docker Engine on
+    # Linux does not provide host.docker.internal, so map it to the host
+    # gateway: the default local base URL (http://host.docker.internal:11434/v1)
+    # can otherwise never be reached from the container.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:7300:3000"
     volumes:
@@ -103,6 +109,8 @@ services:
     # list in sync with config/sidekiq.yml minus `heavy`; `worker-heavy` drains
     # `heavy`. Weights mirror config/sidekiq.yml.
     command: bundle exec sidekiq -q scheduled,10 -q high_priority,4 -q medium_priority,2 -q low_priority,1 -q default,1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - app-storage:/rails/storage
     environment:
@@ -133,6 +141,8 @@ services:
       context: ..
       dockerfile: Dockerfile
     command: bundle exec sidekiq -q heavy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - app-storage:/rails/storage
     environment:

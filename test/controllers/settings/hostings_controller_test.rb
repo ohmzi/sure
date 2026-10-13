@@ -28,7 +28,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
   teardown do
     # These tests persist global Setting.* values; reset them so state can't
     # leak into later (order-dependent) tests.
-    %i[anthropic_access_token anthropic_base_url anthropic_model jev_api_key jev_endpoint jev_model llm_provider twelve_data_api_key openai_access_token openai_request_timeout ai_response_timeout ai_health_probe_timeout external_assistant_url external_assistant_token external_assistant_model external_assistant_agent_id rentcast_api_key realie_api_key chimnie_api_key demo_family_refresh_enabled demo_family_refresh_family_id].each do |key|
+    %i[anthropic_access_token anthropic_base_url anthropic_model jev_api_key jev_endpoint jev_model llm_provider local_llm_base_url local_llm_model openai_uri_base openai_model twelve_data_api_key openai_access_token openai_request_timeout ai_response_timeout ai_health_probe_timeout external_assistant_url external_assistant_token external_assistant_model external_assistant_agent_id rentcast_api_key realie_api_key chimnie_api_key demo_family_refresh_enabled demo_family_refresh_family_id].each do |key|
       Setting.public_send("#{key}=", nil)
     end
   end
@@ -1254,6 +1254,84 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
   ensure
     Setting.securities_providers = ""
     Setting.tinkoff_invest_api_key = nil
+  end
+
+  # --- Local AI provider (spec N5, owner report 2026-10-13) ---
+
+  test "selecting Local configures the OpenAI-compatible client at the local endpoint" do
+    with_self_hosting do
+      patch settings_hosting_url, params: { setting: {
+        llm_provider: "local",
+        local_llm_base_url: "http://host.docker.internal:11434/v1",
+        local_llm_model: "llama3.2-vision"
+      } }
+
+      assert_redirected_to settings_hosting_url
+      assert_equal "local", Setting.llm_provider
+      assert_equal "http://host.docker.internal:11434/v1", Setting.local_llm_base_url
+      assert_equal "llama3.2-vision", Setting.local_llm_model
+      # The client reads openai_* — Local mirrors the preset into them, so the
+      # existing read path is untouched.
+      assert_equal "http://host.docker.internal:11434/v1", Setting.openai_uri_base
+      assert_equal "llama3.2-vision", Setting.openai_model
+      # Ollama ignores the key, but the OpenAI client needs one to construct.
+      assert_equal Setting::LOCAL_LLM_PLACEHOLDER_TOKEN, Setting.openai_access_token
+    end
+  end
+
+  test "the local base url defaults and its model can be changed" do
+    with_self_hosting do
+      Setting.clear_cache
+      assert_equal Setting::LOCAL_LLM_DEFAULT_BASE_URL, Setting.local_llm_base_url
+
+      patch settings_hosting_url, params: { setting: {
+        local_llm_base_url: "http://192.168.1.5:11434/v1",
+        local_llm_model: "qwen2.5vl:7b"
+      } }
+
+      assert_redirected_to settings_hosting_url
+      assert_equal "http://192.168.1.5:11434/v1", Setting.local_llm_base_url
+      assert_equal "qwen2.5vl:7b", Setting.local_llm_model
+    end
+  end
+
+  test "selecting Local with no model leaves the client unconfigured" do
+    with_self_hosting do
+      Setting.openai_model = "previous-cloud-model"
+
+      patch settings_hosting_url, params: { setting: { llm_provider: "local" } }
+
+      assert_equal "local", Setting.llm_provider
+      assert Setting.local_llm_model.blank?
+      assert_equal Setting::LOCAL_LLM_DEFAULT_BASE_URL, Setting.openai_uri_base
+      assert_nil Setting.openai_model,
+        "the client must read as unconfigured until the user names a vision model"
+    end
+  end
+
+  test "editing the local preset while another provider is active does not touch the client" do
+    with_self_hosting do
+      Setting.llm_provider = "openai"
+      Setting.openai_model = "cloud-model"
+
+      patch settings_hosting_url, params: { setting: { local_llm_model: "llama3.2-vision" } }
+
+      assert_equal "llama3.2-vision", Setting.local_llm_model
+      assert_equal "cloud-model", Setting.openai_model, "only Local may rewrite the client"
+    end
+  end
+
+  test "renders the AI provider section with a Local option and DeepSeek guidance" do
+    with_self_hosting do
+      get settings_hosting_url
+
+      assert_response :success
+      assert_select "#ai-provider"
+      assert_select "select[name='setting[llm_provider]'] option[value='local']"
+      assert_includes response.body, "https://api.deepseek.com/v1"
+      assert_includes response.body, "deepseek-chat"
+      assert_includes response.body, "11434"
+    end
   end
 
   private

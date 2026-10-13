@@ -92,10 +92,17 @@
       <p class="text-sm text-secondary"><%= panel.empty_reason %></p>
     </div>
     <% unless panel.reading? %>
-      <div class="flex flex-wrap items-center gap-2">
-        <%= render DS::Link.new(text: t(".unread.set_up_provider"), href: settings_hosting_path, variant: "primary", size: "sm") %>
-        <span class="text-sm text-secondary"><%= t(".unread.or") %></span>
-        <%= render DS::Link.new(text: t(".unread.enter_by_hand"), href: new_transaction_path, variant: "outline", size: "sm") %>
+      <div class="space-y-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <%# Name the destination: a bare "Set up a provider" button never said
+              where, which is why the owner could not find the key fields
+              (report 2026-10-13). The link targets the AI provider section's
+              `ai-provider` anchor. %>
+          <%= render DS::Link.new(text: t(".unread.set_up_provider"), href: settings_hosting_path(anchor: "ai-provider"), variant: "primary", size: "sm") %>
+          <span class="text-sm text-secondary"><%= t(".unread.or") %></span>
+          <%= render DS::Link.new(text: t(".unread.enter_by_hand"), href: new_transaction_path, variant: "outline", size: "sm") %>
+        </div>
+        <p class="text-xs text-secondary"><%= t(".unread.provider_location") %></p>
       </div>
     <% end %>
   <% end %>

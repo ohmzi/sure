@@ -92,11 +92,14 @@ en:
         needs_understanding: Needs your input
         understood: Ready to review
       # The unread state's two ways forward: let the app read it, or key it in
-      # yourself. Never a dead end.
+      # yourself. Never a dead end. "Set up a provider" names its destination —
+      # the owner's report (2026-10-13) was that the key fields had no findable
+      # home, so the panel says exactly where they are.
       unread:
         set_up_provider: Set up a provider
         or: or
         enter_by_hand: Enter it by hand
+        provider_location: "Find the key under Settings → Self-Hosting → AI provider (add a DeepSeek or OpenAI key, or pick a local model)."
   # DocumentIntake: the content router's copy. A file it cannot place is refused
   # with this message on the bar; nothing is archived.
   document_intake:

@@ -16,6 +16,18 @@ class Setting < RailsSettings::Base
   field :anthropic_base_url, type: :string, default: ENV["ANTHROPIC_BASE_URL"]
   field :llm_provider, type: :string, default: ENV.fetch("LLM_PROVIDER", "openai")
 
+  # "Local" (spec N5's row): an OpenAI-compatible endpoint on the user's own
+  # hardware — Ollama on the host, reached from the container via the Docker
+  # host alias. The base URL defaults there; the model has NO default, because
+  # the app ships no model and a text-only id cannot read documents — the user
+  # must name a vision-capable model they have pulled.
+  LOCAL_LLM_DEFAULT_BASE_URL = "http://host.docker.internal:11434/v1".freeze
+  # Ollama ignores the bearer token, but the OpenAI-compatible client still
+  # needs one to be constructed (docs/hosting/ai.md uses the same placeholder).
+  LOCAL_LLM_PLACEHOLDER_TOKEN = "ollama-local".freeze
+  field :local_llm_base_url, type: :string, default: ENV["LOCAL_LLM_BASE_URL"].presence || LOCAL_LLM_DEFAULT_BASE_URL
+  field :local_llm_model, type: :string, default: ENV["LOCAL_LLM_MODEL"]
+
   # Jev (TypeSafe) — a classification provider, not an LLM. Reachable either
   # through OpenRouter's Decisions API (the default) or TypeSafe's own endpoint.
   # Deliberately no OPENROUTER_API_KEY fallback: an operator holding that key

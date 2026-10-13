@@ -1,8 +1,18 @@
 <%
-  active = Setting.llm_provider.to_s.downcase == "anthropic" ? "anthropic" : "openai"
+  stored = Setting.llm_provider.to_s.downcase
+  active = %w[openai anthropic local].include?(stored) ? stored : "openai"
   locked = ENV["LLM_PROVIDER"].present?
-  providers = [ [ "openai", t(".provider_openai") ], [ "anthropic", t(".provider_anthropic") ] ]
-  active_configured = active == "anthropic" ? Provider::Anthropic.configured? : Provider::Openai.configured?
+  providers = [
+    [ "openai", t(".provider_openai") ],
+    [ "anthropic", t(".provider_anthropic") ],
+    [ "local", t(".provider_local") ]
+  ]
+  active_configured =
+    case active
+    when "anthropic" then Provider::Anthropic.configured?
+    when "local" then Setting.local_llm_model.present?
+    else Provider::Openai.configured?
+    end
 %>
 
 <div class="space-y-3">
@@ -51,7 +61,9 @@
   <p class="text-xs text-secondary"><%= t(".provider_help") %></p>
 
   <% if !locked && !active_configured %>
-    <p class="text-xs text-warning"><%= t(".not_configured_hint", provider: t(".provider_#{active}")) %></p>
+    <p class="text-xs text-warning">
+      <%= active == "local" ? t(".local_not_configured_hint") : t(".not_configured_hint", provider: t(".provider_#{active}")) %>
+    </p>
   <% end %>
 
   <%= render DS::Note.new(title: t(".data_retention_heading")) do %>
