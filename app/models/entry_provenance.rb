@@ -38,12 +38,25 @@ class EntryProvenance
     @documents ||= @entry.document_links.to_a
   end
 
-  # The two-source case: a document corroborates an entry a document did not
-  # itself create -- a provider row or a file import a receipt later matched.
-  # A receipt whose only origin is its own document is not corroborated: there
-  # is nothing else agreeing with it.
+  # The two-source case (spec §8.6): "a receipt matched to a statement row, or
+  # vice versa". Corroborated means a linked document that did NOT create this
+  # entry -- a document a provider row, a file import, a hand entry OR another
+  # document later matched. The creating link is the one the entry's import
+  # hangs the entry off, so any other linked document is the second source. A
+  # receipt whose only origin is its own document is not corroborated.
+  #
+  # The identity is `import.document_link_id` because that IS the creating
+  # document for the shape this task's spec calls out (a receipt, source
+  # "document", whose import is a ReceiptImport carrying the receipt link).
+  # Known gap: a STATEMENT-created entry (a PdfImport) has no
+  # `document_link_id` -- its creating document lives on `account_statement`,
+  # not on the import -- so if a statement's own link were ever attached to the
+  # entry it would read as corroboration. It does not arise from the published
+  # paths (nothing attaches a statement-born entry's own link; Task 7's `claim!`
+  # only touches pre-existing MATCHED entries).
   def corroborated?
-    documents.any? && @entry.source != "document"
+    creating_link_id = @entry.import&.document_link_id
+    documents.any? { |document| document.id != creating_link_id }
   end
 
   # "edited by you" (spec N13): the displayed value no longer equals what the

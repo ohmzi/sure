@@ -45,6 +45,28 @@ class EntryProvenanceTest < ActiveSupport::TestCase
     assert_equal "manual", EntryProvenance.for(entry).primary
   end
 
+  test "an OFX entry reads as a file import from its source alone" do
+    entry = entries(:transaction_entry)
+    entry.update!(source: "ofx", external_id: "stmt:abc:1", import: nil, import_locked: false)
+
+    assert_equal "import_file", EntryProvenance.for(entry).primary
+  end
+
+  test "an entry a real import wrote reads as a file import from its import alone" do
+    entry = entries(:transaction_entry)
+    entry.update!(source: nil, external_id: nil, import: imports(:transaction), import_locked: false)
+
+    assert_equal "import_file", EntryProvenance.for(entry).primary
+  end
+
+  test "an entry whose import carries a document reads as a document with no link attached" do
+    entry = entries(:transaction_entry)
+    entry.update!(source: nil, external_id: nil, import: imports(:receipt_understood), import_locked: false)
+    entry.document_links.delete_all
+
+    assert_equal "document", EntryProvenance.for(entry.reload).primary
+  end
+
   test "it never returns anything outside the four" do
     Entry.find_each do |entry|
       assert_includes EntryProvenance::SOURCES, EntryProvenance.for(entry).primary
@@ -66,13 +88,23 @@ class EntryProvenanceTest < ActiveSupport::TestCase
   end
 
   test "a receipt whose only origin is its own document is not corroborated" do
-    entry = entries(:transaction_entry)
-    entry.update!(source: "document", external_id: "document:#{SecureRandom.uuid}", import: nil)
+    entry = receipt_born_entry
+
+    provenance = EntryProvenance.for(entry)
+    assert_equal "document", provenance.primary
+    assert_not provenance.corroborated?
+  end
+
+  test "a statement claiming a receipt's entry is corroborated" do
+    entry = receipt_born_entry
+    # The second source: the statement's link, attached when the statement row
+    # matches the receipt's entry (Task 7's `claim!`).
     document_links(:unlinked_receipt).update!(entry_id: entry.id)
 
     provenance = EntryProvenance.for(entry.reload)
     assert_equal "document", provenance.primary
-    assert_not provenance.corroborated?
+    assert provenance.corroborated?,
+           "a receipt matched to a statement row is one transaction with two sources"
   end
 
   test "an entry with no documents is not corroborated" do
@@ -99,6 +131,14 @@ class EntryProvenanceTest < ActiveSupport::TestCase
     document_extractions(:understood_receipt_extraction).update!(
       verdict: { "total" => "not a number", "date" => "the fourteenth of never" }
     )
+
+    assert_not EntryProvenance.for(entry.reload).edited?
+  end
+
+  test "a non-hash verdict is not an edit, and never raises" do
+    entry = entries(:transaction_entry)
+    document_links(:understood_receipt_link).update!(entry_id: entry.id)
+    document_extractions(:understood_receipt_extraction).update!(verdict: [])
 
     assert_not EntryProvenance.for(entry.reload).edited?
   end
@@ -146,6 +186,18 @@ class EntryProvenanceTest < ActiveSupport::TestCase
   end
 
   private
+    # A receipt-posted entry: source "document" and a ReceiptImport that hangs
+    # off the receipt's own link, which is attached to the entry -- exactly what
+    # `ReceiptImport#publish` records.
+    def receipt_born_entry
+      entry = entries(:transaction_entry)
+      receipt_link = document_links(:understood_receipt_link)
+      entry.update!(source: "document", external_id: "document:#{receipt_link.id}",
+                    import: imports(:receipt_understood))
+      receipt_link.update!(entry_id: entry.id)
+      entry.reload
+    end
+
     # The entry linked to `understood_receipt_link`, whose latest read says
     # total 12.00 and date 2026-09-14, showing the given amount and date.
     def entry_matching_read(amount:, date:)

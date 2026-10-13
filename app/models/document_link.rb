@@ -40,8 +40,16 @@ class DocumentLink < ApplicationRecord
   # meaning without its document.
   has_many :document_extractions, dependent: :destroy
 
-  # The "what I understood" read for the viewer and the review screen.
-  def extraction = document_extractions.order(created_at: :desc).first
+  # The "what I understood" read for the viewer and the review screen. Prefers
+  # the loaded collection when there is one: `.order(...).first` rebuilds a fresh
+  # relation even on a preloaded association, so it would fire a query per
+  # document in a loop (the transactions list's provenance, spec N13). `max_by`
+  # over the loaded set is the same latest read, with no query.
+  def extraction
+    return document_extractions.max_by(&:created_at) if document_extractions.loaded?
+
+    document_extractions.order(created_at: :desc).first
+  end
 
   enum :source, { receipt: "receipt", bill: "bill", statement: "statement", other: "other" }, validate: true
 
