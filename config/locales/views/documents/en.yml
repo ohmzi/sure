@@ -20,6 +20,13 @@ en:
     create:
       queued: Document queued for processing.
       held: The upload is held on this server; retry it once processing is available.
+    # The native read refuses to mint a statement vault row for an uploader who
+    # may not manage statements (Task 2). Because the intake no longer asks the
+    # user what a document is, this reason lands on the document's own row — the
+    # document is still read, archived and visible, unlike the old tile's
+    # "not authorized" redirect that discarded the upload.
+    held:
+      statement_permission: Your document was saved, but only a household admin or member can manage statements, so it was not filed in the statement vault.
     link:
       linked: Document linked to the entry.
       unlinked: Document unlinked from the entry.

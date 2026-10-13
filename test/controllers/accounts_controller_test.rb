@@ -1196,9 +1196,11 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
       assert_select "turbo-frame#modal a[data-turbo-frame='_top'][href=?]", documents_path,
                     text: I18n.t("accounts.new.document"), count: 1
       assert_select "turbo-frame#modal [data-controller~='document-dropzone']", count: 0
-      # ...and neither wizard row survives.
-      assert_select "turbo-frame#modal a[href=?]", new_document_wizard_path(source: "receipt_or_bill"), count: 0
-      assert_select "turbo-frame#modal a[href=?]", new_document_wizard_path(source: "statement"), count: 0
+      # ...and the two wizard rows are gone: neither the wizard's routes nor its
+      # controller exist (deleted by Milestone B's Task 2), so the ONE link above
+      # is the popup's whole document affordance — pinned by `count: 1` and by
+      # the absence of any second document link here.
+      assert_select "turbo-frame#modal a[href=?]", documents_path, count: 1
     end
   end
 

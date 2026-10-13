@@ -2,11 +2,12 @@ require "application_system_test_case"
 
 # The native read, end to end, through the surfaces that already exist.
 #
-# Milestone A adds no new UI, so this drives the same wizard journey
-# ReceiptWizardTest drives — the New popup's "Receipt or Bill" row, a dropped
-# file — minus the paperless stubs and plus the native ones: the OCR sidecar
-# stub and the provider double. It is the system-level companion to Task 7's
-# DocumentUnderstandingJob tests and Task 14's live acceptance run.
+# Milestone B replaced the wizard with ONE dropzone: a file dropped on the
+# Documents page posts to the intake endpoint and its Turbo Stream appends the
+# row in place. This drives that journey — minus the paperless stubs and plus
+# the native ones: the OCR sidecar stub and the provider double. It is the
+# system-level companion to Task 7's DocumentUnderstandingJob tests and Task
+# 14's live acceptance run.
 class DocumentNativeReadTest < ApplicationSystemTestCase
   # The read's verdict. institution/last4 resolve to the seeded account below
   # (spec N14), so the journey can also assert the prefill reached the draft.
@@ -48,20 +49,18 @@ class DocumentNativeReadTest < ApplicationSystemTestCase
     stub_document_provider(LATTE)
   end
 
+  # The one dropzone (design D2): the bar's picker is a hidden input behind the
+  # Add document button; its change posts the file to the intake endpoint and
+  # the Turbo Stream appends the row to #documents_grid in place — no
+  # navigation. With the inline adapter the read has settled the row before the
+  # response is processed, so waiting for the appended row is enough.
   def upload_receipt
-    visit root_path
-    click_on I18n.t("pages.dashboard.new")
-    click_on I18n.t("accounts.new.receipt_or_bill")
-    assert_text I18n.t("document_wizards.new.capture")
-    # The tile click swaps the #modal Turbo frame; the wizard's file inputs
-    # render hidden, so wait for them (visible: :all) then de-hide before the
-    # attach — the ReceiptWizardTest pattern.
-    assert_selector "#modal input[type='file'][name='document_file']", visible: :all
-    execute_script("document.querySelectorAll(\"#modal input[type='file'][name='document_camera'], #modal input[type='file'][name='document_file']\").forEach(function (el) { el.classList.remove('hidden'); el.style.display = 'block'; })")
-    attach_file "document_file", file_fixture("receipts/receipt.png")
-    # The change submits and the wizard lands on the archive; the inline read
-    # has already settled the row by the time the response arrives.
-    assert_current_path documents_path
+    visit documents_path
+    assert_selector "input[type='file'][name='document']", visible: :all
+    execute_script("document.querySelector(\"input[type='file'][name='document']\").classList.remove('hidden')")
+    before = page.all("#documents_grid [id^='document_link_']").size
+    attach_file "document", file_fixture("receipts/receipt.png")
+    assert_selector "#documents_grid [id^='document_link_']", count: before + 1, wait: 5
   end
 
   test "an uploaded receipt is read and lands in the archive ready for review" do

@@ -67,7 +67,12 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
   setup do
     @family = families(:dylan_family)
-    @link = DocumentLink.create!(family: @family, source: "other", status: "queued",
+    # The uploader is the statement permission's subject now that the vault row
+    # is created here rather than by the wizard's statement tile (Task 2). A real
+    # link always carries its uploader (DocumentLink.link_from_upload!), so the
+    # default fixture names a statement manager and every statement test below
+    # exercises the permitted path unless it says otherwise.
+    @link = DocumentLink.create!(family: @family, created_by: users(:family_admin), source: "other", status: "queued",
                                  original_filename: "receipt.png", content_type: "image/png")
     @link.stage!(io: StringIO.new("PNG-#{SecureRandom.hex(4)}"), filename: "receipt.png",
                  content_type: "image/png")
@@ -646,6 +651,37 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
     assert observed_second_batch > 30.minutes.ago,
            "a batch must refresh the row's clock, or the reaper re-enqueues a live read"
+  end
+
+  # --- Task 2: the statement permission moves to the vault row ----------------
+
+  test "a statement uploaded by someone who cannot manage statements gets no vault row" do
+    # The intake no longer asks the user what a document is, so the old tile-time
+    # guard had nothing to test at staging time. The refusal now belongs where
+    # the vault row would be created: the document is still read, archived and
+    # visible, but no vault row is minted for an uploader who may not manage
+    # statements (the brief's `users(:family_guest)` does not exist; the guest
+    # fixture in this repo is `intro_user`, role "guest").
+    @link.update!(created_by: users(:intro_user))
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    assert_no_difference -> { AccountStatement.count } do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+
+    assert_equal "queued", @link.reload.status
+    assert_includes @link.failure_message, "statement"
+  end
+
+  test "a statement uploaded by a statement manager does get its vault row" do
+    @link.update!(created_by: users(:family_admin))
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96 } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    assert_difference -> { AccountStatement.count }, 1 do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
   end
 
   def statement_for(link)

@@ -1,8 +1,10 @@
 # frozen_string_literal: true
 
-# The document wizard's screen 3: confirm the account an intake defaults to.
-# Shared by both wizard legs (ReceiptImport writes the column; PdfImport goes
-# through M2's assign_account!, which also moves the statement).
+# Confirm the account an import defaults to. It was the document wizard's screen
+# 3; the wizard (steps 1-2 and its controller) is deleted, so this survives as
+# the import flow's own account-confirm screen, reached from an import's review
+# screen. ReceiptImport writes the column; PdfImport goes through M2's
+# assign_account!, which also moves the statement.
 class Import::AccountsController < ApplicationController
   before_action :set_import
   before_action :require_non_guest!

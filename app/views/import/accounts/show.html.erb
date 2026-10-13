@@ -1,10 +1,12 @@
-<%# Step 3 of the wizard (the account confirm). The labels inside the container's
+<%# The account confirm for an import. It was the document wizard's step 3; the
+    wizard (step 2) is deleted, so this screen is reached from an import's own
+    review screen (`imports/_receipt_import.html.erb` and the import nav) and
+    its back link returns to that import. The labels inside the container's
     block use absolute i18n keys: a relative t() there resolves against
     accounts.new.container (the layout partial being rendered), not
-    import.accounts.show — see the same note on document_wizards/new.html.erb.
-    The title IS in the locals hash, which is evaluated before the layout is
-    entered, so its relative key is correct. %>
-<%= render layout: "accounts/new/container", locals: { title: t(".title"), back_path: new_document_wizard_path(source: params[:source].presence || "receipt_or_bill") } do %>
+    import.accounts.show. The title IS in the locals hash, which is evaluated
+    before the layout is entered, so its relative key is correct. %>
+<%= render layout: "accounts/new/container", locals: { title: t(".title"), back_path: import_path(@import) } do %>
   <div class="text-sm p-2 space-y-4">
     <p class="text-secondary"><%= t("import.accounts.show.subtitle") %></p>
     <%# (repaired 2026-10-10, verifier F1) `model:` + `scope:` pin the param name

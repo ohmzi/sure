@@ -283,6 +283,15 @@ class DocumentUnderstandingJob < ApplicationJob
     # Task 10's job, so today an imported statement sits unmatched until the user
     # picks its account at the review step.
     def route_statement(link, understanding)
+      # The intake no longer asks the user what a document is, so this guard has
+      # nothing to test at staging time — it belongs where the vault row would be
+      # created. Refusing here leaves the document read, archived and visible with
+      # a reason, which is strictly better than the old tile's "not authorized"
+      # redirect that discarded the upload outright.
+      unless AccountStatement.statement_manager?(link.created_by)
+        return link.hold!(message: I18n.t("documents.held.statement_permission"))
+      end
+
       statement = statement_for(link, understanding)
       import = PdfImport.find_or_create_from_statement!(statement: statement)
 

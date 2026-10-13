@@ -10,9 +10,9 @@
 # the flow is complete and testable on its own). Task 3 swaps this one partial
 # name to the tile.
 class Documents::IntakesController < ApplicationController
-  # Guests are read-only by design, and every other document-upload path
-  # (DocumentLinksController#create, DocumentWizardsController) refuses them —
-  # the replacement intake must not be the one door left open.
+  # Guests are read-only by design, and the other document-upload path
+  # (DocumentLinksController#create) refuses them — the intake must not be the
+  # one door left open.
   before_action :require_non_guest!, only: :create
 
   def create

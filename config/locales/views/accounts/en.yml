@@ -70,11 +70,9 @@ en:
       syncing: "Syncing accounts..."
     new:
       # Milestone B: the two document rows became one "Add a document" on-ramp
-      # (the intake endpoint decides the type). receipt_or_bill/stay until Task 2
-      # deletes the wizard that still renders them.
+      # (the intake endpoint decides the type). The wizard that rendered the
+      # per-type rows, and its own per-type copy, are deleted.
       document: Add a document
-      receipt_or_bill: Receipt or Bill
-      statement: Statement
       import_accounts: Import accounts
       container:
         select: Select

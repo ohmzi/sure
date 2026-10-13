@@ -1,5 +1,10 @@
 require "application_system_test_case"
 
+# The receipt intake journey. It was the wizard's file (Milestone B's Task 2
+# deletes the wizard): the two-row New popup and its step-2 drop screen are
+# gone, replaced by ONE dropzone on the Documents page. The subjects are
+# unchanged — a receipt uploaded through the UI becomes a reviewable draft, and
+# a settled draft reviews and publishes — only the route through the UI changed.
 class ReceiptWizardTest < ApplicationSystemTestCase
   setup do
     ensure_tailwind_build
@@ -16,7 +21,7 @@ class ReceiptWizardTest < ApplicationSystemTestCase
     # draft's document_link_id), breaking the second journey's seed.
 
     # Run jobs inline and stub the native read — the OCR sidecar and the AI
-    # provider — so the whole journey (wizard intake -> read -> settled draft)
+    # provider — so the whole journey (dropzone intake -> read -> settled draft)
     # runs in this process.
     @previous_adapter = ActiveJob::Base.queue_adapter
     ActiveJob::Base.queue_adapter = :inline
@@ -34,86 +39,49 @@ class ReceiptWizardTest < ApplicationSystemTestCase
     ActiveJob::Base.queue_adapter = @previous_adapter
   end
 
-  test "the New popup takes a resolved receipt straight to the archive" do
-    # (M8 Task 9, Ruling M8-L1 decisions 1/2) family_admin's bills default
-    # resolves the prefill ladder: choosing the file submits instantly (no
-    # Continue button) and the wizard finishes on the archive in the main
-    # chrome — no step 3.
-    visit root_path
-    click_on I18n.t("pages.dashboard.new")
+  # The one dropzone (design D2): the bar's picker is a hidden input behind the
+  # Add document button; its change posts the file to the intake endpoint and
+  # the Turbo Stream appends the row to #documents_grid in place — no
+  # navigation, no wizard screen. The New popup's single "Add a document" row
+  # leads here; that link is pinned by accounts_controller_test, so this journey
+  # starts on the Documents page itself (the documents_intake_test pattern).
+  def upload_receipt
+    visit documents_path
+    assert_selector "input[type='file'][name='document']", visible: :all
+    execute_script("document.querySelector(\"input[type='file'][name='document']\").classList.remove('hidden')")
+    before = page.all("#documents_grid [id^='document_link_']").size
+    attach_file "document", file_fixture("receipts/receipt.png")
+    assert_selector "#documents_grid [id^='document_link_']", count: before + 1, wait: 5
+  end
 
-    assert_text I18n.t("accounts.new.receipt_or_bill")
-    assert_text I18n.t("accounts.new.statement")
-    click_on I18n.t("accounts.new.receipt_or_bill")
+  test "a receipt dropped on the archive becomes a reviewable draft" do
+    # Milestone B (design D2): the two-row wizard is gone. A receipt goes in
+    # through the ONE dropzone, the Turbo Stream appends its row in place, and
+    # the inline read settles it as a reviewable draft — no step 3, no page
+    # change.
+    upload_receipt
 
-    # The tile click swaps the #modal Turbo frame, and the wizard's file rows
-    # render ONLY when step 2's frame response lands — wait for the wizard
-    # container (and for the inputs to exist — visible: :all, since they render
-    # class="hidden") FIRST, then de-hide, then attach (the same order the
-    # drag_and_drop_import_test.rb:20-26 workaround uses before its own
-    # attach_file). The script is scoped to the two inputs the wizard actually
-    # renders at this point, not every hidden file input on the page.
-    assert_text I18n.t("document_wizards.new.capture")
-    assert_selector "#modal [data-controller~='receipt-dropzone']" # the one drop zone
-    assert_selector "#modal input[type='file'][name='document_camera']", visible: :all
-    assert_selector "#modal input[type='file'][name='document_file']", visible: :all
-    execute_script("document.querySelectorAll(\"#modal input[type='file'][name='document_camera'], #modal input[type='file'][name='document_file']\").forEach(function (el) { el.classList.remove('hidden'); el.style.display = 'block'; })")
-    assert_selector "input[type='file'][capture='environment']"
-    attach_file "document_file", file_fixture("receipts/receipt.png")
-
-    # No further click: the change submits and the wizard lands on the archive.
-    assert_current_path documents_path
     draft = ReceiptImport.order(:created_at).last
     assert_equal @account, draft.account
-    # The inline read settles the draft during the POST, so the row already
-    # carries the ready affordance.
+    # The inline read settles the draft during the POST, so the appended row
+    # already carries the ready affordance (the action renders as an icon link,
+    # so pin it by href and title — the flip test's pattern).
     assert_equal "understood", draft.understanding_state
     within "#document_link_#{draft.document_link.id}" do
-      assert_link I18n.t("imports.receipt_import.review_details")
+      assert_selector "a[href='#{import_path(draft)}'][title='#{I18n.t("imports.receipt_import.review_details")}']"
     end
   end
 
-  test "a receipt from a member with no default account still lands on the archive" do
-    # (Task 8/9) The wizard no longer asks at step 3: the native read settles the
-    # draft and resolves its account from the AI's hints, so the drop always
-    # finishes on the archive.
+  test "a receipt from a member with no default account still becomes a reviewable draft" do
+    # The native read settles the draft and resolves its account from the AI's
+    # hints; the dropzone never asks at a step 3, so a member's drop always ends
+    # as a reviewable draft on the archive.
     sign_in users(:family_member)
-    visit root_path
-    click_on I18n.t("pages.dashboard.new")
-    click_on I18n.t("accounts.new.receipt_or_bill")
+    upload_receipt
 
-    assert_text I18n.t("document_wizards.new.capture")
-    assert_selector "#modal input[type='file'][name='document_file']", visible: :all
-    execute_script("document.querySelectorAll(\"#modal input[type='file'][name='document_camera'], #modal input[type='file'][name='document_file']\").forEach(function (el) { el.classList.remove('hidden'); el.style.display = 'block'; })")
-    attach_file "document_file", file_fixture("receipts/receipt.png")
-
-    assert_current_path documents_path
     draft = ReceiptImport.order(:created_at).last
     assert_equal @account, draft.account
     assert_equal "understood", draft.understanding_state
-  end
-
-  test "the one-tap source override and Add details ride the drop" do
-    # (M8 Task 9, Ruling M8-L1 decision 4) The override and the title are chosen
-    # BEFORE the file — choosing the file submits instantly.
-    visit root_path
-    click_on I18n.t("pages.dashboard.new")
-    click_on I18n.t("accounts.new.receipt_or_bill")
-
-    assert_text I18n.t("document_wizards.new.capture")
-    choose I18n.t("documents.source.bill") # one tap: receipt.png would guess receipt
-    find("summary", text: I18n.t("document_wizards.new.add_details")).click
-    fill_in "title", with: "Laptop purchase"
-    assert_selector "#modal input[type='file'][name='document_file']", visible: :all
-    execute_script("document.querySelectorAll(\"#modal input[type='file'][name='document_camera'], #modal input[type='file'][name='document_file']\").forEach(function (el) { el.classList.remove('hidden'); el.style.display = 'block'; })")
-    attach_file "document_file", file_fixture("receipts/receipt.png")
-
-    assert_current_path documents_path
-    link = DocumentLink.order(:created_at).last
-    # The override and the title reach the intake; the read's classifier then
-    # owns the final source, so only the title is asserted here (the intake
-    # source itself is pinned in document_wizards_controller_test).
-    assert_equal "Laptop purchase", link.title
   end
 
   test "a settling draft flips its row to the review affordance without a reload" do
