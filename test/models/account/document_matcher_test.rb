@@ -10,7 +10,9 @@ class Account::DocumentMatcherTest < ActiveSupport::TestCase
   end
 
   test "a last4 match picks the card, not the account at the same bank" do
-    match = Account::DocumentMatcher.best_match(family: @family, institution_hint: "Chase", account_last4_hint: "4242")
+    match = Account::DocumentMatcher.best_match(
+      family: @family, institution_hint: "Chase", account_last4_hint: "4242", last4_witness: true
+    )
 
     assert_equal @card.id, match.account.id
   end
@@ -55,9 +57,23 @@ class Account::DocumentMatcherTest < ActiveSupport::TestCase
     assert_operator match.confidence, :>=, Account::DocumentMatcher::AUTO_PREFILL_BAR
   end
 
-  test "a last4 match the OCR never saw stays below the auto bar" do
+  test "an unwitnessed last4 contributes nothing, so it never resolves on its own" do
+    # The witness is a GATE, not a bonus: a validly-typed last4 the OCR text does
+    # not carry scores zero for the last4 term. On its own (no institution) that
+    # is below the floor, so it cannot even resolve — let alone prefill.
+    assert_nil Account::DocumentMatcher.best_match(
+      family: @family, account_last4_hint: "4242"
+    )
+  end
+
+  test "an unwitnessed last4 does not lift a matching institution to the bar" do
+    # institution (0.35) + an unwitnessed last4 (0) + currency (0.05) = 0.40:
+    # above the floor, below the bar. The wrong-but-validly-typed digit the page
+    # never carried must not push a prefill. The other account is left off the
+    # institution so this is not a tie.
+    @chequing.update!(institution_name: nil)
     match = Account::DocumentMatcher.best_match(
-      family: @family, account_last4_hint: "4242", currency: "USD"
+      family: @family, institution_hint: "Chase", account_last4_hint: "4242", currency: "USD"
     )
 
     assert_operator match.confidence, :<, Account::DocumentMatcher::AUTO_PREFILL_BAR

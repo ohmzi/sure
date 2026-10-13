@@ -342,19 +342,6 @@ class AccountStatement < ApplicationRecord
     account_id.nil? && !rejected?
   end
 
-  # The PDF import whose account seam this statement's picker should use: the
-  # reassignable import that owns the statement's rows, or nil for a statement
-  # with no import (CSV/OFX) or one whose data has already landed. Assigning
-  # through it moves the import AND the statement together
-  # (PdfImport#assign_account! -> link_to_account!), so the rows are judged
-  # against the account the user picked rather than stranded.
-  def assignable_pdf_import
-    import = latest_reusable_pdf_import
-    return nil unless import&.reassignable?
-
-    import
-  end
-
   def unlink!
     transaction do
       update!(

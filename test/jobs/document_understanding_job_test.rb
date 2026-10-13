@@ -635,7 +635,9 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
   test "a confidently matched account is prefilled without asking" do
     accounts(:credit_card).update!(institution_name: "Chase", last4: "4242", account_network: "visa")
-    stub_ocr_success(pages: [ { page: 1, text: "ACME\nTOTAL 12.34", confidence: 0.97 } ])
+    # The card number is ON the page, so §7.5's witness holds and the last4 term
+    # scores; without it the match would sit below the bar (see the gate tests).
+    stub_ocr_success(pages: [ { page: 1, text: "ACME\nCARD 4242\nTOTAL 12.34", confidence: 0.97 } ])
     stub_provider(FakeProvider.new(RECEIPT.merge("institution_name" => "Chase")))
 
     DocumentUnderstandingJob.perform_now(@link.id)
@@ -657,17 +659,18 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
   end
 
   test "a match above the floor but below the bar still leaves the account blank" do
-    # Review finding 5: the below-bar test above uses hints NO account can score
-    # on, so every candidate is dropped by the FLOOR (0.35) and deleting the bar
-    # gate would leave the suite green. Here one account scores exactly 0.40 —
-    # last4 (0.35) + currency (0.05) — which is above the floor and below the bar
-    # (0.60). Only the bar keeps the account blank.
-    accounts(:credit_card).update!(last4: "4242")
-    stub_ocr_success(pages: [ { page: 1, text: "ACME\nTOTAL 12.34", confidence: 0.97 } ])
-    stub_provider(FakeProvider.new(RECEIPT))
+    # The below-bar test above uses hints NO account can score on, so every
+    # candidate is dropped by the FLOOR (0.35) and deleting the bar gate would
+    # leave the suite green. Here the account scores exactly 0.40 — institution
+    # (0.35) + currency (0.05), with NO last4 at all (an unwitnessed last4
+    # contributes nothing — see the witness gate) — which is above the floor and
+    # below the bar (0.60). Only the bar keeps the account blank.
+    accounts(:credit_card).update!(institution_name: "Chase", last4: nil)
+    stub_ocr_success(pages: [ { page: 1, text: "CHASE\nTOTAL 12.34", confidence: 0.97 } ])
+    stub_provider(FakeProvider.new(RECEIPT.merge("institution_name" => "Chase", "card_last4" => nil)))
 
     prefill_match = Account::DocumentMatcher.best_match(
-      family: @family, account_last4_hint: "4242", currency: "USD"
+      family: @family, institution_hint: "Chase", currency: "USD"
     )
     assert_equal "0.4".to_d, prefill_match.confidence,
                  "the fixture must sit above the floor, or the floor — not the bar — is what drops it"
@@ -679,7 +682,9 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
   test "a confidently matched statement prefills on the statement-backed draft" do
     accounts(:depository).update!(institution_name: "Chase", last4: "1234")
-    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    # "1234" is on the page, so the account-number last4 the read reports passes
+    # the §7.5 witness and the statement prefills.
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE 1234", confidence: 0.96, image: "aGk=" } ])
     stub_provider(FakeProvider.new(STATEMENT))
 
     DocumentUnderstandingJob.perform_now(@link.id)
@@ -726,6 +731,40 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
     import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
     assert_equal accounts(:credit_card).id, import.account_id
+  end
+
+  test "an unwitnessed last4 never drives a prefill, even beside a matching institution" do
+    # Spec §7.5: a last4 match MUST ALSO appear in the OCR text. The page here
+    # carries no "4242", so the validly-typed digit contributes nothing and the
+    # match sits at institution (0.35) + currency (0.05) = 0.40, below the bar.
+    accounts(:credit_card).update!(institution_name: "Triangle", last4: "4242")
+    stub_ocr_success(pages: [ { page: 1, text: "TRIANGLE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(RECEIPT.merge("institution_name" => "Triangle")))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_nil ReceiptImport.find_by!(document_link_id: @link.id).account_id
+  end
+
+  test "the vault stores the CARD's last4 so the matcher suggests the seeded account" do
+    # The in-scope Triangle case: card "7891", account number "7512", an account
+    # seeded with the card's last4. The hint must be the CARD number, or the
+    # vault matcher scores bank digits against a card column and suggests nothing.
+    accounts(:credit_card).update!(last4: "7891", institution_name: nil)
+    accounts(:depository).update!(last4: "7512", institution_name: nil)
+    verdict = STATEMENT.merge("institution_name" => nil, "account_last4" => "7512", "card_last4" => "7891")
+    # "7891" is NOT on the page, so the resolver does not prefill; the statement
+    # stays unmatched and must still carry the suggestion the vault matcher
+    # derives from the stored hint.
+    stub_ocr_success(pages: [ { page: 1, text: "STATEMENT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(verdict))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    statement = statement_for(@link)
+    assert_equal "7891", statement.account_last4_hint,
+                 "the card number, not the account number, is the seeded identity"
+    assert_equal accounts(:credit_card), statement.suggested_account
   end
 
   # --- Task 11: what a read teaches, and only on a human's word ----------------

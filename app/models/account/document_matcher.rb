@@ -2,10 +2,9 @@
 
 # Which account (or card) is this document for?
 #
-# Built beside AccountStatement::AccountMatcher, not on top of it: that matcher
-# scores a "last4 hint" by substring-matching it against the account's name and
-# institution TEXT and has never read a last4 column, because until now there
-# was none. The last4 and network terms here are new.
+# Built beside AccountStatement::AccountMatcher, not on top of it. Both read the
+# `accounts.last4` COLUMN now; this one additionally requires spec §7.5's OCR
+# witness before a last4 may score, and prefills above the bar.
 #
 # It refuses ties and returns nil when it is not sure, because the alternative
 # is silently filing a statement under the wrong card — and the step-3 ask is
@@ -21,19 +20,18 @@ class Account::DocumentMatcher
 
   WEIGHT_INSTITUTION = "0.35".to_d
   WEIGHT_NAME = "0.20".to_d
-  WEIGHT_LAST4 = "0.35".to_d
   WEIGHT_NETWORK = "0.05".to_d
   WEIGHT_CURRENCY = "0.05".to_d
 
-  # A last4 match whose digits the OCR text actually contains weighs enough to
-  # clear the prefill bar on its own (spec §7.5's "second witness"). This is the
-  # documented calibration choice: rather than re-weight the plain term, the
-  # WITNESSED value is a distinct weight. An unwitnessed last4 stays at
-  # WEIGHT_LAST4, so a document-only read (no institution, the job supplies no
-  # name hint) tops out at 0.45 — below the bar — and still asks. The wrong-card
-  # and tie protections are untouched: the boost applies only when the hint
-  # equals a real `accounts.last4` COLUMN, and two accounts sharing that last4
-  # still tie and are refused.
+  # Spec §7.5's second witness, as a GATE not a bonus. A last4 hint scores ONLY
+  # when its digits also appear in the OCR text — the second witness against a
+  # validly-typed but wrong (or hallucinated) number. An unwitnessed last4
+  # contributes ZERO, so it can never lift a match toward the bar (institution
+  # 0.35 + an unwitnessed last4 stays at 0.35, well below 0.60). A witnessed
+  # column match weighs enough to clear the bar on its own. The wrong-card and
+  # tie protections are untouched: the term still requires an exact
+  # `accounts.last4` COLUMN match, and two accounts sharing that last4 still tie
+  # and are refused.
   WEIGHT_LAST4_WITNESSED = "0.60".to_d
 
   def self.best_match(family:, institution_hint: nil, account_name_hint: nil,
@@ -76,11 +74,12 @@ class Account::DocumentMatcher
     score += WEIGHT_INSTITUTION if institution.present? && text.include?(institution)
     score += WEIGHT_NAME if name.present? && account.name.to_s.downcase.include?(name)
 
-    # The new terms: a real column, not a substring of the account's prose. A
-    # last4 hint is only satisfied by an account that HAS a last4 and matches it;
-    # the OCR-witnessed value scores the higher weight.
-    if last4.present? && account.last4.present? && account.last4 == last4
-      score += last4_witness ? WEIGHT_LAST4_WITNESSED : WEIGHT_LAST4
+    # The new terms: a real column, not a substring of the account's prose. The
+    # last4 term is GATED on the OCR witness (spec §7.5): a hint whose digits the
+    # page never carried contributes nothing, so a validly-typed but wrong number
+    # cannot drive a prefill. Only a witnessed exact column match scores.
+    if last4.present? && account.last4.present? && account.last4 == last4 && last4_witness
+      score += WEIGHT_LAST4_WITNESSED
     end
     score += WEIGHT_NETWORK if network.present? && account.account_network.to_s.downcase == network
     score += WEIGHT_CURRENCY if currency.present? && currency == account.currency

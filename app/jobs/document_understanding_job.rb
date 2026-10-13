@@ -324,9 +324,9 @@ class DocumentUnderstandingJob < ApplicationJob
     # fires at the human's confirmation (Import::AccountsController#update), and
     # cannot fire here even in principle: a prefill is the resolver's unconfirmed
     # guess, and teaching a blank account from it would launder that guess into
-    # state the fill-only rule then makes permanent. Since the last4 term is only
-    # boosted by the OCR witness below, a prefill can only name an account whose
-    # last4 ALREADY equals a number the page carries — never a fabricated one.
+    # state the fill-only rule then makes permanent. The last4 term is GATED on
+    # the OCR witness below, so a prefill can only name an account whose last4
+    # ALREADY equals a number the page carries — never a fabricated one.
     #
     # The draft is found by whichever edge the leg created: a receipt/bill draft
     # (ReceiptImport) hangs off the document link, and the statement leg's
@@ -442,13 +442,24 @@ class DocumentUnderstandingJob < ApplicationJob
 
       statement.assign_attributes(
         institution_name_hint: understanding.institution_name,
-        account_last4_hint: understanding.account_last4,
+        # The CARD's last4, not the account number. The seeded identity and the
+        # prefill both key on the card's number ("7891" in the live Triangle
+        # read); storing the account number ("7512") made the vault matcher score
+        # bank digits against a card column and produce no suggestion. Same
+        # preference resolve_account applies.
+        account_last4_hint: understanding.card_last4.presence || understanding.account_last4,
         # `currency`, not `statement_currency`: the latter is a reader on the
         # model (currency || account's || family's), not a column.
         currency: understanding.currency,
         period_start_on: understanding.period_start,
         period_end_on: understanding.period_end
       )
+      # Offer the account suggestion now that the hints are on the row: the
+      # vault matcher (AccountStatement::AccountMatcher) reads them, and without
+      # this a statement the read could not confidently prefill would show the
+      # page's "no suggestion" dead end until the user saves the metadata form.
+      # A read that DOES prefill clears this at link time (link_to_account!).
+      statement.assign_account_match if statement.account_id.nil? && !statement.rejected?
       statement.save! if statement.changed?
       link.update!(account_statement_id: statement.id) unless link.account_statement_id == statement.id
       statement

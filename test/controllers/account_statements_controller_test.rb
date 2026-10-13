@@ -592,6 +592,57 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert statement.linked?
   end
 
+  test "assigning from the picker teaches the account its card identity" do
+    # The picker must teach the same fill-only identity the /imports/:id confirm
+    # does, or the same confirmation seeds last4 via one surface and leaves it
+    # blank via this one.
+    account = accounts(:credit_card)
+    account.update!(last4: nil, account_network: nil)
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: "teach_picker.pdf", content_type: "application/pdf", content: "%PDF-1.4 teach")
+    )
+    link = DocumentLink.create!(family: @account.family, source: "statement", status: "unlinked",
+                                account_statement: statement, original_filename: "teach_picker.pdf")
+    extraction = DocumentExtraction.record!(document_link: link, status: "succeeded",
+                                            verdict: { "card_last4" => "4242", "card_network" => "visa" },
+                                            validations: { "last4_in_ocr" => true })
+    PdfImport.find_or_create_from_statement!(statement: statement)
+             .update!(document_extraction: extraction)
+
+    patch link_account_statement_url(statement), params: { account_id: account.id }
+
+    assert_equal "4242", account.reload.last4
+    assert_equal "visa", account.account_network
+  end
+
+  test "a refused assignment surfaces an alert instead of a false success" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: "locked.pdf", content_type: "application/pdf", content: "%PDF-1.4 locked")
+    )
+    # A publish in flight makes the import no longer re-targetable under its lock.
+    PdfImport.find_or_create_from_statement!(statement: statement).update!(status: :importing)
+
+    patch link_account_statement_url(statement), params: { account_id: @account.id }
+
+    assert_redirected_to account_statement_url(statement)
+    assert_equal I18n.t("account_statements.link.account_locked"), flash[:alert]
+    assert_nil statement.reload.account
+  end
+
+  test "the picker is not rendered once the statement is linked" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "already_linked.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+
+    get account_statement_url(statement)
+
+    assert_response :success
+    assert_select "select[name='account_id']", count: 0
+  end
+
   test "the picker is hidden from a viewer who cannot manage the statement" do
     statement = AccountStatement.create_from_upload!(
       family: @account.family, account: nil,
