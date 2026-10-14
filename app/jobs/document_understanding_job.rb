@@ -52,6 +52,13 @@ class DocumentUnderstandingJob < ApplicationJob
   # drift from how many attempts are actually configured.
   RETRY_ATTEMPTS = 8
 
+  # W8-D: one read's outcome. `understanding` is what routes; `statement_read` is
+  # the reader's verdict (nil for a non-statement, which has no statement route
+  # to guard); `model_understanding` is the MODEL's own read for the extraction's
+  # `raw_response` (R-W8B17) — which on the identity-only path is the narrow
+  # identity read, not a row table.
+  DocumentRead = Data.define(:understanding, :statement_read, :model_understanding)
+
   # An OCR failure is transient far more often than it is terminal — the sidecar
   # is restarting, the GPU is busy, the weights are still loading. Retry with
   # backoff; only a service that ANSWERED and said "unreadable" lands terminally.
@@ -173,16 +180,23 @@ class DocumentUnderstandingJob < ApplicationJob
     # more often than terminal, and a held row is excluded from the sweep
     # (finding 2), so it propagates to the retry_on Provider::Error ladder rather
     # than parking the row for a human (fix round 2).
-    understanding = understand_in_batches(provider, result, link)
-
-    # Wave 8 (the statement row reader): a statement is read DETERMINISTICALLY
-    # where it can be — its rows come from the reader's ladder (text layer ->
-    # geometry -> vision) and are PROVEN against the statement's own printed
-    # totals before they may route. `model_understanding` is the model's OWN
-    # read, kept so the extraction's `raw_response` can still show it after the
-    # reader's rows replace it (R-W8B17).
-    model_understanding = understanding
-    understanding, statement_read = apply_statement_reader(link, understanding, result)
+    #
+    # Wave 8 (the statement row reader), W8-D: the model read is DEFERRED behind
+    # the reader's ladder. The ladder reads a statement's rows DETERMINISTICALLY
+    # where it can — text layer -> geometry — and PROVES them against the
+    # statement's own printed totals; it invokes `vision` (the full model read,
+    # rows wanted) only when no deterministic rung supplies them. A trusted
+    # deterministic read instead takes a narrow IDENTITY-ONLY call, so the model
+    # never enumerates a table whose rows the app already holds (and cannot be
+    # truncated enumerating one). Every other document — a non-statement, a scan,
+    # or a statement whose deterministic read did not reconcile — gets today's
+    # full read, unchanged. `model_understanding` is the model's own read, kept
+    # so the extraction's `raw_response` can still show it after the reader's rows
+    # replace it (R-W8B17).
+    read = read_document(link, provider, result)
+    understanding = read.understanding
+    statement_read = read.statement_read
+    model_understanding = read.model_understanding
 
     validations = self.class.validate(understanding, ocr_text: result.text)
     validations = validations.merge(statement_read_validations(statement_read)) if statement_read
@@ -299,32 +313,62 @@ class DocumentUnderstandingJob < ApplicationJob
       link.hold!(message: "#{UNREADABLE_MESSAGE} (#{code})")
     end
 
-    # Wave 8: read a statement's rows with the deterministic reader.
+    # W8-D: read the document, asking the model for a statement's ROW TABLE only
+    # when the deterministic read cannot supply it.
     #
-    # Returns [understanding, statement_read]. The read is ALWAYS present for a
-    # statement — a synthetic `:unavailable` read stands in on an unexpected
-    # reader failure — so the statement route can never skip its fail-closed
-    # guard by not mentioning one (R-W8B18). It is nil only for a non-statement,
-    # which has no statement route to guard.
+    # The reader's ladder (text layer -> geometry -> vision) decides the SHAPE of
+    # the model call: it invokes `vision` — the full read, rows wanted — only when
+    # no deterministic rung PROVES the rows. A trusted text-layer/geometry read
+    # instead takes a narrow IDENTITY-ONLY call, so the model never enumerates a
+    # table whose rows the app already holds. A non-statement, a scan, and a
+    # statement whose deterministic read did not reconcile all reach `vision` and
+    # get today's full read, byte-for-byte.
     #
-    # The reader receives the OCR result (so W8-C's geometry rung has boxes and
-    # the light can reach the pages it never could before) and the understanding
-    # we already read, as the INJECTED vision callable: the model's rows are used
-    # only when the deterministic rungs cannot supply better ones, and then only
-    # if they pass the SAME gate (design §1). The ladder falls through to that
-    # vision rung itself; `statement_holds?` decides which verdicts then hold.
-    def apply_statement_reader(link, understanding, ocr_result)
-      return [ understanding, nil ] unless understanding.document_class == "statement"
+    # Returns a DocumentRead. The read is ALWAYS present for a statement — a
+    # synthetic `:unavailable` read stands in on an unexpected reader failure — so
+    # the statement route can never skip its fail-closed guard by not mentioning
+    # one (R-W8B18). It is nil only for a non-statement, which has no statement
+    # route to guard.
+    def read_document(link, provider, result)
+      model_understanding = nil
+      read =
+        begin
+          StatementRead.call(link: link, ocr_result: result,
+                             vision: -> { model_understanding = understand_in_batches(provider, result, link) })
+        rescue Provider::Error
+          # A provider failure is transient (the retry_on ladder), never a reader
+          # failure: let it propagate exactly as it did when the read ran before
+          # the reader.
+          raise
+        rescue StandardError => e
+          # A reader failure is never a read failure: log it and keep today's
+          # path — but the statement route still carries a read, so its guard is
+          # structural.
+          Rails.logger.warn("StatementRead failed for document_link #{link.id}: #{e.class}: #{e.message}")
+          unavailable_read
+        end
 
-      read = StatementRead.call(link: link, ocr_result: ocr_result, vision: -> { understanding })
-      [ adopt_reader_rows(understanding, read), read ]
-    rescue StandardError => e
-      # A reader failure is never a read failure: log it and keep today's path —
-      # but the statement route still carries a read, so its guard is structural.
-      Rails.logger.warn(
-        "StatementRead failed for document_link #{link.id}: #{e.class}: #{e.message}"
-      )
-      [ understanding, unavailable_read ]
+      if read.reconciled? && read.source != :vision
+        # A DETERMINISTIC rung supplied the rows and they reconcile: the model is
+        # asked for IDENTITY ONLY. `adopt_reader_rows` (R-W8B12) replaces any rows
+        # the model volunteered with the reader's proven ones and clears the
+        # line_items fallback, so nothing mixed-provenance routes.
+        identity = understand_in_batches(provider, result, link, rows_expected: false)
+        DocumentRead.new(understanding: adopt_reader_rows(identity, read),
+                         statement_read: read, model_understanding: identity)
+      else
+        # The ladder already made the full read (rows wanted). If a reader failure
+        # struck before the vision call there is no understanding yet, so fall
+        # back to the full read — today's path either way.
+        understanding = model_understanding || understand_in_batches(provider, result, link)
+        if understanding.document_class == "statement"
+          DocumentRead.new(understanding: adopt_reader_rows(understanding, read),
+                           statement_read: read, model_understanding: understanding)
+        else
+          DocumentRead.new(understanding: understanding, statement_read: nil,
+                           model_understanding: understanding)
+        end
+      end
     end
 
     # R-W8B12: when a DETERMINISTIC rung supplied the rows (text layer or
@@ -665,7 +709,12 @@ class DocumentUnderstandingJob < ApplicationJob
     # the OCR rendered no image for still carries text that must reach the model,
     # and cutting from `page_images` alone would send zero batches for a
     # text-only read and lose the whole document.
-    def understand_in_batches(provider, result, link)
+    #
+    # `rows_expected: false` (W8-D) is the identity-only read: the request
+    # withdraws the statement's row table so the model supplies identity alone.
+    # The flag is passed to the provider ONLY when false, so the full read's
+    # request is byte-for-byte today's.
+    def understand_in_batches(provider, result, link, rows_expected: true)
       merged = nil
       transactions = []
       line_items = []
@@ -677,9 +726,7 @@ class DocumentUnderstandingJob < ApplicationJob
         # re-enqueue it while it is still running — a second OCR run, a second
         # paid provider call, a second extraction.
         link.heartbeat!
-        response = provider.understand_document(pages: pages.filter_map(&:image),
-                                                ocr_text: batch_ocr_text(pages, merged),
-                                                family: link.family)
+        response = provider.understand_document(**document_request(pages, merged, link, rows_expected))
         raise Provider::Error, "AI provider failed: #{response.error&.message}" unless response.success?
 
         part = response.data
@@ -734,6 +781,16 @@ class DocumentUnderstandingJob < ApplicationJob
       else
         merged.with_line_items(line_items)
       end
+    end
+
+    # The provider request for one batch. `rows_expected: false` is added ONLY
+    # for the identity-only read, so the full read keeps the exact call shape it
+    # has always had (and every provider double keeps working unchanged).
+    def document_request(pages, merged, link, rows_expected)
+      request = { pages: pages.filter_map(&:image), ocr_text: batch_ocr_text(pages, merged),
+                  family: link.family }
+      request[:rows_expected] = false unless rows_expected
+      request
     end
 
     # The OCR text a batch is sent, prefixed with the document's date context

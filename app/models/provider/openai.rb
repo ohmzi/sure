@@ -367,7 +367,12 @@ class Provider::Openai < Provider
   # The reconciled read (spec N4): the page IMAGES and the OCR TEXT travel in one
   # call, so the model can structure the layout and be checked against exact
   # glyphs at the same time.
-  def understand_document(pages:, ocr_text:, family: nil, model: "")
+  #
+  # `rows_expected: false` is the identity-only read: the caller has already
+  # PROVEN a statement's rows deterministically, so the request withdraws the row
+  # table and asks for the identity fields alone (design §1/§5). The default is
+  # the full read every other caller gets.
+  def understand_document(pages:, ocr_text:, family: nil, model: "", rows_expected: true)
     with_provider_response do
       effective_model = model.presence || @default_model
 
@@ -383,7 +388,8 @@ class Provider::Openai < Provider
         ocr_text: ocr_text,
         custom_provider: custom_provider?,
         langfuse_trace: trace,
-        family: family
+        family: family,
+        rows_expected: rows_expected
       ).read
 
       upsert_langfuse_trace(trace: trace, output: result.to_verdict)

@@ -10,7 +10,13 @@
 class Provider::Openai::DocumentReader
   include Provider::Openai::Concerns::UsageRecorder
 
-  INSTRUCTIONS = <<~TEXT.freeze
+  # The instruction body shared by BOTH reads: everything EXCEPT the row-request
+  # paragraph, which is the ONE thing the identity-only read changes. Splitting it
+  # here keeps `INSTRUCTIONS` (the untrusted path) byte-for-byte what it has
+  # always been — `ROWS_REQUESTED` is spliced back in verbatim — while the
+  # identity-only read swaps `ROWS_ALREADY_READ` into its place, so the two
+  # variants can never silently drift apart.
+  INSTRUCTION_BODY = <<~TEXT.freeze
     You read financial documents. You are given the page images of ONE
     document and, separately, the text an OCR engine extracted from the same
     pages. Use BOTH: the images show the layout, the OCR text pins exact
@@ -24,6 +30,12 @@ class Provider::Openai::DocumentReader
       card_network, when present, is one of #{Account::CARD_NETWORKS.map(&:inspect).join(", ")}.
     - statement_period: an object {"start": string|null, "end": string|null},
       or null when the document has no statement period.
+  TEXT
+
+  # The row-request paragraph for the ROWS-WANTED read (the untrusted path,
+  # verbatim): a statement's rows go in `transactions`, one entry per line of its
+  # table. Wave 7's fixes live in exactly this text, so it is never paraphrased.
+  ROWS_REQUESTED = <<~TEXT.freeze
     - line_items: an array of objects {"description": string, "amount": string}
       — the purchased items on a RECEIPT or BILL. For a STATEMENT this MUST be
       an empty array: a statement has no purchased items.
@@ -33,6 +45,25 @@ class Provider::Openai::DocumentReader
       one entry per line of the statement's transaction table, each with its date
       (a statement's rows always carry a date), the name and the amount. Use an
       empty array for anything that is not a statement.
+  TEXT
+
+  # The row paragraph for the IDENTITY-ONLY read: the deterministic reader has
+  # already PROVEN the rows from the statement's own text, so the model must not
+  # enumerate (or duplicate) the table — it supplies the identity fields and
+  # nothing else, and a model that fills the rows is contradicting this request.
+  ROWS_ALREADY_READ = <<~TEXT.freeze
+    - transactions and line_items: this statement's transaction rows have ALREADY
+      been read from the statement's own text, so BOTH MUST be empty arrays. Do
+      not enumerate or copy the table: a row returned here is not used and
+      contradicts this request, so it is not helpful. Still return every identity
+      field above — document class, institution, the last4s, card network,
+      currency and the statement period — exactly as the page shows it.
+  TEXT
+
+  # The tail shared by BOTH reads (the field_confidence bullet and the closing
+  # rule). The closing rule is deliberately generic: it reads correctly under
+  # either row paragraph.
+  INSTRUCTION_TAIL = <<~TEXT.freeze
     - field_confidence: an object mapping a field name to a number between 0
       and 1, e.g. {"total": 0.99}.
 
@@ -40,9 +71,21 @@ class Provider::Openai::DocumentReader
     null for it (or an empty array for line_items and transactions).
   TEXT
 
+  # The ROWS-WANTED instructions — the untrusted path, byte-for-byte today's.
+  INSTRUCTIONS = (INSTRUCTION_BODY + ROWS_REQUESTED + INSTRUCTION_TAIL).freeze
+
+  # The IDENTITY-ONLY variant: same body and tail, the row request withdrawn.
+  IDENTITY_INSTRUCTIONS = (INSTRUCTION_BODY + ROWS_ALREADY_READ + INSTRUCTION_TAIL).freeze
+
   attr_reader :client, :model, :pages, :ocr_text, :custom_provider, :langfuse_trace, :family
 
-  def initialize(client, model:, pages:, ocr_text:, custom_provider: false, langfuse_trace: nil, family: nil)
+  # `rows_expected: false` is the IDENTITY-ONLY read: the caller has already
+  # PROVEN the statement's rows deterministically, so the model is asked for the
+  # identity fields alone and the row table is explicitly withdrawn. Every other
+  # caller (every non-statement, and any statement whose deterministic read did
+  # not reconcile) leaves it at the default and gets today's instructions.
+  def initialize(client, model:, pages:, ocr_text:, custom_provider: false, langfuse_trace: nil,
+                 family: nil, rows_expected: true)
     @client = client
     @model = model
     @pages = Array(pages)
@@ -50,6 +93,7 @@ class Provider::Openai::DocumentReader
     @custom_provider = custom_provider
     @langfuse_trace = langfuse_trace
     @family = family
+    @rows_expected = rows_expected
   end
 
   def read
@@ -67,7 +111,7 @@ class Provider::Openai::DocumentReader
     def read_native
       response = client.responses.create(parameters: {
         model: model,
-        instructions: INSTRUCTIONS,
+        instructions: instructions,
         input: [ { role: "developer", content: native_content_parts } ],
         text: { format: { type: "json_schema", name: "document_understanding",
                           strict: true, schema: json_schema } }
@@ -85,7 +129,7 @@ class Provider::Openai::DocumentReader
       response = client.chat(parameters: {
         model: model,
         messages: [
-          { role: "system", content: INSTRUCTIONS },
+          { role: "system", content: instructions },
           { role: "user", content: generic_content_parts }
         ],
         response_format: { type: "json_object" }
@@ -98,7 +142,7 @@ class Provider::Openai::DocumentReader
       response = client.chat(parameters: {
         model: model,
         messages: [
-          { role: "system", content: INSTRUCTIONS },
+          { role: "system", content: instructions },
           { role: "user", content: generic_content_parts }
         ]
       })
@@ -122,6 +166,12 @@ class Provider::Openai::DocumentReader
     end
 
     def image_data_url(base64) = "data:image/png;base64,#{base64}"
+
+    # The instructions this request carries. When the deterministic statement
+    # reader has PROVEN the rows, the identity-only variant withdraws the row
+    # table so the response cannot be dominated — or truncated — by enumerating a
+    # table whose rows the app already holds.
+    def instructions = @rows_expected ? INSTRUCTIONS : IDENTITY_INSTRUCTIONS
 
     def ocr_block
       return "OCR text: (none — the OCR engine found no text; rely on the images.)" if ocr_text.blank?

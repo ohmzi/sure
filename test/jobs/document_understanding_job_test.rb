@@ -19,7 +19,7 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     end
 
     def supports_document_understanding? = true
-    def understand_document(pages:, ocr_text:, family: nil, model: "") = @response
+    def understand_document(pages:, ocr_text:, family: nil, model: "", rows_expected: true) = @response
   end
 
   # A provider double that answers each batch differently. FakeProvider returns
@@ -782,6 +782,52 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal false, validations["statement_rows_from_line_items"],
                  "the routed rows are the reader's, not the model's line items"
     assert_equal true, validations["statement_rows_have_dates"]
+  end
+
+  test "a trusted deterministic read asks the model for identity only and still routes the reader's rows" do
+    # W8-D: when the deterministic reader PROVES the rows, the model must not be
+    # asked to enumerate the table — the request goes out identity-only and the
+    # reader's rows route. The double records the flag the job sent.
+    stage_pdf(@link, "synthetic_statement.pdf")
+    seen = []
+    provider = FakeProvider.new(STATEMENT.merge(
+      "transactions" => [ { "date" => "2026-09-30", "amount" => "-1.00", "name" => "MODEL ROW", "notes" => "" } ]
+    ))
+    provider.define_singleton_method(:understand_document) do |pages:, ocr_text:, family: nil, model: "", rows_expected: true|
+      seen << rows_expected
+      @response
+    end
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(provider)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal [ false ], seen,
+                 "a trusted deterministic read asks the model for identity only — never the row table"
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal 9, import.rows_count, "the reader's proven rows route"
+    assert_not_includes import.rows.pluck(:name), "MODEL ROW", "the model's rows must not route"
+    assert_equal "text_layer", @link.extraction.validations["statement_rows_source"]
+  end
+
+  test "an untrusted read still asks the model for the statement's rows" do
+    # The other half of the conditional ask: with no usable deterministic source
+    # the request is today's — rows wanted. A scan (no text layer, no boxes)
+    # reaches the vision rung, so the model supplies the rows as it always has.
+    seen = []
+    provider = FakeProvider.new(STATEMENT)
+    provider.define_singleton_method(:understand_document) do |pages:, ocr_text:, family: nil, model: "", rows_expected: true|
+      seen << rows_expected
+      @response
+    end
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(provider)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal [ true ], seen, "an untrusted read still requests the statement's rows"
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal 2, import.rows_count, "the model's rows route as before"
   end
 
   test "a drifting text-layer read holds the link and routes nothing, with the per-check detail" do

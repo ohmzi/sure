@@ -43,7 +43,9 @@ module Provider::LlmConcept
 
   # One document read as a typed verdict. The images and the OCR text travel
   # together (spec N4); a provider that cannot take images cannot honour this.
-  def understand_document(pages:, ocr_text:, family: nil, model: "")
+  # `rows_expected: false` asks for the identity fields only (the caller has
+  # already proven the statement's rows deterministically).
+  def understand_document(pages:, ocr_text:, family: nil, model: "", rows_expected: true)
     raise NotImplementedError, "Provider does not support document understanding"
   end
 
