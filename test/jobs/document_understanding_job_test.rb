@@ -807,6 +807,39 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_nil statement.closing_balance, "no parsed closing -> the column is left unset"
   end
 
+  test "a fall-back read still writes the printed opening balance it parsed (W8-I)" do
+    # `record_stated_balances` must run for ANY read that parsed a figure, not
+    # only a reconciled one. A text-layer read the reader cannot balance
+    # (`:unreconcilable`) may still have read the statement's printed opening, and
+    # that figure belongs on the record. The code does this correctly today, but
+    # every W8-I test above uses a RECONCILED read — so a future `if read.reconciled?`
+    # gate around the write would keep them all green and silently drop this case.
+    stage_pdf(@link, "synthetic_statement.pdf")
+    fallback_text = [
+      "For the period: September 9, 2026 to October 8, 2026",
+      "Balance from your last statement 6,000.00",
+      "Purchases",
+      "   Sep 08            Sep 09        MERCHANT ONE                                                     10.00"
+    ].join("\n")
+    StatementRead::PdfTextLayer.stubs(:for).returns(
+      StatementRead::PdfTextLayer::Result.new(text: fallback_text, font_count: 1, usable: true)
+    )
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    detail = @link.extraction.validations["statement_read"]
+    assert_equal "unreconcilable", detail["verdict"], "the read fell back; it did not reconcile"
+    assert_equal "text_layer", detail["source"]
+    assert_equal "6000.0", detail["stated_totals"]["opening"], "the printed opening was parsed"
+
+    statement = statement_for(@link)
+    assert_equal 6000.00.to_d, statement.opening_balance,
+                 "a fall-back read's parsed opening is written, exactly as a reconciled read's is"
+    assert_nil statement.closing_balance, "only the parsed figure is written; the unparsed one stays nil"
+  end
+
   test "when the reader supplies the rows, the model's line_items fallback is not claimed (R-W8B12)" do
     # The model files its rows under line_items (transactions empty), which
     # without the reader sets the fallback flag — a mixed-provenance green. The
