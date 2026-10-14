@@ -94,6 +94,12 @@ class DocumentUnderstandingJob < ApplicationJob
   UNREADABLE_MESSAGE = "This document could not be read".freeze
   NO_PROVIDER_MESSAGE = "no AI provider is configured".freeze
 
+  # Wave 8, R-W8B19: the verdicts from the statement reader that HOLD — the read
+  # CONTRADICTS the statement (`:drift`), or it found no rows where the statement
+  # states money (`:empty_but_expected`). Every other verdict falls back to
+  # today's model path, so a scan or photo that imports fine never strands.
+  STATEMENT_HOLD_VERDICTS = %i[drift empty_but_expected].freeze
+
   # The deterministic cross-checks. Pure, so the review screen can call them and
   # so they are testable without a provider or a sidecar.
   def self.validate(understanding, ocr_text:)
@@ -169,7 +175,17 @@ class DocumentUnderstandingJob < ApplicationJob
     # than parking the row for a human (fix round 2).
     understanding = understand_in_batches(provider, result, link)
 
+    # Wave 8 (the statement row reader): a statement is read DETERMINISTICALLY
+    # where it can be — its rows come from the reader's ladder (text layer ->
+    # geometry -> vision) and are PROVEN against the statement's own printed
+    # totals before they may route. `model_understanding` is the model's OWN
+    # read, kept so the extraction's `raw_response` can still show it after the
+    # reader's rows replace it (R-W8B17).
+    model_understanding = understanding
+    understanding, statement_read = apply_statement_reader(link, understanding, result)
+
     validations = self.class.validate(understanding, ocr_text: result.text)
+    validations = validations.merge(statement_read_validations(statement_read)) if statement_read
     classification = DocumentClassifier.call(
       ai_verdict: understanding, filename: link.original_filename,
       content_type: link.content_type, ocr_text: result.text
@@ -182,7 +198,7 @@ class DocumentUnderstandingJob < ApplicationJob
       ocr_engine: result.engine,
       page_count: result.pages.size,
       ocr_text: result.text.first(DocumentLink::EXTRACTED_TEXT_LIMIT),
-      raw_response: understanding.to_verdict,
+      raw_response: model_understanding.to_verdict,
       verdict: understanding.to_verdict,
       field_confidence: understanding.field_confidence.to_h,
       validations: validations,
@@ -201,7 +217,7 @@ class DocumentUnderstandingJob < ApplicationJob
     # The OCR text rides along: the account resolver's last4 witness (§7.5) is
     # "the digits actually appear on the page", and validate already reads the
     # same text.
-    route(link, understanding, classification, ocr_text: result.text)
+    route(link, understanding, classification, ocr_text: result.text, statement_read: statement_read)
     link.settle!
     link.broadcast_row_update!
   rescue Ocr::Error, Provider::Error => e
@@ -283,6 +299,122 @@ class DocumentUnderstandingJob < ApplicationJob
       link.hold!(message: "#{UNREADABLE_MESSAGE} (#{code})")
     end
 
+    # Wave 8: read a statement's rows with the deterministic reader.
+    #
+    # Returns [understanding, statement_read]. The read is ALWAYS present for a
+    # statement — a synthetic `:unavailable` read stands in on an unexpected
+    # reader failure — so the statement route can never skip its fail-closed
+    # guard by not mentioning one (R-W8B18). It is nil only for a non-statement,
+    # which has no statement route to guard.
+    #
+    # The reader receives the OCR result (so W8-C's geometry rung has boxes and
+    # the light can reach the pages it never could before) and the understanding
+    # we already read, as the INJECTED vision callable: the model's rows are used
+    # only when the deterministic rungs cannot supply better ones, and then only
+    # if they pass the SAME gate (design §1). The ladder falls through to that
+    # vision rung itself; `statement_holds?` decides which verdicts then hold.
+    def apply_statement_reader(link, understanding, ocr_result)
+      return [ understanding, nil ] unless understanding.document_class == "statement"
+
+      read = StatementRead.call(link: link, ocr_result: ocr_result, vision: -> { understanding })
+      [ adopt_reader_rows(understanding, read), read ]
+    rescue StandardError => e
+      # A reader failure is never a read failure: log it and keep today's path —
+      # but the statement route still carries a read, so its guard is structural.
+      Rails.logger.warn(
+        "StatementRead failed for document_link #{link.id}: #{e.class}: #{e.message}"
+      )
+      [ understanding, unavailable_read ]
+    end
+
+    # R-W8B12: when a DETERMINISTIC rung supplied the rows (text layer or
+    # geometry — the vision rung's rows ARE the model's, so they are left alone),
+    # the routed rows are the reader's, not the model's. Replace the model's rows
+    # and CLEAR the line_items-fallback flag, or `validate` keeps a mixed-
+    # provenance green claiming the model supplied rows the reader supplied. The
+    # reader's rows are ISO-dated and period-anchored already, so
+    # `normalise_statement_dates` must NOT touch them — a second re-anchor is a
+    # subtle way to move a date, and they never reach it because the replacement
+    # happens after `understand_in_batches`.
+    def adopt_reader_rows(understanding, read)
+      return understanding unless read.reconciled? && read.source != :vision
+
+      understanding.with_transactions(read.rows).with_statement_rows_fallback(false)
+    end
+
+    # A statement route MUST carry a read (R-W8B18). This stands in on an
+    # unexpected reader failure: `:unavailable` falls back to today's path
+    # (R-W8B19), exactly as if the reader had been unavailable, and the guard is
+    # still evaluated rather than skipped.
+    def unavailable_read
+      StatementRead::Result.new(
+        rows: [], stated_totals: {}, deltas: {}, checks: {}, reconciled: false,
+        missing_date_rows: [], rejected_lines: [], source: nil, verdict: :unavailable,
+        figures: {}, rounding_delta: BigDecimal(0)
+      )
+    end
+
+    # The read's full detail, merged onto the extraction's validations (§4,
+    # R-W8B10/R-W8B13/R-W8B16). A read that GOVERNS the routing (see
+    # `statement_read_governs?`) surfaces the four panel keys; one that merely
+    # falls back records only WHY, so a normal scan or photo that imports fine is
+    # never shown a scary red (R-W8B14b). The per-check detail is nested under
+    # `statement_read`, an unmapped key the panel omits — a held document the
+    # owner cannot diagnose is the failure this exists to prevent.
+    def statement_read_validations(read)
+      merged = { "statement_read" => statement_read_detail(read) }
+      return merged unless statement_read_governs?(read)
+
+      merged.merge(
+        # R-W8B10: each stores the property its LABEL claims, so each can fail.
+        "statement_totals_reconcile" => read.reconciled?,
+        "statement_row_count" => read.row_count,
+        "statement_rows_missing_dates" => read.missing_date_rows.empty?,
+        # R-W8B13: provenance, rendered with a source-naming label, never red.
+        "statement_rows_source" => read.source&.to_s
+      )
+    end
+
+    # Does the read GOVERN the routing — decide it rather than merely advise it?
+    # True when it supplies the routed rows (`:trusted`) or HOLDS them
+    # (`statement_holds?`). False on every fall-back verdict: one that could not
+    # engage, and — the scoping R-W8B19 needs — a `:drift` from the VISION rung.
+    # That drift is the model's OWN rows failing a gate that is not the
+    # statement's own arithmetic (the usual dateless `line_items` fallback), and
+    # stranding a document that imports fine today is exactly what the named
+    # fence in document_understanding_job_test.rb forbids. Its detail is still
+    # recorded for diagnosis.
+    def statement_read_governs?(read)
+      read.reconciled? || statement_holds?(read)
+    end
+
+    # R-W8B19: the verdicts that HOLD — a DETERMINISTIC read that CONTRADICTS the
+    # statement (`:drift`) or that finds no rows where it states money
+    # (`:empty_but_expected`). A `:drift` from the vision rung is excluded (see
+    # `statement_read_governs?`); neither held verdict ever carries a nil source,
+    # so only the deterministic rungs can hold.
+    def statement_holds?(read)
+      read.verdict.in?(STATEMENT_HOLD_VERDICTS) && read.source != :vision
+    end
+
+    # Every check, both its figures, the statement's own stated totals and the
+    # lines the reader could not place — the evidence a hold must carry.
+    def statement_read_detail(read)
+      {
+        "verdict" => read.verdict.to_s,
+        "source" => read.source&.to_s,
+        "checks" => read.checks,
+        "figures" => read.figures.transform_values { |figure| figure.transform_values(&:to_s) },
+        "deltas" => read.deltas.transform_values(&:to_s),
+        "stated_totals" => read.stated_totals.transform_values do |value|
+          value.is_a?(Hash) ? value.transform_values(&:to_s) : value&.to_s
+        end,
+        "rejected_lines" => read.rejected_lines,
+        "missing_date_rows" => read.missing_date_rows,
+        "rounding_delta" => read.rounding_delta.to_s
+      }
+    end
+
     # A RECEIPT draft that reached `understood` MAY post itself (spec N6) — the
     # gate, not this call, decides, and it re-checks at write time. Enqueued,
     # never run inline: the read settles first (link.settle! runs after route),
@@ -315,7 +447,7 @@ class DocumentUnderstandingJob < ApplicationJob
     # find_or_create (never create) because a retry, a reaper re-enqueue or a
     # reprocess must adopt the draft it already made, not mint a second set of
     # rows.
-    def route(link, understanding, classification, ocr_text:)
+    def route(link, understanding, classification, ocr_text:, statement_read:)
       case classification.document_class
       when "receipt", "bill"
         draft = ReceiptImport.find_or_create_from_document_link!(document_link: link)
@@ -326,7 +458,9 @@ class DocumentUnderstandingJob < ApplicationJob
         draft.update!(document_extraction: link.extraction)
         enqueue_auto_post(draft, classification.document_class)
       when "statement"
-        route_statement(link, understanding)
+        # R-W8B18: the read is REQUIRED on the statement path (its keyword has no
+        # default), so the fail-closed guard cannot be skipped by omission.
+        route_statement(link, understanding, statement_read: statement_read)
       else
         # "other": archived and deliberately not read for line items — the right
         # answer for a warranty or a lease. Nothing to route.
@@ -403,7 +537,7 @@ class DocumentUnderstandingJob < ApplicationJob
     # the statement arrives with NO account: resolving one from the hints is
     # Task 10's job, so today an imported statement sits unmatched until the user
     # picks its account at the review step.
-    def route_statement(link, understanding)
+    def route_statement(link, understanding, statement_read:)
       # The intake no longer asks the user what a document is, so this guard has
       # nothing to test at staging time — it belongs where the vault row would be
       # created. Refusing here leaves the document read, archived and visible with
@@ -412,6 +546,16 @@ class DocumentUnderstandingJob < ApplicationJob
       unless AccountStatement.statement_manager?(link.created_by)
         return link.hold!(message: I18n.t("documents.held.statement_permission"))
       end
+
+      # R-W8B19 + R-W8B18: the reader's verdict decides. A DETERMINISTIC read
+      # that CONTRADICTS the statement (`:drift`) or that found no rows where the
+      # statement states money (`:empty_but_expected`) is HELD with the reader's
+      # own sentence and NOTHING is routed — the per-check detail is already on
+      # the extraction. A `:drift` from the vision rung, and every verdict that
+      # could not engage (`:unreconcilable`/`:period_unreadable`/`:unavailable`),
+      # fall back to today's path. The argument is REQUIRED, so no statement
+      # route can skip this guard by not mentioning it.
+      return link.hold!(message: statement_read.hold_message) if statement_holds?(statement_read)
 
       statement = statement_for(link, understanding)
       import = PdfImport.find_or_create_from_statement!(statement: statement)

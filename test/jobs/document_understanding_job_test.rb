@@ -730,6 +730,141 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal [ nil, nil ], import.rows.order(:source_row_number).pluck(:source_page)
   end
 
+  # --- Wave 8: the deterministic statement reader seam -------------------------
+
+  test "a statement PDF with a usable text layer routes the reader's rows, not the model's" do
+    # The first test that exercises the reader END TO END: a real text-layer PDF
+    # whose rows reconcile against its own printed totals. The model returns a
+    # DIFFERENT row, so if the model's row routes the reader did not win.
+    stage_pdf(@link, "synthetic_statement.pdf")
+    model = STATEMENT.merge("transactions" => [ { "date" => "2026-09-30", "amount" => "-1.00", "name" => "MODEL ROW", "notes" => "" } ])
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(model))
+
+    assert_difference -> { PdfImport.count }, 1 do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal 9, import.rows_count, "the reader's 9 rows route, not the model's 1"
+    names = import.rows.order(:source_row_number).pluck(:name)
+    assert_not_includes names, "MODEL ROW", "the model's rows must not route"
+    assert_includes names, "TEST MART MISSISSAUGA ON HILLPA"
+
+    validations = @link.extraction.validations
+    assert_equal true, validations["statement_totals_reconcile"]
+    assert_equal true, validations["statement_rows_missing_dates"]
+    assert_equal 9, validations["statement_row_count"]
+    assert_equal "text_layer", validations["statement_rows_source"]
+
+    # R-W8B17: the model's OWN read stays recoverable on `raw_response`, even
+    # though the reader's rows are what the verdict (and the route) carried.
+    assert_equal [ "MODEL ROW" ], @link.extraction.raw_response["transactions"].map { |row| row["name"] }
+  end
+
+  test "when the reader supplies the rows, the model's line_items fallback is not claimed (R-W8B12)" do
+    # The model files its rows under line_items (transactions empty), which
+    # without the reader sets the fallback flag — a mixed-provenance green. The
+    # reader's rows are the routed rows, so the flag must NOT claim the model's.
+    stage_pdf(@link, "synthetic_statement.pdf")
+    misfiled = STATEMENT.merge(
+      "transactions" => [],
+      "line_items" => [ { "description" => "MODEL ROW", "amount" => "-1.00" } ]
+    )
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(misfiled))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal 9, import.rows_count
+    validations = @link.extraction.validations
+    assert_equal false, validations["statement_rows_from_line_items"],
+                 "the routed rows are the reader's, not the model's line items"
+    assert_equal true, validations["statement_rows_have_dates"]
+  end
+
+  test "a drifting text-layer read holds the link and routes nothing, with the per-check detail" do
+    # A mutated copy of the synthetic PDF: its one TEST MART purchase reads
+    # 500.00 against the statement's stated 350.00, so the deterministic read
+    # CONTRADICTS the statement's own totals. R-W8B19: drift HOLDS and nothing is
+    # imported, and the per-check detail must survive for diagnosis.
+    stage_pdf(@link, "synthetic_statement_drift.pdf")
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    assert_no_difference -> { PdfImport.count } do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+
+    @link.reload
+    assert_equal "queued", @link.status, "the drift holds the row"
+    assert_includes @link.failure_message, "purchases read $750.00 vs $350.00 stated",
+                    "the hold carries the reader's own sentence"
+    assert_nil @link.account_statement_id, "no vault row is minted for a held statement"
+    assert_empty PdfImport.where(document_link: @link), "no rows are written"
+
+    validations = @link.extraction.validations
+    assert_equal false, validations["statement_totals_reconcile"]
+    detail = validations["statement_read"]
+    assert_equal "drift", detail["verdict"]
+    assert_equal "text_layer", detail["source"]
+    assert_equal "drift", detail["checks"]["purchases_sum"]
+    assert_equal({ "read" => "750.0", "stated" => "350.0" }, detail["figures"]["purchases_sum"])
+    assert_equal "350.0", detail["stated_totals"]["purchases"]
+  end
+
+  test "zero rows against non-zero stated totals holds (R-W8B19)" do
+    # A text layer that PRINTS totals but yields no dated rows: the statement
+    # states money and the reader found none — `:empty_but_expected`, a hold.
+    stage_pdf(@link, "synthetic_statement.pdf")
+    totals_only = [
+      "Statement date: October 8, 2026",
+      "For the period: September 9, 2026 to October 8, 2026",
+      "Total credits -$5,155.00",
+      "Total charges $351.78"
+    ].join("\n")
+    StatementRead::PdfTextLayer.stubs(:for).returns(
+      StatementRead::PdfTextLayer::Result.new(text: totals_only, font_count: 1, usable: true)
+    )
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    assert_no_difference -> { PdfImport.count } do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+
+    @link.reload
+    assert_equal "queued", @link.status
+    assert_match(/nothing imported/i, @link.failure_message)
+    assert_equal false, @link.extraction.validations["statement_totals_reconcile"]
+    assert_equal 0, @link.extraction.validations["statement_row_count"]
+  end
+
+  test "a statement whose rows drift only through the model falls back, not holds" do
+    # The fence's line_items fallback: a dateless model row fails the reader's
+    # C1 (a hard date fail). Holding here would strand a document that imports
+    # fine today, so a `:drift` from the VISION rung falls back to today's path
+    # (scoping R-W8B19); the reader's verdict is recorded, never painted as a
+    # routing failure on the panel.
+    stub_ocr_success(pages: [ { page: 1, text: "ANTHROPIC -16.52", confidence: 0.96, image: "aGk=" } ])
+    misfiled = STATEMENT.merge(
+      "transactions" => [],
+      "line_items" => [ { "description" => "ANTHROPIC SAN FRANCISCOC A", "amount" => "-16.52" } ]
+    )
+    stub_provider(FakeProvider.new(misfiled))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal 1, import.rows_count, "the model's rows still route"
+    validations = @link.extraction.validations
+    assert_equal "drift", validations.dig("statement_read", "verdict")
+    assert_equal "vision", validations.dig("statement_read", "source")
+    assert_nil validations["statement_totals_reconcile"],
+               "a fall-back read must not paint a routing check red on a working document"
+  end
+
   # --- Task 10: the account resolver ------------------------------------------
 
   test "a confidently matched account is prefilled without asking" do
@@ -1129,6 +1264,14 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
   def statement_for(link)
     AccountStatement.find_by(id: link.reload.account_statement_id)
+  end
+
+  # Stages a committed PDF as the link's stored bytes — the reader reads the real
+  # bytes through poppler — and re-queues the row as a fresh upload would.
+  def stage_pdf(link, name)
+    path = file_fixture("statements/#{name}")
+    link.stage!(io: File.open(path, "rb"), filename: name, content_type: "application/pdf")
+    link.update!(status: "queued")
   end
 
   # The batch size is a constant read at call time, so it can be pinned in a test.

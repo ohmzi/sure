@@ -160,4 +160,72 @@ class DocumentPanelTest < ActiveSupport::TestCase
     assert panel.read?, "a succeeded read is a read"
     assert_not panel.split?, "but with no fields there is nothing worth splitting the viewer for"
   end
+
+  # --- Wave 8: the statement reader's panel checks -----------------------------
+
+  # A trusted reader read's validations (the shape the job writes).
+  READER_VALIDATIONS = {
+    "statement_rows_from_line_items" => false,
+    "statement_rows_have_dates" => true,
+    "statement_totals_reconcile" => true,
+    "statement_row_count" => 9,
+    "statement_rows_missing_dates" => true,
+    "statement_rows_source" => "text_layer"
+  }.freeze
+
+  test "a trusted reader read shows the checks green and does not double the date check (R-W8B10)" do
+    by_label = panel_with_statement_read(READER_VALIDATIONS).checks.index_by(&:label)
+
+    assert_equal true, by_label.fetch("the statement's rows add up to its own totals").state
+    assert_equal true, by_label.fetch("no statement row is missing its date").state
+    assert_equal true, by_label.fetch("the reader found the statement's rows").state
+    assert_equal true, by_label.fetch("the rows were read from the statement's own text layer").state
+    assert_nil by_label["every statement row has a date"],
+               "the reader's date audit is authoritative for a statement, so the duplicate is not shown"
+  end
+
+  test "a drift or held-empty read paints the routing checks red, never a silent green (R-W8B10)" do
+    validations = READER_VALIDATIONS.merge(
+      "statement_totals_reconcile" => false,
+      "statement_row_count" => 0,
+      "statement_rows_missing_dates" => false
+    )
+    by_label = panel_with_statement_read(validations).checks.index_by(&:label)
+
+    assert_equal false, by_label.fetch("the statement's rows add up to its own totals").state
+    assert_equal false, by_label.fetch("no statement row is missing its date").state
+    assert_equal false, by_label.fetch("the reader found the statement's rows").state,
+                 "a zero row count fails, it is not passed through (R-W8B10)"
+    assert_equal true, by_label.fetch("the rows were read from the statement's own text layer").state,
+                 "the source is provenance — never red (R-W8B13)"
+  end
+
+  test "the reader's source is provenance that names its rung, never red (R-W8B13)" do
+    validations = READER_VALIDATIONS.merge("statement_rows_source" => "vision")
+    source = panel_with_statement_read(validations).checks.index_by(&:label)
+                   .fetch("the rows were read by the AI, checked against the statement's totals")
+
+    assert_equal true, source.state, "a gate-passed read must not render its source red"
+  end
+
+  test "the model-fallback path keeps its own date check and shows no reader checks" do
+    by_label = panel_with_statement_read(
+      "statement_rows_from_line_items" => true, "statement_rows_have_dates" => false
+    ).checks.index_by(&:label)
+
+    assert_equal false, by_label.fetch("every statement row has a date").state
+    assert_nil by_label["no statement row is missing its date"]
+    assert_nil by_label["the statement's rows add up to its own totals"]
+    assert_nil by_label["the reader found the statement's rows"]
+  end
+
+  def panel_with_statement_read(validations)
+    link = document_links(:understood_receipt_link)
+    link.document_extractions.delete_all
+    DocumentExtraction.record!(
+      document_link: link, provider: "openai", status: "succeeded",
+      verdict: { "document_class" => "statement" }, field_confidence: {}, validations: validations
+    )
+    DocumentPanel.new(link.reload)
+  end
 end

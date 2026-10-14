@@ -1,0 +1,66 @@
+Your account number starting with 0000 and ending with 1111
+
+
+
+
+                                                              Statement date: October 8, 2026
+                                                              For the period: September 9, 2026 to October 8, 2026
+
+
+                                                                Your account summary
+                                                                +See details starting on page 2
+                                                                Balance from your last statement                                         $6,000.00
+                                                                Payments received Sep 9 to Oct 8, 2026                      -5,125.00
+                                                                Returns and other credits                                   -30.00
+                                                                Total credits                                                           -$5,155.00
+                                                                Purchases                                                    350.00
+                                                                Cash transactions                                               0.00
+                                                                Fees                                                            0.00
+                                                                Interest charges                                                 1.78
+                                                                Total charges                                                             $351.78
+                                                                Your New Balance                                                       $1,196.78
+                                                                Credit limit              $9,000.00        Available credit             $7,803.22
+                                                                Your payment information
+                                                                Balance Due                                                               $1,196.78
+                                                                Minimum payment due                                                           $11.78
+                                                                Payment due date                                                  Oct 29, 2026
+
+Details of your account summary
+Payments received - Sep 9 to Oct 8, 2026
+   TRANSACTION       POSTING
+   DATE              DATE          TRANSACTION DESCRIPTION                                                                  AMOUNT ($)
+   Sep 17            Sep 18        RB TELEPAYMENTS/TEST DIRECT                                                    -100.00                 If your card has been stolen or lost call us immediately from anywhere at all.
+   Sep 21            Sep 22        RB TELEPAYMENTS/TEST DIRECT                                                  -5,000.00
+   Sep 29            Sep 30        TESTPAY.COM/PAYMENTS OAKVILLE ON                                                -25.00
+ Total payments received                                                                                             -$5,125.00
+Returns and other credits
+   TRANSACTION       POSTING
+   DATE              DATE          TRANSACTION DESCRIPTION                                                                  AMOUNT ($)
+   Sep 12            Sep 14 FakeShop.ca TORONTO ON                                                                 -10.00                 Gift cards are not accepted as payment on your account.
+   Sep 12            Sep 14 TEST Mktp CA TORONTO ON                                                                -20.00
+ Total returns and credits                                                                                             -$30.00
+Purchases
+   TRANSACTION       POSTING
+   DATE              DATE          TRANSACTION DESCRIPTION                                                                  AMOUNT ($)
+Purchases - Card #0000 12XX XXXX 1111
+   Sep 08            Sep 09        TEST MART MISSISSAUGA ON                                                        500.00
+                                   HILLPA
+                                   12.00 USD @ 1.234567890
+   Sep 08            Sep 09        COFFEE SHOP OAKVILLE ON                                                         200.00                 Rewards points are earned on new purchases.
+ Total purchases for 0000 12XX XXXX 1111                                                                               $300.00
+Purchases - Card #0000 12XX XXXX 2222
+   Sep 10            Sep 10        GROCERY STORE TORONTO ON                                                         50.00
+ Total purchases for 0000 12XX XXXX 2222                                                                                $50.00
+ Total purchases                                                                                                        $350.00
+Interest charges
+   TRANSACTION       POSTING
+   DATE              DATE          TRANSACTION DESCRIPTION                                                                  AMOUNT ($)
+   Oct 08            Oct 08        INTEREST CHARGES                                                                  1.78
+Total interest charges                                                                                                   $1.78
+
+
+         Details of your Canadian Tire store purchases
+         The total of each transaction is included in the Purchases section
+
+Sep 12            Sep 14           1   DECOY ITEM                 999.99
+

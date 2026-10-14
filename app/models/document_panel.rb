@@ -50,8 +50,23 @@ class DocumentPanel
   # red flag, never a silent blank.
   STATEMENT_CHECK_LABELS = {
     "statement_rows_from_line_items" => "the statement rows were read from the line items field",
-    "statement_rows_have_dates" => "every statement row has a date"
+    "statement_rows_have_dates" => "every statement row has a date",
+    "statement_totals_reconcile" => "the statement's rows add up to its own totals",
+    "statement_rows_missing_dates" => "no statement row is missing its date",
+    "statement_row_count" => "the reader found the statement's rows"
   }.freeze
+
+  # R-W8B13: the reader's source is PROVENANCE, not a pass/fail. Rendering a
+  # scan's `vision` source red would flag every legitimate scan, and a read that
+  # reached the panel has by definition passed the gate — so the source shows a
+  # label that NAMES it (never red), and the CHECKS carry the red
+  # (`statement_totals_reconcile` failing is the mismatch rendering red).
+  SOURCE_LABELS = {
+    "text_layer" => "the rows were read from the statement's own text layer",
+    "geometry" => "the rows were read from the statement's layout",
+    "vision" => "the rows were read by the AI, checked against the statement's totals"
+  }.freeze
+  SOURCE_FALLBACK_LABEL = "the statement's rows were read".freeze
 
   def initialize(link)
     @link = link
@@ -132,7 +147,7 @@ class DocumentPanel
 
     validations = extraction.validations.with_indifferent_access
     CHECK_LABELS.merge(statement_check_labels(validations))
-                .map { |key, label| Check.new(label: label, state: validations[key]) }
+                .map { |key, label| Check.new(label: label, state: check_state(key, validations)) }
   end
 
   # What the document became: the draft it was routed to, and the entry it
@@ -152,10 +167,48 @@ class DocumentPanel
       if validations["statement_rows_from_line_items"]
         labels["statement_rows_from_line_items"] = STATEMENT_CHECK_LABELS["statement_rows_from_line_items"]
       end
-      unless validations["statement_rows_have_dates"].nil?
-        labels["statement_rows_have_dates"] = STATEMENT_CHECK_LABELS["statement_rows_have_dates"]
+      # R-W8B10 / the duplicate date check: on the reader path the reader's OWN
+      # date audit (`statement_rows_missing_dates`, correct polarity) is
+      # authoritative, so the wave-6 `statement_rows_have_dates` — the same fact
+      # stated twice over the same routed rows — is not shown beside it. On the
+      # model-fallback path the reader key is absent, and
+      # `statement_rows_have_dates` remains the only date check. A correct read
+      # therefore shows exactly ONE date check, and never a red one.
+      if validations["statement_rows_missing_dates"].nil?
+        unless validations["statement_rows_have_dates"].nil?
+          labels["statement_rows_have_dates"] = STATEMENT_CHECK_LABELS["statement_rows_have_dates"]
+        end
+      else
+        labels["statement_rows_missing_dates"] = STATEMENT_CHECK_LABELS["statement_rows_missing_dates"]
+      end
+      unless validations["statement_totals_reconcile"].nil?
+        labels["statement_totals_reconcile"] = STATEMENT_CHECK_LABELS["statement_totals_reconcile"]
+      end
+      unless validations["statement_row_count"].nil?
+        labels["statement_row_count"] = STATEMENT_CHECK_LABELS["statement_row_count"]
+      end
+      if validations["statement_rows_source"].present?
+        labels["statement_rows_source"] =
+          SOURCE_LABELS.fetch(validations["statement_rows_source"].to_s, SOURCE_FALLBACK_LABEL)
       end
       labels
+    end
+
+    # The state of one check. Most are stored directly (a boolean or nil); the
+    # wave-8 keys carry richer values, so their state is derived here: the source
+    # is PROVENANCE and never red for a gate-passed read (R-W8B13), and a row
+    # count only passes when the reader actually found rows — 0 is a red on a
+    # held, empty read, never a raw value passed through (R-W8B10).
+    def check_state(key, validations)
+      case key
+      when "statement_rows_source"
+        validations[key].present? ? true : nil
+      when "statement_row_count"
+        value = validations[key]
+        value.nil? ? nil : value.to_i.positive?
+      else
+        validations[key]
+      end
     end
 
     def draft = @draft ||= @link.receipt_imports.max_by(&:created_at)
