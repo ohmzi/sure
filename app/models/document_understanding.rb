@@ -29,8 +29,14 @@ class DocumentUnderstanding
     nil
   end
 
-  def initialize(verdict)
+  # The second parameter is a plain positional flag (NOT a keyword): every
+  # existing caller passes the verdict as a trailing bare hash, which Ruby would
+  # slurp into keywords if this method took any — turning `new("a" => 1)` into
+  # "0 arguments". It records that a batch fell back to line_items; see
+  # `statement_rows_from_line_items?`.
+  def initialize(verdict, statement_rows_from_line_items = false)
     @verdict = (verdict || {}).with_indifferent_access
+    @statement_rows_from_line_items = statement_rows_from_line_items
   end
 
   def document_class
@@ -76,18 +82,42 @@ class DocumentUnderstanding
   # (qwen2.5vl:7b) reads a statement's table correctly but its field choice varies
   # run to run, and the app's statement path consumes only `transactions`, so the
   # rows would otherwise be silently discarded. They are adopted here (flagged by
-  # `statement_rows_from_line_items?`) rather than dropped.
+  # `statement_rows_from_line_items?`) rather than dropped. This is the
+  # document-level safety net; the mixed-batch case (some pages under
+  # `transactions`, others under `line_items`) is handled at the batch level in
+  # DocumentUnderstandingJob#understand_in_batches, where the per-batch pick
+  # cannot be masked by another page's `transactions`.
   def transactions
     return [] unless document_class == "statement"
     return transaction_rows if transaction_rows.any?
 
-    rows_from_line_items
+    line_item_rows
   end
 
-  # Whether the statement's rows came from the `line_items` field because
-  # `transactions` was empty. The job records this on the read so the fallback is
+  # The rows this verdict carries, from whichever field its model used: its own
+  # `transactions`, or — when it has none — its `line_items` reshaped into rows. No
+  # class gate: the batched read calls this per BATCH (one provider call, one
+  # object), so a page the model filed under `line_items` is kept even when another
+  # page used `transactions`. The per-batch pick cannot double-count — one call
+  # returns one object, so a page's rows sit in exactly one field.
+  def statement_row_candidates
+    transaction_rows.any? ? transaction_rows : line_item_rows
+  end
+
+  # Whether the statement's rows came from `line_items`. Two ways it is true: the
+  # job recorded that a batch fell back (any page whose model used `line_items`
+  # while another page used `transactions` — the per-batch pick), or the
+  # document-level safety net above is in play (transactions entirely empty while
+  # line_items is populated). The job records this on the read so the fallback is
   # visible, never silent.
   def statement_rows_from_line_items?
+    @statement_rows_from_line_items || document_level_line_items_fallback?
+  end
+
+  # The document-level fallback alone: transactions entirely empty while line_items
+  # is populated. A single-object read (one provider call) satisfies this exactly;
+  # a mixed multi-page read is caught per batch by the job instead.
+  def document_level_line_items_fallback?
     document_class == "statement" && transaction_rows.empty? && line_items.any?
   end
 
@@ -97,6 +127,22 @@ class DocumentUnderstanding
     member_hashes(verdict[:transactions])
   end
 
+  # A line item reshaped into a statement row: its description is the row's name,
+  # its amount is kept verbatim, and `source_page` (when the batch that read it
+  # covered one page) rides along so the row keeps its page anchor. A `date` the
+  # model emitted on the line item (the generic no-schema read can return one) is
+  # kept when present; none is invented when absent — a date-less row is left
+  # unknown and the read flags it. Public: the batched read reshapes a
+  # `line_items` page with this, per batch.
+  def line_item_rows
+    line_items.map do |item|
+      row = { "name" => item["description"].to_s, "amount" => item["amount"].to_s, "notes" => nil }
+      row["date"] = item["date"].to_s if item["date"].present?
+      row["source_page"] = item["source_page"] if item.key?("source_page")
+      row
+    end
+  end
+
   def to_verdict = verdict.to_h.deep_stringify_keys
 
   # A copy carrying the given transactions. The read is batched by page, so the
@@ -104,14 +150,22 @@ class DocumentUnderstanding
   # fields come from the first batch that reported them; the class has no
   # writer, so the stitched read is assembled into a new one.
   def with_transactions(rows)
-    self.class.new(verdict.merge("transactions" => rows))
+    self.class.new(verdict.merge("transactions" => rows), @statement_rows_from_line_items)
   end
 
   # The same, for the line items a multi-page receipt carries beyond its first
   # page — batching is not the statement leg's alone, and merge_understanding
   # keeps only the first value it sees for every other field.
   def with_line_items(rows)
-    self.class.new(verdict.merge("line_items" => rows))
+    self.class.new(verdict.merge("line_items" => rows), @statement_rows_from_line_items)
+  end
+
+  # The same, recording whether any batch fell back to line_items. Set by the job
+  # after it stitches the per-batch rows: a statement whose pages' models chose
+  # different fields is flagged even when the stitched `transactions` is non-empty
+  # (the pages that used `transactions` would otherwise mask the ones that did not).
+  def with_statement_rows_fallback(flag)
+    self.class.new(verdict, flag)
   end
 
   def confidence_for(field) = field_confidence[field].to_f
@@ -143,18 +197,5 @@ class DocumentUnderstanding
       Array(value)
         .select { |i| i.respond_to?(:with_indifferent_access) }
         .map { |i| i.with_indifferent_access }
-    end
-
-    # A line item reshaped into a statement row: its description is the row's
-    # name, its amount is kept verbatim, and `source_page` (when the batch that
-    # read it covered one page) rides along so the row keeps its page anchor. No
-    # date is invented — a line item carries none, so the row's date is left
-    # unknown and the read flags it.
-    def rows_from_line_items
-      line_items.map do |item|
-        row = { "name" => item["description"].to_s, "amount" => item["amount"].to_s, "notes" => nil }
-        row["source_page"] = item["source_page"] if item.key?("source_page")
-        row
-      end
     end
 end

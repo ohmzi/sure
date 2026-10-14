@@ -137,4 +137,32 @@ class DocumentUnderstandingTest < ActiveSupport::TestCase
     assert_empty u.transactions, "a receipt has no statement rows"
     assert_equal [ "Coffee" ], u.line_items.map { |i| i["description"] }
   end
+
+  test "a line item's own date is kept when the model emitted one, never invented when absent" do
+    # The generic no-schema read can return a date on a line item; keep it. When
+    # there is none, the row's date is left unknown — never faked.
+    u = DocumentUnderstanding.new(verdict(
+      "document_class" => "statement", "transactions" => [],
+      "line_items" => [
+        { "description" => "Cafe", "amount" => "-4.50", "date" => "2026-09-03" },
+        { "description" => "Fuel", "amount" => "-50.00" }
+      ]
+    ))
+
+    assert_equal [ "2026-09-03", nil ], u.transactions.map { |row| row["date"] }
+  end
+
+  test "the batched read can flag the line_items fallback even when transactions is present" do
+    # The mixed-batch case: some pages used transactions, others line_items. The
+    # verdict's transactions is non-empty, so the document-level predicate is
+    # false — but the job records the per-batch fallback, and the flag must carry.
+    u = DocumentUnderstanding.new(verdict(
+      "document_class" => "statement",
+      "transactions" => [ { "date" => "2026-09-03", "amount" => "-12.34", "name" => "Cafe", "notes" => "" } ]
+    )).with_statement_rows_fallback(true)
+
+    assert u.statement_rows_from_line_items?,
+           "a page that fell back is flagged even when another page used transactions"
+    assert_equal [ "Cafe" ], u.transactions.map { |r| r["name"] }
+  end
 end

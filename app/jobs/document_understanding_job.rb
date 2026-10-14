@@ -525,6 +525,7 @@ class DocumentUnderstandingJob < ApplicationJob
       merged = nil
       transactions = []
       line_items = []
+      fell_back = false
 
       result.pages.each_slice(self.class.page_batch_size) do |pages|
         # The read's heartbeat (Task 11 fix round 1): a long multi-batch read
@@ -546,6 +547,14 @@ class DocumentUnderstandingJob < ApplicationJob
         # OWN class — dropped its rows silently. Same trap for a multi-page
         # receipt, whose items live beyond its first page while
         # merge_understanding keeps only the first value per field.
+        #
+        # The rows a batch carries sit in exactly ONE field, because one provider
+        # call returns one object: whichever field the model chose. Pick that field
+        # here, per batch, so a page the model filed under `line_items` is kept
+        # even when another page used `transactions` — the document-level fallback
+        # cannot see it (`transactions` non-empty masks it) and the loss would be
+        # silent. A per-batch pick cannot double-count: one call, one field.
+        #
         # The row -> page anchor (spec §8.3). A batch is a slice of the read's
         # OCR pages, so a row belongs to those pages; only a SINGLE-page batch
         # names one page. One page per call is now the default, so the anchor is
@@ -556,7 +565,9 @@ class DocumentUnderstandingJob < ApplicationJob
         # and are not linked to the model's transaction/item rows, so there is no
         # genuine box to record.
         page = pages.size == 1 ? pages.first.number : nil
-        transactions.concat(tag_page(part.transaction_rows, page))
+        batch_rows = part.statement_row_candidates
+        fell_back = true if part.transaction_rows.empty? && batch_rows.any?
+        transactions.concat(tag_page(batch_rows, page))
         line_items.concat(tag_page(part.line_items, page))
       end
 
@@ -567,10 +578,15 @@ class DocumentUnderstandingJob < ApplicationJob
       # they are the receipt/bill leg's payload and the statement's reader ignores
       # them. A statement's row dates are re-anchored to its own period before
       # they are stitched in, so a yearless "Sep 20" lands in the period's year
-      # and not a year the model invented.
+      # and not a year the model invented. The per-batch fallback is carried onto
+      # the verdict so the read's marker fires even when the stitched
+      # `transactions` is non-empty (some pages used `transactions`, others did
+      # not) — otherwise the owner would see an all-green panel while rows are
+      # gone.
       if merged.document_class == "statement"
         merged.with_transactions(normalise_statement_dates(transactions, merged))
               .with_line_items(line_items)
+              .with_statement_rows_fallback(fell_back)
       else
         merged.with_line_items(line_items)
       end

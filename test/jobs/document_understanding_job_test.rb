@@ -554,6 +554,38 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
                  "the date-less rows are surfaced, not hidden"
   end
 
+  test "a statement whose pages' models chose different fields keeps every page's rows" do
+    # The read is one page per call, and the model's field choice varies per call:
+    # page 1's rows land in transactions, page 2's in line_items. The document-level
+    # fallback alone drops page 2 (transactions is non-empty, masking it) and the
+    # panel stays green — the exact silent loss this wave exists to close. The
+    # per-batch pick keeps both.
+    pages = (1..2).map { |n| { page: n, text: "ACCOUNT SUMMARY\nPAGE #{n}", confidence: 0.95, image: "cGFnZQ==" } }
+    stub_ocr_success(pages: pages)
+    transactions_page = STATEMENT.merge(
+      "transactions" => [ { "date" => "2026-09-03", "amount" => "-12.34", "name" => "Cafe", "notes" => "" } ],
+      "line_items" => []
+    )
+    line_items_page = STATEMENT.merge(
+      "transactions" => [],
+      "line_items" => [ { "description" => "Fuel", "amount" => "-50.00" } ]
+    )
+    stub_provider(ScriptedProvider.new(transactions_page, line_items_page))
+
+    with_batch_size(1) { DocumentUnderstandingJob.perform_now(@link.id) }
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal [ "Cafe", "Fuel" ], import.rows.order(:source_row_number).pluck(:name),
+                 "both pages' rows survive, whatever field each page's model used"
+    assert_equal 2, import.rows_count
+
+    validations = @link.extraction.validations
+    assert_equal true, validations["statement_rows_from_line_items"],
+                 "the misfiled page is flagged, not masked by the other page's transactions"
+    assert_equal false, validations["statement_rows_have_dates"],
+                 "the date-less page is surfaced, computed over the stitched rows"
+  end
+
   test "a statement read into transactions keeps its dated rows and is not marked" do
     # The normal case: rows in transactions, each with a date. Nothing here may be
     # disturbed by the fallback, and neither marker fires.
