@@ -218,17 +218,21 @@
         <% end %>
         <%= render "entries/auto_post", entry: entry %>
         <%# Where this row came from (spec N13): the amount itself is the link
-            back to the document that produced the entry. Naming the document in
-            a trailing pill overflowed the row -- a `shrink-0` cluster let a
-            33-character filename push the amount off the row -- so the row no
-            longer carries the provenance pills at all. The detail drawer still
-            names every related document (spec N13's `documents/provenance`).
-            A row with no producing document (synced or hand-entered) renders a
-            plain amount, exactly as before: a merely corroborating document is
-            never a link target, and a deleted one is not linked either. %>
+            back to the document that created the entry -- `producing_document`
+            (a statement's link, on the import) or `creating_document` (a
+            receipt's link, on the import but also attached to the entry).
+            Naming the document in a trailing pill overflowed the row -- a
+            `shrink-0` cluster let a 33-character filename push the amount off
+            the row -- so the row no longer carries the provenance pills at all.
+            The detail drawer still names every related document (spec N13's
+            `documents/provenance`). A row with no creating document (a synced
+            or hand-entered row, a raw CSV/OFX import, a provider row merely
+            CORROBORATED by a match) renders a plain amount, exactly as before,
+            and a deleted creating document is not linked either. %>
         <% row_amount = transaction.transfer? && view_ctx == "global" ? "+/- #{format_money(entry.amount_money.abs)}" : format_money(-entry.amount_money) %>
         <% row_amount_classes = [ "privacy-sensitive", "text-green-600": entry.amount.negative? ] %>
-        <% source_document = entry.provenance.producing_document %>
+        <% provenance = entry.provenance %>
+        <% source_document = provenance.producing_document || provenance.creating_document %>
         <% if source_document.present? && source_document.deleted_at.nil? %>
           <% source_name = source_document.title.presence || source_document.original_filename %>
           <%= link_to row_amount,

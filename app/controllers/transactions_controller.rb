@@ -27,9 +27,13 @@ class TransactionsController < ApplicationController
     base_scope = @search.transactions_scope
                        .reverse_chronological
                        .includes(
-                         # The provenance fragment (spec N13) reads, per row, the
-                         # entry's document_links and each link's latest
-                         # document_extractions read, plus the entry's import. Left
+                         # Provenance reads, per row (spec N13): the entry's import
+                         # and its document_link, and the entry's own
+                         # document_links. The row's amount links to the document
+                         # that created the entry (both `producing_document` and
+                         # `creating_document` read `import.document_link` and
+                         # `document_links`), and the drawer's provenance section
+                         # names each related document and its latest read. Left
                          # un-preloaded that is a query per row on the busiest
                          # surface in the app. `DocumentLink#extraction` reads the
                          # loaded collection, so `document_extractions` must be here.

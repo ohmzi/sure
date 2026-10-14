@@ -131,6 +131,48 @@ class EntryProvenanceTest < ActiveSupport::TestCase
     assert_nil EntryProvenance.for(entry.reload).producing_document
   end
 
+  # W8-J: the creating document is the identity `corroborated?` compares against
+  # (`import.document_link_id`), exposed so a receipt row's amount can link to its
+  # receipt -- whose creating link IS attached to the entry, so `producing_document`
+  # yields nothing for it.
+  test "a receipt-born entry exposes its creating document" do
+    entry = receipt_born_entry
+
+    provenance = EntryProvenance.for(entry)
+    assert_equal entry.import.document_link.id, provenance.creating_document&.id,
+                 "a receipt's creating link is the import's link even though it is attached to the entry"
+    assert_nil provenance.producing_document, "and it is deliberately not also a producing document"
+  end
+
+  test "a statement-born entry's creating document is its import's link too" do
+    import = statement_backed_import
+    entry = entries(:transaction_entry)
+    entry.update!(source: nil, external_id: nil, import: import, import_locked: true)
+    entry.document_links.delete_all
+
+    provenance = EntryProvenance.for(entry.reload)
+    assert_equal import.document_link.id, provenance.creating_document&.id
+    assert_equal provenance.producing_document&.id, provenance.creating_document&.id,
+                 "for a statement the producing and creating document are the same link"
+  end
+
+  test "a merely corroborating document is not a creating document" do
+    entry = entries(:transaction_entry)
+    entry.update!(source: "plaid", external_id: "abc123", import: nil)
+    document_links(:unlinked_receipt).update!(entry_id: entry.id)
+
+    assert_nil EntryProvenance.for(entry.reload).creating_document,
+               "a match is corroboration, not a source"
+  end
+
+  test "a raw import with no document link has no creating document" do
+    entry = entries(:transaction_entry)
+    entry.update!(source: nil, external_id: nil, import: imports(:transaction), import_locked: false)
+    entry.document_links.delete_all
+
+    assert_nil EntryProvenance.for(entry.reload).creating_document
+  end
+
   test "it never returns anything outside the four" do
     Entry.find_each do |entry|
       assert_includes EntryProvenance::SOURCES, EntryProvenance.for(entry).primary

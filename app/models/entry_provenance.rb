@@ -78,6 +78,21 @@ class EntryProvenance
       link && documents.none? { |document| document.id == link.id } ? link : nil
   end
 
+  # The document that CREATED this entry -- the import's own link, the exact
+  # identity `corroborated?` compares against (`import.document_link_id`). It is
+  # `producing_document`'s complement, not a duplicate of it: a receipt's
+  # creating link is ALSO attached to the entry (its `entry_id` is set), so
+  # `producing_document` -- which excludes a document already in `documents` --
+  # yields nothing for it, and this is that document regardless. Nil when no
+  # document created the entry (a synced row, a hand entry, or a raw CSV/OFX
+  # import whose import carries no link): a document merely ATTACHED to such an
+  # entry is corroboration, never a source. The row links to
+  # `producing_document || creating_document`, so a statement and a receipt both
+  # link to the document they came from, and nothing else does.
+  def creating_document
+    @entry.import&.document_link
+  end
+
   # "edited by you" (spec N13): the displayed value no longer equals what the
   # document said. Comparing the numbers is the whole point -- a flag that only
   # meant "someone touched this row" would not tell the user the value moved.
