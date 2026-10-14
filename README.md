@@ -29,6 +29,15 @@ involved: [Discord](https://discord.gg/36ZGBsxYEK) • [Website](https://sure.am
 > This repository is a community fork of the now-abandoned Maybe Finance project. <br />
 > Learn more in their [final release](https://github.com/maybe-finance/maybe/releases/tag/v0.6.0) doc.
 
+> [!NOTE]
+> **This repository is a working fork of [we-promise/sure](https://github.com/we-promise/sure)** — a
+> self-hosted household finance app that adds a native documents → statement → transaction pipeline,
+> YNAB-shaped envelope budgeting, and its own deployable stack. What it adds and what it changes,
+> milestone by milestone, is in
+> [`docs/ohmzbudget/fork-changes.md`](docs/ohmzbudget/fork-changes.md); the procedure for rebasing
+> onto upstream is in
+> [`docs/ohmzbudget/upstream-rebase.md`](docs/ohmzbudget/upstream-rebase.md).
+
 ## Backstory
 
 The [Maybe Finance](https://github.com/maybe-finance/maybe) (archived/abandoned repo) team spent most of 2021–2022 building a full-featured personal finance and wealth management app. It even included an “Ask an Advisor” feature that connected users with a real CFP/CFA — all included with your subscription.
