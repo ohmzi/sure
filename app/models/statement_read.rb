@@ -45,20 +45,16 @@ class StatementRead
   # `:drift` and `:unreconcilable` are deliberately distinct (R-W8B15): drift is
   # a check that RAN and failed — the reader contradicts the statement — and a
   # drift from the TEXT LAYER is the only one that HOLDS, so the caller refuses
-  # the import (see `HOLD_VERDICTS`); a drift from a scan (geometry/vision) falls
-  # back. unreconcilable is a statement that printed no usable totals, so nothing
-  # could be checked and the caller may fall back to today's path.
-  # `:period_unreadable` is R-W8B14: a yearless `Sep 08` with no period to take
-  # its year from, so no row's date can be built.
+  # the import; a drift from a scan (geometry/vision) falls back. The verdicts
+  # that hold are `:drift` and `:empty_but_expected`, and only from the text layer
+  # — the job's `statement_holds?` is the authority for that, and this class keeps
+  # no list to fall out of sync with it (the text layer is evaluated first, so its
+  # verdict is the fallback whenever a later rung also fails; see `prefer_hold`).
+  # unreconcilable is a statement that printed no usable totals, so nothing could
+  # be checked and the caller may fall back to today's path. `:period_unreadable`
+  # is R-W8B14: a yearless `Sep 08` with no period to take its year from, so no
+  # row's date can be built.
   VERDICTS = %i[trusted drift unreconcilable empty_but_expected period_unreadable unavailable].freeze
-
-  # The verdicts that HOLD: the read CONTRADICTS the statement (`:drift`) or it
-  # found no rows where the statement states money (`:empty_but_expected`). W8-E
-  # scoped this to the TEXT LAYER: only that exact, non-OCR source's contradiction
-  # holds an import (see the job's `statement_holds?`). The text layer is always
-  # evaluated first, so its verdict is the fallback whenever a later rung also
-  # fails (see `prefer_hold`).
-  HOLD_VERDICTS = %i[drift empty_but_expected].freeze
 
   # Human labels for the checks a hold message may name, keyed to the check.
   CHECK_LABELS = {

@@ -189,6 +189,25 @@ class StatementRead::TableParserTest < ActiveSupport::TestCase
     assert recon.trusted?
   end
 
+  test "an entirely two-digit statement whose rows disagree still drifts, not trusts (cleanup item 2)" do
+    # The widening changes the LIVE outcome when the figures disagree: before it,
+    # a fully two-digit TEXT-LAYER statement was `:period_unreadable` and FELL BACK
+    # to the model; now its rows parse, so a contradiction reaches `:drift` — and
+    # a text-layer drift HOLDS (owner decision 1). Hence the gate must still catch
+    # it. One row's amount is changed so the purchases bucket no longer matches the
+    # printed total.
+    two_digit = numeric_text.gsub("2026", "26").sub("200.00", "250.00")
+    parser = StatementRead::TableParser.call(two_digit)
+    recon = StatementRead::Reconciliation.call(
+      parser.entries, StatementRead::StatedTotals.call(two_digit),
+      text: two_digit, missing_date_rows: parser.missing_date_rows, rejected_lines: parser.rejected_lines
+    )
+
+    assert_equal :drift, recon.verdict, "a two-digit statement that does not balance drifts, not trusts"
+    assert_equal "drift", recon.checks["purchases_sum"], "the purchases bucket no longer matches the printed total"
+    assert_not recon.trusted?
+  end
+
   test "a numeric date mid-line is never a row, and a rate is never money (W8-E)" do
     text = [
       "For the period: 09/09/2026 to 10/08/2026",
