@@ -237,6 +237,53 @@ class DocumentPanelTest < ActiveSupport::TestCase
     assert_nil by_label["the reader found the statement's rows"]
   end
 
+  # --- W8-G: the panel's labels are localized ----------------------------------
+
+  # Every label the panel can render resolves through I18n
+  # (documents.understanding.check_labels.* / source_labels.*). Each assertion
+  # names the exact English the panel showed BEFORE localization, so a missing or
+  # renamed key fails here rather than surfacing as "translation missing" in the UI.
+  test "every panel label resolves to its exact text, never a missing translation (W8-G)" do
+    labels = panel_with_statement_read(READER_VALIDATIONS).checks.map(&:label)
+
+    # the always-on checks
+    assert_includes labels, "OCR and AI agree on the total"
+    assert_includes labels, "the line items add up to the total"
+    assert_includes labels, "the card or account number was found in the page text"
+    assert_includes labels, "the date reads as a date"
+    # the reader's own statement checks
+    assert_includes labels, "no statement row is missing its date"
+    assert_includes labels, "the statement's rows add up to its own totals"
+    assert_includes labels, "the reader found the statement's rows"
+    # the source rung
+    assert_includes labels, "the rows were read from the statement's own text layer"
+
+    assert labels.none? { |label| label.to_s.start_with?("translation missing") },
+           "a missing or renamed key must fail here, not in the UI: #{labels.inspect}"
+  end
+
+  test "the model-fallback checks, every source rung and the unknown-source fallback resolve (W8-G)" do
+    fallback = panel_with_statement_read(
+      "statement_rows_from_line_items" => true, "statement_rows_have_dates" => false
+    ).checks.map(&:label)
+
+    assert_includes fallback, "the statement rows were read from the line items field"
+    assert_includes fallback, "every statement row has a date"
+
+    {
+      "text_layer" => "the rows were read from the statement's own text layer",
+      "geometry" => "the rows were read from the statement's layout",
+      "vision" => "the rows were read by the AI, checked against the statement's totals",
+      "an_unknown_rung" => "the statement's rows were read"
+    }.each do |source, label|
+      labels = panel_with_statement_read(READER_VALIDATIONS.merge("statement_rows_source" => source)).checks.map(&:label)
+
+      assert_includes labels, label, "#{source.inspect} must render its exact label"
+      assert labels.none? { |rendered| rendered.to_s.start_with?("translation missing") },
+             "#{source.inspect} must not render a missing translation: #{labels.inspect}"
+    end
+  end
+
   def panel_with_statement_read(validations)
     link = document_links(:understood_receipt_link)
     link.document_extractions.delete_all

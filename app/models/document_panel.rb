@@ -34,26 +34,28 @@ class DocumentPanel
   }.freeze
 
   # The checks the pipeline ran, in the words a person reads. `nil` is "not
-  # checkable" and must say so rather than render as a pass.
-  CHECK_LABELS = {
-    "totals_agree" => "OCR and AI agree on the total",
-    "line_items_sum" => "the line items add up to the total",
-    "last4_in_ocr" => "the card or account number was found in the page text",
-    "date_parses" => "the date reads as a date"
+  # checkable" and must say so rather than render as a pass. Each value is a
+  # locale key: `checks` resolves it through I18n, so the label a viewer sees is
+  # the one their locale asks for (documents.understanding.check_labels.*).
+  CHECK_LABEL_KEYS = {
+    "totals_agree" => "documents.understanding.check_labels.totals_agree",
+    "line_items_sum" => "documents.understanding.check_labels.line_items_sum",
+    "last4_in_ocr" => "documents.understanding.check_labels.last4_in_ocr",
+    "date_parses" => "documents.understanding.check_labels.date_parses"
   }.freeze
 
-  # The statement-rows observations, kept out of CHECK_LABELS so neither appears
-  # on a read that has nothing to do with them (a receipt). `checks` appends each
-  # only when the read recorded it: the fallback check only when it actually
-  # fired (rows were recovered from line_items), the date check whenever the
-  # statement had rows — a date-less row (the fallback's carry none) reads as a
-  # red flag, never a silent blank.
-  STATEMENT_CHECK_LABELS = {
-    "statement_rows_from_line_items" => "the statement rows were read from the line items field",
-    "statement_rows_have_dates" => "every statement row has a date",
-    "statement_totals_reconcile" => "the statement's rows add up to its own totals",
-    "statement_rows_missing_dates" => "no statement row is missing its date",
-    "statement_row_count" => "the reader found the statement's rows"
+  # The statement-rows observations, kept out of CHECK_LABEL_KEYS so neither
+  # appears on a read that has nothing to do with them (a receipt). `checks`
+  # appends each only when the read recorded it: the fallback check only when it
+  # actually fired (rows were recovered from line_items), the date check whenever
+  # the statement had rows — a date-less row (the fallback's carry none) reads as
+  # a red flag, never a silent blank. Values are locale keys, as above.
+  STATEMENT_CHECK_LABEL_KEYS = {
+    "statement_rows_from_line_items" => "documents.understanding.check_labels.statement_rows_from_line_items",
+    "statement_rows_have_dates" => "documents.understanding.check_labels.statement_rows_have_dates",
+    "statement_totals_reconcile" => "documents.understanding.check_labels.statement_totals_reconcile",
+    "statement_rows_missing_dates" => "documents.understanding.check_labels.statement_rows_missing_dates",
+    "statement_row_count" => "documents.understanding.check_labels.statement_row_count"
   }.freeze
 
   # R-W8B13: the reader's source is PROVENANCE, not a pass/fail. Rendering a
@@ -61,12 +63,12 @@ class DocumentPanel
   # reached the panel has by definition passed the gate — so the source shows a
   # label that NAMES it (never red), and the CHECKS carry the red
   # (`statement_totals_reconcile` failing is the mismatch rendering red).
-  SOURCE_LABELS = {
-    "text_layer" => "the rows were read from the statement's own text layer",
-    "geometry" => "the rows were read from the statement's layout",
-    "vision" => "the rows were read by the AI, checked against the statement's totals"
+  SOURCE_LABEL_KEYS = {
+    "text_layer" => "documents.understanding.source_labels.text_layer",
+    "geometry" => "documents.understanding.source_labels.geometry",
+    "vision" => "documents.understanding.source_labels.vision"
   }.freeze
-  SOURCE_FALLBACK_LABEL = "the statement's rows were read".freeze
+  SOURCE_FALLBACK_LABEL_KEY = "documents.understanding.source_labels.fallback".freeze
 
   def initialize(link)
     @link = link
@@ -146,8 +148,8 @@ class DocumentPanel
     return [] unless extraction
 
     validations = extraction.validations.with_indifferent_access
-    CHECK_LABELS.merge(statement_check_labels(validations))
-                .map { |key, label| Check.new(label: label, state: check_state(key, validations)) }
+    CHECK_LABEL_KEYS.merge(statement_check_label_keys(validations))
+                    .map { |key, label_key| Check.new(label: I18n.t(label_key), state: check_state(key, validations)) }
   end
 
   # What the document became: the draft it was routed to, and the entry it
@@ -161,11 +163,11 @@ class DocumentPanel
     def routes = Rails.application.routes.url_helpers
 
     # The statement-rows checks to append, each only when the read recorded it
-    # meaningfully — see STATEMENT_CHECK_LABELS.
-    def statement_check_labels(validations)
+    # meaningfully — see STATEMENT_CHECK_LABEL_KEYS.
+    def statement_check_label_keys(validations)
       labels = {}
       if validations["statement_rows_from_line_items"]
-        labels["statement_rows_from_line_items"] = STATEMENT_CHECK_LABELS["statement_rows_from_line_items"]
+        labels["statement_rows_from_line_items"] = STATEMENT_CHECK_LABEL_KEYS["statement_rows_from_line_items"]
       end
       # R-W8B10 / the duplicate date check: on the reader path the reader's OWN
       # date audit (`statement_rows_missing_dates`, correct polarity) is
@@ -176,20 +178,20 @@ class DocumentPanel
       # therefore shows exactly ONE date check, and never a red one.
       if validations["statement_rows_missing_dates"].nil?
         unless validations["statement_rows_have_dates"].nil?
-          labels["statement_rows_have_dates"] = STATEMENT_CHECK_LABELS["statement_rows_have_dates"]
+          labels["statement_rows_have_dates"] = STATEMENT_CHECK_LABEL_KEYS["statement_rows_have_dates"]
         end
       else
-        labels["statement_rows_missing_dates"] = STATEMENT_CHECK_LABELS["statement_rows_missing_dates"]
+        labels["statement_rows_missing_dates"] = STATEMENT_CHECK_LABEL_KEYS["statement_rows_missing_dates"]
       end
       unless validations["statement_totals_reconcile"].nil?
-        labels["statement_totals_reconcile"] = STATEMENT_CHECK_LABELS["statement_totals_reconcile"]
+        labels["statement_totals_reconcile"] = STATEMENT_CHECK_LABEL_KEYS["statement_totals_reconcile"]
       end
       unless validations["statement_row_count"].nil?
-        labels["statement_row_count"] = STATEMENT_CHECK_LABELS["statement_row_count"]
+        labels["statement_row_count"] = STATEMENT_CHECK_LABEL_KEYS["statement_row_count"]
       end
       if validations["statement_rows_source"].present?
         labels["statement_rows_source"] =
-          SOURCE_LABELS.fetch(validations["statement_rows_source"].to_s, SOURCE_FALLBACK_LABEL)
+          SOURCE_LABEL_KEYS.fetch(validations["statement_rows_source"].to_s, SOURCE_FALLBACK_LABEL_KEY)
       end
       labels
     end
