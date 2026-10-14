@@ -21,6 +21,32 @@ class DocumentProvenanceTest < ApplicationSystemTestCase
     assert_selector "[data-provenance] a[href='#{viewer_document_path(link)}']"
   end
 
+  # The LIST row, not the drawer (the owner's report): the row named its source
+  # document in a trailing pill and a long filename pushed the amount off the
+  # row. The amount is now the link, and the row carries no provenance text at
+  # all -- the drawer below still names every related document.
+  test "on the list, a statement-born row's amount links to its document and the row names none" do
+    entry = entries(:transaction_entry)
+    statement = AccountStatement.create_from_upload!(
+      family: families(:dylan_family),
+      account: nil,
+      file: uploaded_file(filename: "statement.pdf", content_type: "application/pdf",
+                          content: file_fixture("imports/sample_bank_statement.pdf").binread)
+    )
+    statement.archive_document_link!
+    import = PdfImport.create_from_statement!(statement: statement.reload)
+    entry.update!(source: nil, external_id: nil, import: import, import_locked: true)
+    entry.document_links.delete_all
+
+    visit transactions_path
+
+    within "##{dom_id(entry.reload)}" do
+      assert_selector "a[href='#{viewer_document_path(import.document_link)}']"
+      assert_no_selector "[data-provenance]", text: I18n.t("entries.provenance.document")
+      assert_no_text I18n.t("entries.provenance.document")
+    end
+  end
+
   test "a transaction typed by hand says that, and claims no document" do
     entry = entries(:transaction_entry)
     entry.update!(source: nil, external_id: nil, import: nil, import_locked: false)

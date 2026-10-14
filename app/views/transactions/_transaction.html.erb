@@ -216,15 +216,30 @@
             <%= icon "lock", size: "sm", class: "text-secondary" %>
           <% end %>
         <% end %>
-        <%# Where this row came from (spec N13): one primary source, plus any
-            corroborating documents and an "edited" badge. Trailing, by the
-            amount -- the inline pill cluster beside the name cannot take it
-            without squeezing the name to nothing. %>
-        <%= render "documents/provenance", entry: entry %>
         <%= render "entries/auto_post", entry: entry %>
-        <%= content_tag :p,
-            transaction.transfer? && view_ctx == "global" ? "+/- #{format_money(entry.amount_money.abs)}" : format_money(-entry.amount_money),
-            class: ["privacy-sensitive", "text-green-600": entry.amount.negative?] %>
+        <%# Where this row came from (spec N13): the amount itself is the link
+            back to the document that produced the entry. Naming the document in
+            a trailing pill overflowed the row -- a `shrink-0` cluster let a
+            33-character filename push the amount off the row -- so the row no
+            longer carries the provenance pills at all. The detail drawer still
+            names every related document (spec N13's `documents/provenance`).
+            A row with no producing document (synced or hand-entered) renders a
+            plain amount, exactly as before: a merely corroborating document is
+            never a link target, and a deleted one is not linked either. %>
+        <% row_amount = transaction.transfer? && view_ctx == "global" ? "+/- #{format_money(entry.amount_money.abs)}" : format_money(-entry.amount_money) %>
+        <% row_amount_classes = [ "privacy-sensitive", "text-green-600": entry.amount.negative? ] %>
+        <% source_document = entry.provenance.producing_document %>
+        <% if source_document.present? && source_document.deleted_at.nil? %>
+          <% source_name = source_document.title.presence || source_document.original_filename %>
+          <%= link_to row_amount,
+              viewer_document_path(source_document),
+              class: [ "hover:underline", *row_amount_classes ],
+              title: source_name,
+              data: { turbo_frame: "modal" },
+              aria: { label: t("transactions.transaction.amount_from_document", amount: row_amount, name: source_name) } %>
+        <% else %>
+          <%= content_tag :p, row_amount, class: row_amount_classes %>
+        <% end %>
       </div>
     </div>
   <% end %>
