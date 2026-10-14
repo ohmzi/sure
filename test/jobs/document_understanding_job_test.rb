@@ -620,12 +620,13 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
   test "a multi-page statement batch leaves source_page unknown rather than inventing one" do
     # A row read from a batch of two pages could sit on either; a single-page
     # batch is the only one that genuinely names a page, so nothing is written
-    # for this one (spec §8.3 — "never a guess").
+    # for this one (spec §8.3 — "never a guess"). The default is now one page
+    # per call (wave 6), so this is the CONFIGURED multi-page case.
     pages = (1..2).map { |n| { page: n, text: "PAGE #{n}", confidence: 0.95, image: "cGFnZQ==" } }
     stub_ocr_success(pages: pages)
     stub_provider(FakeProvider.new(STATEMENT))
 
-    DocumentUnderstandingJob.perform_now(@link.id)
+    with_batch_size(2) { DocumentUnderstandingJob.perform_now(@link.id) }
 
     import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
     assert_equal [ nil, nil ], import.rows.order(:source_row_number).pluck(:source_page)
@@ -849,6 +850,183 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_difference -> { AccountStatement.count }, 1 do
       DocumentUnderstandingJob.perform_now(@link.id)
     end
+  end
+
+  # --- Wave 6: one page per call, and the statement's date context -------------
+
+  test "the default read sends one page per provider call so a dense page is never truncated" do
+    # A real 6-page Triangle statement read with PAGE_BATCH 4 came back with 7
+    # rows where a single page carried 28: a multi-page batch is answered at a
+    # summary level, and raising the response-token cap changed nothing. The
+    # default must therefore be one page per call, so a page's whole table is
+    # enumerable (the deliberate cost: a 40-page statement is 40 calls).
+    pages = (1..4).map { |n| { page: n, text: "PAGE #{n}", confidence: 0.95, image: "cGFnZQ==" } }
+    stub_ocr_success(pages: pages)
+
+    seen_batches = []
+    provider = FakeProvider.new(STATEMENT)
+    provider.define_singleton_method(:understand_document) do |pages:, ocr_text:, family: nil, model: ""|
+      seen_batches << pages.size
+      @response
+    end
+    stub_provider(provider)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal [ 1, 1, 1, 1 ], seen_batches,
+                 "each page is read on its own, so a dense page's rows are never truncated"
+  end
+
+  test "the default single-page read names every row's source page" do
+    # One page per call is what makes the page anchor exact: the code comment
+    # that used to say a multi-page batch must leave the page unknown no longer
+    # bites, because every batch now covers exactly one page (spec §8.3).
+    pages = (1..2).map { |n| { page: n, text: "ACCOUNT SUMMARY\nPAGE #{n}", confidence: 0.95, image: "cGFnZQ==" } }
+    stub_ocr_success(pages: pages)
+
+    page_one = STATEMENT.merge("transactions" => [ { "date" => "2026-09-03", "amount" => "-1.00", "name" => "P1", "notes" => "" } ])
+    page_two = STATEMENT.merge("transactions" => [ { "date" => "2026-09-04", "amount" => "-2.00", "name" => "P2", "notes" => "" } ])
+    stub_provider(ScriptedProvider.new(page_one, page_two))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal [ 1, 2 ], import.rows.order(:source_row_number).pluck(:source_page),
+                 "one page per call names each row's page exactly, never nil"
+  end
+
+  test "a batch after the first is handed the statement's date context" do
+    # The per-batch OCR text carries no year, and the statement's period lives
+    # on page one — so a later batch is told the period in its prompt, or the
+    # model anchors Sept 20 to a year it made up (the live read said 2023 on a
+    # 2026 statement). The first page already carries the period, so it is sent
+    # as read.
+    pages = (1..2).map { |n| { page: n, text: "PAGE #{n}", confidence: 0.95, image: "cGFnZQ==" } }
+    stub_ocr_success(pages: pages)
+
+    seen = []
+    provider = FakeProvider.new(STATEMENT)
+    provider.define_singleton_method(:understand_document) do |pages:, ocr_text:, family: nil, model: ""|
+      seen << ocr_text
+      @response
+    end
+    stub_provider(provider)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "PAGE 1", seen[0], "the opening page carries its own period; nothing is prepended"
+    assert_includes seen[1], "2026-09-01",
+                    "a later batch is told the statement's period so a yearless date lands in the right year"
+    assert_includes seen[1], "PAGE 2", "the page's own text still reaches the model"
+  end
+
+  test "a yearless statement row date is resolved against the statement period" do
+    pages = [ { page: 1, text: "Sep 20 ANTHROPIC 16.52", confidence: 0.95, image: "aGk=" } ]
+    stub_ocr_success(pages: pages)
+    stub_provider(FakeProvider.new(STATEMENT.merge(
+      "transactions" => [ { "date" => "Sep 20", "amount" => "-16.52", "name" => "ANTHROPIC", "notes" => "" } ]
+    )))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal Date.new(2026, 9, 20).strftime(@family.date_format), import.rows.first.date,
+                 "a yearless Sep 20 under a 2026 statement becomes 2026"
+  end
+
+  test "a yearless row date is anchored to the statement's year, never the current year" do
+    # Today's date happens to be 2026, so a 2026 statement cannot distinguish a
+    # real anchor from the downstream Date.parse fallback (which fills the
+    # CURRENT year). A statement from 2019 does: without the period anchor the
+    # yearless Sep 20 would come back as 2026, the wrong year entirely.
+    pages = [ { page: 1, text: "Sep 20 ANTHROPIC 16.52", confidence: 0.95, image: "aGk=" } ]
+    stub_ocr_success(pages: pages)
+    stub_provider(FakeProvider.new(STATEMENT.merge(
+      "statement_period" => { "start" => "2019-09-01", "end" => "2019-09-30" },
+      "transactions" => [ { "date" => "Sep 20", "amount" => "-16.52", "name" => "ANTHROPIC", "notes" => "" } ]
+    )))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal Date.new(2019, 9, 20).strftime(@family.date_format), import.rows.first.date,
+                 "the yearless date is anchored to the statement's period, not today's year"
+  end
+
+  test "a row date the model anchored to the wrong year is snapped to the statement period" do
+    # The live Triangle read returned 2023-09-20 for a line that reads Sep 20 on
+    # a 2026 statement: with no year in the batch's OCR text the model fills one
+    # in and guessed three years low. The document's own period is the anchor.
+    pages = [ { page: 1, text: "Sep 20 ANTHROPIC 16.52", confidence: 0.95, image: "aGk=" } ]
+    stub_ocr_success(pages: pages)
+    stub_provider(FakeProvider.new(STATEMENT.merge(
+      "transactions" => [ { "date" => "2023-09-20", "amount" => "-16.52", "name" => "ANTHROPIC", "notes" => "" } ]
+    )))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal Date.new(2026, 9, 20).strftime(@family.date_format), import.rows.first.date,
+                 "a wrong year is snapped to the statement's own period"
+  end
+
+  test "a year spanning statement resolves a yearless date to the right side of the new year" do
+    # A Dec–Jan cycle spans two calendar years; the anchor must pick the year
+    # the date actually falls in, not simply the period's start year.
+    pages = [ { page: 1, text: "Dec 25 GYM 44.15", confidence: 0.95, image: "aGk=" },
+              { page: 2, text: "Jan 05 ANTHROPIC 16.52", confidence: 0.95, image: "aGk=" } ]
+    stub_ocr_success(pages: pages)
+
+    statement = STATEMENT.merge(
+      "statement_period" => { "start" => "2026-12-20", "end" => "2027-01-19" }
+    )
+    page_one = statement.merge("transactions" => [ { "date" => "Dec 25", "amount" => "-44.15", "name" => "GYM", "notes" => "" } ])
+    page_two = statement.merge("transactions" => [ { "date" => "Jan 05", "amount" => "-16.52", "name" => "ANTHROPIC", "notes" => "" } ])
+    stub_provider(ScriptedProvider.new(page_one, page_two))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    dates = import.rows.order(:source_row_number).pluck(:date)
+    assert_equal [ Date.new(2026, 12, 25), Date.new(2027, 1, 5) ].map { |d| d.strftime(@family.date_format) }, dates
+  end
+
+  test "a statement with no period leaves its row dates untouched" do
+    # No period means no anchor: the normaliser must not re-anchor a row to any
+    # year. A date the model read in full — here a year in the past — is left
+    # exactly as read, never snapped to the current year or any other.
+    pages = [ { page: 1, text: "ACCOUNT SUMMARY\n2020-09-20", confidence: 0.95, image: "aGk=" } ]
+    stub_ocr_success(pages: pages)
+    stub_provider(FakeProvider.new(STATEMENT.merge(
+      "statement_period" => nil,
+      "transactions" => [ { "date" => "2020-09-20", "amount" => "-1.00", "name" => "X", "notes" => "" } ]
+    )))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal Date.new(2020, 9, 20).strftime(@family.date_format), import.rows.first.date,
+                 "with no period the row date is left as read — never re-anchored"
+  end
+
+  test "a receipt read is unaffected by the statement date context" do
+    # A receipt has no statement period, so nothing may be re-anchored: its own
+    # date field and its line items are the payload and must survive verbatim.
+    pages = [ { page: 1, text: "ACME STORE\nSep 20\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ]
+    stub_ocr_success(pages: pages)
+    receipt = RECEIPT.merge(
+      "date" => "Sep 20",
+      "line_items" => [ { "description" => "Coffee", "amount" => "12.34" } ]
+    )
+    stub_provider(FakeProvider.new(receipt))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    draft = ReceiptImport.find_by!(document_link_id: @link.id)
+    assert_equal [ "Coffee" ], draft.line_items.map { |item| item["description"] },
+                 "the receipt's line items are untouched"
+    assert_equal "Sep 20", @link.extraction.verdict["date"],
+                 "a receipt with no period is never re-anchored to the statement's year"
   end
 
   def statement_for(link)

@@ -8,17 +8,31 @@
 class DocumentUnderstandingJob < ApplicationJob
   queue_as :heavy
 
-  # Pages per provider call. A statement page image is roughly 100-200 KB of
-  # base64, so the batch is bounded by the request payload limit and the model's
-  # context, whichever bites first.
+  # Pages per provider call. ONE page per call is the correct default.
   #
-  # PLACEHOLDER, NOT A MEASUREMENT. The brief's Step 5 benchmarks this against a
-  # real multi-page statement through a configured provider; that provider is not
-  # configured in this environment, so no reading has been taken and none is
-  # invented here. 4 is the plan's starting value and stays until the milestone's
-  # live acceptance run (Task 13/14) raises it on real payload sizes and token
-  # usage, at which point the measured number replaces this comment.
-  PAGE_BATCH = 4
+  # A real 6-page Triangle Mastercard statement read with a 4-page batch came
+  # back with 7 rows where a single page carried 28: a multi-page batch is
+  # answered at a summary level, and raising the response-token cap changed
+  # nothing, so a dense page's table is only enumerated when the model is given
+  # that page alone. The price is deliberate: one call per page means a 40-page
+  # statement is 40 provider calls (more time, more tokens), and that is the
+  # cost of a correct read.
+  #
+  # Overridable by DOCUMENT_UNDERSTANDING_PAGE_BATCH for a deployment that has
+  # MEASURED a larger batch that still enumerates a page fully. The default
+  # stays 1 and the value is floored at 1; anything above 1 risks truncating a
+  # dense page's table again.
+  PAGE_BATCH = 1
+
+  # The batch size to read at: the safe default, or the env override. Read at
+  # call time (not cached) so a test or a deployment can pin it; a blank or
+  # non-integer env value falls back to the constant, and it is floored at 1.
+  def self.page_batch_size
+    override = ENV["DOCUMENT_UNDERSTANDING_PAGE_BATCH"]
+    return PAGE_BATCH if override.blank?
+
+    [ Integer(override, exception: false) || PAGE_BATCH, 1 ].max
+  end
 
   # The link's staged bytes in the shape the vault's own creation path reads:
   # AccountStatement.prepare_upload! asks an upload for original_filename,
@@ -503,14 +517,14 @@ class DocumentUnderstandingJob < ApplicationJob
       transactions = []
       line_items = []
 
-      result.pages.each_slice(PAGE_BATCH) do |pages|
+      result.pages.each_slice(self.class.page_batch_size) do |pages|
         # The read's heartbeat (Task 11 fix round 1): a long multi-batch read
         # must keep its row fresh, or the reaper's staleness test would
         # re-enqueue it while it is still running — a second OCR run, a second
         # paid provider call, a second extraction.
         link.heartbeat!
         response = provider.understand_document(pages: pages.filter_map(&:image),
-                                                ocr_text: pages.map(&:text).join("\n\n"),
+                                                ocr_text: batch_ocr_text(pages, merged),
                                                 family: link.family)
         raise Provider::Error, "AI provider failed: #{response.error&.message}" unless response.success?
 
@@ -525,11 +539,13 @@ class DocumentUnderstandingJob < ApplicationJob
         # merge_understanding keeps only the first value per field.
         # The row -> page anchor (spec §8.3). A batch is a slice of the read's
         # OCR pages, so a row belongs to those pages; only a SINGLE-page batch
-        # names one page. A multi-page batch leaves the page unknown — the row
-        # could sit on any of its pages — and an invented page would be a
-        # traceability lie, so it stays nil. Coordinates are always nil:
-        # PaddleOCR's boxes are per recognised line and are not linked to the
-        # model's transaction/item rows, so there is no genuine box to record.
+        # names one page. One page per call is now the default, so the anchor is
+        # set for every row in the usual case; a batch configured larger than one
+        # page leaves the page unknown — the row could sit on any of its pages —
+        # and an invented page would be a traceability lie, so it stays nil.
+        # Coordinates are always nil: PaddleOCR's boxes are per recognised line
+        # and are not linked to the model's transaction/item rows, so there is no
+        # genuine box to record.
         page = pages.size == 1 ? pages.first.number : nil
         transactions.concat(tag_page(part.transaction_rows, page))
         line_items.concat(tag_page(part.line_items, page))
@@ -540,12 +556,88 @@ class DocumentUnderstandingJob < ApplicationJob
       # what `transactions` itself gates on, so a read that will be routed as a
       # statement always carries every batch's rows. Line items go on every read;
       # they are the receipt/bill leg's payload and the statement's reader ignores
-      # them.
+      # them. A statement's row dates are re-anchored to its own period before
+      # they are stitched in, so a yearless "Sep 20" lands in the period's year
+      # and not a year the model invented.
       if merged.document_class == "statement"
-        merged.with_transactions(transactions).with_line_items(line_items)
+        merged.with_transactions(normalise_statement_dates(transactions, merged))
+              .with_line_items(line_items)
       else
         merged.with_line_items(line_items)
       end
+    end
+
+    # The OCR text a batch is sent, prefixed with the document's date context
+    # once an earlier batch has resolved it. A continuation page's per-batch OCR
+    # text carries no year, and the statement's period lives on page one, so
+    # without this the model anchors a bare "Sep 20" to a year it invents (the
+    # live Triangle read returned 2023 on a 2026 statement). The first batch has
+    # no earlier context and needs none: the opening page carries the period.
+    def batch_ocr_text(pages, merged)
+      text = pages.map(&:text).join("\n\n")
+      context = statement_date_context(merged)
+      context.present? ? "#{context}\n\n#{text}" : text
+    end
+
+    # The date-context line for a later batch, or nil when there is nothing to
+    # anchor — a non-statement, or a statement whose period is not yet known.
+    def statement_date_context(merged)
+      return nil unless merged&.document_class == "statement"
+
+      start_on = merged.period_start
+      end_on = merged.period_end
+      return nil if start_on.nil? && end_on.nil?
+
+      period = [ start_on, end_on ].compact.map(&:iso8601).join(" to ")
+      "Statement date context: this statement covers #{period}. " \
+        "A transaction date that does not state a year belongs to this period."
+    end
+
+    # Re-anchors each statement row's date to the document's own period. A row
+    # date may omit the year (the batch OCR usually carries none) or name a year
+    # the model guessed wrong; either way the period is the only honest anchor.
+    # Nothing happens without a period (a receipt, or a statement that named
+    # none), so a document with its own dates is never disturbed.
+    def normalise_statement_dates(rows, merged)
+      start_on = merged.period_start
+      end_on = merged.period_end
+      return rows if start_on.nil? && end_on.nil?
+
+      rows.map do |row|
+        date = reanchor_row_date(row["date"], start_on, end_on)
+        date ? row.merge("date" => date) : row
+      end
+    end
+
+    # The row's date with its year taken from the statement period, or nil when
+    # there is nothing to do (an unreadable date, or a year already among the
+    # period's own years — the model got it right and it is left as read). Only
+    # a statement's rows reach here.
+    def reanchor_row_date(value, start_on, end_on)
+      parts = Date._parse(value.to_s)
+      month = parts[:mon]
+      day = parts[:mday]
+      return nil if month.nil? || day.nil?
+
+      years = [ start_on&.year, end_on&.year ].compact.uniq
+      return nil if years.empty?
+      return nil if parts[:year] && years.include?(parts[:year])
+
+      # The period's end is the anchor: for a cycle that spans the new year it
+      # picks the year the date actually falls in, not simply the start's.
+      anchor = end_on || start_on
+      year = years.min_by { |candidate| days_from(anchor, candidate, month, day) }
+      Date.new(year, month, day).iso8601
+    rescue Date::Error
+      nil
+    end
+
+    # How far a (year, month, day) sits from the anchor; an impossible date
+    # (Feb 30) is infinitely far so it can never be chosen.
+    def days_from(anchor, year, month, day)
+      (Date.new(year, month, day) - anchor).abs
+    rescue Date::Error
+      Float::INFINITY
     end
 
     # Stamps the batch's page onto each row when the batch named exactly one
