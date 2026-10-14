@@ -167,6 +167,28 @@ class StatementRead::TableParserTest < ActiveSupport::TestCase
     not_money.each { |token| assert_not amount_field?(token), "#{token} must NOT be a whole-field amount" }
   end
 
+  test "an entirely two-digit statement keeps the deterministic path to :trusted (cleanup item 2)" do
+    # A statement printed ENTIRELY in two-digit form — its period, its statement
+    # date and every row carry a two-digit year. The row anchor already accepted
+    # `09/09/26`; before the period pattern did too, `period_known?` was false and
+    # the whole read was refused as `:period_unreadable`. Derived from the numeric
+    # fixture (self-consistent) with every `2026` printed as `26`.
+    two_digit = numeric_text.gsub("2026", "26")
+    parser = StatementRead::TableParser.call(two_digit)
+
+    assert parser.period_known?, "a two-digit period is no longer refused as period-unreadable"
+    assert_equal Date.new(2026, 9, 9), parser.period_start, "the two-digit period resolves to the nearest century (2026)"
+    assert_equal Date.new(2026, 10, 8), parser.period_end
+    assert_equal 9, parser.row_count, "the rows the anchor detected are now datable, not dropped"
+
+    recon = StatementRead::Reconciliation.call(
+      parser.entries, StatementRead::StatedTotals.call(two_digit),
+      text: two_digit, missing_date_rows: parser.missing_date_rows, rejected_lines: parser.rejected_lines
+    )
+    assert_equal :trusted, recon.verdict, "a fully two-digit statement reconciles to :trusted"
+    assert recon.trusted?
+  end
+
   test "a numeric date mid-line is never a row, and a rate is never money (W8-E)" do
     text = [
       "For the period: 09/09/2026 to 10/08/2026",

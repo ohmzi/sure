@@ -22,10 +22,10 @@
 #
 # Source order: text layer -> OCR geometry -> vision. Detection only decides
 # which source to TRY first — the gate always runs, so a garbage embedded layer
-# that passes the density probe is still caught. The geometry rung is task
-# W8-C's; here it reports `:unavailable` and the ladder's shape waits for it.
-# The vision rung is INJECTED by the caller (the job owns provider calls), never
-# called from this PORO.
+# that passes the density probe is still caught. The geometry rung reads a scan's
+# OCR boxes (task W8-C, landed); it declines to `:unavailable` only when the OCR
+# leaves it no boxes to read. The vision rung is INJECTED by the caller (the job
+# owns provider calls), never called from this PORO.
 class StatementRead
   # Money is exact to the cent. The band exists for a bank that rounds its own
   # totals; when a non-zero band is used the residual delta is RECORDED on the
@@ -43,9 +43,11 @@ class StatementRead
   TIMEOUT = 60
 
   # `:drift` and `:unreconcilable` are deliberately distinct (R-W8B15): drift is
-  # a check that RAN and failed (the reader contradicts the statement, so the
-  # caller holds); unreconcilable is a statement that printed no usable totals,
-  # so nothing could be checked and the caller may fall back to today's path.
+  # a check that RAN and failed — the reader contradicts the statement — and a
+  # drift from the TEXT LAYER is the only one that HOLDS, so the caller refuses
+  # the import (see `HOLD_VERDICTS`); a drift from a scan (geometry/vision) falls
+  # back. unreconcilable is a statement that printed no usable totals, so nothing
+  # could be checked and the caller may fall back to today's path.
   # `:period_unreadable` is R-W8B14: a yearless `Sep 08` with no period to take
   # its year from, so no row's date can be built.
   VERDICTS = %i[trusted drift unreconcilable empty_but_expected period_unreadable unavailable].freeze
@@ -53,9 +55,9 @@ class StatementRead
   # The verdicts that HOLD: the read CONTRADICTS the statement (`:drift`) or it
   # found no rows where the statement states money (`:empty_but_expected`). W8-E
   # scoped this to the TEXT LAYER: only that exact, non-OCR source's contradiction
-  # holds an import (see `hold_verdict?` and the job's `statement_holds?`). When
-  # several rungs fail the gate, the caller must still receive a HOLD-class
-  # verdict over a fall-back-class one — see `prefer_hold`.
+  # holds an import (see the job's `statement_holds?`). The text layer is always
+  # evaluated first, so its verdict is the fallback whenever a later rung also
+  # fails (see `prefer_hold`).
   HOLD_VERDICTS = %i[drift empty_but_expected].freeze
 
   # Human labels for the checks a hold message may name, keyed to the check.
@@ -184,24 +186,15 @@ class StatementRead
   end
 
   private
-    # Must-fix 1, as narrowed by W8-E: when two rungs both fail the gate, the
-    # caller should receive the STRONGER verdict — but "strong" now means a
-    # HOLD-class verdict from the TEXT LAYER, because that is the only source the
-    # job holds (see `DocumentUnderstandingJob#statement_holds?`). Only the text
-    # layer can hold, and it is always evaluated FIRST, so a later rung can never
-    # mask it: this chooses which failing rung's Result travels as the fallback,
-    # and a geometry/vision drift — which no longer holds — never outranks the
-    # text layer's own verdict. The winning Result travels whole, its `source`
+    # Must-fix 1, as narrowed by W8-E: when two rungs both fail the gate the
+    # caller keeps the FIRST failing rung's Result. Only a text-layer read can
+    # HOLD (the job's `statement_holds?`), and the text layer is always evaluated
+    # first, so a later geometry/vision rung can never outrank it — the
+    # HOLD-ranking this method once performed is unreachable and the body reduces
+    # to "first failing rung wins". The winning Result travels whole, its `source`
     # with it.
     def prefer_hold(current, candidate)
-      return candidate if current.nil?
-      return current if hold_verdict?(current) || !hold_verdict?(candidate)
-
-      candidate
-    end
-
-    def hold_verdict?(read)
-      HOLD_VERDICTS.include?(read.verdict) && read.source == :text_layer
+      current || candidate
     end
 
     # Rung 1: the stored PDF's own text layer. `link` is a DocumentLink; its
@@ -228,8 +221,9 @@ class StatementRead
                    missing: parser.missing_date_rows, rejected: parser.rejected_lines)
     end
 
-    # Rung 2 (task W8-C). Until StatementRead::Geometry exists the rung is a
-    # declared no-op so the ladder shape is real and no scan is silently trusted.
+    # Rung 2 (task W8-C, landed): the scan front-end reads the OCR boxes. It
+    # returns `:unavailable` — the ladder's fall-through marker — only when the
+    # OCR left it no boxes to read (or they are all below the confidence floor).
     def geometry_rung
       return :unavailable unless defined?(StatementRead::Geometry)
 

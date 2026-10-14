@@ -1,0 +1,56 @@
+# The numeric/ungrouped counterpart of `synthetic_statement_boxes.yml` (cleanup
+# item 3): the SAME box layout — the rung reads boxes only — but every date is
+# the numeric form and every amount is printed ungrouped. Two boxes the OCR has
+# MERGED across a column boundary exercise the widened scan probes:
+#
+#   * "09/14 FakeShop.ca TORONTO ON"  — a NUMERIC leading date glued into the
+#     posting-date/description box, split off by `Geometry::LEADING_DATE`;
+#   * "TEST MART MISSISSAUGA ON 1234.00" — an UNGROUPED amount glued onto the
+#     description, split off by `Geometry::TRAILING_MONEY` (the old grouped-only
+#     pattern could not match "1234.00", so this row was rejected and the scan
+#     fell back).
+#
+# Boxes only (page text empty) so the rung cannot cheat by reading `page.text`;
+# the statement's totals are injected by the test, as in the sibling fixtures.
+# Self-consistent: one payment (credit 100.00), one purchases row of 100.00 and
+# one of 1234.00 (purchases/charges 1334.00), opening 1000.00, new balance 2234.00.
+- page: 1
+  text: ""
+  confidence: 0.96
+  boxes:
+    - { text: "Statement date: 10/08/2026", bbox: [620, 600, 1302, 634], confidence: 0.97 }
+    - { text: "For the period: 09/09/2026 to 10/08/2026", bbox: [620, 650, 1764, 684], confidence: 0.97 }
+    - { text: "Balance from your last statement", bbox: [140, 860, 844, 894], confidence: 0.97 }
+    - { text: "1000.00", bbox: [1952, 860, 2150, 894], confidence: 0.97 }
+    - { text: "Total credits", bbox: [140, 1010, 426, 1044], confidence: 0.97 }
+    - { text: "-100.00", bbox: [1930, 1010, 2150, 1044], confidence: 0.97 }
+    - { text: "Purchases", bbox: [140, 1060, 360, 1094], confidence: 0.97 }
+    - { text: "1334.00", bbox: [2018, 1060, 2150, 1094], confidence: 0.97 }
+    - { text: "Total charges", bbox: [140, 1260, 426, 1294], confidence: 0.97 }
+    - { text: "1334.00", bbox: [2018, 1260, 2150, 1294], confidence: 0.97 }
+    - { text: "Your New Balance", bbox: [140, 1310, 492, 1344], confidence: 0.97 }
+    - { text: "2234.00", bbox: [1952, 1310, 2150, 1344], confidence: 0.97 }
+- page: 2
+  text: ""
+  confidence: 0.96
+  boxes:
+    - { text: "Payments received - 09/09 to 10/08", bbox: [140, 280, 1020, 314], confidence: 0.97 }
+    - { text: "TRANSACTION", bbox: [140, 340, 382, 374], confidence: 0.97 }
+    - { text: "POSTING", bbox: [360, 340, 560, 374], confidence: 0.97 }
+    - { text: "TRANSACTION DESCRIPTION", bbox: [620, 340, 1240, 374], confidence: 0.97 }
+    - { text: "AMOUNT ($)", bbox: [1930, 340, 2150, 374], confidence: 0.97 }
+    - { text: "09/17", bbox: [140, 440, 360, 474], confidence: 0.97 }
+    - { text: "09/18", bbox: [360, 440, 560, 474], confidence: 0.97 }
+    - { text: "RB TELEPAYMENTS/TEST DIRECT", bbox: [620, 440, 1600, 474], confidence: 0.97 }
+    - { text: "-100.00", bbox: [1930, 440, 2150, 474], confidence: 0.97 }
+    - { text: "Total payments received", bbox: [140, 490, 646, 524], confidence: 0.97 }
+    - { text: "-100.00", bbox: [1930, 490, 2150, 524], confidence: 0.97 }
+    - { text: "Purchases", bbox: [140, 600, 360, 634], confidence: 0.97 }
+    - { text: "09/12", bbox: [140, 660, 360, 694], confidence: 0.97 }
+    - { text: "09/14 FakeShop.ca TORONTO ON", bbox: [360, 660, 1200, 694], confidence: 0.93 }
+    - { text: "100.00", bbox: [1930, 660, 2150, 694], confidence: 0.97 }
+    - { text: "09/13", bbox: [140, 720, 360, 754], confidence: 0.97 }
+    - { text: "09/15", bbox: [360, 720, 560, 754], confidence: 0.97 }
+    - { text: "TEST MART MISSISSAUGA ON 1234.00", bbox: [620, 720, 1600, 754], confidence: 0.93 }
+    - { text: "Total purchases", bbox: [140, 780, 470, 814], confidence: 0.97 }
+    - { text: "1334.00", bbox: [1930, 780, 2150, 814], confidence: 0.97 }

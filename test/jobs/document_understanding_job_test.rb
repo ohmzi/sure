@@ -927,7 +927,7 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
     assert_equal 2, import.rows_count, "the model's rows route — a scan's drift does not hold"
     assert_not_includes import.rows.pluck(:name), "MERCHANT ONE",
-                        "the dropped geometry row is not the routed one"
+                        "the text-layer row is not the routed one"
     detail = @link.extraction.validations["statement_read"]
     assert_equal "unreconcilable", detail["verdict"], "the text layer's own fall-back verdict is kept"
     assert_equal "text_layer", detail["source"], "the winning read's source travels with the read"

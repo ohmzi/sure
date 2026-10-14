@@ -16,8 +16,8 @@ class DocumentPanelTest < ActiveSupport::TestCase
     )
 
     panel = DocumentPanel.new(link.reload)
-    total = panel.fields.find { |f| f.label == "total" }
-    payee = panel.fields.find { |f| f.label == "payee" }
+    total = panel.fields.find { |f| f.key == "total" }
+    payee = panel.fields.find { |f| f.key == "payee" }
 
     assert_equal "12.34", total.value
     assert_in_delta 0.98, total.confidence, 0.001

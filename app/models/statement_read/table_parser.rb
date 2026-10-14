@@ -83,13 +83,15 @@ class StatementRead
     ].freeze
 
     # The period/statement-date token, in the bank's human-readable month-name
-    # form or the numeric mm/dd/yyyy form (W8-E). The numeric form is a
-    # four-digit year, and `parse_period_date` reads it MONTH-first — a bare
-    # `Date.parse` would read an ambiguous one day-first. Widening this is
-    # REQUIRED alongside the row anchor: a numeric-style statement whose rows we
-    # now detect must still be datable, or it is refused as period-unreadable
-    # and its yearless rows have no year.
-    PERIOD_DATE = /(?:[A-Z][a-z]+ \d{1,2}, \d{4}|\d{1,2}\/\d{1,2}\/\d{4})/
+    # form or the numeric mm/dd/yyyy (or two-digit mm/dd/yy) form (W8-E). The
+    # numeric form is read MONTH-first — a bare `Date.parse` would read an
+    # ambiguous one day-first. Widening this is REQUIRED alongside the row anchor:
+    # a numeric-style statement whose rows we now detect must still be datable, or
+    # it is refused as period-unreadable and its yearless rows have no year. The
+    # two-digit year is widened to match the row anchor (W8-E), which already
+    # accepts `09/09/26`; a statement printed ENTIRELY in two-digit form would
+    # otherwise lose the whole deterministic path.
+    PERIOD_DATE = /(?:[A-Z][a-z]+ \d{1,2}, \d{4}|\d{1,2}\/\d{1,2}\/(?:\d{4}|\d{2}))/
     PERIOD = /For the period:\s*(#{PERIOD_DATE})\s+to\s+(#{PERIOD_DATE})/
     STATEMENT_DATE = /Statement date:\s*(#{PERIOD_DATE})/
     # The drill-down block's own annotation ("The total of each transaction is
@@ -369,9 +371,16 @@ class StatementRead
         anchor = period_anchor
         return nil if anchor.nil?
 
-        two_digits = year_text.to_i
+        century_for(year_text.to_i, anchor.year)
+      end
+
+      # The century a two-digit year belongs to: the candidate year that lands
+      # nearest the anchor. Shared by the row dates (anchored to the period) and
+      # the period's own two-digit year (anchored to today — see
+      # `parse_period_date`).
+      def century_for(two_digits, anchor_year)
         [ 1900, 2000, 2100 ].map { |century| century + two_digits }
-                            .min_by { |candidate| (candidate - anchor.year).abs }
+                            .min_by { |candidate| (candidate - anchor_year).abs }
       end
 
       # The nearest year in the statement's own period (the only honest anchor
@@ -402,12 +411,18 @@ class StatementRead
       end
 
       # The period token, month-name ("September 9, 2026") or numeric
-      # ("09/09/2026"). The numeric form is parsed by HAND (mm/dd/yyyy): an
-      # ambiguous `Date.parse("10/08/2026")` reads it as 8 October (dd/mm), the
-      # opposite of the row dates and of the statement's own month/day order.
+      # ("09/09/2026" or the two-digit "09/09/26"). The numeric form is parsed by
+      # HAND (mm/dd/yyyy): an ambiguous `Date.parse("10/08/2026")` reads it as 8
+      # October (dd/mm), the opposite of the row dates and of the statement's own
+      # month/day order. A two-digit year is resolved to the century nearest TODAY
+      # — the same nearest-century rule `numeric_year` applies to row dates, but
+      # the period is what anchors THEM, so with no four-digit year printed
+      # anywhere to anchor the period itself (a statement printed entirely in
+      # two-digit form) today is the only honest reference.
       def parse_period_date(token)
-        if (match = token.match(%r{\A(\d{1,2})/(\d{1,2})/(\d{4})\z}))
-          Date.new(match[3].to_i, match[1].to_i, match[2].to_i)
+        if (match = token.match(%r{\A(\d{1,2})/(\d{1,2})/(\d{4}|\d{2})\z}))
+          year = match[3].length == 4 ? match[3].to_i : century_for(match[3].to_i, Date.current.year)
+          Date.new(year, match[1].to_i, match[2].to_i)
         else
           Date.parse(token)
         end

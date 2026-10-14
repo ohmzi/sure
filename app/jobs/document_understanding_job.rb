@@ -475,8 +475,10 @@ class DocumentUnderstandingJob < ApplicationJob
     # not the statement's own arithmetic (the usual dateless `line_items`
     # fallback) or an untrusted OCR read of a scan; stranding a document that
     # imports fine today is exactly what the named fence in
-    # document_understanding_job_test.rb forbids. Its detail is still recorded for
-    # diagnosis.
+    # document_understanding_job_test.rb forbids. Its detail is recorded only when
+    # this read is the one the ladder keeps as the fallback: when a usable text
+    # layer ALSO failed the gate, the ladder prefers the text-layer Result and the
+    # scan drift's own detail is dropped, not recorded.
     def statement_read_governs?(read)
       read.reconciled? || statement_holds?(read)
     end

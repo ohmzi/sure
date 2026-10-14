@@ -3,8 +3,8 @@
 require "test_helper"
 require "yaml"
 
-# The entrypoint and its source ladder: text layer -> geometry (W8-C, still
-# :unavailable) -> the injected vision callable. `PdfTextLayer` is stubbed so
+# The entrypoint and its source ladder: text layer -> geometry (W8-C, landed)
+# -> the injected vision callable. `PdfTextLayer` is stubbed so
 # the ladder is exercised without poppler or a real PDF.
 class StatementRead::StatementReadTest < ActiveSupport::TestCase
   FixtureLink = Struct.new(:bytes, :original_filename) do

@@ -45,6 +45,37 @@ class StatementRead::GeometryTest < ActiveSupport::TestCase
   def geometry = @geometry ||= StatementRead::Geometry.call(ocr_result)
   def text_parser = @text_parser ||= StatementRead::TableParser.call(synthetic_text)
 
+  # --- W8-H (cleanup item 3): the numeric/ungrouped scan probes ----------------
+
+  # The statement's own printed totals for the numeric/ungrouped boxes fixture,
+  # injected as `page.text` — the same shape a real OCR sidecar returns (flat text
+  # AND boxes). The rung never reads it; only `StatedTotals` (the ladder's gate)
+  # does.
+  def numeric_scan_text
+    <<~TXT
+      Statement date: 10/08/2026
+      For the period: 09/09/2026 to 10/08/2026
+      Balance from your last statement 1000.00
+      Total credits -100.00
+      Total purchases 1334.00
+      Total charges 1334.00
+      Your New Balance 2234.00
+    TXT
+  end
+
+  # The numeric/ungrouped boxes fixture, optionally with one box's amount changed
+  # so the rows no longer match the stated totals (the "mismatched" case).
+  def numeric_ocr_result(mismatch: false)
+    pages = YAML.safe_load(file_fixture("statements/synthetic_statement_boxes_numeric.yml").read)
+    if mismatch
+      box = pages.flat_map { |page| page["boxes"] }.find { |b| b["text"].include?("MISSISSAUGA") }
+      box["text"] = box["text"].sub("1234.00", "9999.00")
+    end
+    ocr_result(fixture: "synthetic_statement_boxes_numeric.yml", text: numeric_scan_text, pages: pages)
+  end
+
+  def numeric_geometry = @numeric_geometry ||= StatementRead::Geometry.call(numeric_ocr_result)
+
   def entries_for(section) = geometry.entries.select { |entry| entry["section"] == section }
 
   def sum_of(entries) = entries.sum(BigDecimal(0)) { |entry| entry["amount"].to_d.abs }
@@ -180,5 +211,52 @@ class StatementRead::GeometryTest < ActiveSupport::TestCase
   test "an input with no pages at all yields :unavailable" do
     assert_equal :unavailable, StatementRead::Geometry.call(Struct.new(:text).new("jumbled"))
     assert_equal :unavailable, StatementRead::Geometry.call(nil)
+  end
+
+  # --- W8-H (cleanup item 3): a scan's numeric/ungrouped case reads, and still drifts if wrong
+
+  test "the widened scan probes reach a numeric date and ungrouped money (item 3)" do
+    # The three probes the review found month-name/grouped-only. Each reaches what
+    # the text front-end reaches; before the widening every one of these is false.
+    assert StatementRead::Geometry::DATE_PROBE.match?("  09/14 FakeShop"),
+           "a numeric date is a date probe (indentation), as in the text path"
+    assert StatementRead::Geometry::LEADING_DATE.match?("09/14 FakeShop.ca"),
+           "a merged NUMERIC leading date is split off its description"
+    assert StatementRead::Geometry::TRAILING_MONEY.match?("TEST MART 1234.00"),
+           "a merged UNGROUPED amount is split off its description"
+  end
+
+  test "a merged box carrying a NUMERIC date is split and read (item 3)" do
+    fake = numeric_geometry.entries.find { |entry| entry["name"] == "FakeShop.ca TORONTO ON" }
+
+    assert fake, "the merged '09/14 FakeShop.ca TORONTO ON' box is split at the boundary"
+    assert_equal "2026-09-12", fake["date"], "the transaction date box dates the row"
+    assert_equal "-100.00", fake["amount"]
+  end
+
+  test "a merged box carrying an UNGROUPED amount is split and read (item 3)" do
+    mart = numeric_geometry.entries.find { |entry| entry["name"] == "TEST MART MISSISSAUGA ON" }
+
+    assert mart, "the merged 'TEST MART MISSISSAUGA ON 1234.00' box is split off its amount"
+    assert_equal "-1234.00", mart["amount"],
+                 "the ungrouped amount is its own cell — grouped-only, this row was rejected and the scan fell back"
+    assert_equal "2026-09-13", mart["date"]
+  end
+
+  test "through the ladder, the numeric/ungrouped scan reconciles and reports geometry (item 3)" do
+    result = StatementRead.call(link: FixtureLink.new(nil, "scan.pdf"), ocr_result: numeric_ocr_result)
+
+    assert_equal :geometry, result.source, "the widened probes let the geometry rung read the scan"
+    assert result.reconciled?, "the split rows balance against the statement's own totals"
+    assert_equal :trusted, result.verdict
+    assert_equal 3, result.row_count
+  end
+
+  test "a mismatched numeric/ungrouped scan still drifts, never trusts (item 3)" do
+    result = StatementRead.call(link: FixtureLink.new(nil, "scan.pdf"), ocr_result: numeric_ocr_result(mismatch: true))
+
+    assert_equal :geometry, result.source, "the widened probes still read the scan"
+    assert_not result.reconciled?
+    assert_equal :drift, result.verdict, "the gate still catches a statement whose figures do not match"
   end
 end

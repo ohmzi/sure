@@ -23,21 +23,32 @@ class StatementRead
   # emitted row shape — nothing is re-implemented here.
   #
   # It decides nothing about money. Its rendered text is proven by the same
-  # reconciliation gate as everything else, so a scan whose boxes are too poor to
-  # balance is HELD, never partially imported.
+  # reconciliation gate as everything else: a scan whose boxes are too poor to
+  # balance is surfaced UNTRUSTED and FALLS BACK to the model's read, never
+  # partially imported — and never held, since under W8-E (owner-directed) only a
+  # TEXT-LAYER drift holds.
   class Geometry
     # The header keywords whose presence (>= 2) marks a column-header band.
     HEADER_TOKENS = %w[TRANSACTION POSTING DATE DESCRIPTION AMOUNT].freeze
 
+    # A date token — the month-name form the statement prints ("Sep 08") or the
+    # numeric form the OCR may carry ("09/09", "09/09/2026", "09/09/26"). The
+    # reach matches the text front-end's `TableParser::MONTH_NAME`/`NUMERIC_DATE`,
+    # so a scan and a text layer agree on what a date is (the W8-E widening
+    # reaches here too; before it, a merged numeric date was never split).
+    DATE_TOKEN = /(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}|(?:0?[1-9]|1[0-2])\/(?:0?[1-9]|[12]\d|3[01])(?:\/(?:\d{4}|\d{2}))?/
+
     # Loose probes over a rendered line, used ONLY to decide its indentation for
     # the shared classifier's continuation rule — never to build a row.
-    DATE_PROBE = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/
+    DATE_PROBE = /\b(?:#{DATE_TOKEN})\b/
     MONEY_PROBE = /\d{1,3}(?:,\d{3})*\.\d{2}/
 
     # A leading transaction/posting date inside a box the OCR merged with its
-    # neighbour ("Sep 14 FakeShop.ca TORONTO ON"), and a trailing money suffix.
-    LEADING_DATE = /\A(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+(?=\S)/
-    TRAILING_MONEY = /\s+(-?\$?\d{1,3}(?:,\d{3})*\.\d{2})\z/
+    # neighbour ("Sep 14 FakeShop.ca TORONTO ON", "09/14 FakeShop.ca TORONTO ON"),
+    # and a trailing money suffix — grouped ("1,234.56") or ungrouped ("1234.56"),
+    # the same reach as `TableParser::AMOUNT_FIELD`.
+    LEADING_DATE = /\A(?:#{DATE_TOKEN})\s+(?=\S)/
+    TRAILING_MONEY = /\s+(-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2})\z/
 
     # A wrapped description is indented into the description column (lead >= 4)
     # so `TableParser#continuation?` binds it to the row above.
