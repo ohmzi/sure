@@ -42,6 +42,17 @@ class DocumentPanel
     "date_parses" => "the date reads as a date"
   }.freeze
 
+  # The statement-rows observations, kept out of CHECK_LABELS so neither appears
+  # on a read that has nothing to do with them (a receipt). `checks` appends each
+  # only when the read recorded it: the fallback check only when it actually
+  # fired (rows were recovered from line_items), the date check whenever the
+  # statement had rows — a date-less row (the fallback's carry none) reads as a
+  # red flag, never a silent blank.
+  STATEMENT_CHECK_LABELS = {
+    "statement_rows_from_line_items" => "the statement rows were read from the line items field",
+    "statement_rows_have_dates" => "every statement row has a date"
+  }.freeze
+
   def initialize(link)
     @link = link
   end
@@ -120,7 +131,8 @@ class DocumentPanel
     return [] unless extraction
 
     validations = extraction.validations.with_indifferent_access
-    CHECK_LABELS.map { |key, label| Check.new(label: label, state: validations[key]) }
+    CHECK_LABELS.merge(statement_check_labels(validations))
+                .map { |key, label| Check.new(label: label, state: validations[key]) }
   end
 
   # What the document became: the draft it was routed to, and the entry it
@@ -132,6 +144,19 @@ class DocumentPanel
 
   private
     def routes = Rails.application.routes.url_helpers
+
+    # The statement-rows checks to append, each only when the read recorded it
+    # meaningfully — see STATEMENT_CHECK_LABELS.
+    def statement_check_labels(validations)
+      labels = {}
+      if validations["statement_rows_from_line_items"]
+        labels["statement_rows_from_line_items"] = STATEMENT_CHECK_LABELS["statement_rows_from_line_items"]
+      end
+      unless validations["statement_rows_have_dates"].nil?
+        labels["statement_rows_have_dates"] = STATEMENT_CHECK_LABELS["statement_rows_have_dates"]
+      end
+      labels
+    end
 
     def draft = @draft ||= @link.receipt_imports.max_by(&:created_at)
 

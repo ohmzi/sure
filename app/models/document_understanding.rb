@@ -70,10 +70,25 @@ class DocumentUnderstanding
   # rows. The batched read therefore accumulates `transaction_rows` (raw, ungated)
   # and this reader — keyed on the merged verdict's class, the same one
   # DocumentClassifier judges — decides whether they are the document's rows.
+  #
+  # When a statement carries no `transactions` but the model filed the rows under
+  # `line_items`, those entries ARE the statement's rows: the local vision model
+  # (qwen2.5vl:7b) reads a statement's table correctly but its field choice varies
+  # run to run, and the app's statement path consumes only `transactions`, so the
+  # rows would otherwise be silently discarded. They are adopted here (flagged by
+  # `statement_rows_from_line_items?`) rather than dropped.
   def transactions
     return [] unless document_class == "statement"
+    return transaction_rows if transaction_rows.any?
 
-    transaction_rows
+    rows_from_line_items
+  end
+
+  # Whether the statement's rows came from the `line_items` field because
+  # `transactions` was empty. The job records this on the read so the fallback is
+  # visible, never silent.
+  def statement_rows_from_line_items?
+    document_class == "statement" && transaction_rows.empty? && line_items.any?
   end
 
   # The rows as the model sent them, with no class gate and the same coercion as
@@ -128,5 +143,18 @@ class DocumentUnderstanding
       Array(value)
         .select { |i| i.respond_to?(:with_indifferent_access) }
         .map { |i| i.with_indifferent_access }
+    end
+
+    # A line item reshaped into a statement row: its description is the row's
+    # name, its amount is kept verbatim, and `source_page` (when the batch that
+    # read it covered one page) rides along so the row keeps its page anchor. No
+    # date is invented — a line item carries none, so the row's date is left
+    # unknown and the read flags it.
+    def rows_from_line_items
+      line_items.map do |item|
+        row = { "name" => item["description"].to_s, "amount" => item["amount"].to_s, "notes" => nil }
+        row["source_page"] = item["source_page"] if item.key?("source_page")
+        row
+      end
     end
 end

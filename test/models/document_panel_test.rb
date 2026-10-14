@@ -128,6 +128,25 @@ class DocumentPanelTest < ActiveSupport::TestCase
     assert_equal false, by_label.fetch("the card or account number was found in the page text").state
   end
 
+  test "the panel surfaces a statement whose rows were recovered from line_items" do
+    # The fallback is recorded on the read's validations; the panel must show it,
+    # so a dropped-then-recovered set of rows is visible to the owner, never silent.
+    link = document_links(:understood_receipt_link)
+    link.document_extractions.delete_all
+    DocumentExtraction.record!(
+      document_link: link, provider: "openai", status: "succeeded",
+      verdict: { "document_class" => "statement", "institution_name" => "Chase",
+                "line_items" => [ { "description" => "ANTHROPIC", "amount" => "-16.52" } ] },
+      field_confidence: {},
+      validations: { "statement_rows_from_line_items" => true, "statement_rows_have_dates" => false }
+    )
+
+    labels = DocumentPanel.new(link.reload).checks.map(&:label)
+
+    assert_includes labels, "the statement rows were read from the line items field"
+    assert_includes labels, "every statement row has a date"
+  end
+
   test "a document read but with nothing to say does not split" do
     # A succeeded read whose verdict carried no field the panel knows: it is a
     # read, but it has nothing to say, so the viewer stays a picture.

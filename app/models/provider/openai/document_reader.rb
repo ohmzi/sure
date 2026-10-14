@@ -25,11 +25,14 @@ class Provider::Openai::DocumentReader
     - statement_period: an object {"start": string|null, "end": string|null},
       or null when the document has no statement period.
     - line_items: an array of objects {"description": string, "amount": string}
-      — the purchased items on a receipt or bill. Use an empty array if none.
+      — the purchased items on a RECEIPT or BILL. For a STATEMENT this MUST be
+      an empty array: a statement has no purchased items.
     - transactions: an array of objects
       {"date": string, "amount": string, "name": string, "notes": string|null}
-      — the account rows on a STATEMENT only. Use an empty array for anything
-      that is not a statement.
+      — the account rows on a STATEMENT only, and EVERY account row belongs here:
+      one entry per line of the statement's transaction table, each with its date
+      (a statement's rows always carry a date), the name and the amount. Use an
+      empty array for anything that is not a statement.
     - field_confidence: an object mapping a field name to a number between 0
       and 1, e.g. {"total": 0.99}.
 

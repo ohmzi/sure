@@ -116,13 +116,22 @@ class DocumentUnderstandingJob < ApplicationJob
       end
 
     last4 = [ understanding.account_last4, understanding.card_last4 ].compact
+    # The statement-rows observations. A statement whose rows arrived under
+    # `line_items` (the model's field choice varies run to run) still yields rows
+    # — `transactions` adopts them — but the fallback is recorded so it is
+    # visible, never silent. Its rows carry no date, and none is invented, so the
+    # date check surfaces that too (nil when there are no statement rows at all:
+    # a receipt, or a statement the read found empty).
+    statement_rows = understanding.transactions
     {
       "totals_agree" => (ai_total.present? && ocr_total.present? ? ai_total == ocr_total : nil),
       "ai_total" => ai_total&.to_s("F"),
       "ocr_total" => ocr_total&.to_s("F"),
       "line_items_sum" => sum_ok,
       "last4_in_ocr" => last4.empty? ? nil : last4.any? { |digits| ocr_text.to_s.include?(digits) },
-      "date_parses" => understanding.date.present?
+      "date_parses" => understanding.date.present?,
+      "statement_rows_from_line_items" => understanding.statement_rows_from_line_items?,
+      "statement_rows_have_dates" => statement_rows.empty? ? nil : statement_rows.all? { |row| row["date"].present? }
     }
   end
 

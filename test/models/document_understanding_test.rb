@@ -94,4 +94,47 @@ class DocumentUnderstandingTest < ActiveSupport::TestCase
     assert_equal 1, statement.transactions.size
     assert_equal "-4.50", statement.transactions.first["amount"]
   end
+
+  test "a statement's rows filed under line_items are read as the statement's rows" do
+    # The live local model (qwen2.5vl:7b) reads a statement's table correctly but
+    # files every row under `line_items`, leaving `transactions` empty — its field
+    # choice varies run to run. Those rows ARE the statement's rows and must not
+    # be dropped; the fallback is flagged so it is visible, never silent.
+    u = DocumentUnderstanding.new(verdict(
+      "document_class" => "statement",
+      "transactions" => [],
+      "line_items" => [
+        { "description" => "ANTHROPIC SAN FRANCISCOC A", "amount" => "-16.52" },
+        { "description" => "DEEPSEERWEA", "amount" => "-15.23" }
+      ]
+    ))
+
+    assert u.statement_rows_from_line_items?
+    assert_equal [ "ANTHROPIC SAN FRANCISCOC A", "DEEPSEERWEA" ], u.transactions.map { |r| r["name"] }
+    assert_equal [ "-16.52", "-15.23" ], u.transactions.map { |r| r["amount"] }
+    assert u.transactions.all? { |r| r["date"].blank? },
+           "a line item carries no date; none may be invented"
+  end
+
+  test "a statement's own transactions win over the line_items fallback" do
+    u = DocumentUnderstanding.new(verdict(
+      "document_class" => "statement",
+      "transactions" => [ { "date" => "2026-09-03", "amount" => "-12.34", "name" => "Cafe", "notes" => "" } ],
+      "line_items" => [ { "description" => "Ignored", "amount" => "-9.99" } ]
+    ))
+
+    assert_not u.statement_rows_from_line_items?
+    assert_equal [ "Cafe" ], u.transactions.map { |r| r["name"] }
+  end
+
+  test "a receipt's line_items are never read as the statement's rows" do
+    u = DocumentUnderstanding.new(verdict(
+      "document_class" => "receipt", "transactions" => [],
+      "line_items" => [ { "description" => "Coffee", "amount" => "3.00" } ]
+    ))
+
+    assert_not u.statement_rows_from_line_items?
+    assert_empty u.transactions, "a receipt has no statement rows"
+    assert_equal [ "Coffee" ], u.line_items.map { |i| i["description"] }
+  end
 end

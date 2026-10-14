@@ -520,6 +520,72 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert import.ai_processed?
   end
 
+  test "a statement whose rows land in line_items still produces the rows and marks the fallback" do
+    # The live local model (qwen2.5vl:7b) reads a statement's table correctly but
+    # files every row under line_items, leaving transactions empty — its field
+    # choice varies run to run, which is exactly why the live read kept returning
+    # different counts. The app must adopt those rows as the statement's rows (not
+    # drop the money) and record that it did, so the fallback is visible.
+    stub_ocr_success(pages: [ { page: 1, text: "ANTHROPIC -16.52\nDEEPSEEK -15.23", confidence: 0.96, image: "aGk=" } ])
+    misfiled = STATEMENT.merge(
+      "transactions" => [],
+      "line_items" => [
+        { "description" => "ANTHROPIC SAN FRANCISCOC A", "amount" => "-16.52" },
+        { "description" => "DEEPSEERWEA", "amount" => "-15.23" }
+      ]
+    )
+    stub_provider(FakeProvider.new(misfiled))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal 2, import.rows_count, "the misfiled rows are the statement's rows, not zero"
+    rows = import.rows.order(:source_row_number)
+    assert_equal [ "ANTHROPIC SAN FRANCISCOC A", "DEEPSEERWEA" ], rows.pluck(:name),
+                 "each line_item's description is the row's name"
+    assert_equal [ "-16.52", "-15.23" ], rows.pluck(:amount)
+    assert rows.all? { |row| row.date.blank? },
+           "a line item carries no date; the row's date is left unknown, never invented"
+
+    validations = @link.extraction.validations
+    assert_equal true, validations["statement_rows_from_line_items"],
+                 "the fallback is recorded, not silent"
+    assert_equal false, validations["statement_rows_have_dates"],
+                 "the date-less rows are surfaced, not hidden"
+  end
+
+  test "a statement read into transactions keeps its dated rows and is not marked" do
+    # The normal case: rows in transactions, each with a date. Nothing here may be
+    # disturbed by the fallback, and neither marker fires.
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal [ Date.new(2026, 9, 3), Date.new(2026, 9, 5) ].map { |d| d.strftime(@family.date_format) },
+                 import.rows.order(:source_row_number).pluck(:date)
+
+    validations = @link.extraction.validations
+    assert_equal false, validations["statement_rows_from_line_items"]
+    assert_equal true, validations["statement_rows_have_dates"]
+  end
+
+  test "a receipt's line_items are unchanged and never marked as a statement fallback" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    draft = ReceiptImport.find_by!(document_link_id: @link.id)
+    assert_equal [ "Coffee" ], draft.line_items.map { |item| item["description"] },
+                 "a receipt's line items are its payload and stay line items"
+    validations = @link.extraction.validations
+    assert_equal false, validations["statement_rows_from_line_items"]
+    assert_nil validations["statement_rows_have_dates"],
+               "a receipt has no statement rows, so the date check does not apply"
+  end
+
   test "a multi-page statement is batched, and the batches are stitched" do
     pages = (1..5).map { |n| { page: n, text: "PAGE #{n}", confidence: 0.95, image: "cGFnZQ==" } }
     stub_ocr_success(pages: pages)
