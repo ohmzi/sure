@@ -15,7 +15,11 @@ class DocumentPanel
   # plain fact. The design's per-field confidence gate; there is no global one.
   UNSURE_BELOW = 0.6
 
-  Field = Data.define(:label, :value, :confidence) do
+  # `key` is the verdict key the field was built from (`document_class`, `total`,
+  # `payee`, …): the view filters and keys off it, not off the (translatable)
+  # label, so the "hide the class row" branch and the `data-field` selectors stay
+  # stable when a label is translated.
+  Field = Data.define(:key, :label, :value, :confidence) do
     def unsure? = confidence.present? && confidence < DocumentPanel::UNSURE_BELOW
   end
 
@@ -149,7 +153,7 @@ class DocumentPanel
       raw = verdict[key]
       next if raw.blank?
 
-      Field.new(label: I18n.t(label_key), value: raw.to_s, confidence: confidence[key]&.to_f)
+      Field.new(key: key, label: I18n.t(label_key), value: raw.to_s, confidence: confidence[key]&.to_f)
     end
   end
 

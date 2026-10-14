@@ -257,7 +257,8 @@ class DocumentPanelTest < ActiveSupport::TestCase
       field_confidence: {}
     )
 
-    by_label = DocumentPanel.new(link.reload).fields.index_by(&:label)
+    panel = DocumentPanel.new(link.reload)
+    by_label = panel.fields.index_by(&:label)
 
     {
       "type" => "receipt", "institution" => "Chase", "account last4" => "1234",
@@ -266,6 +267,11 @@ class DocumentPanelTest < ActiveSupport::TestCase
     }.each do |label, value|
       assert_equal value, by_label.fetch(label).value, "field #{label.inspect} must render its exact label"
     end
+
+    # Each field carries the verdict key it was built from — the view filters on
+    # this (`field.key == "document_class"`), not on the translatable label.
+    assert_equal DocumentPanel::FIELD_LABEL_KEYS.keys.sort, panel.fields.map(&:key).sort,
+                 "every field must carry its verdict key"
 
     assert by_label.keys.none? { |label| label.to_s.start_with?("translation missing") },
            "a missing or renamed key must fail here, not in the UI: #{by_label.keys.inspect}"

@@ -24,13 +24,15 @@
     </div>
 
     <%# The class is shown in the header above ("what it decided"), so it is not
-        repeated here; every other field is, with its own confidence. %>
-    <% read_fields = panel.fields.reject { |field| field.label == "type" } %>
+        repeated here; every other field is, with its own confidence. Filter by
+        the field's verdict KEY, not its label: the label is translated, the key
+        is not, so this stays correct in every locale. %>
+    <% read_fields = panel.fields.reject { |field| field.key == "document_class" } %>
     <% if read_fields.any? %>
       <section class="space-y-1.5">
         <p class="text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".read") %></p>
         <% read_fields.each do |field| %>
-          <div class="flex items-baseline gap-2 text-sm" data-field="<%= field.label %>">
+          <div class="flex items-baseline gap-2 text-sm" data-field="<%= field.key %>">
             <span class="w-28 shrink-0 text-secondary"><%= field.label %></span>
             <span class="min-w-0 truncate text-primary"><%= field.value %></span>
             <span class="ml-auto shrink-0 text-right <%= field.unsure? ? "text-warning" : "text-secondary" %>">
