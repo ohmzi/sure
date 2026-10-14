@@ -1,0 +1,139 @@
+- page: 1
+  text: ""
+  confidence: 0.96
+  boxes:
+    - { text: "Your account number starting with 0000 and ending with 1111", bbox: [140, 200, 1438, 234], confidence: 0.97 }
+    - { text: "Statement date: October 8, 2026", bbox: [620, 600, 1302, 634], confidence: 0.97 }
+    - { text: "For the period: September 9, 2026 to October 8, 2026", bbox: [620, 650, 1764, 684], confidence: 0.97 }
+    - { text: "Your account summary", bbox: [140, 800, 580, 834], confidence: 0.97 }
+    - { text: "Balance from your last statement", bbox: [140, 860, 844, 894], confidence: 0.97 }
+    - { text: "$6,000.00", bbox: [1952, 860, 2150, 894], confidence: 0.97 }
+    - { text: "Payments received Sep 9 to Oct 8, 2026", bbox: [140, 910, 976, 944], confidence: 0.97 }
+    - { text: "-5,125.00", bbox: [1952, 910, 2150, 944], confidence: 0.97 }
+    - { text: "Returns and other credits", bbox: [140, 960, 690, 994], confidence: 0.97 }
+    - { text: "-30.00", bbox: [2018, 960, 2150, 994], confidence: 0.97 }
+    - { text: "Total credits", bbox: [140, 1010, 426, 1044], confidence: 0.97 }
+    - { text: "-$5,155.00", bbox: [1930, 1010, 2150, 1044], confidence: 0.97 }
+    - { text: "Purchases", bbox: [140, 1060, 360, 1094], confidence: 0.97 }
+    - { text: "350.00", bbox: [2018, 1060, 2150, 1094], confidence: 0.97 }
+    - { text: "Cash transactions", bbox: [140, 1110, 514, 1144], confidence: 0.97 }
+    - { text: "0.00", bbox: [2062, 1110, 2150, 1144], confidence: 0.97 }
+    - { text: "Fees", bbox: [140, 1160, 360, 1194], confidence: 0.97 }
+    - { text: "0.00", bbox: [2062, 1160, 2150, 1194], confidence: 0.97 }
+    - { text: "Interest charges", bbox: [140, 1210, 492, 1244], confidence: 0.97 }
+    - { text: "1.78", bbox: [2062, 1210, 2150, 1244], confidence: 0.97 }
+    - { text: "Total charges", bbox: [140, 1260, 426, 1294], confidence: 0.97 }
+    - { text: "$351.78", bbox: [1996, 1260, 2150, 1294], confidence: 0.97 }
+    - { text: "Your New Balance", bbox: [140, 1310, 492, 1344], confidence: 0.97 }
+    - { text: "$1,196.78", bbox: [1952, 1310, 2150, 1344], confidence: 0.97 }
+    - { text: "Credit limit", bbox: [140, 1360, 404, 1394], confidence: 0.97 }
+    - { text: "$9,000.00", bbox: [1952, 1360, 2150, 1394], confidence: 0.97 }
+    - { text: "Available credit", bbox: [620, 1360, 972, 1394], confidence: 0.97 }
+    - { text: "$7,803.22", bbox: [1952, 1360, 2150, 1394], confidence: 0.97 }
+    - { text: "Your payment information", bbox: [140, 1410, 668, 1444], confidence: 0.97 }
+    - { text: "Balance Due", bbox: [140, 1460, 382, 1494], confidence: 0.97 }
+    - { text: "$1,196.78", bbox: [1952, 1460, 2150, 1494], confidence: 0.97 }
+    - { text: "Minimum payment due", bbox: [140, 1510, 558, 1544], confidence: 0.97 }
+    - { text: "$11.78", bbox: [2018, 1510, 2150, 1544], confidence: 0.97 }
+    - { text: "Payment due date", bbox: [140, 1560, 492, 1594], confidence: 0.97 }
+    - { text: "Oct 29, 2026", bbox: [1886, 1560, 2150, 1594], confidence: 0.97 }
+- page: 2
+  text: ""
+  confidence: 0.96
+  boxes:
+    - { text: "Details of your account summary", bbox: [140, 180, 822, 214], confidence: 0.97 }
+    - { text: "Payments received - Sep 9 to Oct 8, 2026", bbox: [140, 280, 1020, 314], confidence: 0.97 }
+    - { text: "TRANSACTION", bbox: [140, 340, 382, 374], confidence: 0.97 }
+    - { text: "POSTING", bbox: [360, 340, 560, 374], confidence: 0.97 }
+    - { text: "DATE", bbox: [140, 380, 360, 414], confidence: 0.97 }
+    - { text: "DATE", bbox: [360, 380, 560, 414], confidence: 0.97 }
+    - { text: "TRANSACTION DESCRIPTION", bbox: [620, 380, 1240, 414], confidence: 0.97 }
+    - { text: "AMOUNT ($)", bbox: [1930, 380, 2150, 414], confidence: 0.97 }
+    - { text: "Sep 17", bbox: [140, 470, 360, 504], confidence: 0.97 }
+    - { text: "Sep 18", bbox: [360, 470, 560, 504], confidence: 0.97 }
+    - { text: "RB TELEPAYMENTS/TEST DIRECT", bbox: [620, 470, 1600, 504], confidence: 0.97 }
+    - { text: "-100.00", bbox: [1996, 470, 2150, 504], confidence: 0.97 }
+    - { text: "If your card has been stolen or lost call us immediately from anywhere at all.", bbox: [2250, 470, 3966, 504], confidence: 0.97 }
+    - { text: "Sep 21", bbox: [140, 520, 360, 554], confidence: 0.97 }
+    - { text: "Sep 22", bbox: [360, 520, 560, 554], confidence: 0.97 }
+    - { text: "RB TELEPAYMENTS/TEST DIRECT", bbox: [620, 520, 1600, 554], confidence: 0.97 }
+    - { text: "-5,000.00", bbox: [1952, 520, 2150, 554], confidence: 0.97 }
+    - { text: "Sep 29", bbox: [140, 570, 360, 604], confidence: 0.97 }
+    - { text: "Sep 30", bbox: [360, 570, 560, 604], confidence: 0.97 }
+    - { text: "TESTPAY.COM/PAYMENTS OAKVILLE ON", bbox: [620, 570, 1600, 604], confidence: 0.97 }
+    - { text: "-25.00", bbox: [2018, 570, 2150, 604], confidence: 0.97 }
+    - { text: "Total payments received", bbox: [140, 620, 646, 654], confidence: 0.97 }
+    - { text: "-$5,125.00", bbox: [1930, 620, 2150, 654], confidence: 0.97 }
+    - { text: "Returns and other credits", bbox: [140, 760, 690, 794], confidence: 0.97 }
+    - { text: "TRANSACTION", bbox: [140, 820, 382, 854], confidence: 0.97 }
+    - { text: "POSTING", bbox: [360, 820, 560, 854], confidence: 0.97 }
+    - { text: "DATE", bbox: [140, 860, 360, 894], confidence: 0.97 }
+    - { text: "DATE", bbox: [360, 860, 560, 894], confidence: 0.97 }
+    - { text: "TRANSACTION DESCRIPTION", bbox: [620, 860, 1240, 894], confidence: 0.97 }
+    - { text: "AMOUNT ($)", bbox: [1930, 860, 2150, 894], confidence: 0.97 }
+    - { text: "Sep 12", bbox: [140, 950, 360, 984], confidence: 0.97 }
+    - { text: "Sep 14 FakeShop.ca TORONTO ON", bbox: [360, 950, 1200, 984], confidence: 0.93 }
+    - { text: "-10.00", bbox: [2018, 950, 2150, 984], confidence: 0.97 }
+    - { text: "Sep 12", bbox: [140, 1000, 360, 1034], confidence: 0.97 }
+    - { text: "Sep 14", bbox: [360, 1000, 560, 1034], confidence: 0.97 }
+    - { text: "TEST Mktp CA TORONTO ON", bbox: [620, 1000, 1600, 1034], confidence: 0.97 }
+    - { text: "-20.00", bbox: [2018, 1000, 2150, 1034], confidence: 0.97 }
+    - { text: "Total returns and credits", bbox: [140, 1050, 690, 1084], confidence: 0.97 }
+    - { text: "-$30.00", bbox: [1996, 1050, 2150, 1084], confidence: 0.97 }
+    - { text: "Purchases", bbox: [140, 1170, 360, 1204], confidence: 0.97 }
+    - { text: "TRANSACTION", bbox: [140, 1230, 382, 1264], confidence: 0.97 }
+    - { text: "POSTING", bbox: [360, 1230, 560, 1264], confidence: 0.97 }
+    - { text: "DATE", bbox: [140, 1270, 360, 1304], confidence: 0.97 }
+    - { text: "DATE", bbox: [360, 1270, 560, 1304], confidence: 0.97 }
+    - { text: "TRANSACTION DESCRIPTION", bbox: [620, 1270, 1240, 1304], confidence: 0.97 }
+    - { text: "AMOUNT ($)", bbox: [1930, 1270, 2150, 1304], confidence: 0.97 }
+    - { text: "Purchases - Card #0000 12XX XXXX 1111", bbox: [140, 1360, 954, 1394], confidence: 0.97 }
+    - { text: "Sep 08", bbox: [140, 1420, 360, 1454], confidence: 0.97 }
+    - { text: "Sep 09", bbox: [360, 1420, 560, 1454], confidence: 0.97 }
+    - { text: "TEST MART MISSISSAUGA ON", bbox: [620, 1420, 1600, 1454], confidence: 0.97 }
+    - { text: "100.00", bbox: [2018, 1420, 2150, 1454], confidence: 0.97 }
+    - { text: "HILLPA", bbox: [620, 1470, 752, 1504], confidence: 0.97 }
+    - { text: "12.00 USD @ 1.234567890", bbox: [620, 1520, 1126, 1554], confidence: 0.97 }
+    - { text: "Sep 08", bbox: [140, 1570, 360, 1604], confidence: 0.97 }
+    - { text: "Sep 09", bbox: [360, 1570, 560, 1604], confidence: 0.97 }
+    - { text: "COFFEE SHOP OAKVILLE ON", bbox: [620, 1570, 1600, 1604], confidence: 0.97 }
+    - { text: "200.00", bbox: [2018, 1570, 2150, 1604], confidence: 0.97 }
+    - { text: "Rewards points are earned on new purchases.", bbox: [2250, 1570, 3196, 1604], confidence: 0.97 }
+    - { text: "Total purchases for 0000 12XX XXXX 1111", bbox: [140, 1620, 998, 1654], confidence: 0.97 }
+    - { text: "$300.00", bbox: [1996, 1620, 2150, 1654], confidence: 0.97 }
+    - { text: "Purchases - Card #0000 12XX XXXX 2222", bbox: [140, 1670, 954, 1704], confidence: 0.97 }
+    - { text: "Sep 10", bbox: [140, 1730, 360, 1764], confidence: 0.97 }
+    - { text: "Sep 10", bbox: [360, 1730, 560, 1764], confidence: 0.97 }
+    - { text: "GROCERY STORE TORONTO ON", bbox: [620, 1730, 1600, 1764], confidence: 0.97 }
+    - { text: "50.00", bbox: [2040, 1730, 2150, 1764], confidence: 0.97 }
+    - { text: "Total purchases for 0000 12XX XXXX 2222", bbox: [140, 1780, 998, 1814], confidence: 0.97 }
+    - { text: "$50.00", bbox: [2018, 1780, 2150, 1814], confidence: 0.97 }
+    - { text: "Total purchases", bbox: [140, 1830, 470, 1864], confidence: 0.97 }
+    - { text: "$350.00", bbox: [1996, 1830, 2150, 1864], confidence: 0.97 }
+    - { text: "Sep 11", bbox: [140, 1850, 360, 1884], confidence: 0.2 }
+    - { text: "Sep 11", bbox: [360, 1850, 560, 1884], confidence: 0.2 }
+    - { text: "GHOST MERCHANT LOW CONF", bbox: [620, 1850, 1600, 1884], confidence: 0.2 }
+    - { text: "30.00", bbox: [2040, 1850, 2150, 1884], confidence: 0.2 }
+    - { text: "Interest charges", bbox: [140, 1950, 492, 1984], confidence: 0.97 }
+    - { text: "TRANSACTION", bbox: [140, 2010, 382, 2044], confidence: 0.97 }
+    - { text: "POSTING", bbox: [360, 2010, 560, 2044], confidence: 0.97 }
+    - { text: "DATE", bbox: [140, 2050, 360, 2084], confidence: 0.97 }
+    - { text: "DATE", bbox: [360, 2050, 560, 2084], confidence: 0.97 }
+    - { text: "TRANSACTION DESCRIPTION", bbox: [620, 2050, 1240, 2084], confidence: 0.97 }
+    - { text: "AMOUNT ($)", bbox: [1930, 2050, 2150, 2084], confidence: 0.97 }
+    - { text: "Oct 08", bbox: [140, 2140, 360, 2174], confidence: 0.97 }
+    - { text: "Oct 08", bbox: [360, 2140, 560, 2174], confidence: 0.97 }
+    - { text: "INTEREST CHARGES", bbox: [620, 2140, 1600, 2174], confidence: 0.97 }
+    - { text: "1.78", bbox: [2062, 2140, 2150, 2174], confidence: 0.97 }
+    - { text: "Total interest charges", bbox: [140, 2190, 624, 2224], confidence: 0.97 }
+    - { text: "$1.78", bbox: [2040, 2190, 2150, 2224], confidence: 0.97 }
+- page: 3
+  text: ""
+  confidence: 0.96
+  boxes:
+    - { text: "Details of your Canadian Tire store purchases", bbox: [140, 200, 1130, 234], confidence: 0.97 }
+    - { text: "The total of each transaction is included in the Purchases section", bbox: [140, 250, 1592, 284], confidence: 0.97 }
+    - { text: "Sep 12", bbox: [140, 350, 360, 384], confidence: 0.97 }
+    - { text: "Sep 14", bbox: [360, 350, 560, 384], confidence: 0.97 }
+    - { text: "1  DECOY ITEM", bbox: [620, 350, 1200, 384], confidence: 0.97 }
+    - { text: "999.99", bbox: [2018, 350, 2150, 384], confidence: 0.97 }

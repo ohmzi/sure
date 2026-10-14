@@ -208,6 +208,17 @@ class DocumentPanelTest < ActiveSupport::TestCase
     assert_equal true, source.state, "a gate-passed read must not render its source red"
   end
 
+  # W8-C makes this source reachable: a scanned statement read from the OCR
+  # sidecar's boxes reports `geometry`. The label existed but nothing could
+  # produce it, so it had no test.
+  test "the geometry source names the layout rung (W8-C)" do
+    validations = READER_VALIDATIONS.merge("statement_rows_source" => "geometry")
+    source = panel_with_statement_read(validations).checks.index_by(&:label)
+                   .fetch("the rows were read from the statement's layout")
+
+    assert_equal true, source.state, "the source is provenance — never red"
+  end
+
   test "the model-fallback path keeps its own date check and shows no reader checks" do
     by_label = panel_with_statement_read(
       "statement_rows_from_line_items" => true, "statement_rows_have_dates" => false
