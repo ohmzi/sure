@@ -239,6 +239,38 @@ class DocumentPanelTest < ActiveSupport::TestCase
 
   # --- W8-G: the panel's labels are localized ----------------------------------
 
+  # The field rows resolve through I18n (documents.understanding.field_labels.*),
+  # the same way the checks and sources do. Every label and its mapped value must
+  # come out verbatim, so deleting or renaming a key (which renders
+  # "translation missing: …") makes by_label.fetch raise here rather than reach the
+  # UI. The nine labels are exactly the ones the panel rendered before.
+  test "every field label resolves to its exact text, never a missing translation (W8-G)" do
+    link = document_links(:understood_receipt_link)
+    link.document_extractions.delete_all
+    DocumentExtraction.record!(
+      document_link: link, provider: "openai", status: "succeeded",
+      verdict: {
+        "document_class" => "receipt", "institution_name" => "Chase",
+        "account_last4" => "1234", "card_last4" => "5678", "card_network" => "Visa",
+        "currency" => "USD", "total" => "12.34", "date" => "2026-01-05", "payee" => "Acme"
+      },
+      field_confidence: {}
+    )
+
+    by_label = DocumentPanel.new(link.reload).fields.index_by(&:label)
+
+    {
+      "type" => "receipt", "institution" => "Chase", "account last4" => "1234",
+      "card last4" => "5678", "card network" => "Visa", "currency" => "USD",
+      "total" => "12.34", "date" => "2026-01-05", "payee" => "Acme"
+    }.each do |label, value|
+      assert_equal value, by_label.fetch(label).value, "field #{label.inspect} must render its exact label"
+    end
+
+    assert by_label.keys.none? { |label| label.to_s.start_with?("translation missing") },
+           "a missing or renamed key must fail here, not in the UI: #{by_label.keys.inspect}"
+  end
+
   # Every label the panel can render resolves through I18n
   # (documents.understanding.check_labels.* / source_labels.*). Each assertion
   # names the exact English the panel showed BEFORE localization, so a missing or

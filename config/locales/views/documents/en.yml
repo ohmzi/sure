@@ -86,6 +86,19 @@ en:
       # it offers nothing to configure.
       reading: Reading…
       reading_reason: This document is being read. Its details will appear here when the read finishes.
+      # The field rows the panel shows ("what it read"), one leaf per verdict key
+      # it knows (DocumentPanel::FIELD_LABEL_KEYS). Same wording the panel rendered
+      # before the labels moved here.
+      field_labels:
+        document_class: type
+        institution_name: institution
+        account_last4: account last4
+        card_last4: card last4
+        card_network: card network
+        currency: currency
+        total: total
+        date: date
+        payee: payee
       # The check labels the panel renders (DocumentPanel::CHECK_LABEL_KEYS and
       # STATEMENT_CHECK_LABEL_KEYS). One leaf per validator result; the wording is
       # exactly what the panel showed before it moved here.

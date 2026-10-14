@@ -26,11 +26,20 @@ class DocumentPanel
   # render as its own state, never as a pass.
   Check = Data.define(:label, :state)
 
-  FIELD_LABELS = {
-    "document_class" => "type", "institution_name" => "institution",
-    "account_last4" => "account last4", "card_last4" => "card last4",
-    "card_network" => "card network", "currency" => "currency",
-    "total" => "total", "date" => "date", "payee" => "payee"
+  # The verdict keys the panel shows as fields, each mapped to the locale key its
+  # label resolves through (`fields` calls I18n.t on it), under
+  # documents.understanding.field_labels. Same shape and convention as the check
+  # labels below.
+  FIELD_LABEL_KEYS = {
+    "document_class" => "documents.understanding.field_labels.document_class",
+    "institution_name" => "documents.understanding.field_labels.institution_name",
+    "account_last4" => "documents.understanding.field_labels.account_last4",
+    "card_last4" => "documents.understanding.field_labels.card_last4",
+    "card_network" => "documents.understanding.field_labels.card_network",
+    "currency" => "documents.understanding.field_labels.currency",
+    "total" => "documents.understanding.field_labels.total",
+    "date" => "documents.understanding.field_labels.date",
+    "payee" => "documents.understanding.field_labels.payee"
   }.freeze
 
   # The checks the pipeline ran, in the words a person reads. `nil` is "not
@@ -136,11 +145,11 @@ class DocumentPanel
 
     verdict = extraction.verdict.with_indifferent_access
     confidence = extraction.field_confidence.with_indifferent_access
-    FIELD_LABELS.filter_map do |key, label|
+    FIELD_LABEL_KEYS.filter_map do |key, label_key|
       raw = verdict[key]
       next if raw.blank?
 
-      Field.new(label: label, value: raw.to_s, confidence: confidence[key]&.to_f)
+      Field.new(label: I18n.t(label_key), value: raw.to_s, confidence: confidence[key]&.to_f)
     end
   end
 
