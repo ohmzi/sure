@@ -48,6 +48,38 @@ class StatementRead::PdfTextLayerTest < ActiveSupport::TestCase
     skip "poppler (pdftotext/pdffonts) is not installed — install poppler-utils to exercise the text layer"
   end
 
+  # Temporarily lowers PdfTextLayer::TIMEOUT so a stalled subprocess is cut off
+  # inside the test (the real value is 60s). Mirrors the job test's
+  # `with_batch_size`; the whole suite runs in forked workers, so the constant
+  # swap is process-local and safe.
+  def with_layer_timeout(seconds)
+    original = StatementRead::PdfTextLayer::TIMEOUT
+    StatementRead::PdfTextLayer.send(:remove_const, :TIMEOUT)
+    StatementRead::PdfTextLayer.const_set(:TIMEOUT, seconds)
+    yield
+  ensure
+    StatementRead::PdfTextLayer.send(:remove_const, :TIMEOUT)
+    StatementRead::PdfTextLayer.const_set(:TIMEOUT, original)
+  end
+
+  test "a pdffonts that never returns is bounded and falls through, never raising out of for (must-fix 4)" do
+    # A crafted PDF that stalls the font scan must not wedge a heavy worker.
+    # `count_fonts` is wrapped in the same Timeout as `pdftotext`; on timeout it
+    # returns nil, so `for` reports a not-usable result rather than raising.
+    StatementRead::PdfTextLayer.stubs(:available?).returns(true)
+    StatementRead::PdfTextLayer.stubs(:extract_layout).returns([ "Sep 09  MERCHANT NAME  12.34\n" * 20, true ])
+    hung = ->(*) { sleep 5; [ "", Struct.new(:success?).new(true) ] }
+
+    with_layer_timeout(0.05) do
+      Open3.stub(:capture2, hung) do
+        result = StatementRead::PdfTextLayer.for(io: StringIO.new("PDF"))
+
+        assert_not result.usable?, "a stalled pdffonts falls through to not-usable"
+        assert_nil result.font_count, "the font count is UNKNOWN, not zero — the call was cut off, not answered"
+      end
+    end
+  end
+
   test "a generated text-layer PDF is usable, embeds a font, and splits into pages" do
     require_poppler!
     result = StatementRead::PdfTextLayer.for(io: StringIO.new(file_fixture("statements/synthetic_statement.pdf").binread))

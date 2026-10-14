@@ -200,10 +200,7 @@ class DocumentUnderstandingJob < ApplicationJob
 
     validations = self.class.validate(understanding, ocr_text: result.text)
     validations = validations.merge(statement_read_validations(statement_read)) if statement_read
-    classification = DocumentClassifier.call(
-      ai_verdict: understanding, filename: link.original_filename,
-      content_type: link.content_type, ocr_text: result.text
-    )
+    classification = classify(understanding, link, result, statement_read)
 
     DocumentExtraction.record!(
       document_link: link,
@@ -313,6 +310,40 @@ class DocumentUnderstandingJob < ApplicationJob
       link.hold!(message: "#{UNREADABLE_MESSAGE} (#{code})")
     end
 
+    # The document's class, decided by the model's identity read UNLESS the
+    # reader PROVED a statement. Must-fix 2: the identity read is issued BY the
+    # branch that trusts the read, so it cannot gate it — and
+    # DocumentClassifier falls to `other` the moment that identity read says
+    # nil/other. But the reader's gate is statement-specific arithmetic: it
+    # requires the printed totals (`Total credits`, `Total charges`, purchases,
+    # opening and closing balance) that a receipt or bill never prints, so a
+    # reconciled DETERMINISTIC read is itself proof the document is a statement.
+    # Such a document routes as a statement (through the existing statement path,
+    # including its permission gate) regardless of what the model called it.
+    # `classified_by: "reader"` records that the class came from the proof (the
+    # verdict and source already ride the extraction's `statement_read`
+    # diagnostic). A document the reader did NOT reconcile is left entirely
+    # untouched — that is the fence.
+    def classify(understanding, link, result, statement_read)
+      classification = DocumentClassifier.call(
+        ai_verdict: understanding, filename: link.original_filename,
+        content_type: link.content_type, ocr_text: result.text
+      )
+      return classification unless reader_proved_statement?(statement_read)
+
+      DocumentClassifier::Result.new(
+        document_class: "statement", confidence: classification.confidence,
+        corroborated: true, classified_by: "reader"
+      )
+    end
+
+    # The reader PROVED a statement: a DETERMINISTIC rung (never the vision rung,
+    # whose rows are the model's) reconciled to the cent. The same predicate the
+    # trusted branch and `adopt_reader_rows` use.
+    def reader_proved_statement?(read)
+      read&.reconciled? && read.source != :vision
+    end
+
     # W8-D: read the document, asking the model for a statement's ROW TABLE only
     # when the deterministic read cannot supply it.
     #
@@ -380,10 +411,18 @@ class DocumentUnderstandingJob < ApplicationJob
     # `normalise_statement_dates` must NOT touch them — a second re-anchor is a
     # subtle way to move a date, and they never reach it because the replacement
     # happens after `understand_in_batches`.
+    #
+    # Must-fix 2: the reader also DECIDES the class for routing. `transactions`
+    # is gated on the document's class, so an identity read that called the
+    # document `other` would gate the reader's proven rows out (route_statement
+    # would write an empty import); the proof sets the class to `statement` so
+    # the routed verdict is a statement. The model's own read is preserved
+    # unchanged on `model_understanding` (the extraction's `raw_response`).
     def adopt_reader_rows(understanding, read)
       return understanding unless read.reconciled? && read.source != :vision
 
-      understanding.with_transactions(read.rows).with_statement_rows_fallback(false)
+      proof = DocumentUnderstanding.new(understanding.to_verdict.merge("document_class" => "statement"))
+      proof.with_transactions(read.rows).with_statement_rows_fallback(false)
     end
 
     # A statement route MUST carry a read (R-W8B18). This stands in on an
@@ -413,7 +452,13 @@ class DocumentUnderstandingJob < ApplicationJob
         # R-W8B10: each stores the property its LABEL claims, so each can fail.
         "statement_totals_reconcile" => read.reconciled?,
         "statement_row_count" => read.row_count,
-        "statement_rows_missing_dates" => read.missing_date_rows.empty?,
+        # A read that produced NO rows asserts nothing about their dates, so the
+        # key is nil (not `true`) — `empty?` is vacuously true on an empty set,
+        # and a green "no statement row is missing its date" beside a red row
+        # count is exactly the vacuous green R-W8B10 forbids. Matches the wave-6
+        # sibling (`statement_rows_have_dates`, whose `statement_rows.empty? ?
+        # nil : ...` nils the identical case).
+        "statement_rows_missing_dates" => read.rows? ? read.missing_date_rows.empty? : nil,
         # R-W8B13: provenance, rendered with a source-naming label, never red.
         "statement_rows_source" => read.source&.to_s
       )

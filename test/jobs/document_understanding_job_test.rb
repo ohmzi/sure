@@ -1,4 +1,5 @@
 require "test_helper"
+require "yaml"
 
 class DocumentUnderstandingJobTest < ActiveSupport::TestCase
   # The transient-OCR test asserts on the retry the job enqueues
@@ -883,8 +884,71 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     @link.reload
     assert_equal "queued", @link.status
     assert_match(/nothing imported/i, @link.failure_message)
-    assert_equal false, @link.extraction.validations["statement_totals_reconcile"]
-    assert_equal 0, @link.extraction.validations["statement_row_count"]
+    validations = @link.extraction.validations
+    assert_equal false, validations["statement_totals_reconcile"]
+    assert_equal 0, validations["statement_row_count"]
+    # R-W8B10 / must-fix 3: a read with NO rows asserts nothing about their
+    # dates. Storing `missing_date_rows.empty?` here would be vacuously `true`
+    # and the panel would show a GREEN "no statement row is missing its date"
+    # beside the red row count. The key must be absent (nil), matching the
+    # wave-6 sibling `statement_rows_have_dates`.
+    assert_nil validations["statement_rows_missing_dates"],
+               "a zero-row read must not assert a date property it never checked"
+  end
+
+  test "a masked text-layer failure does not route the model's rows when a later rung drifts (must-fix 1)" do
+    # The text layer is USABLE but prints no parseable total, so the text rung is
+    # `:unreconcilable` — a fall-back verdict. The geometry rung reads the misread
+    # boxes and DRIFTS. Before the fix the text rung's failure was kept
+    # unconditionally and masked the later drift, the job's `statement_holds?`
+    # read false, and the model's unproven rows routed. The job must receive the
+    # :drift, HOLD, and route nothing.
+    stage_pdf(@link, "synthetic_statement.pdf")
+    no_totals = [
+      "For the period: September 9, 2026 to October 8, 2026",
+      "Purchases",
+      "   Sep 08            Sep 09        MERCHANT ONE                                                     10.00"
+    ].join("\n")
+    StatementRead::PdfTextLayer.stubs(:for).returns(
+      StatementRead::PdfTextLayer::Result.new(text: no_totals, font_count: 1, usable: true)
+    )
+    stub_ocr_success(pages: misread_box_pages)
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    assert_no_difference -> { PdfImport.count } do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+
+    @link.reload
+    assert_equal "queued", @link.status, "the deterministic geometry drift holds the row"
+    detail = @link.extraction.validations["statement_read"]
+    assert_equal "drift", detail["verdict"]
+    assert_equal "geometry", detail["source"], "the winning rung's source travels with the read"
+  end
+
+  test "a proven statement routes as a statement even when the identity read calls it something else (must-fix 2)" do
+    # The reader PROVES the statement (its rows reconcile to the printed totals),
+    # but the model's identity-only read returns a NON-statement class. The
+    # reader's gate is statement-specific arithmetic, so the proof decides the
+    # class for routing: the document routes as a statement with the reader's
+    # rows, not archived as `other` with green reader checks and no rows.
+    stage_pdf(@link, "synthetic_statement.pdf")
+    identity = { "document_class" => "other", "institution_name" => "Chase", "field_confidence" => {} }
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(identity))
+
+    assert_difference -> { PdfImport.count }, 1 do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+
+    @link.reload
+    assert_equal "statement", @link.source, "the reader's proof decides the class for routing"
+    assert_equal "reader", @link.classified_by, "the class records that it came from the proof"
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal 9, import.rows_count, "the reader's proven rows route"
+
+    # R-W8B17: the model's own identity read stays visible on `raw_response`.
+    assert_equal "other", @link.extraction.raw_response["document_class"]
   end
 
   test "a statement whose rows drift only through the model falls back, not holds" do
@@ -1318,6 +1382,18 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     path = file_fixture("statements/#{name}")
     link.stage!(io: File.open(path, "rb"), filename: name, content_type: "application/pdf")
     link.update!(status: "queued")
+  end
+
+  # The misread geometry boxes as the sidecar returns them: page 1 carries the
+  # statement's clean text (so StatedTotals can read the totals the drifted rows
+  # fail against), its boxes come with it. Mirrors geometry_test.rb's builder.
+  def misread_box_pages
+    statement_text = file_fixture("statements/synthetic_statement.txt").read
+    loaded = YAML.safe_load(file_fixture("statements/synthetic_statement_boxes_misread.yml").read)
+    loaded.map.with_index do |page, index|
+      { page: page["page"], text: index.zero? ? statement_text : "",
+        confidence: page["confidence"], boxes: page["boxes"] }
+    end
   end
 
   # The batch size is a constant read at call time, so it can be pinned in a test.

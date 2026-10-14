@@ -50,6 +50,12 @@ class StatementRead
   # its year from, so no row's date can be built.
   VERDICTS = %i[trusted drift unreconcilable empty_but_expected period_unreadable unavailable].freeze
 
+  # The verdicts that HOLD: the read CONTRADICTS the statement (`:drift`) or it
+  # found no rows where the statement states money (`:empty_but_expected`). When
+  # several rungs fail the gate, the caller must receive a HOLD-class verdict
+  # over a fall-back-class one — see `prefer_hold`.
+  HOLD_VERDICTS = %i[drift empty_but_expected].freeze
+
   # Human labels for the checks a hold message may name, keyed to the check.
   CHECK_LABELS = {
     "row_parse" => "rows",
@@ -144,7 +150,9 @@ class StatementRead
   # The ladder. The first rung whose rows pass the gate wins. A rung that
   # produced rows but failed the gate is never returned silently: it is kept as
   # the fallback so the caller gets the full untrusted detail rather than a bare
-  # "it didn't work".
+  # "it didn't work". When two rungs fail, the STRONGER verdict is kept (see
+  # `prefer_hold`): a deterministic HOLD must not be masked by an earlier rung
+  # that merely could not engage.
   def call
     fallback = nil
 
@@ -159,14 +167,14 @@ class StatementRead
     unless geometry == :unavailable
       read = entries_result(geometry, source: :geometry, text: geometry_text)
       return read if read.reconciled?
-      fallback ||= read
+      fallback = prefer_hold(fallback, read)
     end
 
     if @vision
       read = vision_result
       if read
         return read if read.reconciled?
-        fallback ||= read
+        fallback = prefer_hold(fallback, read)
       end
     end
 
@@ -174,6 +182,26 @@ class StatementRead
   end
 
   private
+    # Must-fix 1: when two rungs both fail the gate, the caller must receive the
+    # STRONGER verdict. A HOLD-class failure (`:drift`/`:empty_but_expected`)
+    # proves the statement contradictory or empty; masking it behind an earlier
+    # rung's fall-back-class verdict (`:unreconcilable`/`:period_unreadable`/
+    # `:unavailable`) would make the job's `statement_holds?` read false and
+    # route the MODEL's unproven rows where a deterministic rung had already
+    # proved the statement contradictory (fail-open). The first rung wins ties,
+    # and the winner's whole Result travels — its `source` with it, so the job's
+    # `source != :vision` exclusion still works.
+    def prefer_hold(current, candidate)
+      return candidate if current.nil?
+      return current if hold_verdict?(current) || !hold_verdict?(candidate)
+
+      candidate
+    end
+
+    def hold_verdict?(read)
+      HOLD_VERDICTS.include?(read.verdict)
+    end
+
     # Rung 1: the stored PDF's own text layer. `link` is a DocumentLink; its
     # `stored_io` yields the bytes (nil when the row has none, so the block is
     # not called and the layer is nil).

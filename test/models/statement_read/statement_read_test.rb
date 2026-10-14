@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "yaml"
 
 # The entrypoint and its source ladder: text layer -> geometry (W8-C, still
 # :unavailable) -> the injected vision callable. `PdfTextLayer` is stubbed so
@@ -25,6 +26,19 @@ class StatementRead::StatementReadTest < ActiveSupport::TestCase
   def stub_layer(value) = StatementRead::PdfTextLayer.stubs(:for).returns(value)
 
   def link(bytes = "PDF") = FixtureLink.new(bytes, "statement.pdf")
+
+  # An OCR result whose BOXES come from the misread fixture (one date glyph read
+  # as `Sep O8`), so the geometry rung's rows DRIFT, with the statement's clean
+  # text injected so StatedTotals can read the totals it drifts against. Mirrors
+  # geometry_test.rb's builder; the leading `::` avoids the test class's local
+  # `Ocr` struct.
+  def drift_ocr_result
+    loaded = YAML.safe_load(file_fixture("statements/synthetic_statement_boxes_misread.yml").read)
+    ::Ocr::Result.new(engine: "paddle", pages: loaded.map.with_index do |page, index|
+      ::Ocr::Result::Page.new(number: page["page"], text: index.zero? ? text : "",
+                              confidence: page["confidence"], boxes: page["boxes"], image: nil)
+    end)
+  end
 
   test "the text layer is read, reconciled, and its source is never hard-coded" do
     stub_layer(layer)
@@ -98,5 +112,27 @@ class StatementRead::StatementReadTest < ActiveSupport::TestCase
     stub_layer(layer(text: no_totals))
 
     assert_equal :unreconcilable, StatementRead.call(link: link).verdict
+  end
+
+  test "a HOLD-class verdict outranks a fall-back-class one when choosing the fallback (must-fix 1)" do
+    # The text layer is USABLE but prints NO parseable total, so the text rung is
+    # `:unreconcilable` — a fall-back verdict. The geometry rung reads the misread
+    # boxes and DRIFTS: a deterministic rung has PROVED the statement
+    # contradictory. Before the fix the text rung's failure was kept
+    # unconditionally (`fallback = read`), so the caller received the weaker
+    # `:unreconcilable`, the job's `statement_holds?` read false, and the model's
+    # unproven rows routed (fail-open). The caller must get the HOLD (`:drift`).
+    no_totals = [
+      "For the period: September 9, 2026 to October 8, 2026",
+      "Purchases",
+      "   Sep 08            Sep 09        MERCHANT ONE                                                     10.00"
+    ].join("\n")
+    stub_layer(layer(text: no_totals))
+
+    result = StatementRead.call(link: link, ocr_result: drift_ocr_result)
+
+    assert_equal :drift, result.verdict, "the HOLD-class geometry drift must win over the fall-back text read"
+    assert_equal :geometry, result.source, "the winning read's source travels with the Result"
+    assert_equal "drift", result.checks["row_parse"]
   end
 end

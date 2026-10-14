@@ -124,9 +124,14 @@ class StatementRead
         end
 
         # The number of fonts listed by pdffonts (its header and rule lines
-        # dropped), or nil when pdffonts fails.
+        # dropped), or nil when pdffonts fails. Bounded by the same TIMEOUT as
+        # `pdftotext`: a crafted PDF that stalls the font scan must not wedge the
+        # worker, and a timeout falls through to not-usable (nil) exactly like an
+        # unreadable PDF — it never raises out of `for`.
         def count_fonts(path)
-          out, status = Open3.capture2("pdffonts", path, err: File::NULL)
+          out, status = Timeout.timeout(TIMEOUT) do
+            Open3.capture2("pdffonts", path, err: File::NULL)
+          end
           return nil unless status.success?
 
           out.to_s.lines.drop(2).count { |line| line.strip.present? }

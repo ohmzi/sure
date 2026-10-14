@@ -184,18 +184,25 @@ class DocumentPanelTest < ActiveSupport::TestCase
                "the reader's date audit is authoritative for a statement, so the duplicate is not shown"
   end
 
-  test "a drift or held-empty read paints the routing checks red, never a silent green (R-W8B10)" do
+  test "a held empty read paints the routing checks red and asserts no date property (R-W8B10, must-fix 3)" do
+    # The REAL validations a held, empty read produces. The reader found no rows,
+    # so the job nils `statement_rows_missing_dates` (must-fix 3): a zero-row read
+    # asserts nothing about dates, and `missing_date_rows.empty?` would be
+    # vacuously `true` — a green "no statement row is missing its date" beside a
+    # red row count. It must be ABSENT, never green (and never the fabricated
+    # `false` a red value the job never writes would have painted).
     validations = READER_VALIDATIONS.merge(
       "statement_totals_reconcile" => false,
       "statement_row_count" => 0,
-      "statement_rows_missing_dates" => false
+      "statement_rows_missing_dates" => nil
     )
     by_label = panel_with_statement_read(validations).checks.index_by(&:label)
 
     assert_equal false, by_label.fetch("the statement's rows add up to its own totals").state
-    assert_equal false, by_label.fetch("no statement row is missing its date").state
     assert_equal false, by_label.fetch("the reader found the statement's rows").state,
                  "a zero row count fails, it is not passed through (R-W8B10)"
+    assert_nil by_label["no statement row is missing its date"],
+               "a zero-row read asserts no date property, so the check is absent, never green"
     assert_equal true, by_label.fetch("the rows were read from the statement's own text layer").state,
                  "the source is provenance — never red (R-W8B13)"
   end
