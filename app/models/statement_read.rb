@@ -51,9 +51,11 @@ class StatementRead
   VERDICTS = %i[trusted drift unreconcilable empty_but_expected period_unreadable unavailable].freeze
 
   # The verdicts that HOLD: the read CONTRADICTS the statement (`:drift`) or it
-  # found no rows where the statement states money (`:empty_but_expected`). When
-  # several rungs fail the gate, the caller must receive a HOLD-class verdict
-  # over a fall-back-class one — see `prefer_hold`.
+  # found no rows where the statement states money (`:empty_but_expected`). W8-E
+  # scoped this to the TEXT LAYER: only that exact, non-OCR source's contradiction
+  # holds an import (see `hold_verdict?` and the job's `statement_holds?`). When
+  # several rungs fail the gate, the caller must still receive a HOLD-class
+  # verdict over a fall-back-class one — see `prefer_hold`.
   HOLD_VERDICTS = %i[drift empty_but_expected].freeze
 
   # Human labels for the checks a hold message may name, keyed to the check.
@@ -150,9 +152,9 @@ class StatementRead
   # The ladder. The first rung whose rows pass the gate wins. A rung that
   # produced rows but failed the gate is never returned silently: it is kept as
   # the fallback so the caller gets the full untrusted detail rather than a bare
-  # "it didn't work". When two rungs fail, the STRONGER verdict is kept (see
-  # `prefer_hold`): a deterministic HOLD must not be masked by an earlier rung
-  # that merely could not engage.
+  # "it didn't work". When two rungs fail, the text layer's verdict is kept (see
+  # `prefer_hold`): under W8-E only a text-layer HOLD governs, and it is always
+  # evaluated first, so a later rung can never mask it.
   def call
     fallback = nil
 
@@ -182,15 +184,15 @@ class StatementRead
   end
 
   private
-    # Must-fix 1: when two rungs both fail the gate, the caller must receive the
-    # STRONGER verdict. A HOLD-class failure (`:drift`/`:empty_but_expected`)
-    # proves the statement contradictory or empty; masking it behind an earlier
-    # rung's fall-back-class verdict (`:unreconcilable`/`:period_unreadable`/
-    # `:unavailable`) would make the job's `statement_holds?` read false and
-    # route the MODEL's unproven rows where a deterministic rung had already
-    # proved the statement contradictory (fail-open). The first rung wins ties,
-    # and the winner's whole Result travels — its `source` with it, so the job's
-    # `source != :vision` exclusion still works.
+    # Must-fix 1, as narrowed by W8-E: when two rungs both fail the gate, the
+    # caller should receive the STRONGER verdict — but "strong" now means a
+    # HOLD-class verdict from the TEXT LAYER, because that is the only source the
+    # job holds (see `DocumentUnderstandingJob#statement_holds?`). Only the text
+    # layer can hold, and it is always evaluated FIRST, so a later rung can never
+    # mask it: this chooses which failing rung's Result travels as the fallback,
+    # and a geometry/vision drift — which no longer holds — never outranks the
+    # text layer's own verdict. The winning Result travels whole, its `source`
+    # with it.
     def prefer_hold(current, candidate)
       return candidate if current.nil?
       return current if hold_verdict?(current) || !hold_verdict?(candidate)
@@ -199,7 +201,7 @@ class StatementRead
     end
 
     def hold_verdict?(read)
-      HOLD_VERDICTS.include?(read.verdict)
+      HOLD_VERDICTS.include?(read.verdict) && read.source == :text_layer
     end
 
     # Rung 1: the stored PDF's own text layer. `link` is a DocumentLink; its

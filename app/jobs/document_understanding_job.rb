@@ -101,10 +101,13 @@ class DocumentUnderstandingJob < ApplicationJob
   UNREADABLE_MESSAGE = "This document could not be read".freeze
   NO_PROVIDER_MESSAGE = "no AI provider is configured".freeze
 
-  # Wave 8, R-W8B19: the verdicts from the statement reader that HOLD — the read
-  # CONTRADICTS the statement (`:drift`), or it found no rows where the statement
-  # states money (`:empty_but_expected`). Every other verdict falls back to
-  # today's model path, so a scan or photo that imports fine never strands.
+  # Wave 8, R-W8B19 as narrowed by W8-E: the verdicts from the statement reader
+  # that HOLD — the read CONTRADICTS the statement (`:drift`), or it found no rows
+  # where the statement states money (`:empty_but_expected`) — and ONLY when the
+  # read came from the TEXT LAYER. A scanned statement (geometry/vision) whose
+  # layout cannot be verified falls back to today's model path rather than
+  # refusing the import: the exact, non-OCR text layer is the only source whose
+  # contradiction is trustworthy enough to strand a document.
   STATEMENT_HOLD_VERDICTS = %i[drift empty_but_expected].freeze
 
   # The deterministic cross-checks. Pure, so the review screen can call them and
@@ -467,23 +470,26 @@ class DocumentUnderstandingJob < ApplicationJob
     # Does the read GOVERN the routing — decide it rather than merely advise it?
     # True when it supplies the routed rows (`:trusted`) or HOLDS them
     # (`statement_holds?`). False on every fall-back verdict: one that could not
-    # engage, and — the scoping R-W8B19 needs — a `:drift` from the VISION rung.
-    # That drift is the model's OWN rows failing a gate that is not the
-    # statement's own arithmetic (the usual dateless `line_items` fallback), and
-    # stranding a document that imports fine today is exactly what the named
-    # fence in document_understanding_job_test.rb forbids. Its detail is still
-    # recorded for diagnosis.
+    # engage, and — the W8-E scoping — a `:drift` from a SCAN (geometry or
+    # vision). Such a drift is either the model's OWN rows failing a gate that is
+    # not the statement's own arithmetic (the usual dateless `line_items`
+    # fallback) or an untrusted OCR read of a scan; stranding a document that
+    # imports fine today is exactly what the named fence in
+    # document_understanding_job_test.rb forbids. Its detail is still recorded for
+    # diagnosis.
     def statement_read_governs?(read)
       read.reconciled? || statement_holds?(read)
     end
 
-    # R-W8B19: the verdicts that HOLD — a DETERMINISTIC read that CONTRADICTS the
-    # statement (`:drift`) or that finds no rows where it states money
-    # (`:empty_but_expected`). A `:drift` from the vision rung is excluded (see
-    # `statement_read_governs?`); neither held verdict ever carries a nil source,
-    # so only the deterministic rungs can hold.
+    # R-W8B19 as narrowed by W8-E: the verdicts that HOLD — a read CONTRADICTS
+    # the statement (`:drift`) or finds no rows where it states money
+    # (`:empty_but_expected`) — from the TEXT LAYER only. The old `source !=
+    # :vision` exclusion is subsumed: a geometry-rung drift is no longer held (the
+    # owner's answer — a scan whose layout cannot be verified behaves as today),
+    # and the vision rung never carried `:text_layer` either. Neither held verdict
+    # ever carries a nil source, so only the text layer can hold.
     def statement_holds?(read)
-      read.verdict.in?(STATEMENT_HOLD_VERDICTS) && read.source != :vision
+      read.verdict.in?(STATEMENT_HOLD_VERDICTS) && read.source == :text_layer
     end
 
     # Every check, both its figures, the statement's own stated totals and the
@@ -636,14 +642,15 @@ class DocumentUnderstandingJob < ApplicationJob
         return link.hold!(message: I18n.t("documents.held.statement_permission"))
       end
 
-      # R-W8B19 + R-W8B18: the reader's verdict decides. A DETERMINISTIC read
-      # that CONTRADICTS the statement (`:drift`) or that found no rows where the
-      # statement states money (`:empty_but_expected`) is HELD with the reader's
-      # own sentence and NOTHING is routed — the per-check detail is already on
-      # the extraction. A `:drift` from the vision rung, and every verdict that
-      # could not engage (`:unreconcilable`/`:period_unreadable`/`:unavailable`),
-      # fall back to today's path. The argument is REQUIRED, so no statement
-      # route can skip this guard by not mentioning it.
+      # R-W8B19 + R-W8B18, as narrowed by W8-E: the reader's verdict decides. A
+      # TEXT-LAYER read that CONTRADICTS the statement (`:drift`) or that found
+      # no rows where the statement states money (`:empty_but_expected`) is HELD
+      # with the reader's own sentence and NOTHING is routed — the per-check
+      # detail is already on the extraction. A `:drift` from a scan (geometry or
+      # vision), and every verdict that could not engage (`:unreconcilable`/
+      # `:period_unreadable`/`:unavailable`), fall back to today's path. The
+      # argument is REQUIRED, so no statement route can skip this guard by not
+      # mentioning it.
       return link.hold!(message: statement_read.hold_message) if statement_holds?(statement_read)
 
       statement = statement_for(link, understanding)

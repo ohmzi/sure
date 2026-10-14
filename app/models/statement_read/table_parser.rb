@@ -20,9 +20,12 @@ class StatementRead
   #   * A TRANSACTION ROW is a line that BEGINS with a transaction date token.
   #     That one rule excludes every summary line, because none begin with a
   #     date — the payments and interest TABLE rows do, which is the point.
+  #     (W8-E widens the token to the numeric forms `09/09`, `09/09/2026`,
+  #     `09/09/26`, still anchored at the START of the line.)
   #   * FIELDS split on runs of 2+ spaces, and the amount is the FIRST whole-field
   #     amount, not the last token: `pdftotext -layout` interleaves the
-  #     statement's right-hand prose onto the same physical line.
+  #     statement's right-hand prose onto the same physical line. (W8-E accepts
+  #     ungrouped money, `1234.56`, beside grouped, `1,234.56`.)
   #   * The SIGN comes from the SECTION, never the printed sign — the card prints
   #     charges positive, but the app's rows are negative-for-debits.
   #   * COLLECTION STOPS at a line that STARTS WITH the drill-down heading (a
@@ -34,9 +37,22 @@ class StatementRead
   #   * R-W8B9 — rows are NOT filtered by period membership; the period sets a
   #     yearless date's YEAR only.
   class TableParser
-    MONTH = /\A(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\b/
-    DATE_PREFIX = /\A(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+/
-    AMOUNT_FIELD = /\A-?\$?\d{1,3}(?:,\d{3})*\.\d{2}\z/
+    # The month-name date token ("Sep 08") and the numeric one (W8-E:
+    # "09/09" yearless, "09/09/2026", "09/09/26"). The numeric token fixes real
+    # month/day ranges, so a rate's "21.99%" (no `/`) or a bare fraction never
+    # reads as a date.
+    MONTH_NAME = /(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}/
+    NUMERIC_DATE = %r{(?:0?[1-9]|1[0-2])/(?:0?[1-9]|[12]\d|3[01])(?:/(?:\d{4}|\d{2}))?}
+    # The whole mm/dd[/yy|yyyy] token `iso_date` hand-parses — anchored, so a
+    # partial match inside a longer field is not a date.
+    NUMERIC_TOKEN = %r{\A(\d{1,2})/(\d{1,2})(?:/(\d{4}|\d{2}))?\z}
+    # A transaction row BEGINS with a date, so the anchor is `\A`: prose that
+    # merely MENTIONS a date mid-line is never a row.
+    MONTH = /\A(?:#{MONTH_NAME}|#{NUMERIC_DATE})\b/
+    DATE_PREFIX = /\A(?:#{MONTH_NAME}|#{NUMERIC_DATE})\s+/
+    # A whole-field amount, grouped (`1,234.56`) or ungrouped (`1234.56`, W8-E)
+    # — never a percentage, a bare integer or a one-decimal figure.
+    AMOUNT_FIELD = /\A-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}\z/
     # A per-row FX detail line ("90.07 USD @ 1.451068613"): a note on the row
     # above, never a row of its own.
     FX_DETAIL = /\d+(?:\.\d+)?\s+[A-Z]{3}\s*@\s*[\d.]+/
@@ -66,8 +82,16 @@ class StatementRead
       "Your payment information", "Statement date", "For the period"
     ].freeze
 
-    PERIOD = /For the period:\s*([A-Z][a-z]+ \d{1,2}, \d{4})\s+to\s+([A-Z][a-z]+ \d{1,2}, \d{4})/
-    STATEMENT_DATE = /Statement date:\s*([A-Z][a-z]+ \d{1,2}, \d{4})/
+    # The period/statement-date token, in the bank's human-readable month-name
+    # form or the numeric mm/dd/yyyy form (W8-E). The numeric form is a
+    # four-digit year, and `parse_period_date` reads it MONTH-first — a bare
+    # `Date.parse` would read an ambiguous one day-first. Widening this is
+    # REQUIRED alongside the row anchor: a numeric-style statement whose rows we
+    # now detect must still be datable, or it is refused as period-unreadable
+    # and its yearless rows have no year.
+    PERIOD_DATE = /(?:[A-Z][a-z]+ \d{1,2}, \d{4}|\d{1,2}\/\d{1,2}\/\d{4})/
+    PERIOD = /For the period:\s*(#{PERIOD_DATE})\s+to\s+(#{PERIOD_DATE})/
+    STATEMENT_DATE = /Statement date:\s*(#{PERIOD_DATE})/
     # The drill-down block's own annotation ("The total of each transaction is
     # included in the Purchases section") — its presence after the stop proves
     # the stop is the real drill-down, not a premature truncation (R-W8B16).
@@ -300,25 +324,64 @@ class StatementRead
         fields(stripped).none? { |field| field.match?(AMOUNT_FIELD) }
       end
 
-      # The row's ISO date, its year taken from the statement's own period (the
-      # only honest anchor for a yearless "Sep 08"). Mirrors
+      # The row's ISO date. The month-name path is unchanged. A numeric token
+      # (W8-E) is parsed by hand — `Date._parse` would misread "09/09/26" as
+      # mday 26 / year 2009 — with its year taken from the token, or from the
+      # statement's period when the token is yearless. Mirrors
       # `DocumentUnderstandingJob#reanchor_row_date`; that method is a private
       # instance method and cannot be shared with a PORO, so its semantics are
       # re-implemented here.
       def iso_date(token)
+        if (match = token.match(NUMERIC_TOKEN))
+          return numeric_iso_date(match[1].to_i, match[2].to_i, match[3])
+        end
+
         parts = Date._parse(token)
         month = parts[:mon]
         day = parts[:mday]
         return nil if month.nil? || day.nil?
 
+        year = period_year_for(month, day)
+        year && Date.new(year, month, day).iso8601
+      rescue Date::Error
+        nil
+      end
+
+      def numeric_iso_date(month, day, year_text)
+        return nil unless (1..12).cover?(month) && (1..31).cover?(day)
+
+        year = numeric_year(year_text, month, day)
+        return nil unless year && Date.valid_date?(year, month, day)
+
+        Date.new(year, month, day).iso8601
+      rescue Date::Error
+        nil
+      end
+
+      # An explicit four-digit year is honoured as printed; a two-digit year
+      # carries no century, so take the one that lands NEAREST the statement's
+      # period — a 2026 statement reads "26" as 2026, not 1926; a yearless token
+      # takes the period's year, exactly as the month-name form does.
+      def numeric_year(year_text, month, day)
+        return period_year_for(month, day) if year_text.nil?
+        return year_text.to_i if year_text.length == 4
+
+        anchor = period_anchor
+        return nil if anchor.nil?
+
+        two_digits = year_text.to_i
+        [ 1900, 2000, 2100 ].map { |century| century + two_digits }
+                            .min_by { |candidate| (candidate - anchor.year).abs }
+      end
+
+      # The nearest year in the statement's own period (the only honest anchor
+      # for a yearless date).
+      def period_year_for(month, day)
         years = period_years
         return nil if years.empty?
 
         anchor = period_anchor
-        year = years.min_by { |candidate| (Date.new(candidate, month, day) - anchor).abs }
-        Date.new(year, month, day).iso8601
-      rescue Date::Error
-        nil
+        years.min_by { |candidate| (Date.new(candidate, month, day) - anchor).abs }
       end
 
       def period
@@ -327,14 +390,26 @@ class StatementRead
         @period = begin
           start_on = end_on = nil
           if (match = @text.match(PERIOD))
-            start_on = Date.parse(match[1])
-            end_on = Date.parse(match[2])
+            start_on = parse_period_date(match[1])
+            end_on = parse_period_date(match[2])
           elsif (match = @text.match(STATEMENT_DATE))
-            end_on = Date.parse(match[1])
+            end_on = parse_period_date(match[1])
           end
           [ start_on, end_on ]
         rescue Date::Error
           [ nil, nil ]
+        end
+      end
+
+      # The period token, month-name ("September 9, 2026") or numeric
+      # ("09/09/2026"). The numeric form is parsed by HAND (mm/dd/yyyy): an
+      # ambiguous `Date.parse("10/08/2026")` reads it as 8 October (dd/mm), the
+      # opposite of the row dates and of the statement's own month/day order.
+      def parse_period_date(token)
+        if (match = token.match(%r{\A(\d{1,2})/(\d{1,2})/(\d{4})\z}))
+          Date.new(match[3].to_i, match[1].to_i, match[2].to_i)
+        else
+          Date.parse(token)
         end
       end
 

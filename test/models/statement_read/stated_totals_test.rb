@@ -34,4 +34,19 @@ class StatementRead::StatedTotalsTest < ActiveSupport::TestCase
     assert_nil bare["new_balance"]
     assert_equal({}, bare["cards"])
   end
+
+  test "it reads ungrouped figures the same as grouped ones (W8-E)" do
+    ungrouped = [
+      "Total credits -5155.00",
+      "Total charges 351.78",
+      "Total purchases 350.00",
+      "Total purchases for 0000 12XX XXXX 1111 300.00"
+    ].join("\n")
+    totals = StatementRead::StatedTotals.call(ungrouped)
+
+    assert_equal BigDecimal("-5155.00"), totals["total_credits"]
+    assert_equal BigDecimal("351.78"), totals["total_charges"]
+    assert_equal BigDecimal("350.00"), totals["purchases"], "the ungrouped grand total is not the per-card one"
+    assert_equal({ "1111" => BigDecimal("300.00") }, totals["cards"])
+  end
 end

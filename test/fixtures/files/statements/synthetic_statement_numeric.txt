@@ -1,0 +1,59 @@
+Your account number starting with 0000 and ending with 1111
+
+
+                                                              Statement date: 10/08/2026
+                                                              For the period: 09/09/2026 to 10/08/2026
+
+
+                                                                Your account summary
+                                                                +See details starting on page 2
+                                                                Balance from your last statement                                         6000.00
+                                                                Payments received 09/09 to 10/08                      -5125.00
+                                                                Returns and other credits                                   -30.00
+                                                                Total credits                                                           -5155.00
+                                                                Purchases                                                    350.00
+                                                                Cash transactions                                               0.00
+                                                                Fees                                                            0.00
+                                                                Interest charges                                                 1.78
+                                                                Total charges                                                             351.78
+                                                                Your New Balance                                                       1196.78
+                                                                Credit limit              9000.00        Available credit             7803.22
+
+Details of your account summary
+Payments received - 09/09 to 10/08
+   TRANSACTION       POSTING
+   DATE              DATE          TRANSACTION DESCRIPTION                                                                  AMOUNT ($)
+   09/17             09/18         RB TELEPAYMENTS/TEST DIRECT                                                    -100.00
+   09/21             09/22         RB TELEPAYMENTS/TEST DIRECT                                                  -5000.00
+   09/29             09/30         TESTPAY.COM/PAYMENTS OAKVILLE ON                                                -25.00
+ Total payments received                                                                                             -5125.00
+Returns and other credits
+   TRANSACTION       POSTING
+   DATE              DATE          TRANSACTION DESCRIPTION                                                                  AMOUNT ($)
+   09/12             09/14 FakeShop.ca TORONTO ON                                                                 -10.00
+   09/12             09/14 TEST Mktp CA TORONTO ON                                                                -20.00
+ Total returns and credits                                                                                             -30.00
+Purchases
+   TRANSACTION       POSTING
+   DATE              DATE          TRANSACTION DESCRIPTION                                                                  AMOUNT ($)
+Purchases - Card #0000 12XX XXXX 1111
+   09/08/2026        09/09         TEST MART MISSISSAUGA ON                                                        100.00
+                                   HILLPA
+                                   12.00 USD @ 1.234567890
+   09/08             09/09         COFFEE SHOP OAKVILLE ON                                                         200.00
+ Total purchases for 0000 12XX XXXX 1111                                                                               300.00
+Purchases - Card #0000 12XX XXXX 2222
+   09/10/26          09/10         GROCERY STORE TORONTO ON                                                         50.00
+ Total purchases for 0000 12XX XXXX 2222                                                                                50.00
+ Total purchases                                                                                                        350.00
+Interest charges
+   TRANSACTION       POSTING
+   DATE              DATE          TRANSACTION DESCRIPTION                                                                  AMOUNT ($)
+   10/08             10/08         INTEREST CHARGES                                                                  1.78
+Total interest charges                                                                                                   1.78
+
+
+         Details of your Canadian Tire store purchases
+         The total of each transaction is included in the Purchases section
+
+09/12             09/14           1   DECOY ITEM                 999.99

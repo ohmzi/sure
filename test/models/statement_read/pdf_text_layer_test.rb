@@ -118,6 +118,13 @@ class StatementRead::PdfTextLayerTest < ActiveSupport::TestCase
     assert StatementRead::PdfTextLayer.usable?("Sep 09  MERCHANT NAME  12.34\n" * 20)
   end
 
+  test "usable? accepts a numeric-date statement dense enough to read (W8-E)" do
+    # A statement whose ONLY dates are numeric must still be probed as worth
+    # reading, or the reader never tries it.
+    assert StatementRead::PdfTextLayer.usable?("09/17  09/18  MERCHANT ONE  5000.00\n" * 20),
+           "a yearless numeric date and an ungrouped amount are enough to try"
+  end
+
   test "available? gates on the poppler binaries" do
     # Not asserting presence (a deployment may lack poppler); the value is
     # reported in the task report so the core test is never silently skipped.

@@ -13,11 +13,12 @@ require "yaml"
 # WHAT IT DOES NOT PROVE: anything about a real scan. The fixture is clean and
 # laid out by us; PaddleOCR on a real photograph merges boxes differently, drops
 # glyphs and misreads characters, and the only guarantee there is the shared
-# reconciliation gate (§7 of the design) — a scan whose boxes cannot balance is
-# HELD, never partially imported. The committed fixture is
-# `synthetic_statement_boxes.yml`; `synthetic_statement_boxes_misread.yml` is the
-# same layout with one date glyph misread, so the gate's behaviour on OCR error is
-# shown rather than hidden.
+# reconciliation gate (§7 of the design). W8-E (owner-directed): a scan whose
+# boxes cannot balance FALLS BACK to the model's read rather than holds — only a
+# text-layer drift holds — so a misread scan is surfaced untrusted and the
+# model's rows route. The committed fixture is `synthetic_statement_boxes.yml`;
+# `synthetic_statement_boxes_misread.yml` is the same layout with one date glyph
+# misread, so the gate's behaviour on OCR error is shown rather than hidden.
 class StatementRead::GeometryTest < ActiveSupport::TestCase
   FixtureLink = Struct.new(:bytes, :original_filename) do
     def stored_io
@@ -120,11 +121,9 @@ class StatementRead::GeometryTest < ActiveSupport::TestCase
     assert_equal "5155.0", result.figures["credits_sum"][:read].to_s, "the credits reconcile exactly"
   end
 
-  test "a misread glyph is surfaced and the read is not trusted (fail closed)" do
-    result = StatementRead.call(
-      link: FixtureLink.new(nil, "scan.pdf"),
-      ocr_result: ocr_result(fixture: "synthetic_statement_boxes_misread.yml")
-    )
+  test "a misread glyph is surfaced, the read is not trusted, and the scan falls back rather than holds (W8-E)" do
+    misread = ocr_result(fixture: "synthetic_statement_boxes_misread.yml")
+    result = StatementRead.call(link: FixtureLink.new(nil, "scan.pdf"), ocr_result: misread)
 
     assert_equal :geometry, result.source
     assert_not result.reconciled?
@@ -132,6 +131,18 @@ class StatementRead::GeometryTest < ActiveSupport::TestCase
     assert_equal "drift", result.checks["row_parse"], "the undated row fails the parse witness"
     assert_equal 1, result.missing_date_rows.size
     assert_match(/Sep O8/, result.missing_date_rows.first, "the OCR error is shown, never hidden")
+
+    # W8-E (owner-directed): only a TEXT-LAYER drift HOLDS; a scan's drifting
+    # geometry read is surfaced untrusted but never strands the document. With a
+    # model read available the ladder takes it, so the model's rows route — the
+    # geometry drift does not hold.
+    assert_not_equal :text_layer, result.source, "a geometry drift is not the holding source"
+    with_model = StatementRead.call(
+      link: FixtureLink.new(nil, "scan.pdf"), ocr_result: misread,
+      vision: -> { Struct.new(:transactions).new(text_parser.rows) }
+    )
+    assert_equal :vision, with_model.source, "the drifting geometry read yields to the model; it does not hold"
+    assert with_model.reconciled?
   end
 
   test "boxes absent yields :unavailable, so the ladder falls through" do

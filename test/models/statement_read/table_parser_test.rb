@@ -135,4 +135,52 @@ class StatementRead::TableParserTest < ActiveSupport::TestCase
     assert_equal "MERCHANT ONE", result.rows.first["name"], "the orphan must not pollute the first row"
     assert_empty result.rejected_lines, "a stray continuation is dropped, not rejected"
   end
+
+  # --- W8-E: numeric dates and ungrouped amounts -------------------------------
+
+  # A synthetic statement in numeric-date + ungrouped-amount style:
+  # `test/fixtures/files/statements/synthetic_statement_numeric.txt`. Same shape
+  # and self-consistent totals as the month-name fixture (9 rows = 4 charge +
+  # 5 credit; purchases 350.00; interest 1.78; charges 351.78; credits 5,155.00;
+  # per card 300.00 / 50.00), printed without comma grouping.
+  def numeric_text = @numeric_text ||= file_fixture("statements/synthetic_statement_numeric.txt").read
+  def numeric_parser = @numeric_parser ||= StatementRead::TableParser.call(numeric_text)
+
+  test "a numeric-date statement parses: yearless from the period, explicit and two-digit years honoured (W8-E)" do
+    assert_equal 9, numeric_parser.row_count, "3 payments + 2 returns + 3 purchases + 1 interest"
+    assert_equal Date.new(2026, 9, 9), numeric_parser.period_start, "an mm/dd/yyyy period reads month-first, not day-first"
+    assert_equal Date.new(2026, 10, 8), numeric_parser.period_end
+    assert_equal "2026-09-17", numeric_parser.rows.first["date"], "a yearless 09/17 takes the statement's period year"
+
+    by_name = numeric_parser.entries.index_by { |entry| entry["name"] }
+    assert_equal "2026-09-08", by_name["TEST MART MISSISSAUGA ON HILLPA"]["date"],
+                 "an explicit four-digit 09/08/2026 year is honoured as printed"
+    assert_equal "2026-09-10", by_name["GROCERY STORE TORONTO ON"]["date"],
+                 "a two-digit 09/10/26 resolves to the century nearest the period (2026)"
+    assert_equal "2026-10-08", by_name["INTEREST CHARGES"]["date"]
+  end
+
+  test "a whole-field amount is money grouped or ungrouped, and nothing else is (W8-E)" do
+    money = %w[1,234.56 1234.56 1000.00 -1000.00 $1234.56 -$1,234.56 0.00]
+    not_money = %w[22.99% 0.06024% 1234 12.5 1,23.45 09/09]
+    money.each { |token| assert amount_field?(token), "#{token} must be a whole-field amount" }
+    not_money.each { |token| assert_not amount_field?(token), "#{token} must NOT be a whole-field amount" }
+  end
+
+  test "a numeric date mid-line is never a row, and a rate is never money (W8-E)" do
+    text = [
+      "For the period: 09/09/2026 to 10/08/2026",
+      "Purchases",
+      "   09/08            09/09         MERCHANT ONE                                                     10.00",
+      "   Rate notice: as of 09/15/2026 the rate is 21.99% and the fee is 1.5",
+      "   Balance Due 09/15/2026                                                   1196.78"
+    ].join("\n")
+    result = StatementRead::TableParser.call(text)
+
+    assert_equal 1, result.row_count, "only the date-LEAD line is a row; a mid-line date is never one"
+    assert_equal "MERCHANT ONE", result.rows.first["name"]
+    assert_empty result.missing_date_rows, "21.99% and 1.5 are not whole-field money, so no dateless row is surfaced"
+  end
+
+  def amount_field?(token) = StatementRead::TableParser::AMOUNT_FIELD.match?(token)
 end

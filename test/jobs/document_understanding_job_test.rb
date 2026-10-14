@@ -896,13 +896,13 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
                "a zero-row read must not assert a date property it never checked"
   end
 
-  test "a masked text-layer failure does not route the model's rows when a later rung drifts (must-fix 1)" do
+  test "a scan's drift no longer holds: the text-layer verdict is kept and the model's rows route (W8-E)" do
     # The text layer is USABLE but prints no parseable total, so the text rung is
     # `:unreconcilable` — a fall-back verdict. The geometry rung reads the misread
-    # boxes and DRIFTS. Before the fix the text rung's failure was kept
-    # unconditionally and masked the later drift, the job's `statement_holds?`
-    # read false, and the model's unproven rows routed. The job must receive the
-    # :drift, HOLD, and route nothing.
+    # boxes and DRIFTS. Under W8-E (owner-directed) only a TEXT-LAYER drift HOLDS;
+    # a scanned statement's drift falls back, so the model's rows route rather than
+    # stranding the document. Before W8-E this geometry `:drift` HELD and nothing
+    # routed. The caller keeps the text layer's own verdict as the fallback.
     stage_pdf(@link, "synthetic_statement.pdf")
     no_totals = [
       "For the period: September 9, 2026 to October 8, 2026",
@@ -915,15 +915,22 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     stub_ocr_success(pages: misread_box_pages)
     stub_provider(FakeProvider.new(STATEMENT))
 
-    assert_no_difference -> { PdfImport.count } do
-      DocumentUnderstandingJob.perform_now(@link.id)
+    # One model batch over all pages, so the model's two rows route exactly
+    # (PAGE_BATCH=1 would call the model once per page and merge three copies).
+    with_batch_size(3) do
+      assert_difference -> { PdfImport.count }, 1 do
+        DocumentUnderstandingJob.perform_now(@link.id)
+      end
     end
 
     @link.reload
-    assert_equal "queued", @link.status, "the deterministic geometry drift holds the row"
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal 2, import.rows_count, "the model's rows route — a scan's drift does not hold"
+    assert_not_includes import.rows.pluck(:name), "MERCHANT ONE",
+                        "the dropped geometry row is not the routed one"
     detail = @link.extraction.validations["statement_read"]
-    assert_equal "drift", detail["verdict"]
-    assert_equal "geometry", detail["source"], "the winning rung's source travels with the read"
+    assert_equal "unreconcilable", detail["verdict"], "the text layer's own fall-back verdict is kept"
+    assert_equal "text_layer", detail["source"], "the winning read's source travels with the read"
   end
 
   test "a proven statement routes as a statement even when the identity read calls it something else (must-fix 2)" do

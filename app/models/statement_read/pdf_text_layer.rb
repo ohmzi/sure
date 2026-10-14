@@ -36,15 +36,19 @@ class StatementRead
 
     # Deliberately loose — the probe only decides whether the reader is WORTH
     # trying (reconciliation is the real gate), so it accepts the common date
-    # shapes: "<Mon> <D>", "<D> <Mon>", "13th 10 2025", and "9/9/2026". `%r{}`
+    # shapes: "<Mon> <D>", "<D> <Mon>", "13th 10 2025", and "9/9/2026". W8-E
+    # adds the yearless numeric form ("9/9"): a statement whose only dates are
+    # numeric must still be probed as usable, or the reader never tries it. `%r{}`
     # delimiters so the embedded `/` needs no escaping.
     DATE_TOKEN = %r{
       (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}\b |
       \b\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\b |
       \b\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}\b |
+      \b\d{1,2}/\d{1,2}(?:/\d{2,4})?\b |
       \b\d{1,2}(?:st|nd|rd|th)\s+\d{1,2}\s+\d{2,4}\b
     }x
-    AMOUNT_TOKEN = /\d{1,3}(?:,\d{3})*\.\d{2}/
+    # The amount probe, grouped or ungrouped (W8-E).
+    AMOUNT_TOKEN = /\d+(?:,\d{3})*\.\d{2}/
 
     Result = Data.define(:text, :font_count, :usable) do
       def usable? = usable

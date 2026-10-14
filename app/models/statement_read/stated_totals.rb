@@ -11,9 +11,10 @@ class StatementRead
   # `Purchases`/`Fees`/`Cash transactions` figures are read as stated totals, not
   # as rows.
   class StatedTotals
-    # The per-card subtotal: "Total purchases for 5446 12XX XXXX 3111   $4,678.58".
-    PER_CARD = /Total purchases for\s+(.+?)\s+(-?\$?\s*[\d,]+\.\d{2})/
-    MONEY = /(-?\$?\s*[\d,]+\.\d{2})/
+    # Money, grouped (`1,234.56`) or ungrouped (`1234.56`, W8-E). The two forms
+    # are alternated explicitly so a malformed run like "1,2,3.45" is not money.
+    PER_CARD = /Total purchases for\s+(.+?)\s+(-?\$?\s*(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2})/
+    MONEY = /(-?\$?\s*(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2})/
 
     def self.call(text) = new(text).call
 
