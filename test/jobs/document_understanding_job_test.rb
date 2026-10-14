@@ -763,6 +763,50 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal [ "MODEL ROW" ], @link.extraction.raw_response["transactions"].map { |row| row["name"] }
   end
 
+  test "a deterministic statement read writes the statement's printed balances onto the record (W8-I)" do
+    # The reader parses the statement's OWN figures ("Balance from your last
+    # statement" -> opening, "Your New Balance" -> closing) into `stated_totals`.
+    # Nothing wrote them onto the vault row, so its opening_balance/closing_balance
+    # stayed nil and the statement page's reconciliation could never run. This is
+    # the seam: the parsed figures land on the record.
+    stage_pdf(@link, "synthetic_statement.pdf")
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    statement = statement_for(@link)
+    assert_equal 6000.00.to_d, statement.opening_balance,
+                 "the printed 'Balance from your last statement' is written verbatim, never computed"
+    assert_equal 1196.78.to_d, statement.closing_balance,
+                 "the printed 'Your New Balance' is written verbatim"
+
+    # Idempotent: a re-read adopts the SAME statement row and updates the same two
+    # columns — it never mints a second row.
+    @link.update!(status: "queued")
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    reread = statement_for(@link)
+    assert_equal statement.id, reread.id, "a re-read adopts the statement it already made"
+    assert_equal 6000.00.to_d, reread.opening_balance
+    assert_equal 1196.78.to_d, reread.closing_balance
+  end
+
+  test "a statement read with no parsed totals leaves the printed-balance columns unset (W8-I)" do
+    # The OCR text prints no opening or new balance and there is no deterministic
+    # rung to read one from, so the reader parses neither figure. The columns must
+    # stay nil: an absent parse is never back-filled from the ledger or a guess —
+    # a wrong printed balance is worse than a missing one.
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    statement = statement_for(@link)
+    assert_nil statement.opening_balance, "no parsed opening -> the column is left unset"
+    assert_nil statement.closing_balance, "no parsed closing -> the column is left unset"
+  end
+
   test "when the reader supplies the rows, the model's line_items fallback is not claimed (R-W8B12)" do
     # The model files its rows under line_items (transactions empty), which
     # without the reader sets the fallback flag — a mixed-provenance green. The

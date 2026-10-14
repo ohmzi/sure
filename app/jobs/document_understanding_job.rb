@@ -656,6 +656,8 @@ class DocumentUnderstandingJob < ApplicationJob
       return link.hold!(message: statement_read.hold_message) if statement_holds?(statement_read)
 
       statement = statement_for(link, understanding)
+      # W8-I: the statement's OWN printed balances, from the reader's parse.
+      record_stated_balances(statement, statement_read)
       import = PdfImport.find_or_create_from_statement!(statement: statement)
 
       import.update!(
@@ -677,6 +679,32 @@ class DocumentUnderstandingJob < ApplicationJob
       import.sync_mappings
       statement.update!(extraction_state: :extracted)
       import.update!(status: import.rows_count.positive? ? :pending : :complete)
+    end
+
+    # W8-I: write the statement's OWN printed balances onto its record. The
+    # reader's `stated_totals` are the figures the statement PRINTS, parsed
+    # independently of whether the rows reconciled — so a read that fell back
+    # (`:unreconcilable` / `:period_unreadable` / `:unavailable`, or a scan's
+    # `:drift`) may still carry a genuine opening or closing, and this writes it
+    # without consulting the verdict. Equally, a figure the reader did NOT parse
+    # leaves its column as it is: an absent parse is not a figure, and neither a
+    # guessed sum nor the ledger's own balance may stand in for one, because the
+    # statement page's reconciliation (`AccountStatement#reconciliation_checks`)
+    # reads exactly these two columns and must compare the PRINTED figure, never
+    # one the app supplied. Only the parsed keys are written, so a re-read updates
+    # the same two columns and nothing is appended or duplicated.
+    #
+    # The hold is evaluated before `statement_for`, so a held read reaches no
+    # statement and this method is never called for one — not special-cased here.
+    def record_stated_balances(statement, statement_read)
+      totals = statement_read&.stated_totals || {}
+      parsed = {
+        opening_balance: totals["opening"],
+        closing_balance: totals["new_balance"]
+      }.compact
+      return if parsed.empty?
+
+      statement.update!(parsed)
     end
 
     # What the review screen shows and the next-steps email carries. The AI read
