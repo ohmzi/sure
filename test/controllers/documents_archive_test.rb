@@ -45,11 +45,22 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
   test "the archive lists the family's documents as tiles with their state" do
     get documents_path
     assert_response :success
-    # Only images carry a thumbnail (their own stored bytes); the PDF next to it
-    # renders its file-type icon instead, and a linked document reads "Posted"
-    # — the design's tile state, not the raw link status.
+    # An image tile points at its own stored bytes; a linked document reads
+    # "Posted" — the design's tile state, not the raw link status.
     assert_select "img[src=?]", file_document_path(document_links(:unlinked_receipt), kind: "thumb")
     assert_match I18n.t("document_browser.tile.states.posted"), response.body
+  end
+
+  test "a PDF tile carries a preview, not only its file-type icon" do
+    # (Design D3: "you recognise a document by its picture".) Statements are
+    # PDFs, so an icon-only tile would mean the grid never shows a document.
+    # The img is the rendered first page, which DocumentLink::Thumbnail caches.
+    pdf = document_links(:linked_receipt)
+    assert_equal "application/pdf", pdf.content_type
+
+    get documents_path
+
+    assert_select "img[src=?]", file_document_path(pdf, kind: "thumb")
   end
 
   test "the browser lists tiles with thumbnails, statuses and no action row" do

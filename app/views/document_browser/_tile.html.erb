@@ -50,8 +50,11 @@
   meta_parts << format_date(row.date) if row.date.present?
   meta = state == :needs_you ? row.failure_message : meta_parts.join(" · ")
 
+  # object-top: a statement page is portrait, and the tile is 4:3 — the head of
+  # the page carries the institution and the statement's own title, which is
+  # what makes the document recognisable. A centred crop would show its middle.
   thumb = if row.thumb_url.present?
-    image_tag(row.thumb_url, alt: row.title, loading: "lazy", class: "h-full w-full object-cover")
+    image_tag(row.thumb_url, alt: row.title, loading: "lazy", class: "h-full w-full object-cover object-top")
   else
     content_tag(:div, icon(row.icon, size: "xl"),
                 class: "flex h-full w-full items-center justify-center text-secondary",

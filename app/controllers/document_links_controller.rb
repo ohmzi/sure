@@ -7,6 +7,11 @@
 class DocumentLinksController < ApplicationController
   include DocumentBrowser
 
+  # The kinds a caller may ask for. `original` and `preview` both serve the
+  # stored bytes as they are (the browser's own PDF viewer and image scaling do
+  # the rest); `thumb` is the tile-sized preview — a PDF's rasterized first page
+  # where one can be rendered, the stored bytes otherwise (an image's own bytes
+  # ARE its picture).
   FILE_KINDS = { "original" => :original, "preview" => :preview, "thumb" => :thumb }.freeze
   # The filename guard moved into DocumentLink::Intake (M7 — the archive form and
   # the wizard share one intake path); this alias keeps M1's constant name
@@ -133,6 +138,23 @@ class DocumentLinksController < ApplicationController
 
     path = DocumentLink::Staging.resolve!(@link.stored_path)
     return render(plain: "not ready", status: :not_found) unless path.file?
+
+    # A PDF's preview is a rendering, not its bytes: every PDF tile asks for
+    # kind=thumb (design D3, "you recognise a document by its picture"), and
+    # DocumentLink::Thumbnail caches page 1 beside the staged bytes. When no
+    # preview can be made — no renderer, or a PDF poppler rejected — the bytes
+    # are NOT a substitute: handing a PDF to an <img> is a broken image and a
+    # needless download, so this answers 404 and the tile's icon stands. An
+    # image never comes through here: its own bytes are the picture and it
+    # falls through to the branch below.
+    if kind == :thumb && DocumentLink::Thumbnail.pdf?(@link)
+      preview = DocumentLink::Thumbnail.path_for(@link)
+      return render(plain: "no preview", status: :not_found) unless preview
+
+      name = File.basename(@link.original_filename.presence || "document", ".*")
+      return send_data(preview.binread, type: "image/png", disposition: :inline,
+                       filename: "#{name}-preview.png")
+    end
 
     content_type = @link.content_type.presence || "application/octet-stream"
     disposition = ActiveModel::Type::Boolean.new.cast(params[:download]) ? :attachment : :inline

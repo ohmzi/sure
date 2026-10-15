@@ -291,6 +291,10 @@ class DocumentLink < ApplicationRecord
   # after it was loaded could be written back to a stale status. This clears
   # only the one column, in a direct update guarded by id.
   def delete_stored!
+    # The rendered preview is derived from these bytes, so it goes with them —
+    # otherwise a tombstone would keep serving a picture of a document it no
+    # longer holds.
+    DocumentLink::Thumbnail.delete(self)
     DocumentLink::Staging.delete(stored_path)
     self.class.where(id: id).update_all(stored_path: nil, updated_at: Time.current)
   end

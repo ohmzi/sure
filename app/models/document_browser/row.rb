@@ -151,10 +151,12 @@ class DocumentBrowser::Row
       end
     end
 
-    # Only images have a thumbnail — their stored bytes, scaled down by the
-    # browser. Every other type falls back to its file-type icon.
+    # Which documents have a preview to show: an image's own bytes (the browser
+    # scales them) and a PDF's rasterized first page (DocumentLink::Thumbnail,
+    # which the file endpoint's kind=thumb branch serves). Every other type
+    # falls back to its file-type icon.
     def thumbnail?(content_type)
-      viewer_kind(content_type) == :image
+      viewer_kind(content_type).in?(%i[image pdf])
     end
 
     def icon_for(content_type)

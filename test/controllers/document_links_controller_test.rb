@@ -158,6 +158,46 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_response :bad_request
   end
 
+  test "file serves a PDF's rendered preview for the thumb kind" do
+    @link.update_columns(stored_path: stage_bytes(@link, "%PDF-1.7"),
+                         content_type: "application/pdf")
+    preview = @tmp.join("preview.png")
+    File.binwrite(preview, "\x89PNG\r\n\x1a\nrendered-page-one")
+    DocumentLink::Thumbnail.stubs(:path_for).returns(preview)
+
+    get file_document_path(@link, kind: "thumb")
+
+    assert_response :success
+    assert_equal "image/png", response.headers["Content-Type"]
+    assert_equal "\x89PNG\r\n\x1a\n".b, response.body.b[0, 8], "the preview, not the PDF"
+    assert_match(/\Ainline/, response.headers["Content-Disposition"])
+  end
+
+  test "file answers 404 for a PDF whose preview cannot be rendered" do
+    # The bytes are a PDF, so they are not a substitute for a picture: handing
+    # them to an <img> would be a broken image. The tile keeps its type icon.
+    @link.update_columns(stored_path: stage_bytes(@link, "%PDF-1.7"),
+                         content_type: "application/pdf")
+    DocumentLink::Thumbnail.stubs(:path_for).returns(nil)
+
+    get file_document_path(@link, kind: "thumb")
+
+    assert_response :not_found
+    assert_equal "no preview", response.body
+  end
+
+  test "file serves an image's own bytes for the thumb kind, rendering nothing" do
+    @link.update_columns(stored_path: stage_bytes(@link, "png-bytes"),
+                         content_type: "image/png")
+    DocumentLink::Thumbnail.expects(:path_for).never
+
+    get file_document_path(@link, kind: "thumb")
+
+    assert_response :success
+    assert_equal "image/png", response.headers["Content-Type"]
+    assert_equal "png-bytes", response.body
+  end
+
   test "file refuses a document with no stored bytes" do
     processing = document_links(:held_bill)
     processing.update_columns(status: "processing", stored_path: nil)
