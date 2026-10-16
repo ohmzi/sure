@@ -12,6 +12,8 @@ class DocumentsUnderstandingPanelViewTest < ActionView::TestCase
     def read? = false
     def reading? = false
     def empty_reason = reason
+    def hold = nil
+    def attempts = []
   end
 
   # Minimal stand-in for the read branch: the field list is the only thing under
@@ -27,6 +29,8 @@ class DocumentsUnderstandingPanelViewTest < ActionView::TestCase
     def fields = @fields
     def checks = []
     def outcomes = []
+    def hold = nil
+    def attempts = []
   end
 
   test "the unread panel names the provider's home and links to the AI provider anchor" do
