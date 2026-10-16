@@ -155,4 +155,23 @@ class StatementAutoPostTest < ActiveSupport::TestCase
     assert_equal :needs_account, StatementAutoPost.call(link: link)
     assert_equal "pending", import.reload.status
   end
+
+  # Found live: the owner unlinked a posted statement and could not link it
+  # back — "can no longer be re-targeted" — although its rows live in that very
+  # account. Re-attaching a statement to the account it already posted into
+  # moves no money and must work; moving it elsewhere stays refused.
+  test "a posted statement can be linked back to the account it posted into, never another" do
+    link, import = statement_with_read
+    StatementAutoPost.call(link: link)
+    import.reload.publish
+    statement = link.account_statement.reload
+    statement.unlink!
+    assert_nil statement.reload.account
+
+    assert import.reload.assign_account!(@card), "back to its own account"
+    assert_equal @card, statement.reload.account
+
+    assert_not import.reload.assign_account!(accounts(:depository)), "never re-targeted once posted"
+    assert_equal @card, statement.reload.account
+  end
 end

@@ -211,6 +211,14 @@ class PdfImport < Import
   # back-button or replayed PATCH cannot unwind a published import.
   def assign_account!(account)
     with_lock do
+      # A posted statement whose record was unlinked can always go back to the
+      # account its rows already live in — that moves no money. Moving it to any
+      # other account stays refused below.
+      if !reassignable? && account_id == account.id && (statement = account_statement)
+        statement.lock!
+        statement.link_to_account!(account) if statement.account_id != account.id
+        return true
+      end
       return false unless reassignable?
 
       previous_account_id = account_id
