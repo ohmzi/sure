@@ -63,4 +63,13 @@ class StatementBalanceAnchorTest < ActiveSupport::TestCase
 
     assert_not StatementBalanceAnchor.call(first)
   end
+
+  test "an existing entry the statement matched counts as the statement's own row" do
+    first = statement(period_start: Date.new(2026, 5, 12), opening: BigDecimal("81.27"))
+    @account.entries.create!(date: Date.new(2026, 5, 11), amount: 10, name: "matched", currency: "CAD",
+                             entryable: Transaction.new, reconciled_at: Time.current, reconciled_by_statement_id: first.id)
+
+    assert StatementBalanceAnchor.call(first)
+    assert_equal Date.new(2026, 5, 10), @account.reload.opening_anchor_date
+  end
 end

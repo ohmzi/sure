@@ -402,6 +402,9 @@ class AccountStatement < ApplicationRecord
 
   def reconciliation_checks(balance_lookup: nil)
     return [] unless account.present? && period_start_on.present? && period_end_on.present?
+    # A statement whose rows are in Sure is verified by them (the owner keeps
+    # card rows on their purchase date, which straddles statement boundaries).
+    return row_reconciliation_checks(balance_lookup) if row_checkable?
 
     checks = []
     opening_balance_record = balance_record_for(period_start_on, statement_currency, balance_lookup)
@@ -468,6 +471,46 @@ class AccountStatement < ApplicationRecord
   end
 
   private
+
+    def statement_rows
+      Entry.reconciled_by(self).where(account_id: account_id).where.not(entryable_type: "Valuation")
+    end
+
+    def row_checkable?
+      opening_balance.present? && closing_balance.present? && statement_rows.exists?
+    end
+
+    # The statement checked by its own rows and its neighbours, not by daily
+    # balances at its boundary dates:
+    #   * period movement — opening + its rows = closing (a liability rises with
+    #     an outflow, an asset falls);
+    #   * opening — the previous statement's closing (else the account's opening
+    #     balance when this statement is its earliest);
+    #   * closing — the next statement's opening (else the ledger on the last day).
+    def row_reconciliation_checks(balance_lookup)
+      flow = statement_rows.sum(:amount)
+      movement = account.classification == "liability" ? flow : -flow
+      checks = [ reconciliation_check(key: "period_movement", statement_amount: closing_balance - opening_balance,
+                                      ledger_amount: movement) ]
+
+      previous = neighbour(before: true)
+      opening_ledger = previous ? previous.closing_balance : (account.opening_anchor_balance if account.has_opening_anchor?)
+      checks.unshift(reconciliation_check(key: "opening_balance", statement_amount: opening_balance, ledger_amount: opening_ledger)) if opening_ledger
+
+      following = neighbour(before: false)
+      closing_ledger = following ? following.opening_balance : balance_record_for(period_end_on, statement_currency, balance_lookup)&.end_balance
+      checks.insert(1, reconciliation_check(key: "closing_balance", statement_amount: closing_balance, ledger_amount: closing_ledger)) if closing_ledger
+      checks
+    end
+
+    def neighbour(before:)
+      scope = account.account_statements.where.not(id: id)
+      if before
+        scope.where(period_end_on: ...period_start_on).where.not(closing_balance: nil).order(period_end_on: :desc).first
+      else
+        scope.where(period_start_on: (period_end_on)..).where.not(opening_balance: nil).order(:period_start_on).first
+      end
+    end
 
     def reconciliation_check(key:, statement_amount:, ledger_amount:)
       difference = statement_amount.to_d - ledger_amount.to_d

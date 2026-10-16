@@ -1005,4 +1005,58 @@ class AccountStatementTest < ActiveSupport::TestCase
 
       statement
     end
+
+    # The owner's choice (2026-10-16): card rows keep their PURCHASE date, so a
+    # purchase made before a statement's period (posted inside it) sits on the
+    # previous month's side of the boundary. A statement whose rows are in Sure is
+    # therefore verified by its own rows — opening + rows = closing — and chained
+    # to its neighbours, never by daily balances at the boundary.
+    def card_statement(account, start_on, opening, closing, rows)
+      s = AccountStatement.create_from_upload!(
+        family: account.family, account: account,
+        file: Rack::Test::UploadedFile.new(StringIO.new("%PDF-1.4 #{start_on} #{SecureRandom.hex(4)}"), "application/pdf", original_filename: "#{start_on}.pdf")
+      )
+      s.update!(period_start_on: start_on, period_end_on: start_on + 29, opening_balance: opening, closing_balance: closing)
+      rows.each do |date, amount|
+        account.entries.create!(date: date, amount: amount, name: "row", currency: account.currency,
+                                entryable: Transaction.new, reconciled_at: Time.current, reconciled_by_statement_id: s.id)
+      end
+      s
+    end
+
+    def statuses(statement) = statement.reconciliation_checks.to_h { |check| [ check[:key], check[:status] ] }
+
+    test "a card statement is verified by its own rows, a boundary purchase included" do
+      card = families(:dylan_family).accounts.create!(name: "Fresh card", balance: 0, currency: "USD", accountable: CreditCard.new)
+      # Purchases raise a card's balance, payments lower it; one purchase is dated
+      # the day before the period it was posted in.
+      june = card_statement(card, Date.new(2026, 5, 9), 100, 130, [ [ Date.new(2026, 5, 8), 40 ], [ Date.new(2026, 5, 20), -10 ] ])
+      july = card_statement(card, Date.new(2026, 6, 8), 130, 150, [ [ Date.new(2026, 6, 15), 20 ] ])
+      StatementBalanceAnchor.call(june) # what posting the earliest statement does
+
+      assert_equal({ "opening_balance" => "matched", "closing_balance" => "matched", "period_movement" => "matched" }, statuses(june))
+      assert_equal "matched", statuses(july)["opening_balance"], "july opens where june closed"
+    end
+
+    test "a chequing statement's withdrawals lower and deposits raise its balance" do
+      chequing = accounts(:depository)
+      statement = card_statement(chequing, Date.new(2026, 5, 12), 100, 130, [ [ Date.new(2026, 5, 13), 20 ], [ Date.new(2026, 5, 14), -50 ] ])
+
+      assert_equal "matched", statuses(statement)["period_movement"]
+    end
+
+    test "rows that do not add up to the printed movement are a mismatch" do
+      card = accounts(:credit_card)
+      statement = card_statement(card, Date.new(2026, 5, 9), 100, 130, [ [ Date.new(2026, 5, 20), 25 ] ])
+
+      assert_equal "mismatched", statuses(statement)["period_movement"]
+    end
+
+    test "a statement whose opening disagrees with the previous closing is a mismatch" do
+      card = accounts(:credit_card)
+      card_statement(card, Date.new(2026, 5, 9), 100, 130, [ [ Date.new(2026, 5, 20), 30 ] ])
+      july = card_statement(card, Date.new(2026, 6, 8), 125, 145, [ [ Date.new(2026, 6, 15), 20 ] ])
+
+      assert_equal "mismatched", statuses(july)["opening_balance"]
+    end
 end

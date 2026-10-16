@@ -35,8 +35,11 @@ class StatementBalanceAnchor
               .where(period_start_on: ...@statement.period_start_on).none?
     end
 
+    # The statement's rows: what its import wrote, and existing entries it
+    # matched (they carry its reconciliation mark).
     def statement_entries
-      @account.entries.where(import_id: PdfImport.where(account_statement: @statement).select(:id))
+      imported = @account.entries.where(import_id: PdfImport.where(account_statement: @statement).select(:id))
+      imported.or(@account.entries.where(reconciled_by_statement_id: @statement.id))
     end
 
     def foreign_entries_before?
