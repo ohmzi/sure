@@ -16,6 +16,7 @@ en:
     intake_bar:
       add_document: Add document
       drop_hint: …or drop files anywhere on this page
+      currency_label: Receipt currency
       search: Search
       upload_failed: The upload failed. Check your connection and try again.
     # The one dropzone's endpoint copy.

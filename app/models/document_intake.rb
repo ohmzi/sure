@@ -23,15 +23,25 @@ class DocumentIntake
   SNIFF_BYTES = 8.kilobytes
   OFX_HEADER = /\AOFXHEADER|\A[^\n]*<OFX>/i
 
-  def self.call(family:, uploader:, file:, title: nil)
-    new(family:, uploader:, file:, title:).call
+  def self.call(family:, uploader:, file:, title: nil, currency: nil)
+    new(family:, uploader:, file:, title:, currency:).call
   end
 
-  def initialize(family:, uploader:, file:, title:)
+  # The currency chosen at upload, only when it is a real ISO code; anything
+  # else is no choice (the family's display currency applies where it is used).
+  def self.currency_code(value)
+    code = value.to_s.strip.upcase
+    code if code.match?(/\A[A-Z]{3}\z/) && Money::Currency.new(code)
+  rescue Money::Currency::UnknownCurrencyError, ArgumentError
+    nil
+  end
+
+  def initialize(family:, uploader:, file:, title:, currency: nil)
     @family = family
     @uploader = uploader
     @file = file
     @title = title
+    @currency = currency
   end
 
   def call
@@ -82,7 +92,7 @@ class DocumentIntake
 
     def route_document
       link = DocumentLink::Intake.call(
-        family: @family, uploader: @uploader, file: @file, source: nil, title: @title,
+        family: @family, uploader: @uploader, file: @file, source: nil, title: @title, currency: @currency,
         enqueue: ->(l) { DocumentUnderstandingJob.perform_later(l.id) }
       )
       Routed.new(kind: :document, record: link, message: nil)

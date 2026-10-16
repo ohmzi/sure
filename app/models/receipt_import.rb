@@ -109,7 +109,7 @@ class ReceiptImport < Import
         return
       end
 
-      currency = account&.currency || family.currency
+      currency = default_currency
       inserted = items.each_with_index.map do |item, index|
         {
           import_id: id,
@@ -133,6 +133,12 @@ class ReceiptImport < Import
   def document = document_link
 
   def requires_csv_workflow? = false
+
+  # The owner's rule: a receipt or bill is in the currency chosen at upload,
+  # else the family's display currency — not simply its account's.
+  def default_currency
+    document_link&.currency.presence || family.currency
+  end
 
   # The wizard's step 2 stages the bytes on the DocumentLink, so the base
   # `uploaded?` (raw_file_str.present?) is false for a receipt and
@@ -233,7 +239,7 @@ class ReceiptImport < Import
           external_id: "document:#{document_link.id}",
           source: "document",
           amount: total_amount,
-          currency: default_currency, # Import's helper: account&.currency || family.currency
+          currency: default_currency, # the upload's currency, else the family's
           date: purchase_date,
           name: payee.presence || document_link.title.presence ||
                 document_link.original_filename.presence || "Receipt",
@@ -289,7 +295,7 @@ class ReceiptImport < Import
 
     Account::ProviderImportAdapter.new(account).duplicate_transactions(
       date: purchase_date, amount: total_amount,
-      currency: account.currency || family.currency,
+      currency: default_currency,
       date_window: CORROBORATION_DATE_WINDOW, include_provider_entries: true
     )
   end

@@ -12,6 +12,18 @@
            class="hidden" data-action="change->document-dropzone#pick">
   </label>
 
+  <%# The currency a receipt or bill is in (the owner's rule): preset to the
+      family's display currency; a statement ignores it — its account decides. %>
+  <div class="w-40" data-intake-currency>
+    <%= fields do |form| %>
+      <%= render DS::Select.new(form: form, method: :currency,
+                                items: Money::Currency.as_options.map { |currency| { label: "#{currency.iso_code} — #{currency.name}", value: currency.iso_code } },
+                                selected: Current.family.currency, searchable: true,
+                                label: t(".currency_label"),
+                                html_options: { data: { "document-dropzone-target": "currency" } }) %>
+    <% end %>
+  </div>
+
   <span class="text-sm text-secondary"><%= t(".drop_hint") %></span>
 
   <%# The intake stream updates this span with a refusal; empty until then. %>

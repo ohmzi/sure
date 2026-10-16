@@ -68,4 +68,29 @@ class Documents::IntakesControllerTest < ActionDispatch::IntegrationTest
     assert_match I18n.t("imports.create.file_too_large", max_size: Import::MAX_CSV_SIZE / 1.megabyte),
                  response.body
   end
+
+  # The owner's rule: a receipt or bill is in the currency chosen at upload; no
+  # choice means the family's display currency (applied where it is used).
+  def upload_png(currency: nil)
+    post documents_intake_path, params: {
+      document: Rack::Test::UploadedFile.new(StringIO.new("PNG-#{SecureRandom.hex(4)}"), "image/png", original_filename: "r.png"),
+      currency: currency
+    }.compact
+    DocumentLink.order(:created_at).last
+  end
+
+  test "the currency chosen at upload is kept on the document" do
+    assert_equal "USD", upload_png(currency: "usd").currency
+  end
+
+  test "no currency, or one that is not a real code, keeps none" do
+    assert_nil upload_png.currency
+    assert_nil upload_png(currency: "XX$").currency
+  end
+
+  test "the upload bar offers a currency, preset to the family's" do
+    get documents_path
+
+    assert_select "[data-intake-currency] input[type='hidden'][name='currency'][value='#{users(:family_admin).family.currency}'][data-document-dropzone-target='currency']"
+  end
 end

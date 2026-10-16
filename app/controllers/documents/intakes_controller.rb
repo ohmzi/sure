@@ -18,7 +18,8 @@ class Documents::IntakesController < ApplicationController
     file = params[:document]
     return head :bad_request if file.blank?
 
-    result = DocumentIntake.call(family: Current.family, uploader: Current.user, file: file)
+    result = DocumentIntake.call(family: Current.family, uploader: Current.user, file: file,
+                                 currency: DocumentIntake.currency_code(params[:currency]))
 
     case result.kind
     when :document then render_row(result.record)

@@ -479,4 +479,19 @@ class ReceiptImportConcurrentPublishTest < ActiveSupport::TestCase
       reader&.join(2)
     end
   end
+
+  # The owner's rule: a receipt posts in the currency chosen at upload, else in
+  # the family's display currency — never just the account's.
+  test "a receipt's currency is the one chosen at upload, else the family's" do
+    draft = imports(:receipt_draft)
+    draft.update!(account: accounts(:credit_card))
+    link = draft.document_link || DocumentLink.create!(family: draft.family, source: "receipt", status: "unlinked")
+    draft.update!(document_link: link)
+
+    link.update!(currency: "EUR")
+    assert_equal "EUR", draft.reload.send(:default_currency)
+
+    link.update!(currency: nil)
+    assert_equal draft.family.currency, draft.reload.send(:default_currency)
+  end
 end

@@ -21,12 +21,14 @@ class DocumentLink::Intake
   FilenameTooLong = Class.new(StandardError)
 
   class << self
-    def call(family:, uploader:, file:, source: nil, title: nil, enqueue: nil)
-      new(family: family, uploader: uploader, file: file, source: source, title: title, enqueue: enqueue).call
+    def call(family:, uploader:, file:, source: nil, title: nil, enqueue: nil, currency: nil)
+      new(family: family, uploader: uploader, file: file, source: source, title: title, enqueue: enqueue,
+          currency: currency).call
     end
   end
 
-  def initialize(family:, uploader:, file:, source:, title:, enqueue: nil)
+  def initialize(family:, uploader:, file:, source:, title:, enqueue: nil, currency: nil)
+    @currency = currency
     @family = family
     @uploader = uploader
     @file = file
@@ -53,7 +55,7 @@ class DocumentLink::Intake
     raise Duplicate if @family.document_links.exists?(content_sha256: digest)
 
     link = DocumentLink.link_from_upload!(family: @family, uploader: @uploader,
-                                          source: resolved_source, title: @title.presence)
+                                          source: resolved_source, title: @title.presence, currency: @currency)
     begin
       # Savepoint: a failed stage! (a lost unique-index race, a rejected value)
       # aborts the surrounding transaction, which would poison the cleanup below.

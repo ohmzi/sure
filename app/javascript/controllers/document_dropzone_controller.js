@@ -5,7 +5,7 @@ import { Controller } from "@hotwired/stimulus";
 // tile, so the document is visible before the upload's own request has finished
 // settling. No wizard, no navigation, no second screen.
 export default class extends Controller {
-  static targets = ["status"];
+  static targets = ["status", "currency"];
   static values = { url: String, failure: { type: String, default: "" } };
 
   connect() {
@@ -53,6 +53,9 @@ export default class extends Controller {
     for (const file of files) {
       const body = new FormData();
       body.append("document", file);
+      // The currency chosen on the bar (a receipt or bill's money); the server
+      // keeps it only when it is a real code.
+      if (this.hasCurrencyTarget) body.append("currency", this.currencyTarget.value);
       fetch(this.urlValue, {
         method: "POST",
         body,

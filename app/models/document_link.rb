@@ -84,8 +84,8 @@ class DocumentLink < ApplicationRecord
   class << self
     # The only way a row enters the system. The caller stages bytes
     # (DocumentLink#stage!, Task 3) and enqueues the native DocumentUnderstandingJob.
-    def link_from_upload!(family:, uploader:, source:, title: nil)
-      create!(family: family, created_by: uploader, source: source, title: title, status: "queued")
+    def link_from_upload!(family:, uploader:, source:, title: nil, currency: nil)
+      create!(family: family, created_by: uploader, source: source, title: title, status: "queued", currency: currency)
     end
 
     # Local OCR-context search (M8 locked decision 4 / M7 Task 10's pin): the
