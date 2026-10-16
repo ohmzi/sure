@@ -80,5 +80,4 @@ class StatementRead::Layouts::RbcChequingTest < ActiveSupport::TestCase
     assert names.none? { |name| name.include?("Station A") || name.include?("Montreal") }, names.inspect
     assert_equal 18, read(with_header).row_count
   end
-
 end

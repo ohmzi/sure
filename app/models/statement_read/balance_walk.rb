@@ -62,6 +62,5 @@ class StatementRead
           group.zip(signs).sum { |row, sign| sign * row["amount"] } == delta
         end
       end
-
   end
 end

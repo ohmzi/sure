@@ -155,5 +155,4 @@ class StatementAutoPostTest < ActiveSupport::TestCase
     assert_equal :needs_account, StatementAutoPost.call(link: link)
     assert_equal "pending", import.reload.status
   end
-
 end
