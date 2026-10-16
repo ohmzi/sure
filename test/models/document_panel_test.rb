@@ -331,4 +331,29 @@ class DocumentPanelTest < ActiveSupport::TestCase
     )
     DocumentPanel.new(link.reload)
   end
+
+  # Spec §6: the viewer shows every reader the read tried, so a stop is never a
+  # mystery.
+  test "the read history lists each reader, what happened and how long it took" do
+    link = document_links(:understood_receipt_link)
+    link.document_extractions.delete_all
+    DocumentExtraction.record!(
+      document_link: link, provider: "DeepSeek", model: "deepseek-flash", page_count: 1, status: "succeeded",
+      verdict: { "document_class" => "receipt" },
+      validations: { "read_attempts" => [
+        { "reader" => "the local model (qwen2.5vl:7b)", "outcome" => "skipped_busy", "seconds" => 0 },
+        { "reader" => "DeepSeek", "outcome" => "read", "seconds" => 40.2 }
+      ] }
+    )
+
+    attempts = DocumentPanel.new(link.reload).attempts
+
+    assert_equal [ "The local model (qwen2.5vl:7b)", "DeepSeek" ], attempts.map(&:reader)
+    assert_equal [ "Skipped: the GPU was busy", "Read it" ], attempts.map(&:outcome)
+    assert_equal [ nil, "40s" ], attempts.map(&:duration)
+  end
+
+  test "a read with no recorded attempts has no history" do
+    assert_empty DocumentPanel.new(document_links(:queued_receipt)).attempts
+  end
 end

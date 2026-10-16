@@ -66,6 +66,8 @@
       </section>
     <% end %>
 
+    <%= render "documents/read_history", panel: panel %>
+
     <section class="space-y-1.5">
       <p class="text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".became") %></p>
       <% if panel.outcomes.any? %>
@@ -93,6 +95,7 @@
       <p class="font-medium text-primary"><%= panel.reading? ? t(".reading") : t(".not_read_yet") %></p>
       <p class="text-sm text-secondary"><%= panel.empty_reason %></p>
     </div>
+    <%= render "documents/read_history", panel: panel %>
     <% unless panel.reading? %>
       <div class="space-y-2">
         <div class="flex flex-wrap items-center gap-2">

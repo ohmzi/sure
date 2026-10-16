@@ -174,7 +174,8 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
     assert_equal "queued", @link.status
     assert_includes @link.failure_message, "could not be read"
-    assert_nil @link.extraction
+    assert_equal "failed", @link.extraction.status, "the hold is kept on a failed read record"
+    assert_empty @link.extraction.verdict, "an unreadable document records no verdict"
     assert_not_nil @link.stored_path, "the original bytes must survive an unreadable read"
   end
 
@@ -206,7 +207,8 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
     assert_equal "queued", @link.status
     assert_includes @link.failure_message, "could not be read"
-    assert_nil @link.extraction
+    assert_equal "failed", @link.extraction.status, "the hold is kept on a failed read record"
+    assert_empty @link.extraction.verdict, "an unreadable document records no verdict"
     assert_not_nil @link.stored_path
   end
 
@@ -282,6 +284,198 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
                     "the provider's raw message must not reach the user")
     assert_includes log.string, "AI provider failed", "the exception stays in the log"
     assert_no_enqueued_jobs only: DocumentUnderstandingJob
+  end
+
+  # --- The reader ladder (spec §2/§3) ---
+
+  class NamedProvider < FakeProvider
+    def initialize(name, verdict, success: true)
+      super(verdict, success: success)
+      @provider_name = name
+      @llm_model = "#{name}-model"
+    end
+  end
+
+  def reader(name, verdict, kind: :cloud, success: true, guard: nil)
+    DocumentReaderLadder::Reader.new(provider: NamedProvider.new(name, verdict, success: success),
+                                     kind: kind, label: name, guard: guard)
+  end
+
+  def local_guard = LocalLlm::GpuGuard.new(base_url: "http://ollama:11434/v1", model: "qwen2.5vl:7b")
+
+  def stub_ladder(*readers)
+    DocumentReaderLadder.stubs(:for).returns(readers)
+  end
+
+  def attempts(link = @link) = link.reload.extraction.validations["read_attempts"]
+
+  test "a busy GPU skips the local reader and the cloud reads the document" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    guard = local_guard
+    guard.stubs(:busy?).returns(true)
+    guard.expects(:unload!).never
+    stub_ladder(reader("local", RECEIPT, kind: :local, guard: guard), reader("DeepSeek", RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "DeepSeek", @link.reload.extraction.provider
+    assert_equal %w[skipped_busy read], attempts.map { |attempt| attempt["outcome"] }
+    assert_equal "unlinked", @link.status
+  end
+
+  test "a retry the owner chose with the local model waits for the GPU instead of skipping" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    guard = local_guard
+    guard.expects(:busy?).never
+    guard.stubs(:unload!).returns(true)
+    stub_ladder(reader("local", RECEIPT, kind: :local, guard: guard))
+
+    DocumentUnderstandingJob.perform_now(@link.id, "local")
+
+    assert_equal "local", @link.reload.extraction.provider
+  end
+
+  test "the local model is unloaded once when its read ends, even when it failed" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    guard = local_guard
+    guard.stubs(:busy?).returns(false)
+    guard.expects(:unload!).once.returns(true)
+    stub_ladder(reader("local", RECEIPT, kind: :local, success: false, guard: guard), reader("DeepSeek", RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal %w[failed read], attempts.map { |attempt| attempt["outcome"] }
+  end
+
+  test "a cloud reader's error moves to the next reader instead of scheduling a retry" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    stub_ladder(reader("DeepSeek", RECEIPT, success: false), reader("Gemini", RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "Gemini", @link.reload.extraction.provider
+    assert_no_enqueued_jobs only: DocumentUnderstandingJob
+  end
+
+  test "a local read past its document budget is abandoned for the next reader" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    Setting.stubs(:local_llm_document_budget).returns(0)
+    guard = local_guard
+    guard.stubs(:busy?).returns(false)
+    guard.stubs(:unload!).returns(true)
+    stub_ladder(reader("local", RECEIPT, kind: :local, guard: guard), reader("DeepSeek", RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal %w[timed_out read], attempts.map { |attempt| attempt["outcome"] }
+  end
+
+  test "statement rows that don't add up move to the next reader, whose rows route" do
+    off_by_one = PRINTED_SIGN_STATEMENT.merge("transactions" => PRINTED_SIGN_STATEMENT["transactions"].map { |row| row.merge("amount" => "1.00") })
+    stub_ocr_success(pages: [ { page: 1, text: SCAN_TOTALS_TEXT, confidence: 0.96, image: "aGk=" } ])
+    stub_ladder(reader("DeepSeek", off_by_one), reader("Gemini", PRINTED_SIGN_STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal %w[did_not_add_up read], attempts.map { |attempt| attempt["outcome"] }
+    assert_equal "Gemini", @link.extraction.provider
+    assert imported_signed_amounts(@link)["PAYMENT THANK YOU"].negative?
+  end
+
+  test "when no reader's rows add up, the fullest read still goes to review" do
+    short = PRINTED_SIGN_STATEMENT.merge("transactions" => PRINTED_SIGN_STATEMENT["transactions"].first(1).map { |row| row.merge("amount" => "1.00") })
+    wrong = PRINTED_SIGN_STATEMENT.merge("transactions" => PRINTED_SIGN_STATEMENT["transactions"].map { |row| row.merge("amount" => "2.00") })
+    stub_ocr_success(pages: [ { page: 1, text: SCAN_TOTALS_TEXT, confidence: 0.96, image: "aGk=" } ])
+    stub_ladder(reader("DeepSeek", short), reader("Gemini", wrong))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal %w[did_not_add_up did_not_add_up], attempts.map { |attempt| attempt["outcome"] }
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal 3, import.rows_count, "the read with the most rows routes for review"
+    assert_equal "pending", import.status, "it waits for the owner; nothing posts"
+    assert_equal false, @link.extraction.validations["statement_totals_reconcile"]
+  end
+
+  test "when every reader fails the row is held once with each reader's outcome" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    stub_ladder(reader("DeepSeek", RECEIPT, success: false), reader("Gemini", RECEIPT, success: false))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    @link.reload
+    assert_equal "queued", @link.status
+    assert @link.failure_message.present?
+    assert_no_enqueued_jobs only: DocumentUnderstandingJob
+    assert_equal "failed", @link.extraction.status
+    assert_equal %w[failed failed], attempts.map { |attempt| attempt["outcome"] }
+    assert_equal %w[DeepSeek Gemini], attempts.map { |attempt| attempt["reader"] }
+  end
+
+  test "a retry reads the cached OCR instead of running OCR again" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    stub_ladder(reader("DeepSeek", RECEIPT, success: false))
+    DocumentUnderstandingJob.perform_now(@link.id)
+    assert_requested :post, "#{Ocr.url}/ocr", times: 1
+
+    stub_ladder(reader("Gemini", RECEIPT))
+    DocumentUnderstandingJob.perform_now(@link.id, "online")
+
+    assert_requested :post, "#{Ocr.url}/ocr", times: 1
+    assert_equal "Gemini", @link.reload.extraction.provider
+  ensure
+    DocumentLink::OcrCache.delete(@link)
+  end
+
+  test "with no reader at all the row is held with the no-provider reason" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    stub_ladder
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "queued", @link.reload.status
+    assert_includes @link.failure_message, "No AI reader is set up"
+  end
+
+  # --- Holds explain themselves (spec §6) ---
+
+  test "a ladder failure leaves a hold that names each reader and offers both retries" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    stub_ladder(reader("DeepSeek", RECEIPT, success: false))
+    DocumentReaderLadder.stubs(:for).with(mode: "local").returns([ :local ])
+    DocumentReaderLadder.stubs(:for).with(mode: "online").returns([ :cloud ])
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    hold = @link.reload.hold_reason
+    assert_equal "all_readers_failed", hold.code
+    assert_equal %w[retry_local retry_online], hold.actions
+    assert_equal hold.message, @link.failure_message
+    assert_equal "failed", @link.extraction.status
+  end
+
+  test "a text-layer drift hold is stored on the read it came from" do
+    stage_pdf(@link, "synthetic_statement_drift.pdf")
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    hold = @link.reload.hold_reason
+    assert_equal "statement_drift", hold.code
+    assert_includes hold.message, "purchases read $750.00 vs $350.00 stated"
+    assert_equal "succeeded", @link.extraction.status, "the read itself worked; its check is what held it"
+  end
+
+  test "an unreadable document's hold offers a retry" do
+    stub_request(:post, "#{Ocr.url}/ocr").to_return(status: 422, body: { detail: "cannot render" }.to_json,
+                                                     headers: { "Content-Type" => "application/json" })
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "ocr_unreadable", @link.reload.hold_reason.code
+    assert_includes @link.hold_reason.actions, "retry"
   end
 
   test "a non-OCR, non-provider failure holds the row and is never re-raised into an unbounded retry" do

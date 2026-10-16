@@ -454,6 +454,27 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
   # (`Row#details_url`). The modal is the way in from the grid, so the viewer
   # must offer the link out -- otherwise the page is reachable only by typing
   # the URL (review finding 4).
+  test "the viewer shows how a document was read, reader by reader" do
+    link = document_links(:understood_receipt_link)
+    link.document_extractions.delete_all
+    DocumentExtraction.record!(
+      document_link: link, provider: "DeepSeek", model: "deepseek-flash", page_count: 1, status: "succeeded",
+      verdict: { "document_class" => "receipt", "total" => "12.34" },
+      validations: { "read_attempts" => [
+        { "reader" => "the local model (qwen2.5vl:7b)", "outcome" => "skipped_busy", "seconds" => 0 },
+        { "reader" => "DeepSeek", "outcome" => "read", "seconds" => 40.2 }
+      ] }
+    )
+
+    get viewer_document_path(link)
+
+    assert_select "[data-read-history]" do
+      assert_select "[data-read-attempt]", 2
+      assert_select "[data-read-attempt]", text: /The local model \(qwen2.5vl:7b\).*Skipped: the GPU was busy/m
+      assert_select "[data-read-attempt]", text: /DeepSeek.*Read it.*40s/m
+    end
+  end
+
   test "the viewer offers the document's own page" do
     link = document_links(:understood_receipt_link)
     get viewer_document_path(link)

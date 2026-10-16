@@ -453,4 +453,22 @@ class DocumentLinkTest < ActiveSupport::TestCase
       statement.archive_document_link!
       statement.reload
     end
+
+    # A row held before structured holds existed still explains itself and
+    # offers a retry, instead of a bare message with nothing to press.
+    test "a held row without a stored hold reads as a retryable read error" do
+      link = DocumentLink.create!(family: families(:dylan_family), source: "receipt", status: "queued",
+                                  failure_message: "This document could not be read. Retry it from the archive.")
+
+      hold = link.hold_reason
+      assert_equal "read_error", hold.code
+      assert_equal "This document could not be read. Retry it from the archive.", hold.message
+      assert_equal %w[retry], hold.actions
+    end
+
+    test "a row that is not held has no hold reason" do
+      link = DocumentLink.create!(family: families(:dylan_family), source: "receipt", status: "unlinked")
+
+      assert_nil link.hold_reason
+    end
 end

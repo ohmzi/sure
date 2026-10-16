@@ -1,0 +1,17 @@
+<%# locals: (panel:) %>
+<%# Every reader the read tried (spec §6): who, what happened and how long, so a
+    read that fell back — or a hold — is never a mystery. %>
+<% if panel.attempts.any? %>
+  <section class="space-y-1.5" data-read-history>
+    <p class="text-xs font-medium uppercase tracking-wide text-secondary"><%= t("documents.understanding.read_history") %></p>
+    <% panel.attempts.each do |attempt| %>
+      <div class="flex items-baseline gap-2 text-sm" data-read-attempt>
+        <span class="min-w-0 truncate text-primary"><%= attempt.reader %></span>
+        <span class="text-secondary"><%= attempt.outcome %></span>
+        <% if attempt.duration %>
+          <span class="ml-auto shrink-0 text-xs text-secondary"><%= attempt.duration %></span>
+        <% end %>
+      </div>
+    <% end %>
+  </section>
+<% end %>

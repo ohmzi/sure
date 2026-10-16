@@ -65,6 +65,16 @@ en:
     # the validator results, and what the document became — and, when there is no
     # read, the reason plus the two ways forward rather than an empty panel.
     understanding:
+      attempt_outcomes:
+        read: Read it
+        skipped_busy: "Skipped: the GPU was busy"
+        timed_out: Took too long
+        failed: Could not read it
+        did_not_add_up: Its transactions did not add up
+      attempt_seconds:
+        one: "%{count}s"
+        other: "%{count}s"
+      read_history: How it was read
       title: What I understood
       read: What it read
       checks: Checks
@@ -137,6 +147,18 @@ en:
         provider_location: "Find the key under Settings → Self-Hosting → AI provider (add a DeepSeek or OpenAI key, or pick a local model)."
   # DocumentIntake: the content router's copy. A file it cannot place is refused
   # with this message on the bar; nothing is archived.
+  document_holds:
+    ladder: "%{attempts}. Nothing was imported."
+    no_reader_configured: No AI reader is set up, so this document could not be read. Add a local model or a cloud key in Settings.
+    attempts:
+      skipped_busy: "%{reader} was skipped because the GPU was busy with another model"
+      timed_out: "%{reader} took longer than its time limit"
+      did_not_add_up: "%{reader}'s transactions did not add up to the statement's totals"
+      failed:
+        unavailable: "%{reader} is overloaded right now"
+        quota: "%{reader} is out of quota"
+        key: "%{reader} rejected its API key"
+        other: "%{reader} could not read it"
   document_reader_ladder:
     local: the local model (%{model})
   document_intake:

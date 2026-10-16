@@ -226,6 +226,29 @@ class DocumentLink < ApplicationRecord
     Turbo::StreamsChannel.broadcast_replace_to(family, target: ActionView::RecordIdentifier.dom_id(self), html: html)
   end
 
+  # Why the row is held, with the actions that can fix it (spec §6) — nil when
+  # it is not held. A hold from before structured holds existed (a bare
+  # message) still explains itself and offers a retry.
+  def hold_reason
+    return nil if failure_message.blank?
+
+    stored = extraction&.validations&.dig("hold")
+    stored ? DocumentHold.from_h(stored) : DocumentHold.named("read_error", message: failure_message)
+  end
+
+  # Holds the row with a structured reason. The reason is kept on the read it
+  # belongs to when there is one (a check that held a read which worked), else
+  # on a failed read record of its own, so the archive can always say why.
+  def hold_for!(hold, extraction: nil, validations: {}, **read_details)
+    if extraction
+      extraction.update!(validations: extraction.validations.merge("hold" => hold.to_h))
+    else
+      DocumentExtraction.record!(document_link: self, status: "failed", error: hold.message,
+                                 validations: validations.merge("hold" => hold.to_h), **read_details)
+    end
+    hold!(message: hold.message)
+  end
+
   def fail!(message)
     transition!(from: "processing", to: "failed", failure_message: message)
   end

@@ -30,6 +30,9 @@ class DocumentPanel
   # render as its own state, never as a pass.
   Check = Data.define(:label, :state)
 
+  # One reader the read tried (spec §6): who, what happened, how long.
+  Attempt = Data.define(:reader, :outcome, :duration)
+
   # The verdict keys the panel shows as fields, each mapped to the locale key its
   # label resolves through (`fields` calls I18n.t on it), under
   # documents.understanding.field_labels. Same shape and convention as the check
@@ -163,6 +166,22 @@ class DocumentPanel
     validations = extraction.validations.with_indifferent_access
     CHECK_LABEL_KEYS.merge(statement_check_label_keys(validations))
                     .map { |key, label_key| Check.new(label: I18n.t(label_key), state: check_state(key, validations)) }
+  end
+
+  # Every reader the read tried, in order — the history behind a read that
+  # worked after a fallback, and behind a hold.
+  def attempts
+    return [] unless extraction
+
+    Array(extraction.validations["read_attempts"]).map do |attempt|
+      seconds = attempt["seconds"].to_f
+      Attempt.new(
+        reader: attempt["reader"].to_s.upcase_first,
+        outcome: I18n.t("documents.understanding.attempt_outcomes.#{attempt['outcome']}",
+                        default: attempt["outcome"].to_s.humanize),
+        duration: (I18n.t("documents.understanding.attempt_seconds", count: seconds.round) if seconds.positive?)
+      )
+    end
   end
 
   # What the document became: the draft it was routed to, and the entry it

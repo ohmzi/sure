@@ -106,7 +106,6 @@ class DocumentUnderstandingJob < ApplicationJob
   # there is no page to name; "document" is therefore the word that is right for
   # both paths. The `(code)` suffix the caller appends stays the diagnostic.
   UNREADABLE_MESSAGE = "This document could not be read".freeze
-  NO_PROVIDER_MESSAGE = "no AI provider is configured".freeze
 
   # Wave 8, R-W8B19 as narrowed by W8-E: the verdicts from the statement reader
   # that HOLD — the read CONTRADICTS the statement (`:drift`), or it found no rows
@@ -167,7 +166,9 @@ class DocumentUnderstandingJob < ApplicationJob
 
     link.mark_processing!
 
-    return link.hold!(message: "no OCR service is configured") unless Ocr.configured?
+    unless Ocr.configured?
+      return link.hold_for!(DocumentHold.named("ocr_not_configured", message: "no OCR service is configured"))
+    end
 
     result = ocr_result(link)
     return land_unreadable(link, result.failure_code) if result.failure?
@@ -188,8 +189,7 @@ class DocumentUnderstandingJob < ApplicationJob
     # decides WHICH model: the selected provider, then the cloud readers.
     outcome = read_with_ladder(link, result, reader_mode)
     if outcome.read.nil?
-      record_failed_read(link, result, outcome.attempts)
-      return link.hold!(message: ladder_failure_message(outcome.attempts))
+      return link.hold_for!(DocumentHold.for_attempts(outcome.attempts), **failed_read_details(result, outcome.attempts))
     end
 
     read = outcome.read
@@ -280,7 +280,12 @@ class DocumentUnderstandingJob < ApplicationJob
     Rails.logger.error(
       "DocumentUnderstandingJob read failed for document_link #{document_link_id}: #{e.class}: #{e.message}"
     )
-    DocumentLink.find_by(id: document_link_id)&.hold!(message: "This document could not be read. Retry it from the archive.")
+    held = DocumentLink.find_by(id: document_link_id)
+    begin
+      held&.hold_for!(DocumentHold.named("read_error", message: "This document could not be read. Retry it from the archive."))
+    rescue StandardError
+      held&.hold!(message: "This document could not be read. Retry it from the archive.")
+    end
   end
 
   private
@@ -374,21 +379,12 @@ class DocumentUnderstandingJob < ApplicationJob
 
     def monotonic_now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
 
-    # Every reader failed (or there was none): the attempts are kept on a failed
-    # extraction so the document can say what was tried.
-    def record_failed_read(link, result, attempts)
-      DocumentExtraction.record!(
-        document_link: link, status: "failed", ocr_engine: result.engine, page_count: result.pages.size,
+    # Every reader failed (or there was none): the attempts ride on the failed
+    # read record the hold is kept on, so the document can say what was tried.
+    def failed_read_details(result, attempts)
+      { ocr_engine: result.engine, page_count: result.pages.size,
         ocr_text: result.text.first(DocumentLink::EXTRACTED_TEXT_LIMIT),
-        validations: { "read_attempts" => attempts }, error: ladder_failure_message(attempts)
-      )
-    end
-
-    def ladder_failure_message(attempts)
-      return NO_PROVIDER_MESSAGE if attempts.empty?
-
-      tried = attempts.map { |attempt| "#{attempt['reader']} #{attempt['outcome'].tr('_', ' ')}" }.to_sentence
-      "No reader could read this document (#{tried}). Nothing was imported."
+        validations: { "read_attempts" => attempts } }
     end
 
     # The OCR a read works from: the cached result of an earlier read of this
@@ -414,7 +410,7 @@ class DocumentUnderstandingJob < ApplicationJob
     end
 
     def land_unreadable(link, code)
-      link.hold!(message: "#{UNREADABLE_MESSAGE} (#{code})")
+      link.hold_for!(DocumentHold.named("ocr_unreadable", message: "#{UNREADABLE_MESSAGE} (#{code})"))
     end
 
     # The document's class, decided by the model's identity read UNLESS the
@@ -790,7 +786,8 @@ class DocumentUnderstandingJob < ApplicationJob
       # a reason, which is strictly better than the old tile's "not authorized"
       # redirect that discarded the upload outright.
       unless AccountStatement.statement_manager?(link.created_by)
-        return link.hold!(message: I18n.t("documents.held.statement_permission"))
+        return link.hold_for!(DocumentHold.named("statement_permission", message: I18n.t("documents.held.statement_permission")),
+                              extraction: link.extraction)
       end
 
       # R-W8B19 + R-W8B18, as narrowed by W8-E: the reader's verdict decides. A
@@ -802,7 +799,10 @@ class DocumentUnderstandingJob < ApplicationJob
       # `:period_unreadable`/`:unavailable`), fall back to today's path. The
       # argument is REQUIRED, so no statement route can skip this guard by not
       # mentioning it.
-      return link.hold!(message: statement_read.hold_message) if statement_holds?(statement_read)
+      if statement_holds?(statement_read)
+        return link.hold_for!(DocumentHold.named("statement_drift", message: statement_read.hold_message),
+                              extraction: link.extraction)
+      end
 
       statement = statement_for(link, understanding)
       # W8-I: the statement's OWN printed balances, from the reader's parse.
