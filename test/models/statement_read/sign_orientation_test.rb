@@ -60,4 +60,24 @@ class StatementRead::SignOrientationTest < ActiveSupport::TestCase
     assert_not result.verified
     assert_equal rows, result.rows
   end
+
+  # Review finding C1: a card paid in full with matching spend prints equal
+  # credits and charges, so BOTH orientations balance and the totals cannot
+  # tell them apart. The flip must not be claimed as verified.
+  test "when both orientations balance, the totals decide nothing and the read is unverified" do
+    rows = [
+      { "date" => "2026-05-11", "amount" => "-40.00", "name" => "PAYMENT THANK YOU" },
+      { "date" => "2026-05-12", "amount" => "25.00", "name" => "STREAMING" },
+      { "date" => "2026-05-13", "amount" => "15.00", "name" => "MUSIC" }
+    ]
+    symmetric = { "opening" => BigDecimal("100"), "total_credits" => BigDecimal("-40"),
+                  "total_charges" => BigDecimal("40"), "new_balance" => BigDecimal("100") }
+
+    result = orient(rows, symmetric)
+
+    assert_not result.verified
+    assert_equal :keywords, result.orientation
+    assert_equal "40.00", result.rows.first["amount"], "the credit-named row still decides the flip"
+  end
+
 end

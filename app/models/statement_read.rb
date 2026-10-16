@@ -247,9 +247,14 @@ class StatementRead
       totals = StatedTotals.call(text)
       # A model reads the statement's own printed signs; the gate (and the
       # import) work in the reader's convention, so orient before judging.
-      rows = SignOrientation.call(rows, totals, text: text).rows
-      entries = rows.map { |row| entry_from_row(row) }
-      build_result(entries, rows, totals, text: text, source: :vision, missing: [], rejected: [])
+      oriented = SignOrientation.call(rows, totals, text: text)
+      entries = oriented.rows.map { |row| entry_from_row(row) }
+      read = build_result(entries, oriented.rows, totals, text: text, source: :vision, missing: [], rejected: [])
+      # Rows whose signs the totals could not prove are never "reconciled": they
+      # balance in either orientation, so balancing proves nothing (review C1).
+      return read if oriented.verified || !read.reconciled?
+
+      read.with(reconciled: false, verdict: :unreconcilable)
     end
 
     # Vision rows are already row-shaped hashes; they carry no section, so the

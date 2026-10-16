@@ -28,8 +28,13 @@ class StatementRead
       return Result.new(rows: @rows, orientation: :undecided, verified: false) if @rows.empty?
 
       flipped = @rows.map { |row| flip(row) }
-      return Result.new(rows: @rows, orientation: :as_read, verified: true) if reconciles?(@rows)
-      return Result.new(rows: flipped, orientation: :flipped, verified: true) if reconciles?(flipped)
+      as_read_ok = reconciles?(@rows)
+      flipped_ok = reconciles?(flipped)
+      # Exactly one orientation balancing is proof. Both balancing (credits equal
+      # charges — a card paid in full with matching spend) proves nothing, so the
+      # credit-named rows decide, unverified.
+      return Result.new(rows: @rows, orientation: :as_read, verified: true) if as_read_ok && !flipped_ok
+      return Result.new(rows: flipped, orientation: :flipped, verified: true) if flipped_ok && !as_read_ok
 
       case credit_vote
       when :flip then Result.new(rows: flipped, orientation: :keywords, verified: false)

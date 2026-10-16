@@ -1182,6 +1182,28 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal true, @link.extraction.validations["statement_totals_reconcile"]
   end
 
+  # Review finding C1: equal credits and charges balance in BOTH orientations,
+  # so the read is unverified — never "added up", never auto-posted.
+  test "a scan whose totals balance either way is not claimed as reconciled" do
+    symmetric_text = [
+      "Balance from your last statement $100.00", "Total credits -$40.00",
+      "Total charges $40.00", "Your New Balance $100.00"
+    ].join("\n")
+    rows = [
+      { "date" => "2026-09-03", "amount" => "-40.00", "name" => "PAYMENT THANK YOU", "notes" => "" },
+      { "date" => "2026-09-05", "amount" => "25.00", "name" => "Streaming", "notes" => "" },
+      { "date" => "2026-09-06", "amount" => "15.00", "name" => "Music", "notes" => "" }
+    ]
+    stub_ocr_success(pages: [ { page: 1, text: symmetric_text, confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT.merge("transactions" => rows)))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_not_equal true, @link.reload.extraction.validations["statement_totals_reconcile"]
+    assert_equal "keywords", @link.extraction.validations["statement_rows_orientation"]
+    assert imported_signed_amounts(@link)["PAYMENT THANK YOU"].negative?, "the credit-named row still orients it"
+  end
+
   test "a scan with no printed totals is oriented by its credit-named rows, unverified" do
     stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
     stub_provider(FakeProvider.new(PRINTED_SIGN_STATEMENT))
