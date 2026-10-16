@@ -13,17 +13,21 @@ class StatementAutoPostTest < ActiveSupport::TestCase
     @card.update!(last4: "1512")
   end
 
-  def statement_with_read(reconciled: true, last4: "1512", period: [ Date.new(2026, 5, 9), Date.new(2026, 6, 8) ], name: "june.pdf")
+  def statement_with_read(reconciled: true, last4: "1512", period: [ Date.new(2026, 5, 9), Date.new(2026, 6, 8) ], name: "june.pdf",
+                          identity_source: "text_layer", rows_source: "text_layer")
     statement = AccountStatement.create_from_upload!(
       family: @family, account: nil,
       file: Rack::Test::UploadedFile.new(StringIO.new("%PDF-1.4 #{name} #{SecureRandom.hex(4)}"), "application/pdf", original_filename: name)
     )
-    statement.update!(account_last4_hint: last4, period_start_on: period.first, period_end_on: period.last)
+    statement.update!(account_last4_hint: last4, period_start_on: period&.first, period_end_on: period&.last,
+                      sanitized_parser_output: { "printed_last4s" => [ last4 ] })
     link = DocumentLink.create!(family: @family, source: "statement", status: "unlinked", account_statement: statement,
                                 original_filename: name, created_by: users(:family_admin))
     extraction = DocumentExtraction.record!(document_link: link, status: "succeeded", ocr_text: "",
                                             verdict: { "document_class" => "statement" },
-                                            validations: { "statement_totals_reconcile" => reconciled })
+                                            validations: { "statement_totals_reconcile" => reconciled,
+                                                           "identity_source" => identity_source,
+                                                           "statement_rows_source" => rows_source })
     import = PdfImport.find_or_create_from_statement!(statement: statement)
     import.update!(document_extraction: extraction, document_type: "bank_statement", ai_summary: "Read", document_link: link,
                    extracted_data: { "transactions" => [
@@ -107,6 +111,49 @@ class StatementAutoPostTest < ActiveSupport::TestCase
     assert_no_enqueued_jobs(only: ImportJob) do
       assert_equal :reverted, StatementAutoPost.call(link: link.reload)
     end
+  end
+
+
+  # Review I2: only numbers the page prints decide the account — never one a
+  # model supplied.
+  test "an identity the model completed never auto-posts" do
+    link, import = statement_with_read(identity_source: "text_layer+model")
+
+    assert_equal :unverified, StatementAutoPost.call(link: link)
+    assert_equal "pending", import.reload.status
+  end
+
+  test "a hint with no printed number behind it decides nothing" do
+    link, = statement_with_read
+    link.account_statement.update!(sanitized_parser_output: {})
+
+    assert_equal :needs_account, StatementAutoPost.call(link: link)
+  end
+
+  # Review I9 (owner's recommended option): rows a model read are reviewed by a
+  # person even when they reconcile.
+  test "rows a model read never auto-post, even when they reconcile" do
+    link, import = statement_with_read(rows_source: "vision")
+
+    assert_equal :unverified, StatementAutoPost.call(link: link)
+    assert_equal "pending", import.reload.status
+  end
+
+  # Review I3: with no period there is no duplicate check, so no auto-post.
+  test "a statement with no period never auto-posts" do
+    link, import = statement_with_read(period: nil)
+
+    assert_equal :unverified, StatementAutoPost.call(link: link)
+    assert_equal "pending", import.reload.status
+  end
+
+  # Review I4: the uploader's own permission on the account still applies.
+  test "an uploader who cannot write to the account never auto-posts into it" do
+    link, import = statement_with_read
+    Account.stubs(:writable_by).returns(Account.none)
+
+    assert_equal :needs_account, StatementAutoPost.call(link: link)
+    assert_equal "pending", import.reload.status
   end
 
 end

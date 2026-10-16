@@ -621,8 +621,10 @@ class Account < ApplicationRecord
   # was 1512, October's 3111) and a statement can carry supplementary cards, so
   # one stored last4 cannot identify the account on its own.
   def known_card_last4s
-    from_statements = account_statements.pluck(:account_last4_hint, :sanitized_parser_output).flat_map do |hint, output|
-      [ hint, *Array(output.to_h["card_last4s"]) ]
+    # Review I2: only numbers the text reader saw printed — a statement's hint
+    # can be a model's guess ("0294" was one on the owner's RBC reads).
+    from_statements = account_statements.pluck(:sanitized_parser_output).flat_map do |output|
+      [ *Array(output.to_h["printed_last4s"]), *Array(output.to_h["card_last4s"]) ]
     end
     [ last4, *from_statements ].compact_blank.uniq
   end

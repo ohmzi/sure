@@ -1260,6 +1260,8 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     DocumentUnderstandingJob.perform_now(@link.id)
 
     assert_equal %w[1111 2222], statement_for(@link).sanitized_parser_output["card_last4s"]
+    assert_equal %w[1111 2222 1512], statement_for(@link).sanitized_parser_output["printed_last4s"],
+                 "every number the page prints: its cards and its account number"
   end
 
   # The owner's RBC chequing statements: the layout reads them whole, so they

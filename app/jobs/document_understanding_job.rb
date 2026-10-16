@@ -999,10 +999,15 @@ class DocumentUnderstandingJob < ApplicationJob
     # Every card the statement lists (a supplementary card prints its own
     # block), kept for account matching: Account#known_card_last4s reads them.
     def record_card_last4s(statement, statement_read)
-      cards = statement_read&.identity&.card_last4s
-      return if cards.blank?
+      identity = statement_read&.identity
+      return if identity.nil?
 
-      statement.update!(sanitized_parser_output: statement.sanitized_parser_output.to_h.merge("card_last4s" => cards))
+      printed = [ *identity.card_last4s, identity.account_last4 ].compact_blank.uniq
+      return if printed.empty?
+
+      statement.update!(sanitized_parser_output: statement.sanitized_parser_output.to_h.merge(
+        "card_last4s" => identity.card_last4s, "printed_last4s" => printed
+      ))
     end
 
     # What the review screen shows and the next-steps email carries. The AI read

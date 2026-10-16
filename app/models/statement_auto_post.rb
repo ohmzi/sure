@@ -26,10 +26,12 @@ class StatementAutoPost
     end
     # The owner reverted what this statement posted: never post it again.
     return :reverted if @link.auto_post_undone?
-    return :unverified unless @import.reconciled_read?
+    return :unverified unless page_proven?
 
     account = owning_account
     return :needs_account if account.nil?
+    # The uploader's own permission on that account still applies.
+    return :needs_account unless @statement.family.accounts.writable_by(@link.created_by).exists?(account.id)
 
     return :needs_account unless @import.assign_account!(account)
 
@@ -41,9 +43,22 @@ class StatementAutoPost
   end
 
   private
-    # Every number the statement prints: its main hint and each card it lists.
+    # Proof the page itself gives, all of it: rows reconciled to the printed
+    # totals by the TEXT reader (a model's rows are reviewed by a person even
+    # when they reconcile), an identity read from the page alone, and a period
+    # (without one, no duplicate check can run).
+    def page_proven?
+      validations = @link.extraction&.validations.to_h
+      @import.reconciled_read? &&
+        validations["identity_source"] == "text_layer" &&
+        validations["statement_rows_source"].in?(%w[text_layer geometry]) &&
+        @statement.period_start_on.present? && @statement.period_end_on.present?
+    end
+
+    # Every number the page prints (recorded by the text reader) — never a hint
+    # a model may have supplied.
     def numbers
-      [ @statement.account_last4_hint, *Array(@statement.sanitized_parser_output.to_h["card_last4s"]) ].compact_blank.uniq
+      Array(@statement.sanitized_parser_output.to_h["printed_last4s"]).compact_blank.uniq
     end
 
     # The one account that knows one of the statement's numbers; nil when none
@@ -66,7 +81,14 @@ class StatementAutoPost
                 .where("account_statements.created_at < ?", @statement.created_at)
                 .order(:created_at)
                 .reject { |other| other.archived_document_link&.deleted? }
-                .find { |other| ([ other.account_last4_hint, *Array(other.sanitized_parser_output.to_h["card_last4s"]) ] & numbers).any? }
+                .find { |other| (printed_numbers(other) & numbers).any? }
+    end
+
+    # An earlier statement's numbers: what its page printed, and — for one read
+    # before printed numbers were recorded — its hint.
+    def printed_numbers(statement)
+      output = statement.sanitized_parser_output.to_h
+      [ *Array(output["printed_last4s"]), *Array(output["card_last4s"]), statement.account_last4_hint ].compact_blank
     end
 
     def flag_duplicate(original)

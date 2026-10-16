@@ -1096,8 +1096,10 @@ class AccountTest < ActiveSupport::TestCase
     account.update!(last4: "3111")
     file = Rack::Test::UploadedFile.new(StringIO.new("date,amount\n2024-01-01,1\n"), "text/csv", original_filename: "june.csv")
     statement = AccountStatement.create_from_upload!(family: account.family, account: account, file: file)
-    statement.update!(account_last4_hint: "1512", sanitized_parser_output: { "card_last4s" => %w[1512 8555] })
+    statement.update!(account_last4_hint: "0294", sanitized_parser_output: { "printed_last4s" => %w[1512 8555] })
 
+    # Review I2: a statement's hint may be a model's guess ("0294" was one on the
+    # owner's RBC reads); only numbers the page printed count.
     assert_equal %w[3111 1512 8555], account.known_card_last4s
   end
 end
