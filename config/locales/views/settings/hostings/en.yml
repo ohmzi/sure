@@ -20,6 +20,8 @@ en:
       cloud_reader_settings:
         title: Cloud document readers
         description: Documents are read on your own hardware first. When the local model cannot finish a read, it is read by these services instead, in this order. Leave a key blank to skip that service.
+        fallback_label: Read with a cloud service when the local model can't
+        fallback_description: On, a document the local model cannot read (or that the GPU is too busy for) is read by the services below automatically. Off, nothing leaves this server unless you choose "Retry with online AI" on a document.
         key_label: API key
         key_placeholder: Paste the service's API key
         model_label: Model
@@ -161,7 +163,7 @@ en:
         model_help: Used for chat and PDF processing. Batch operations (categorize, merchant detection) default to Haiku for cost.
       local_settings:
         title: Local (self-hosted, CPU)
-        description: Point the app at an OpenAI-compatible server on your own hardware. Nothing leaves your machine, but it runs on CPU, so reads are slower and less accurate on dense statement tables than a cloud model.
+        description: Point the app at an OpenAI-compatible server on your own hardware. Documents are read here first; when this model cannot read one and automatic cloud reading is on (below), a cloud reader reads it instead.
         detect_button: Detect my local models
         detecting: Looking for a local server…
         found: "Found %{server} at %{url}."

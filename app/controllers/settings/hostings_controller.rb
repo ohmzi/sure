@@ -251,6 +251,9 @@ class Settings::HostingsController < ApplicationController
     # key; a blank model means "use the default", so it is stored as nil.
     update_encrypted_setting(:deepseek_api_key)
     update_encrypted_setting(:gemini_api_key)
+    if hosting_params.key?(:cloud_document_fallback)
+      Setting.cloud_document_fallback = hosting_params[:cloud_document_fallback] == "1"
+    end
     %i[deepseek_model gemini_model].each do |key|
       Setting.public_send(:"#{key}=", hosting_params[key].to_s.strip.presence) if hosting_params.key?(key)
     end
@@ -412,7 +415,7 @@ class Settings::HostingsController < ApplicationController
     # Strong parameters for the self-hosting settings form.
     def hosting_params
       return ActionController::Parameters.new unless params.key?(:setting)
-      params.require(:setting).permit(:onboarding_state, :require_email_confirmation, :invite_only_default_family_id, :demo_family_refresh_enabled, :demo_family_refresh_family_id, :brand_fetch_client_id, :brand_fetch_high_res_logos, :twelve_data_api_key, :tiingo_api_key, :eodhd_api_key, :alpha_vantage_api_key, :tinkoff_invest_api_key, :mansa_api_key, :rentcast_api_key, :realie_api_key, :chimnie_api_key, :openai_access_token, :openai_uri_base, :openai_model, :openai_json_mode, :anthropic_access_token, :anthropic_base_url, :anthropic_model, :jev_api_key, :jev_endpoint, :jev_model, :llm_provider, :local_llm_base_url, :local_llm_model, :local_llm_token, :deepseek_api_key, :deepseek_model, :gemini_api_key, :gemini_model, :llm_context_window, :llm_max_response_tokens, :llm_max_items_per_call, :openai_request_timeout, :ai_response_timeout, :ai_health_probe_timeout, :exchange_rate_provider, :securities_provider, :syncs_include_pending, :auto_sync_enabled, :auto_sync_time, :external_assistant_url, :external_assistant_token, :external_assistant_model, securities_providers: [])
+      params.require(:setting).permit(:onboarding_state, :require_email_confirmation, :invite_only_default_family_id, :demo_family_refresh_enabled, :demo_family_refresh_family_id, :brand_fetch_client_id, :brand_fetch_high_res_logos, :twelve_data_api_key, :tiingo_api_key, :eodhd_api_key, :alpha_vantage_api_key, :tinkoff_invest_api_key, :mansa_api_key, :rentcast_api_key, :realie_api_key, :chimnie_api_key, :openai_access_token, :openai_uri_base, :openai_model, :openai_json_mode, :anthropic_access_token, :anthropic_base_url, :anthropic_model, :jev_api_key, :jev_endpoint, :jev_model, :llm_provider, :local_llm_base_url, :local_llm_model, :local_llm_token, :deepseek_api_key, :deepseek_model, :gemini_api_key, :gemini_model, :cloud_document_fallback, :llm_context_window, :llm_max_response_tokens, :llm_max_items_per_call, :openai_request_timeout, :ai_response_timeout, :ai_health_probe_timeout, :exchange_rate_provider, :securities_provider, :syncs_include_pending, :auto_sync_enabled, :auto_sync_time, :external_assistant_url, :external_assistant_token, :external_assistant_model, securities_providers: [])
     end
 
     def load_external_assistant_models

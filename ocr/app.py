@@ -5,8 +5,11 @@ is long-lived and the Rails app calls it over HTTP rather than spawning a
 process per document.
 """
 import base64
+import gc
 import io
 import os
+import threading
+import time
 
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -24,14 +27,23 @@ LANG = os.environ.get("OCR_LANG", "en").split(",")[0].strip() or "en"
 # permanent property of the document, so it must take the 422 "unreadable" path.
 MIN_SIDE = 32
 
+# The GPU is shared, so an engine nobody has used for this long is dropped and
+# its cached GPU memory handed back; the next document reloads it (a few
+# seconds). 0 keeps the engine resident forever.
+IDLE_RELEASE_SECONDS = int(os.environ.get("OCR_IDLE_RELEASE_SECONDS", "300"))
+
 app = FastAPI(title="sure-ocr")
 _engine = None
+_last_used = time.monotonic()
+# Held for a whole read, so the idle release can never drop the engine mid-document.
+_lock = threading.Lock()
 
 
 def engine():
-    """Loaded once, on first use, so a container that never sees a document
-    never pays for the weights."""
-    global _engine
+    """Loaded on first use (and again after an idle release), so a container
+    that never sees a document never pays for the weights."""
+    global _engine, _last_used
+    _last_used = time.monotonic()
     if _engine is None:
         # PaddleOCR 3.x renamed the 2.x `use_angle_cls` switch to
         # `use_textline_orientation` (the old name survives only as a deprecated
@@ -39,6 +51,46 @@ def engine():
         # argument". Same behaviour, so the angle classifier still runs.
         _engine = PaddleOCR(use_textline_orientation=True, lang=LANG)
     return _engine
+
+
+def free_gpu_cache():
+    """Hands Paddle's cached GPU memory back to the card."""
+    try:
+        import paddle
+
+        paddle.device.cuda.empty_cache()
+    except Exception:
+        pass
+
+
+def release_if_idle(now=None):
+    """Drops an engine idle past IDLE_RELEASE_SECONDS. Never waits for a read in
+    progress: if one holds the lock, the engine is in use and stays."""
+    global _engine
+    if IDLE_RELEASE_SECONDS <= 0 or _engine is None:
+        return False
+    if not _lock.acquire(blocking=False):
+        return False
+    try:
+        now = time.monotonic() if now is None else now
+        if now - _last_used < IDLE_RELEASE_SECONDS:
+            return False
+        _engine = None
+        gc.collect()
+        free_gpu_cache()
+        return True
+    finally:
+        _lock.release()
+
+
+def _idle_watch():
+    while True:
+        time.sleep(30)
+        release_if_idle()
+
+
+if IDLE_RELEASE_SECONDS > 0:
+    threading.Thread(target=_idle_watch, name="ocr-idle-release", daemon=True).start()
 
 
 def render(data: bytes, filename: str):
@@ -112,6 +164,7 @@ def ocr(file: UploadFile = File(...), include_images: bool = Form(False)):
     # `--workers 1` an async handler blocks the event loop, so /healthz could not
     # answer during an OCR and the healthcheck's 5s timeout would restart the
     # container mid-document. FastAPI runs a plain `def` in its threadpool.
+    global _last_used
     data = file.file.read()
     if not data:
         raise HTTPException(status_code=422, detail="empty upload")
@@ -124,11 +177,13 @@ def ocr(file: UploadFile = File(...), include_images: bool = Form(False)):
         raise HTTPException(status_code=422, detail="unreadable")
 
     pages = []
-    for index, image in enumerate(images, start=1):
-        page = {"page": index, **ocr_page(image)}
-        if include_images:
-            page["image"] = encode_page(image)
-        pages.append(page)
+    with _lock:
+        for index, image in enumerate(images, start=1):
+            page = {"page": index, **ocr_page(image)}
+            if include_images:
+                page["image"] = encode_page(image)
+            pages.append(page)
+        _last_used = time.monotonic()
 
     # A page that rendered but yielded no recognised text is a NORMAL page with
     # `text: ""`, never a 422: the vision model reads the page IMAGE precisely

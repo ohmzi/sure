@@ -92,3 +92,12 @@ cd deploy && docker compose logs -f ocr
 
 The first request after a start loads the model; the weights are baked into the
 image at build time, so that is a load, not a download.
+
+## Giving the GPU back
+
+The engine loads on the first document and is dropped again after
+`OCR_IDLE_RELEASE_SECONDS` (default `300`) with no request, handing Paddle's
+cached GPU memory back to the shared card; the next document reloads it in a few
+seconds. `0` keeps it resident. A read in progress holds a lock, so the engine
+is never released mid-document. Tests: `python3 -m unittest test_idle_release`
+inside the image (see `test_idle_release.py`).

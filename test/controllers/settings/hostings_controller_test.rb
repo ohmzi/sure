@@ -380,6 +380,36 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "automatic cloud reading can be switched off and on" do
+    with_self_hosting do
+      patch settings_hosting_url, params: { setting: { cloud_document_fallback: "0" } }
+      assert_equal false, Setting.cloud_document_fallback
+
+      patch settings_hosting_url, params: { setting: { cloud_document_fallback: "1" } }
+      assert_equal true, Setting.cloud_document_fallback
+    end
+  ensure
+    Setting.cloud_document_fallback = true
+  end
+
+  test "the cloud readers panel offers the automatic fallback switch" do
+    with_self_hosting do
+      get settings_hosting_url
+
+      assert_select "#cloud-document-readers input[type='checkbox'][name='setting[cloud_document_fallback]']"
+    end
+  end
+
+  # The Local panel used to promise "Nothing leaves your machine" — no longer
+  # true once a cloud reader takes over a read the local model cannot finish.
+  test "the local panel no longer promises nothing leaves the machine" do
+    with_self_hosting do
+      get settings_hosting_url
+
+      assert_no_match(/Nothing leaves your machine/, response.body)
+    end
+  end
+
   test "the AI section shows the cloud readers panel with stored keys masked" do
     with_self_hosting do
       Setting.deepseek_api_key = "ds-stored"

@@ -14,6 +14,21 @@
     <p class="text-secondary text-sm"><%= t(".description") %></p>
   </div>
 
+  <div class="flex items-center justify-between gap-4">
+    <div class="space-y-1">
+      <p class="text-sm text-primary"><%= t(".fallback_label") %></p>
+      <p class="text-xs text-secondary"><%= t(".fallback_description") %></p>
+    </div>
+    <%= styled_form_with model: Setting.new,
+                         url: settings_hosting_path,
+                         method: :patch,
+                         data: { controller: "auto-submit-form", auto_submit_form_trigger_event_value: "change" } do |form| %>
+      <%= form.toggle :cloud_document_fallback,
+                      checked: Setting.cloud_document_fallback,
+                      data: { auto_submit_form_target: "auto" } %>
+    <% end %>
+  </div>
+
   <%= styled_form_with model: Setting.new,
                        url: settings_hosting_path,
                        method: :patch,
