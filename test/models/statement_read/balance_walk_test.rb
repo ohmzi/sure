@@ -24,12 +24,14 @@ class StatementRead::BalanceWalkTest < ActiveSupport::TestCase
     assert_equal BigDecimal("-5"), result.rows.last["signed"]
   end
 
-  test "two fitting assignments are settled by the printed column when it is known" do
+  # Review I1 / spec: an ambiguous group is unverified — a printed column is
+  # layout, not proof, and nothing downstream could catch it being wrong.
+  test "two fitting assignments are never settled by a column guess" do
     rows = [ row("10.00", column: :deposit), row("10.00", balance: "100.00", column: :withdrawal) ]
     result = walk(rows)
 
-    assert result.verified
-    assert_equal [ BigDecimal("10"), BigDecimal("-10") ], result.rows.map { |r| r["signed"] }
+    assert_not result.verified
+    assert_equal 1, result.ambiguous_groups
   end
 
   test "two fitting assignments with no column to decide are never guessed" do

@@ -9,8 +9,9 @@ class StatementRead
   # against the statement's closing balance.
   #
   # When more than one assignment fits (two equal amounts that cancel), the
-  # amount's printed column (`:deposit` / `:withdrawal`) decides; with no column
-  # to decide, the group is never guessed — the walk is unverified.
+  # group is never guessed — the walk is unverified. A printed column is layout,
+  # not proof: with both orientations summing to the same totals, nothing
+  # downstream could catch a wrong column (review I1).
   class BalanceWalk
     MAX_GROUP = 16
 
@@ -32,7 +33,7 @@ class StatementRead
 
       close_group = lambda do |target|
         signs = assignments(group, target - @balance)
-        if signs.size == 1 || (signs.size > 1 && (signs = by_column(group, signs)).size == 1)
+        if signs.size == 1
           group.zip(signs.first).each { |row, sign| signed << row.merge("signed" => sign * row["amount"]) }
         else
           signs.empty? ? unfit = true : ambiguous += 1
@@ -62,13 +63,5 @@ class StatementRead
         end
       end
 
-      # The fitting assignments that agree with every printed column it knows.
-      def by_column(group, candidates)
-        candidates.select do |signs|
-          group.zip(signs).all? do |row, sign|
-            row["column"].nil? || (row["column"] == :deposit) == sign.positive?
-          end
-        end
-      end
   end
 end

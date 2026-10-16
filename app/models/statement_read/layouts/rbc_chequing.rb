@@ -12,8 +12,9 @@ class StatementRead
     #     over lines until the line carrying its amount; "$ 16.25ALDI" inside a
     #     description is the foreign original (a note, not a column); a balance
     #     printed "- 29.95" is negative;
-    #   * direction — from the running balance (BalanceWalk), with each amount's
-    #     printed column as the witness that settles the rare ambiguous group.
+    #   * direction — from the running balance alone (BalanceWalk); a group the
+    #     balance cannot orient on its own leaves the read unverified. The
+    #     printed columns only tell which number on a line is the balance.
     #
     # Proven only when every group orients, and the rows' deposits, withdrawals
     # and opening-to-closing movement all equal the printed totals to the cent.
@@ -93,12 +94,20 @@ class StatementRead
           rows = []
           pending = []
           date = nil
+          between_pages = false
 
           body.each_line do |raw|
             line = raw.rstrip
-            columns = header_columns(line) if line.include?("Withdrawals ($)")
             stripped = line.strip
-            next if stripped.empty? || stripped.match?(NOISE)
+            # A page's footer ("1 of 2") to the next page's column header is the
+            # bank's own header block (address, statement title): never a row.
+            if line.include?("Withdrawals ($)")
+              columns = header_columns(line)
+              between_pages = false
+              next
+            end
+            between_pages = true if stripped.match?(/\A\d+ of \d+\z/)
+            next if between_pages || stripped.empty? || stripped.match?(NOISE)
 
             if (match = stripped.match(ROW_DATE))
               date = row_date(match[1], match[2])
@@ -123,7 +132,6 @@ class StatementRead
               when :balance then row["balance"] = value
               else
                 row["amount"] = value.abs
-                row["column"] = column_at(columns, right_edge)
               end
             end
             rows << row if row["amount"]

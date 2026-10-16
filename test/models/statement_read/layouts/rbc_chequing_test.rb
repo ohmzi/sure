@@ -69,4 +69,16 @@ class StatementRead::Layouts::RbcChequingTest < ActiveSupport::TestCase
   test "rows emit exactly the five keys the import expects" do
     assert_equal %w[amount date name notes source_page], read.rows.first.keys.sort
   end
+
+  # Review I7: a page's own header (the bank's address block, the statement
+  # title) must never be read into the next transaction's description.
+  test "the next page's header is not glued into a transaction name" do
+    with_header = text.sub("Details of your account activity - continued",
+                           "Royal Bank of Canada   C.P. 6011 Station A   Your RBC personal banking\nMontreal QC H3C 3B8   account statement\nDetails of your account activity - continued")
+    names = read(with_header).rows.map { |row| row["name"] }
+
+    assert names.none? { |name| name.include?("Station A") || name.include?("Montreal") }, names.inspect
+    assert_equal 18, read(with_header).row_count
+  end
+
 end
