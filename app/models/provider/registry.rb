@@ -45,6 +45,18 @@ class Provider::Registry
       %i[deepseek gemini].filter_map { |name| get_provider(name) }
     end
 
+    # The local model as a document reader, whichever provider is selected —
+    # what "Retry with local model" reads with. Bounded per call so one page can
+    # never hold the GPU past Setting.local_llm_call_timeout.
+    def local_document_reader
+      model = Setting.local_llm_model.presence
+      return nil if model.blank?
+
+      Provider::Openai.new(Setting.local_llm_token.presence || Setting::LOCAL_LLM_PLACEHOLDER_TOKEN,
+                           uri_base: Setting.local_llm_base_url.presence || Setting::LOCAL_LLM_DEFAULT_BASE_URL,
+                           model: model, request_timeout: Setting.local_llm_call_timeout)
+    end
+
     def plaid_provider_for_region(region)
       region.to_sym == :us ? plaid_us : plaid_eu
     end

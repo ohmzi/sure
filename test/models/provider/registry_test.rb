@@ -229,6 +229,26 @@ class Provider::RegistryTest < ActiveSupport::TestCase
     assert_equal :gemini_client, Provider::Registry.get_provider(:gemini)
   end
 
+  test "the local document reader bounds each call by the local timeout" do
+    Setting.stubs(:local_llm_model).returns("qwen2.5vl:7b")
+    Setting.stubs(:local_llm_base_url).returns(nil)
+    Setting.stubs(:local_llm_token).returns(nil)
+    Setting.stubs(:local_llm_call_timeout).returns(180)
+
+    Provider::Openai.expects(:new)
+      .with("ollama-local", uri_base: "http://host.docker.internal:11434/v1", model: "qwen2.5vl:7b", request_timeout: 180)
+      .returns(:local_reader)
+
+    assert_equal :local_reader, Provider::Registry.local_document_reader
+  end
+
+  test "a provider built with its own timeout uses it over the global one" do
+    Provider::Openai.stubs(:request_timeout).returns(900)
+    ::OpenAI::Client.expects(:new).with { |options| options[:request_timeout] == 180 }.returns(stub)
+
+    Provider::Openai.new("token", uri_base: "http://local/v1", model: "m", request_timeout: 180)
+  end
+
   test "cloud_document_readers lists the configured cloud readers, DeepSeek first" do
     Provider::Registry.stubs(:deepseek).returns(:deepseek_client)
     Provider::Registry.stubs(:gemini).returns(:gemini_client)

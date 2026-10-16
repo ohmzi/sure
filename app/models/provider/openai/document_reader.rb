@@ -85,7 +85,7 @@ class Provider::Openai::DocumentReader
   # caller (every non-statement, and any statement whose deterministic read did
   # not reconcile) leaves it at the default and gets today's instructions.
   def initialize(client, model:, pages:, ocr_text:, custom_provider: false, langfuse_trace: nil,
-                 family: nil, rows_expected: true)
+                 family: nil, rows_expected: true, max_tokens: nil)
     @client = client
     @model = model
     @pages = Array(pages)
@@ -94,6 +94,9 @@ class Provider::Openai::DocumentReader
     @langfuse_trace = langfuse_trace
     @family = family
     @rows_expected = rows_expected
+    # Sent only when configured (Provider::Openai#explicit_max_response_tokens),
+    # so a stock install is never silently truncated.
+    @max_tokens = max_tokens
   end
 
   def read
@@ -126,27 +129,26 @@ class Provider::Openai::DocumentReader
       # The DeepSeek/Ollama path this deployment actually uses. json_object is
       # the broadest compatibility level; on a 400 we retry with none, the
       # same ladder AutoCategorizer documents.
-      response = client.chat(parameters: {
-        model: model,
-        messages: [
-          { role: "system", content: instructions },
-          { role: "user", content: generic_content_parts }
-        ],
-        response_format: { type: "json_object" }
-      })
+      response = client.chat(parameters: generic_parameters.merge(response_format: { type: "json_object" }))
 
       record_usage(model, response.dig("usage"), operation: "understand_document",
                    metadata: { page_count: pages.size })
       parse_generic(response)
     rescue Faraday::BadRequestError
-      response = client.chat(parameters: {
+      response = client.chat(parameters: generic_parameters)
+      parse_generic(response)
+    end
+
+    def generic_parameters
+      params = {
         model: model,
         messages: [
           { role: "system", content: instructions },
           { role: "user", content: generic_content_parts }
         ]
-      })
-      parse_generic(response)
+      }
+      params[:max_tokens] = @max_tokens if @max_tokens
+      params
     end
 
     # The multimodal content array, shaped per endpoint: the Responses API

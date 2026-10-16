@@ -41,6 +41,14 @@ class Setting < RailsSettings::Base
   field :deepseek_model, type: :string, default: ENV["DEEPSEEK_MODEL"]
   field :gemini_api_key, type: :string, default: ENV["GEMINI_API_KEY"]
   field :gemini_model, type: :string, default: ENV["GEMINI_MODEL"]
+  # When the selected provider cannot read a document, read it with the cloud
+  # readers automatically (the owner's decision, 2026-10-16). Off keeps a local
+  # setup no-egress; "Retry with online AI" still works on demand.
+  field :cloud_document_fallback, type: :boolean, default: ENV.fetch("CLOUD_DOCUMENT_FALLBACK", "true") == "true"
+  # Bounds on a local document read, so the GPU is never held unbounded: one
+  # page call, and the whole document.
+  field :local_llm_call_timeout, type: :integer, default: ENV.fetch("LOCAL_LLM_CALL_TIMEOUT", 180).to_i
+  field :local_llm_document_budget, type: :integer, default: ENV.fetch("LOCAL_LLM_DOCUMENT_BUDGET", 1200).to_i
 
   # Jev (TypeSafe) — a classification provider, not an LLM. Reachable either
   # through OpenRouter's Decisions API (the default) or TypeSafe's own endpoint.

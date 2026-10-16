@@ -72,12 +72,12 @@ class Provider::Openai < Provider
   # @param uri_base [String, nil] custom endpoint base URL (OpenAI when nil)
   # @param model [String, nil] default model; required when uri_base is set
   # @return [void]
-  def initialize(access_token, uri_base: nil, model: nil)
+  def initialize(access_token, uri_base: nil, model: nil, request_timeout: nil)
     client_options = { access_token: access_token }
     llm_uri_base = uri_base.presence
     llm_model = model.presence
     client_options[:uri_base] = llm_uri_base if llm_uri_base.present?
-    client_options[:request_timeout] = self.class.request_timeout
+    client_options[:request_timeout] = request_timeout.presence || self.class.request_timeout
     parsed_headers = self.class.extra_headers
     @session_extra_headers = parsed_headers.select { |_, value| value.include?("{session_id}") }
     static_headers = parsed_headers.except(*@session_extra_headers.keys)
@@ -389,7 +389,8 @@ class Provider::Openai < Provider
         custom_provider: custom_provider?,
         langfuse_trace: trace,
         family: family,
-        rows_expected: rows_expected
+        rows_expected: rows_expected,
+        max_tokens: explicit_max_response_tokens
       ).read
 
       upsert_langfuse_trace(trace: trace, output: result.to_verdict)

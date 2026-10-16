@@ -137,5 +137,7 @@ en:
         provider_location: "Find the key under Settings → Self-Hosting → AI provider (add a DeepSeek or OpenAI key, or pick a local model)."
   # DocumentIntake: the content router's copy. A file it cannot place is refused
   # with this message on the bar; nothing is archived.
+  document_reader_ladder:
+    local: the local model (%{model})
   document_intake:
     rejected: We could not tell what this file is. Drop a photo, a PDF, or a bank export.

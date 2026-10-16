@@ -47,10 +47,24 @@ class DocumentUnderstandingJob < ApplicationJob
     def size = io.size
   end
 
-  # The bounded retry ladder for a transient failure. One constant drives both
-  # the policy (`attempts:`) and the terminal copy, so "after N attempts" cannot
-  # drift from how many attempts are actually configured.
-  RETRY_ATTEMPTS = 8
+  # The bounded retry ladder for a transient OCR failure. One constant drives
+  # both the policy (`attempts:`) and the terminal copy, so "after N attempts"
+  # cannot drift from how many attempts are actually configured. A provider
+  # failure no longer retries the same provider: the reader ladder moves on to
+  # the next reader instead (spec §2).
+  RETRY_ATTEMPTS = 3
+
+  # A local read past its whole-document budget (Setting.local_llm_document_budget):
+  # the ladder abandons it for the next reader so the GPU is never held unbounded.
+  BudgetExceeded = Class.new(StandardError)
+  # The read needs a model and this pass has none: the statement reader alone
+  # could not finish the document.
+  NoReaderAvailable = Class.new(StandardError)
+
+  # The ladder's result: the read that routes (nil when none produced one), the
+  # reader that made it (nil when the statement's own text was enough), and one
+  # entry per reader tried.
+  LadderOutcome = Data.define(:read, :reader, :attempts)
 
   # W8-D: one read's outcome. `understanding` is what routes; `statement_read` is
   # the reader's verdict (nil for a non-statement, which has no statement route
@@ -82,18 +96,6 @@ class DocumentUnderstandingJob < ApplicationJob
     )
   end
 
-  # A provider failure is transient far more often than terminal (a blip, a 5xx,
-  # a busy model), and the sweep no longer re-drives held rows (finding 2), so a
-  # synchronous hold here would wait for a human forever. It joins the same
-  # bounded retry ladder as an OCR blip instead (fix round 2, the transient
-  # self-healing the reviewer flagged): parked during the backoff, then either a
-  # successful read settles the row or the ladder is spent and abandon! lands it
-  # terminally. Bounded by RETRY_ATTEMPTS.
-  retry_on Provider::Error, wait: :polynomially_longer, attempts: RETRY_ATTEMPTS do |job, error|
-    DocumentLink.find_by(id: job.arguments.first)&.abandon!(
-      message: "AI provider unavailable after #{RETRY_ATTEMPTS} attempts: #{error.message}"
-    )
-  end
   discard_on ActiveRecord::RecordNotFound
 
   # The user-facing wording for a read that produced nothing usable. Since
@@ -156,7 +158,7 @@ class DocumentUnderstandingJob < ApplicationJob
     }
   end
 
-  def perform(document_link_id)
+  def perform(document_link_id, reader_mode = "auto")
     link = DocumentLink.find(document_link_id)
 
     # Idempotent: a re-delivery, or the reaper re-enqueueing, must be a no-op
@@ -167,7 +169,7 @@ class DocumentUnderstandingJob < ApplicationJob
 
     return link.hold!(message: "no OCR service is configured") unless Ocr.configured?
 
-    result = read(link)
+    result = ocr_result(link)
     return land_unreadable(link, result.failure_code) if result.failure?
     # A genuine empty read (Task 3's client reads a body with no `pages` key as
     # a non-failure, empty result) is "nothing was understood": no text AND no
@@ -179,29 +181,18 @@ class DocumentUnderstandingJob < ApplicationJob
 
     link.record_content!(result.text, refresh: true)
 
-    provider = Provider::Registry.preferred_llm_provider
-    return link.hold!(message: NO_PROVIDER_MESSAGE) unless provider&.supports_document_understanding?
-
-    # One provider call per batch of pages (Task 9). A 40-page statement sent as
-    # one request hits the context and payload limits and fails hard, which is
-    # the case this milestone exists for. A provider failure is transient far
-    # more often than terminal, and a held row is excluded from the sweep
-    # (finding 2), so it propagates to the retry_on Provider::Error ladder rather
-    # than parking the row for a human (fix round 2).
-    #
     # Wave 8 (the statement row reader), W8-D: the model read is DEFERRED behind
-    # the reader's ladder. The ladder reads a statement's rows DETERMINISTICALLY
-    # where it can — text layer -> geometry — and PROVES them against the
-    # statement's own printed totals; it invokes `vision` (the full model read,
-    # rows wanted) only when no deterministic rung supplies them. A trusted
-    # deterministic read instead takes a narrow IDENTITY-ONLY call, so the model
-    # never enumerates a table whose rows the app already holds (and cannot be
-    # truncated enumerating one). Every other document — a non-statement, a scan,
-    # or a statement whose deterministic read did not reconcile — gets today's
-    # full read, unchanged. `model_understanding` is the model's own read, kept
-    # so the extraction's `raw_response` can still show it after the reader's rows
-    # replace it (R-W8B17).
-    read = read_document(link, provider, result)
+    # the statement reader, which reads a statement's rows DETERMINISTICALLY
+    # where it can and PROVES them against the printed totals; the model is
+    # asked only for what the page cannot supply. The reader ladder (spec §2)
+    # decides WHICH model: the selected provider, then the cloud readers.
+    outcome = read_with_ladder(link, result, reader_mode)
+    if outcome.read.nil?
+      record_failed_read(link, result, outcome.attempts)
+      return link.hold!(message: ladder_failure_message(outcome.attempts))
+    end
+
+    read = outcome.read
     understanding = read.understanding
     statement_read = read.statement_read
     model_understanding = read.model_understanding
@@ -210,12 +201,13 @@ class DocumentUnderstandingJob < ApplicationJob
     validations = validations.merge(statement_read_validations(statement_read)) if statement_read
     validations["identity_source"] = read.identity_source if read.identity_source
     validations["statement_rows_orientation"] = read.row_orientation if read.row_orientation
+    validations["read_attempts"] = outcome.attempts
     classification = classify(understanding, link, result, statement_read)
 
     DocumentExtraction.record!(
       document_link: link,
-      provider: provider.provider_name,
-      model: provider.llm_model,
+      provider: outcome.reader ? outcome.reader.provider.provider_name : STATEMENT_READER,
+      model: outcome.reader&.provider&.llm_model,
       ocr_engine: result.engine,
       page_count: result.pages.size,
       ocr_text: result.text.first(DocumentLink::EXTRACTED_TEXT_LIMIT),
@@ -240,8 +232,10 @@ class DocumentUnderstandingJob < ApplicationJob
     # same text.
     route(link, understanding, classification, ocr_text: result.text, statement_read: statement_read)
     link.settle!
+    # A read that added up will not be retried; one that went to review may be.
+    DocumentLink::OcrCache.delete(link) if adds_up?(read)
     link.broadcast_row_update!
-  rescue Ocr::Error, Provider::Error => e
+  rescue Ocr::Error => e
     # Transient upstream failure: let retry_on re-enqueue. Park the row `queued`
     # with the reason (fix round 2) so the sweep cannot select it during the
     # backoff — the later waits far exceed the sweep's bound, and a second read
@@ -294,8 +288,6 @@ class DocumentUnderstandingJob < ApplicationJob
     # the raw exception text, which belongs in the log. Both the OCR codes the
     # client can raise and a provider failure get their own sentence.
     def retry_message(error)
-      return "The AI provider is unavailable; a retry is scheduled." if error.is_a?(Provider::Error)
-
       case error.code
       when :not_configured then "The OCR service is not configured; a retry is scheduled."
       when :unreachable then "The OCR service is unreachable; a retry is scheduled."
@@ -303,6 +295,111 @@ class DocumentUnderstandingJob < ApplicationJob
       when :bad_response then "The OCR service returned an unexpected response; a retry is scheduled."
       else "This document could not be read; a retry is scheduled."
       end
+    end
+
+    # The provider name a read made without any model records.
+    STATEMENT_READER = "statement reader"
+
+    # Spec §2/§3: a no-model pass first — a proven statement with a complete
+    # printed identity is finished without any reader — then each reader in
+    # turn. An automatic read skips a local reader whose GPU is busy (a manual
+    # "Retry with local model" waits instead); a local reader is bounded by its
+    # document budget and unloaded when it ran. A statement whose rows do not
+    # add up moves on to the next reader; when none do, the fullest read routes
+    # for review.
+    def read_with_ladder(link, result, reader_mode)
+      begin
+        read = read_document(link, nil, result)
+        return LadderOutcome.new(read: read, reader: nil, attempts: [ attempt_entry(nil, "read", 0) ]) if adds_up?(read)
+      rescue NoReaderAvailable
+        # The page alone is not enough; the readers below are.
+      end
+
+      attempts = []
+      best = nil
+      DocumentReaderLadder.for(mode: reader_mode).each do |reader|
+        # A provider that cannot read documents (Anthropic today) is no rung.
+        next unless reader.provider.respond_to?(:supports_document_understanding?) &&
+                    reader.provider.supports_document_understanding?
+
+        if reader.local? && reader_mode == "auto" && reader.guard&.busy?
+          attempts << attempt_entry(reader, "skipped_busy", 0)
+          next
+        end
+
+        started = monotonic_now
+        @provider_called = false
+        @deadline = reader.local? ? started + Setting.local_llm_document_budget.to_i : nil
+        begin
+          read = read_document(link, reader.provider, result)
+          if adds_up?(read)
+            attempts << attempt_entry(reader, "read", monotonic_now - started)
+            return LadderOutcome.new(read: read, reader: reader, attempts: attempts)
+          end
+
+          attempts << attempt_entry(reader, "did_not_add_up", monotonic_now - started,
+                                    detail: read.statement_read&.verdict.to_s)
+          best = [ read, reader ] if best.nil? || row_count(read) > row_count(best.first)
+        rescue BudgetExceeded
+          attempts << attempt_entry(reader, "timed_out", monotonic_now - started)
+        rescue Provider::Error => e
+          Rails.logger.warn("DocumentUnderstandingJob reader #{reader.label} failed for document_link #{link.id}: #{e.message}")
+          outcome = e.message.match?(/timeout|timed out|execution expired/i) ? "timed_out" : "failed"
+          attempts << attempt_entry(reader, outcome, monotonic_now - started, detail: e.message.to_s.first(200))
+        ensure
+          reader.guard&.unload! if reader.local? && @provider_called
+          @deadline = nil
+        end
+      end
+
+      LadderOutcome.new(read: best&.first, reader: best&.last, attempts: attempts)
+    end
+
+    # A read that can be judged and does not add up is the only one the ladder
+    # moves past: a non-statement, a reconciled statement, and a statement that
+    # prints nothing to check against are all accepted.
+    def adds_up?(read)
+      statement_read = read.statement_read
+      return true if statement_read.nil? || statement_read.reconciled?
+
+      !statement_read.verdict.in?(STATEMENT_HOLD_VERDICTS)
+    end
+
+    def row_count(read) = read.understanding.transactions.size
+
+    def attempt_entry(reader, outcome, seconds, detail: nil)
+      { "reader" => reader&.label || STATEMENT_READER, "kind" => reader&.kind&.to_s || "text",
+        "outcome" => outcome, "seconds" => seconds.round(1), "detail" => detail.presence }.compact
+    end
+
+    def monotonic_now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+    # Every reader failed (or there was none): the attempts are kept on a failed
+    # extraction so the document can say what was tried.
+    def record_failed_read(link, result, attempts)
+      DocumentExtraction.record!(
+        document_link: link, status: "failed", ocr_engine: result.engine, page_count: result.pages.size,
+        ocr_text: result.text.first(DocumentLink::EXTRACTED_TEXT_LIMIT),
+        validations: { "read_attempts" => attempts }, error: ladder_failure_message(attempts)
+      )
+    end
+
+    def ladder_failure_message(attempts)
+      return NO_PROVIDER_MESSAGE if attempts.empty?
+
+      tried = attempts.map { |attempt| "#{attempt['reader']} #{attempt['outcome'].tr('_', ' ')}" }.to_sentence
+      "No reader could read this document (#{tried}). Nothing was imported."
+    end
+
+    # The OCR a read works from: the cached result of an earlier read of this
+    # document when there is one, so a retry never re-runs OCR on the GPU.
+    def ocr_result(link)
+      cached = DocumentLink::OcrCache.read(link)
+      return cached if cached
+
+      fresh = read(link)
+      DocumentLink::OcrCache.write(link, fresh) unless fresh.failure? || fresh.pages.empty?
+      fresh
     end
 
     def read(link)
@@ -375,8 +472,8 @@ class DocumentUnderstandingJob < ApplicationJob
       read =
         begin
           StatementRead.call(link: link, ocr_result: result,
-                             vision: -> { model_understanding = understand_in_batches(provider, result, link) })
-        rescue Provider::Error
+                             vision: (-> { model_understanding = understand_in_batches(provider, result, link) } if provider))
+        rescue Provider::Error, BudgetExceeded, NoReaderAvailable
           # A provider failure is transient (the retry_on ladder), never a reader
           # failure: let it propagate exactly as it did when the read ran before
           # the reader.
@@ -489,6 +586,11 @@ class DocumentUnderstandingJob < ApplicationJob
     # owner cannot diagnose is the failure this exists to prevent.
     def statement_read_validations(read)
       merged = { "statement_read" => statement_read_detail(read) }
+      # The owner's decision (2026-10-16): a read whose rows were checked against
+      # the statement's printed money totals and did NOT match goes to review
+      # marked as not adding up. A row with no date alone (no money check
+      # failed) still never paints the check red (R-W8B14b).
+      merged["statement_totals_reconcile"] = false if !statement_read_governs?(read) && money_drift?(read)
       return merged unless statement_read_governs?(read)
 
       merged.merge(
@@ -505,6 +607,13 @@ class DocumentUnderstandingJob < ApplicationJob
         # R-W8B13: provenance, rendered with a source-naming label, never red.
         "statement_rows_source" => read.source&.to_s
       )
+    end
+
+    def money_drift?(read)
+      read.checks.any? do |name, state|
+        state == StatementRead::Reconciliation::DRIFT &&
+          (StatementRead::Reconciliation::STRONG.include?(name) || name.start_with?("card_"))
+      end
     end
 
     # Does the read GOVERN the routing — decide it rather than merely advise it?
@@ -837,6 +946,8 @@ class DocumentUnderstandingJob < ApplicationJob
     # The flag is passed to the provider ONLY when false, so the full read's
     # request is byte-for-byte today's.
     def understand_in_batches(provider, result, link, rows_expected: true)
+      raise NoReaderAvailable if provider.nil?
+
       merged = nil
       transactions = []
       line_items = []
@@ -848,6 +959,9 @@ class DocumentUnderstandingJob < ApplicationJob
         # re-enqueue it while it is still running — a second OCR run, a second
         # paid provider call, a second extraction.
         link.heartbeat!
+        raise BudgetExceeded if @deadline && monotonic_now > @deadline
+
+        @provider_called = true
         response = provider.understand_document(**document_request(pages, merged, link, rows_expected))
         raise Provider::Error, "AI provider failed: #{response.error&.message}" unless response.success?
 

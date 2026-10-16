@@ -295,6 +295,7 @@ class DocumentLink < ApplicationRecord
     # otherwise a tombstone would keep serving a picture of a document it no
     # longer holds.
     DocumentLink::Thumbnail.delete(self)
+    DocumentLink::OcrCache.delete(self)
     DocumentLink::Staging.delete(stored_path)
     self.class.where(id: id).update_all(stored_path: nil, updated_at: Time.current)
   end

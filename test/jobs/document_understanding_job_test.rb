@@ -259,7 +259,10 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_nil @link.extraction
   end
 
-  test "a failed provider call parks the row for the retry ladder, never settling it" do
+  test "a failed provider call holds the row with a sentence and schedules no retry of the same provider" do
+    # Spec §2: a provider failure moves to the next reader instead of retrying
+    # the same one eight times; with no other reader the row is held once. The
+    # owner reads a sentence; the provider's raw message stays in the log.
     stub_ocr_success(pages: [ { page: 1, text: "TOTAL 12.34", confidence: 0.97 } ])
     stub_provider(FakeProvider.new(RECEIPT, success: false))
 
@@ -273,31 +276,12 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     end
     @link.reload
 
-    # Fix round 2: a provider failure is transient far more often than terminal,
-    # and a held row is excluded from the sweep (finding 2) — so it joins the
-    # same bounded ladder as an OCR blip (parked queued + reason, retry
-    # scheduled) rather than waiting for a human. The reason the user reads is a
-    # sentence (cleanup wave, item 3); the provider's raw message stays in the log.
     assert_equal "queued", @link.status
-    assert_includes @link.failure_message, "retry is scheduled"
+    assert_includes @link.failure_message, "Nothing was imported"
     assert_no_match(/AI provider failed/, @link.failure_message,
                     "the provider's raw message must not reach the user")
     assert_includes log.string, "AI provider failed", "the exception stays in the log"
-    assert_enqueued_jobs 1, only: DocumentUnderstandingJob
-  end
-
-  test "a persistent provider outage lands the row terminally once the retries are spent" do
-    stub_ocr_success(pages: [ { page: 1, text: "TOTAL 12.34", confidence: 0.97 } ])
-    stub_provider(FakeProvider.new(RECEIPT, success: false))
-
-    # Same real-ladder drive as the OCR exhaustion test: no ActiveJob internals.
-    perform_enqueued_jobs(only: DocumentUnderstandingJob) do
-      DocumentUnderstandingJob.perform_later(@link.id)
-    end
-
-    assert_equal "failed", @link.reload.status
-    assert_includes @link.failure_message, "AI provider unavailable"
-    assert_nil @link.extraction
+    assert_no_enqueued_jobs only: DocumentUnderstandingJob
   end
 
   test "a non-OCR, non-provider failure holds the row and is never re-raised into an unbounded retry" do

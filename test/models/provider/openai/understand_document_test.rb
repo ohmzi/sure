@@ -55,6 +55,28 @@ class Provider::Openai::UnderstandDocumentTest < ActiveSupport::TestCase
     assert_includes user_content[1]["text"], "TOTAL 9.99"
   end
 
+  # A configured response cap bounds how long a document read can generate —
+  # a model that loops on a dense page cannot hold the GPU indefinitely.
+  test "a configured response cap is sent with the document read" do
+    Setting.stubs(:llm_max_response_tokens).returns(8192)
+    stub_openai_chat(body: { "choices" => [ { "message" => { "content" => { "document_class" => "receipt" }.to_json } } ] })
+
+    provider.understand_document(pages: [ "aW1n" ], ocr_text: "TOTAL 9.99", family: families(:dylan_family))
+
+    assert_requested(:post, %r{/chat/completions\z}) { |req| JSON.parse(req.body)["max_tokens"] == 8192 }
+  end
+
+  test "with no cap configured none is sent, so a stock install is never truncated" do
+    Setting.stubs(:llm_max_response_tokens).returns(nil)
+    stub_openai_chat(body: { "choices" => [ { "message" => { "content" => { "document_class" => "receipt" }.to_json } } ] })
+
+    with_env_overrides("LLM_MAX_RESPONSE_TOKENS" => nil) do
+      provider.understand_document(pages: [ "aW1n" ], ocr_text: "TOTAL 9.99", family: families(:dylan_family))
+    end
+
+    assert_requested(:post, %r{/chat/completions\z}) { |req| !JSON.parse(req.body).key?("max_tokens") }
+  end
+
   test "the native (responses) request body carries the page images and the OCR text" do
     stub_openai_responses(body: { "output" => [ { "type" => "message", "content" => [
       { "type" => "output_text", "text" => { "document_class" => "receipt" }.to_json }
