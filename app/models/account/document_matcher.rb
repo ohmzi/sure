@@ -71,14 +71,14 @@ class Account::DocumentMatcher
     score = 0.to_d
 
     text = [ account.name, account.institution_name, account.institution_domain ].compact.join(" ").downcase
-    score += WEIGHT_INSTITUTION if institution.present? && text.include?(institution)
+    score += WEIGHT_INSTITUTION if institution.present? && (text.include?(institution) || Account::InstitutionMatch.match?(institution, text))
     score += WEIGHT_NAME if name.present? && account.name.to_s.downcase.include?(name)
 
     # The new terms: a real column, not a substring of the account's prose. The
     # last4 term is GATED on the OCR witness (spec §7.5): a hint whose digits the
     # page never carried contributes nothing, so a validly-typed but wrong number
     # cannot drive a prefill. Only a witnessed exact column match scores.
-    if last4.present? && account.last4.present? && account.last4 == last4 && last4_witness
+    if last4.present? && account.known_card_last4s.include?(last4) && last4_witness
       score += WEIGHT_LAST4_WITNESSED
     end
     score += WEIGHT_NETWORK if network.present? && account.account_network.to_s.downcase == network

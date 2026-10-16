@@ -1101,6 +1101,16 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal "unlinked", @link.reload.status
   end
 
+  test "every card a statement lists is kept on the statement for account matching" do
+    stage_text_layer_with_identity(@link)
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal %w[1111 2222], statement_for(@link).sanitized_parser_output["card_last4s"]
+  end
+
   test "the printed identity overrides the model's when the model is still asked" do
     # No issuer line: the identity is incomplete, so the identity-only read runs,
     # but the network the page proves (the 5446 prefix) beats the model's guess.

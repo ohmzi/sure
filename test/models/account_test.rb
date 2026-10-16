@@ -1088,4 +1088,16 @@ class AccountTest < ActiveSupport::TestCase
     assert account.valid?
     assert_not account.card_identity?
   end
+
+  # A card is reissued and a statement can carry supplementary cards, so an
+  # account is known by every card number its statements have shown.
+  test "an account knows every card number its linked statements carried" do
+    account = accounts(:credit_card)
+    account.update!(last4: "3111")
+    file = Rack::Test::UploadedFile.new(StringIO.new("date,amount\n2024-01-01,1\n"), "text/csv", original_filename: "june.csv")
+    statement = AccountStatement.create_from_upload!(family: account.family, account: account, file: file)
+    statement.update!(account_last4_hint: "1512", sanitized_parser_output: { "card_last4s" => %w[1512 8555] })
+
+    assert_equal %w[3111 1512 8555], account.known_card_last4s
+  end
 end

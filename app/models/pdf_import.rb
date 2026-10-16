@@ -235,6 +235,12 @@ class PdfImport < Import
     statement_backed? || pdf_file.attached?
   end
 
+  # The read behind these rows proved them against the statement's own printed
+  # totals — the bar for posting them on a person's account pick.
+  def reconciled_read?
+    document_extraction&.validations&.dig("statement_totals_reconcile") == true
+  end
+
   def ai_processed?
     ai_summary.present?
   end

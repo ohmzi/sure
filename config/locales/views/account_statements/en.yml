@@ -59,6 +59,9 @@ en:
       account_locked: This statement can no longer be re-targeted here.
       no_account: Choose an account before linking this statement.
       success: Linked statement to %{account}.
+      imported:
+        one: Linked to %{account}. Its transaction added up to the statement's totals, so it is being added now.
+        other: Linked to %{account}. Its %{count} transactions added up to the statement's totals, so they are being added now.
     period:
       unknown: Period unknown
     reconciliation:

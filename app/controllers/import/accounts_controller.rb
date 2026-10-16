@@ -42,6 +42,7 @@ class Import::AccountsController < ApplicationController
     # where the guess was merely made (the read/resolver), so an unconfirmed
     # match can never become durable identity.
     teach_account(account)
+    published = publish_if_reconciled(@import)
 
     # (Owner decision 2026-10-11, hotfix; the intake hotfix's shape, re-applied
     # on this lane by M8 Task 9) the intake is fire-and-forget: land the user on
@@ -49,7 +50,12 @@ class Import::AccountsController < ApplicationController
     # instead of the blocking "Reading your document" screen. A statement lands
     # on the statements-filtered archive so it is visible there too.
     destination = @import.is_a?(PdfImport) ? documents_path(source: "statement") : documents_path
-    redirect_to destination, notice: t("imports.update.reading_in_background")
+    notice = if published
+      t("account_statements.link.imported", account: account.name, count: @import.rows_count)
+    else
+      t("imports.update.reading_in_background")
+    end
+    redirect_to destination, notice: notice
   end
 
   private

@@ -616,6 +616,17 @@ class Account < ApplicationRecord
   # appears, else nothing. The network rides the CARD's witness only — it is a
   # fact about the card, and we learn no card identity from a reading whose card
   # number we could not find on the page.
+  # Every card number this account is known by: its own, and each one its
+  # linked statements carried. A card is reissued (the owner's June statement
+  # was 1512, October's 3111) and a statement can carry supplementary cards, so
+  # one stored last4 cannot identify the account on its own.
+  def known_card_last4s
+    from_statements = account_statements.pluck(:account_last4_hint, :sanitized_parser_output).flat_map do |hint, output|
+      [ hint, *Array(output.to_h["card_last4s"]) ]
+    end
+    [ last4, *from_statements ].compact_blank.uniq
+  end
+
   def learn_card_identity(understanding, ocr_text:)
     text = ocr_text.to_s
     card_last4 = witnessed_last4(understanding.card_last4, text)

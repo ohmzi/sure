@@ -95,7 +95,8 @@ class AccountStatement::AccountMatcher
         score = 0.to_d
 
         if institution_hint.present?
-          score += 0.45.to_d if account_text(account).include?(institution_hint)
+          text = account_text(account)
+          score += 0.45.to_d if text.include?(institution_hint) || Account::InstitutionMatch.match?(institution_hint, text)
         end
 
         if account_name_hint.present?
@@ -126,7 +127,7 @@ class AccountStatement::AccountMatcher
 
       def last4_column_matches?(account, hint)
         digits = hint.to_s.gsub(/\D/, "")
-        digits.present? && account.last4.present? && account.last4 == digits
+        digits.present? && account.known_card_last4s.include?(digits)
       end
 
       def account_text(account)

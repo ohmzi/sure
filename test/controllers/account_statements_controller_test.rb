@@ -642,6 +642,69 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_nil account.account_network, "the network rode the unwitnessed card and is not learned"
   end
 
+  # --- the owner's decision (2026-10-16): rows that add up post on the pick ---
+
+  def statement_with_read(reconciled:, name: "june.pdf")
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: name, content_type: "application/pdf", content: "%PDF-1.4 #{name}")
+    )
+    link = DocumentLink.create!(family: @account.family, source: "statement", status: "unlinked",
+                                account_statement: statement, original_filename: name)
+    extraction = DocumentExtraction.record!(document_link: link, status: "succeeded", ocr_text: "",
+                                            verdict: { "document_class" => "statement" },
+                                            validations: { "statement_totals_reconcile" => reconciled })
+    import = PdfImport.find_or_create_from_statement!(statement: statement)
+    import.update!(document_extraction: extraction, document_type: "bank_statement", ai_summary: "Read",
+                   extracted_data: { "transactions" => [
+                     { "date" => "2024-01-02", "amount" => "-12.50", "name" => "Cafe", "notes" => "", "category" => "" },
+                     { "date" => "2024-01-03", "amount" => "100.00", "name" => "Payment", "notes" => "", "category" => "" }
+                   ] })
+    import.generate_rows_from_extracted_data
+    import.sync_mappings
+    import.update!(status: :pending)
+    [ statement, import ]
+  end
+
+  test "picking the account for a statement whose rows added up imports them straight away" do
+    statement, import = statement_with_read(reconciled: true)
+
+    assert_enqueued_with(job: ImportJob) do
+      patch link_account_statement_url(statement), params: { account_id: @account.id }
+    end
+
+    assert_equal "importing", import.reload.status
+    assert_equal I18n.t("account_statements.link.imported", account: @account.name, count: 2), flash[:notice]
+  end
+
+  test "picking the account for a statement whose rows did not add up leaves them for review" do
+    statement, import = statement_with_read(reconciled: false)
+
+    assert_no_enqueued_jobs(only: ImportJob) do
+      patch link_account_statement_url(statement), params: { account_id: @account.id }
+    end
+
+    assert_equal "pending", import.reload.status
+  end
+
+  test "the picker teaches the account from the read even when the statement has no import" do
+    account = accounts(:credit_card)
+    account.update!(last4: nil, account_network: nil)
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: "no_import_teach.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    link = DocumentLink.create!(family: @account.family, source: "statement", status: "unlinked",
+                                account_statement: statement, original_filename: "no_import_teach.csv")
+    DocumentExtraction.record!(document_link: link, status: "succeeded", ocr_text: "Account number: 5446 12XX XXXX 1512",
+                               verdict: { "card_last4" => "1512", "card_network" => "mastercard" })
+    assert_nil statement.latest_reusable_pdf_import
+
+    patch link_account_statement_url(statement), params: { account_id: account.id }
+
+    assert_equal "1512", account.reload.last4
+  end
+
   test "a refused assignment surfaces an alert instead of a false success" do
     statement = AccountStatement.create_from_upload!(
       family: @account.family, account: nil,

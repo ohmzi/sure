@@ -144,7 +144,12 @@ class AccountStatementsController < ApplicationController
       return
     end
 
-    redirect_to post_link_path(@statement), notice: t("account_statements.link.success", account: account.name)
+    notice = if @published_import
+      t("account_statements.link.imported", account: account.name, count: @published_import.rows_count)
+    else
+      t("account_statements.link.success", account: account.name)
+    end
+    redirect_to post_link_path(@statement), notice: notice
   end
 
   def unlink
@@ -283,8 +288,10 @@ class AccountStatementsController < ApplicationController
         return false unless import.assign_account!(account)
 
         teach_account(account)
+        @published_import = import if publish_if_reconciled(import)
       else
         @statement.link_to_account!(account)
+        teach_account(account, @statement.archived_document_link&.extraction)
       end
 
       # The import seam moves a SEPARATE AccountStatement instance, so reload to

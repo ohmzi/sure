@@ -807,6 +807,7 @@ class DocumentUnderstandingJob < ApplicationJob
       statement = statement_for(link, understanding)
       # W8-I: the statement's OWN printed balances, from the reader's parse.
       record_stated_balances(statement, statement_read)
+      record_card_last4s(statement, statement_read)
       import = PdfImport.find_or_create_from_statement!(statement: statement)
 
       import.update!(
@@ -854,6 +855,15 @@ class DocumentUnderstandingJob < ApplicationJob
       return if parsed.empty?
 
       statement.update!(parsed)
+    end
+
+    # Every card the statement lists (a supplementary card prints its own
+    # block), kept for account matching: Account#known_card_last4s reads them.
+    def record_card_last4s(statement, statement_read)
+      cards = statement_read&.identity&.card_last4s
+      return if cards.blank?
+
+      statement.update!(sanitized_parser_output: statement.sanitized_parser_output.to_h.merge("card_last4s" => cards))
     end
 
     # What the review screen shows and the next-steps email carries. The AI read

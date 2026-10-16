@@ -86,4 +86,25 @@ class Account::DocumentMatcherTest < ActiveSupport::TestCase
       family: @family, account_last4_hint: "4242", last4_witness: true
     )
   end
+
+  # --- the owner's June statement (2026-10-16): no suggestion at all ---
+
+  test "an issuer named differently from the account still matches on its significant words" do
+    @card.update!(name: "Canadian Tire Mastercard", institution_name: nil, last4: nil)
+    @chequing.update!(institution_name: nil)
+
+    match = Account::DocumentMatcher.best_match(family: @family, institution_hint: "Canadian Tire Bank")
+
+    assert_equal @card, match&.account
+  end
+
+  test "a card number from a statement already linked to the account counts as the account's own" do
+    @card.update!(last4: "3111")
+    @card.stubs(:known_card_last4s).returns(%w[3111 1512])
+
+    score = Account::DocumentMatcher.send(:score_for, @card, institution: nil, name: nil, last4: "1512",
+                                                             network: nil, currency: nil, last4_witness: true)
+
+    assert_equal Account::DocumentMatcher::WEIGHT_LAST4_WITNESSED, score
+  end
 end

@@ -60,4 +60,24 @@ class AccountStatement::AccountMatcherTest < ActiveSupport::TestCase
       family: @family, institution_hint: "Triangle", card_network: "mastercard"
     )
   end
+
+  # The owner's June statement: issuer "Canadian Tire Bank", account
+  # "Canadian Tire Mastercard", a reissued card number — no suggestion at all.
+  test "a June-shaped statement is suggested its card account" do
+    @card.update!(name: "Canadian Tire Mastercard", institution_name: nil, last4: nil)
+    @depository.update!(institution_name: nil)
+
+    match = AccountStatement::AccountMatcher.best_match(
+      family: @family, institution_hint: "Canadian Tire Bank", account_last4_hint: "1512"
+    )
+
+    assert_equal @card, match&.account
+  end
+
+  test "a card number the account carried on an earlier statement scores like its own" do
+    @card.update!(last4: "3111")
+    @card.stubs(:known_card_last4s).returns(%w[3111 1512])
+
+    assert AccountStatement::AccountMatcher.send(:last4_column_matches?, @card, "1512")
+  end
 end

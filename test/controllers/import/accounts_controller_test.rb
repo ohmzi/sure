@@ -186,4 +186,32 @@ class Import::AccountsControllerTest < ActionDispatch::IntegrationTest
       import.update!(account_statement: statement)
       [ import, statement ]
     end
+
+    # The owner's decision (2026-10-16): a statement whose rows added up posts on
+    # the person's account pick, wherever the pick is made.
+    test "confirming the account of a statement whose rows added up imports them" do
+      family = families(:dylan_family)
+      statement = AccountStatement.create_from_upload!(
+        family: family, account: nil,
+        file: Rack::Test::UploadedFile.new(StringIO.new("%PDF-1.4 confirm"), "application/pdf", original_filename: "confirm.pdf")
+      )
+      link = DocumentLink.create!(family: family, source: "statement", status: "unlinked",
+                                  account_statement: statement, original_filename: "confirm.pdf")
+      extraction = DocumentExtraction.record!(document_link: link, status: "succeeded", ocr_text: "",
+                                              verdict: { "document_class" => "statement" },
+                                              validations: { "statement_totals_reconcile" => true })
+      import = PdfImport.find_or_create_from_statement!(statement: statement)
+      import.update!(document_extraction: extraction, document_type: "bank_statement", ai_summary: "Read",
+                     extracted_data: { "transactions" => [
+                       { "date" => "2024-01-02", "amount" => "-12.50", "name" => "Cafe", "notes" => "", "category" => "" }
+                     ] })
+      import.generate_rows_from_extracted_data
+      import.sync_mappings
+      import.update!(status: :pending)
+
+      assert_enqueued_with(job: ImportJob) do
+        patch import_account_path(import), params: { import: { account_id: accounts(:credit_card).id } }
+      end
+      assert_equal "importing", import.reload.status
+    end
 end
