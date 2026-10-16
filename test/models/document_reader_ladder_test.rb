@@ -13,6 +13,7 @@ class DocumentReaderLadderTest < ActiveSupport::TestCase
     Provider::Registry.stubs(:preferred_llm_provider).returns(:local_client)
     Provider::Registry.stubs(:get_provider).with(:deepseek).returns(:deepseek_client)
     Provider::Registry.stubs(:get_provider).with(:gemini).returns(:gemini_client)
+    Provider::Registry.stubs(:get_provider).with(:gemini_lite).returns(nil)
   end
 
   def ladder(mode) = DocumentReaderLadder.for(mode: mode)
@@ -69,5 +70,12 @@ class DocumentReaderLadderTest < ActiveSupport::TestCase
     Provider::Registry.stubs(:local_document_reader).returns(nil)
 
     assert_empty ladder("local")
+  end
+
+  # Gap 8: Gemini's default model answered 503 all day; its lighter model was up.
+  test "Gemini's lighter model follows when the configured one differs" do
+    Provider::Registry.stubs(:get_provider).with(:gemini_lite).returns(:gemini_lite_client)
+
+    assert_equal [ "the local model (qwen2.5vl:7b)", "DeepSeek", "Gemini", "Gemini (lite)" ], ladder("auto").map(&:label)
   end
 end

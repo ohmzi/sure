@@ -292,14 +292,25 @@ class DocumentUnderstandingJob < ApplicationJob
       "DocumentUnderstandingJob read failed for document_link #{document_link_id}: #{e.class}: #{e.message}"
     )
     held = DocumentLink.find_by(id: document_link_id)
+    message = read_error_message(e)
     begin
-      held&.hold_for!(DocumentHold.named("read_error", message: "This document could not be read. Retry it from the archive."))
+      held&.hold_for!(DocumentHold.named("read_error", message: message))
     rescue StandardError
-      held&.hold!(message: "This document could not be read. Retry it from the archive.")
+      held&.hold!(message: message)
     end
   end
 
   private
+    # An unexpected error, named in plain words (never the raw exception).
+    def read_error_message(error)
+      case error
+      when ActiveRecord::RecordInvalid
+        I18n.t("document_holds.read_error.invalid", record: error.record.class.model_name.human.downcase)
+      else
+        I18n.t("document_holds.read_error.unexpected", kind: error.class.name.demodulize.underscore.humanize.downcase)
+      end
+    end
+
     # The transient-retry reason the user reads, chosen by error code — never
     # the raw exception text, which belongs in the log. Both the OCR codes the
     # client can raise and a provider failure get their own sentence.
@@ -380,7 +391,9 @@ class DocumentUnderstandingJob < ApplicationJob
           Rails.logger.warn("DocumentUnderstandingJob reader #{reader.label} gave unusable output for document_link #{link.id}: #{e.message}")
           attempts << attempt_entry(reader, "failed", monotonic_now - started)
         ensure
-          reader.guard&.unload! if reader.local? && @provider_called && !was_resident
+          # A batch keeps the model loaded until its last document; Ollama's own
+          # keep-alive still unloads it if a document never finishes.
+          reader.guard&.unload! if reader.local? && @provider_called && !was_resident && !more_reads_waiting?(link)
           @deadline = nil
         end
       end
@@ -408,6 +421,11 @@ class DocumentUnderstandingJob < ApplicationJob
     end
 
     GPU_WAIT_POLL = 10
+
+    def more_reads_waiting?(link)
+      DocumentLink.where(status: %w[queued processing], failure_message: nil, deleted_at: nil)
+                  .where.not(stored_path: nil).where.not(id: link.id).exists?
+    end
 
     # True once the GPU is free; false when it stayed busy past the deadline.
     def wait_for_gpu(guard)

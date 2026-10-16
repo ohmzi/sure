@@ -273,4 +273,17 @@ class Provider::RegistryTest < ActiveSupport::TestCase
     assert_nil Provider::Registry.get_provider(:deepseek)
     assert_nil Provider::Registry.get_provider(:gemini)
   end
+
+  test "gemini_lite is Gemini's lighter model, absent when it is already the configured one" do
+    Setting.stubs(:gemini_api_key).returns("g-key")
+    Setting.stubs(:gemini_model).returns(nil)
+    Provider::Openai.expects(:new)
+      .with("g-key", uri_base: "https://generativelanguage.googleapis.com/v1beta/openai",
+            model: Setting::GEMINI_FALLBACK_MODEL, cap_document_reads: false)
+      .returns(:lite)
+    assert_equal :lite, Provider::Registry.get_provider(:gemini_lite)
+
+    Setting.stubs(:gemini_model).returns(Setting::GEMINI_FALLBACK_MODEL)
+    assert_nil Provider::Registry.get_provider(:gemini_lite)
+  end
 end

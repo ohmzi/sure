@@ -363,6 +363,34 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal "local", @link.reload.extraction.provider
   end
 
+  # Gap 8: a batch of uploads unloaded and reloaded the model for every
+  # document. It stays loaded while more documents wait, and leaves after the last.
+  test "the local model stays loaded while another document is waiting" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    waiting = DocumentLink.create!(family: @family, source: "receipt", status: "queued", original_filename: "next.png")
+    waiting.stage!(io: StringIO.new("PNG-next"), filename: "next.png", content_type: "image/png")
+    guard = local_guard
+    guard.stubs(:busy?).returns(false)
+    guard.stubs(:loaded?).returns(false)
+    guard.expects(:unload!).never
+    stub_ladder(reader("local", RECEIPT, kind: :local, guard: guard))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "local", @link.reload.extraction.provider
+  end
+
+  # Gap 9: an unexpected error says what it was, in plain words.
+  test "a save that fails says so instead of a bare could-not-be-read" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+    ReceiptImport.stubs(:find_or_create_from_document_link!).raises(ActiveRecord::RecordInvalid.new(ReceiptImport.new))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_includes @link.reload.failure_message, "couldn't save"
+  end
+
   test "a model that was already resident is left loaded when the read ends" do
     stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
     guard = local_guard
@@ -408,6 +436,7 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
   end
 
   test "the local model is unloaded once when its read ends, even when it failed" do
+    DocumentLink.where.not(id: @link.id).update_all(status: "unlinked") # nothing else waits for the GPU
     stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
     guard = local_guard
     guard.stubs(:busy?).returns(false)
@@ -614,7 +643,7 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
     @link.reload
     assert_equal "queued", @link.status
-    assert_includes @link.failure_message, "could not be read"
+    assert_includes @link.failure_message, "stopped the read"
     assert_no_match(/StandardError|duplicate upload/, @link.failure_message,
                     "raw exception text must never reach the user")
     assert_includes log.string, "duplicate upload",

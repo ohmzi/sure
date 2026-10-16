@@ -10,7 +10,7 @@
 # about the shared card, which a cloud reader never touches.
 class DocumentReaderLadder
   MODES = %w[auto local online].freeze
-  CLOUD = { deepseek: "DeepSeek", gemini: "Gemini" }.freeze
+  CLOUD = { deepseek: "DeepSeek", gemini: "Gemini", gemini_lite: "Gemini (lite)" }.freeze
 
   Reader = Data.define(:provider, :kind, :label, :guard) do
     def local? = kind == :local

@@ -37,6 +37,9 @@ class Setting < RailsSettings::Base
   # photographed receipt).
   DEEPSEEK_DEFAULT_MODEL = "deepseek-flash".freeze
   GEMINI_DEFAULT_MODEL = "gemini-flash-latest".freeze
+  # Gemini's lighter model, tried when the configured one is overloaded (its
+  # flash models answered 503 all day on 2026-10-16; this one stayed up).
+  GEMINI_FALLBACK_MODEL = "gemini-3.1-flash-lite".freeze
   field :deepseek_api_key, type: :string, default: ENV["DEEPSEEK_API_KEY"]
   field :deepseek_model, type: :string, default: ENV["DEEPSEEK_MODEL"]
   field :gemini_api_key, type: :string, default: ENV["GEMINI_API_KEY"]

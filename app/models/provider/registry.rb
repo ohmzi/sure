@@ -157,6 +157,17 @@ class Provider::Registry
                                       cap_document_reads: false)
       end
 
+      # Gemini's lighter model as its own rung — absent when it is already the
+      # configured model.
+      def gemini_lite
+        api_key = Setting.gemini_api_key.presence
+        return nil unless api_key
+        return nil if (Setting.gemini_model.presence || Setting::GEMINI_DEFAULT_MODEL) == Setting::GEMINI_FALLBACK_MODEL
+
+        Provider::Openai.new(api_key, uri_base: "https://generativelanguage.googleapis.com/v1beta/openai",
+                                      model: Setting::GEMINI_FALLBACK_MODEL, cap_document_reads: false)
+      end
+
       def anthropic
         access_token = ENV["ANTHROPIC_ACCESS_TOKEN"].presence ||
                        ENV["ANTHROPIC_API_KEY"].presence ||

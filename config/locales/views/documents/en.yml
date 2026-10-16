@@ -158,6 +158,9 @@ en:
   document_holds:
     ladder: "%{attempts}. Nothing was imported."
     statement_duplicate: "Duplicate of %{file}: the same month for the same account was already uploaded. Nothing from this copy was posted; delete it when you're ready."
+    read_error:
+      invalid: "Sure read this document but couldn't save the %{record} it produced (a value it read was not valid). Nothing was imported. Try again, or enter it by hand."
+      unexpected: "An unexpected error (%{kind}) stopped the read. Nothing was imported. Try again."
     no_reader_configured: No AI reader is set up, so this document could not be read. Add a local model or a cloud key in Settings.
     attempts:
       skipped_busy: "%{reader} was skipped because the GPU was busy with another model"
