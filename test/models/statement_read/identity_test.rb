@@ -63,6 +63,18 @@ class StatementRead::IdentityTest < ActiveSupport::TestCase
     assert_not identity(TEXT.sub(/^The Triangle.*$/, "")).complete?
   end
 
+  # A chequing account has no card and so no network; requiring one would send
+  # every chequing statement to the model for a field that cannot exist.
+  test "an identity with no card is complete without a network" do
+    no_card = StatementRead::Identity::Result.new(
+      institution_name: "Royal Bank of Canada", account_last4: "6719", card_last4s: [], card_network: nil,
+      period_start: Date.new(2026, 9, 11), period_end: Date.new(2026, 10, 9)
+    )
+
+    assert no_card.complete?
+    assert_not no_card.with(card_last4s: [ "1512" ]).complete?, "a card statement still needs its network"
+  end
+
   test "maps onto the understanding's verdict fields" do
     fields = identity.to_verdict_fields
 

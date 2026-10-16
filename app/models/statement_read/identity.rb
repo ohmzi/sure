@@ -23,8 +23,11 @@ class StatementRead
 
     Result = Data.define(:institution_name, :account_last4, :card_last4s, :card_network,
                          :period_start, :period_end) do
+      # A card statement needs its network; a chequing or savings statement
+      # lists no card, so it has none to need.
       def complete?
-        [ account_last4, card_network, institution_name, period_start, period_end ].all?(&:present?)
+        [ account_last4, institution_name, period_start, period_end ].all?(&:present?) &&
+          (card_last4s.empty? || card_network.present?)
       end
 
       # The identity in DocumentUnderstanding's verdict keys, so it can stand in

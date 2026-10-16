@@ -1169,6 +1169,27 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal %w[1111 2222], statement_for(@link).sanitized_parser_output["card_last4s"]
   end
 
+  # The owner's RBC chequing statements: the layout reads them whole, so they
+  # route with no model call, every row signed by the running balance.
+  test "an RBC chequing statement routes from its text layer with no model call" do
+    stage_pdf(@link, "synthetic_statement.pdf")
+    StatementRead::PdfTextLayer.stubs(:for).returns(
+      StatementRead::PdfTextLayer::Result.new(text: file_fixture("statements/rbc_chequing_synthetic.txt").read, font_count: 1, usable: true)
+    )
+    provider = FakeProvider.new(STATEMENT)
+    provider.expects(:understand_document).never
+    stub_ocr_success(pages: [ { page: 1, text: "RBC", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(provider)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal 18, import.rows_count
+    assert_equal true, @link.extraction.validations["statement_totals_reconcile"]
+    assert_equal "0001", statement_for(@link).account_last4_hint, "the fixture's account 01234-5550001"
+    assert_equal "Royal Bank of Canada", statement_for(@link).institution_name_hint
+  end
+
   test "the printed identity overrides the model's when the model is still asked" do
     # No issuer line: the identity is incomplete, so the identity-only read runs,
     # but the network the page proves (the 5446 prefix) beats the model's guess.

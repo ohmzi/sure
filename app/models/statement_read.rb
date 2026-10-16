@@ -213,6 +213,11 @@ class StatementRead
     end
 
     def text_result(text)
+      # A bank layout that recognises the statement reads it whole.
+      if (layout = Layout.detect(text))
+        return layout.call(text)
+      end
+
       parser = TableParser.call(text)
       totals = StatedTotals.call(text)
       return period_unreadable_result(parser, totals) unless parser.period_known?

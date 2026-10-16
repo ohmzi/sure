@@ -1,0 +1,86 @@
+                                                                                     Royal Bank of Canada
+                                                                                     C.P. 6011 Station A
+                                                                                     Montreal QC H3C 3B8
+                                                                                                                      Your RBC personal banking
+                                                                                                                              account statement
+                                                                                                                                                    From September 11, 2026 to October 9, 2026
+
+                                                                          RBPDA00000_0000000_000 E D 012 01234        04366
+                                                                          ALEX SAMPLE                                                        Your account number:             01234-5550001
+                                                                          SAM SAMPLE
+                                                                          UNIT 1                                                             How to reach us:              1-800-ROYAL® 1-1
+                                                                          100 MAIN ST                                                                                     (1-800-769-2511)
+                                                                          TOWN ON A1A 1A1                                                                      www.rbcroyalbank.com/deposits
+*00000000*
+
+
+
+
+                                                                 Summary of your account for this period
+                                                                 RBC Advantage Banking 01234-5550001
+
+                                                                 Royal Bank of Canada
+                                                                 5700 COTE-DES-NEIGES RC-1, MONTREAL, QC H3T 2A6
+
+                                                                 Your opening balance on September 11, 2026                          $2.05
+                                                                 Total deposits into your account                             + 10,566.00
+                                                                 Total withdrawals from your account                            - 9,697.64
+                                                                 Your closing balance on October 9, 2026                        = $870.41
+
+
+
+                                                                 Details of your account activity
+  11248
+
+
+
+
+                                                                 Date        Description                                      Withdrawals ($)         Deposits ($)                   Balance ($)
+                                                                             Opening Balance                                                                                               2.05
+  RBPDA00000_0000000_000 - 0722655 HRI - 00 - 1 - 5904 - 7 - -
+
+
+
+
+                                                                 15 Sep      Online Banking transfer - 0089                                               200.00                        202.05
+                                                                 16 Sep      e-Transfer Request Fulfilled
+                                                                               Alex Sample BZ8LDQ                                 232.00                                             - 29.95
+                                                                 17 Sep      Online Banking transfer - 6958                                            7,600.00                       7,570.05
+                                                                             Online Banking payment - 8452
+                                                                              CDN TIRE MC                                             25.00
+                                                                             Online Banking payment - 2865
+                                                                              CDN TIRE MC                                            100.00                                           7,445.05
+                                                                 21 Sep      Payroll Deposit Acme                                15.00
+                                                                             Online Banking payment - 7995
+                                                                              CDN TIRE MC                                          5,000.00                                           2,430.05
+                                                                 23 Sep      Interac purchase - 1394 $ 16.25ALDI IN                   23.47
+                                                                             Cross-border debit fee                                     1.00                                          2,405.58
+                                                                 28 Sep      Online Banking payment - 3315
+                                                                              OTHER CARD                                           37.00                                           2,368.58
+                                                                 29 Sep      Online Banking transfer - 0791                                            1,200.00                       3,568.58
+
+
+
+                                                                                                                                                                                         1 of 2
+                                                                          Your RBC personal banking account statement
+                                                                                                                                      From September 11, 2026 to October 9, 2026
+
+
+
+
+Details of your account activity - continued
+Date            Description                                                                        Withdrawals ($)                        Deposits ($)                                    Balance ($)
+                e-Transfer Request Fulfilled
+                  Canadian Tire Bank 2HERHE                                                                1,500.00                                                                        2,068.58
+2 Oct           Online Banking transfer - 0245                                                                                              1,000.00                                       3,068.58
+                e-Transfer sent Kim 5SV888                                                                1,000.00
+                e-Transfer Request Fulfilled
+                  Canadian Tire Bank USM3UF                                                                1,500.00                                                                          568.58
+5 Oct           Loan Acme                                                                                                                 566.00                                      1,134.58
+6 Oct           e-Transfer sent store YE5385                                                               251.22                                                                          883.36
+9 Oct           Monthly fee                                                                                    12.95                                                                         870.41
+                Closing Balance                                                                                                                                                            $870.41
+
+
+
+
