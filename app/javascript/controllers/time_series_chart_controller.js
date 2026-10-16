@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus";
 import * as d3 from "d3";
 import { CHART_TOOLTIP_CLASSES } from "utils/chart_tooltip";
+import { trendSegmentStops } from "utils/trend_segments";
 
 const parseLocalDate = d3.timeParse("%Y-%m-%d");
 
@@ -30,9 +31,9 @@ export default class extends Controller {
   // y-axis domain tuning. Both are relative to the data, so the scale is
   // resolution-independent: a chart looks the same on a phone and a 4K
   // display — only pixel density changes.
-  _yAxisPadding = 0.12;      // breathing room above and below the series
-  _yAxisMinRelSpan = 0.015;  // smallest movement allowed to fill the chart,
-                             // as a fraction of the average balance  
+  _yAxisPadding = 0.12; // breathing room above and below the series
+  _yAxisMinRelSpan = 0.015; // smallest movement allowed to fill the chart,
+  // as a fraction of the average balance
 
   connect() {
     this._install();
@@ -151,20 +152,29 @@ export default class extends Controller {
   _drawTrendline() {
     this._installTrendlineSplit();
 
-    this._d3Group
-      .append("path")
-      .datum(this._normalDataPoints)
-      .attr("fill", "none")
-      .attr("stroke", `url(#${this.element.id}-split-gradient)`)
-      .attr("d", this._d3Line)
-      .attr("stroke-linejoin", "round")
-      .attr("stroke-linecap", "round")
-      // A flat series (no variation across the period — a single valuation or an
-      // unchanged balance) otherwise renders as a full-bleed near-black rule
-      // bisecting the hero card. Draw it as a faint hairline so it reads as
-      // "no change", consistent across light and dark (#2137).
-      .attr("stroke-width", this._isFlatSeries ? 1 : this.strokeWidthValue)
-      .attr("stroke-opacity", this._isFlatSeries ? 0.4 : 1);
+    // The line, coloured segment by segment by what is good for the account,
+    // up to the hover point; past it, the same line dimmed rather than greyed,
+    // so grey keeps meaning "flat".
+    for (const part of ["before", "after"]) {
+      this._d3Group
+        .append("path")
+        .datum(this._normalDataPoints)
+        .attr("fill", "none")
+        .attr("stroke", `url(#${this.element.id}-split-gradient)`)
+        .attr("clip-path", `url(#${this.element.id}-clip-${part})`)
+        .attr("d", this._d3Line)
+        .attr("stroke-linejoin", "round")
+        .attr("stroke-linecap", "round")
+        // A flat series (no variation across the period — a single valuation or an
+        // unchanged balance) otherwise renders as a full-bleed near-black rule
+        // bisecting the hero card. Draw it as a faint hairline so it reads as
+        // "no change", consistent across light and dark (#2137).
+        .attr("stroke-width", this._isFlatSeries ? 1 : this.strokeWidthValue)
+        .attr(
+          "stroke-opacity",
+          (this._isFlatSeries ? 0.4 : 1) * (part === "after" ? 0.3 : 1),
+        );
+    }
   }
 
   get _isFlatSeries() {
@@ -174,56 +184,65 @@ export default class extends Controller {
   }
 
   _installTrendlineSplit() {
-    const gradient = this._d3Svg
-      .append("defs")
+    const [x0, x1] = this._d3XScale.range();
+    const defs = this._d3Svg.append("defs");
+    const gradient = defs
       .append("linearGradient")
       .attr("id", `${this.element.id}-split-gradient`)
       .attr("gradientUnits", "userSpaceOnUse")
-      .attr("x1", this._d3XScale.range()[0])
-      .attr("x2", this._d3XScale.range()[1]);
+      .attr("x1", x0)
+      .attr("x2", x1);
 
-    // First stop - solid trend color
-    gradient
-      .append("stop")
-      .attr("class", "start-color")
-      .attr("offset", "0%")
-      .attr("stop-color", this.dataValue.trend.color);
+    const points = this._normalDataPoints.map((d) => ({
+      x: this._d3XScale(d.date),
+      color: d.trend?.color,
+    }));
+    const stops = trendSegmentStops(
+      points,
+      { x0, x1 },
+      this.dataValue.trend.color,
+    );
+    for (const stop of stops.length
+      ? stops
+      : [{ offset: 0, color: this.dataValue.trend.color }]) {
+      gradient
+        .append("stop")
+        .attr("offset", `${stop.offset}%`)
+        .attr("stop-color", stop.color);
+    }
 
-    // Second stop - trend color right before split
-    gradient
-      .append("stop")
+    // The hover split: the line is full strength before it, dimmed after.
+    const far = this._d3ContainerWidth * 4;
+    defs
+      .append("clipPath")
+      .attr("id", `${this.element.id}-clip-before`)
+      .append("rect")
       .attr("class", "split-before")
-      .attr("offset", "100%")
-      .attr("stop-color", this.dataValue.trend.color);
-
-    // Third stop - gray color right after split
-    gradient
-      .append("stop")
+      .attr("x", -far)
+      .attr("y", -far)
+      .attr("width", far + x1)
+      .attr("height", far * 2);
+    defs
+      .append("clipPath")
+      .attr("id", `${this.element.id}-clip-after`)
+      .append("rect")
       .attr("class", "split-after")
-      .attr("offset", "100%")
-      .attr("stop-color", "var(--color-gray-400)");
-
-    // Fourth stop - solid gray to end
-    gradient
-      .append("stop")
-      .attr("class", "end-color")
-      .attr("offset", "100%")
-      .attr("stop-color", "var(--color-gray-400)");
+      .attr("x", x1)
+      .attr("y", -far)
+      .attr("width", far)
+      .attr("height", far * 2);
   }
 
   _setTrendlineSplitAt(percent) {
-    const position = percent * 100;
-
-    // Update both stops at the split point
-    this._d3Svg
-      .select(`#${this.element.id}-split-gradient`)
-      .select(".split-before")
-      .attr("offset", `${position}%`);
+    const far = this._d3ContainerWidth * 4;
+    const splitX = this._d3ContainerWidth * percent;
 
     this._d3Svg
-      .select(`#${this.element.id}-split-gradient`)
-      .select(".split-after")
-      .attr("offset", `${position}%`);
+      .select(`#${this.element.id}-clip-before .split-before`)
+      .attr("width", far + splitX);
+    this._d3Svg
+      .select(`#${this.element.id}-clip-after .split-after`)
+      .attr("x", splitX);
 
     this._d3Svg
       .select(`#${this.element.id}-trendline-gradient-rect`)

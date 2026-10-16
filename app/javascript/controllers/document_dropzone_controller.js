@@ -55,7 +55,8 @@ export default class extends Controller {
       body.append("document", file);
       // The currency chosen on the bar (a receipt or bill's money); the server
       // keeps it only when it is a real code.
-      if (this.hasCurrencyTarget) body.append("currency", this.currencyTarget.value);
+      if (this.hasCurrencyTarget)
+        body.append("currency", this.currencyTarget.value);
       fetch(this.urlValue, {
         method: "POST",
         body,
