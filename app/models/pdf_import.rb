@@ -199,6 +199,10 @@ class PdfImport < Import
         reconcile_entries!(reconciled_now, at: reconciled_at)
       end
     end
+
+    # The statement's printed opening balance is the account's starting point
+    # when this is its earliest statement (the "account update" half of a read).
+    StatementBalanceAnchor.call(account_statement) if account_statement
   end
 
   # Re-targeting is destructive: it releases the statement's evidence on the
