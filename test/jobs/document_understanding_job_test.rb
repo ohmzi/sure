@@ -1253,6 +1253,24 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal orphan.id, @link.account_statement_id
   end
 
+  # The owner's rule end to end: a proven statement whose printed number the
+  # account knows posts itself during the read.
+  test "a proven statement for a known account posts itself" do
+    accounts(:depository).update!(last4: "0001")
+    stage_pdf(@link, "synthetic_statement.pdf")
+    StatementRead::PdfTextLayer.stubs(:for).returns(
+      StatementRead::PdfTextLayer::Result.new(text: file_fixture("statements/rbc_chequing_synthetic.txt").read, font_count: 1, usable: true)
+    )
+    stub_ocr_success(pages: [ { page: 1, text: "RBC", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    assert_enqueued_with(job: ImportJob) do
+      DocumentUnderstandingJob.perform_now(@link.id)
+    end
+    assert_equal accounts(:depository), statement_for(@link).account
+    assert_equal "importing", PdfImport.find_by!(account_statement_id: statement_for(@link).id).status
+  end
+
   test "the printed identity overrides the model's when the model is still asked" do
     # No issuer line: the identity is incomplete, so the identity-only read runs,
     # but the network the page proves (the 5446 prefix) beats the model's guess.

@@ -237,6 +237,11 @@ class DocumentUnderstandingJob < ApplicationJob
     # "the digits actually appear on the page", and validate already reads the
     # same text.
     route(link, understanding, classification, ocr_text: result.text, statement_read: statement_read)
+    # The owner's rule: a proven statement for a known account posts itself; a
+    # duplicate month is flagged for the owner to delete. Not for a held read.
+    if classification.document_class == "statement" && link.reload.failure_message.blank?
+      StatementAutoPost.call(link: link)
+    end
     link.settle!
     # A read that added up will not be retried; one that went to review may be.
     DocumentLink::OcrCache.delete(link) if standing(read) == :proven

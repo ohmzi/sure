@@ -239,14 +239,14 @@ class DocumentLink < ApplicationRecord
   # Holds the row with a structured reason. The reason is kept on the read it
   # belongs to when there is one (a check that held a read which worked), else
   # on a failed read record of its own, so the archive can always say why.
-  def hold_for!(hold, extraction: nil, validations: {}, **read_details)
+  def hold_for!(hold, extraction: nil, validations: {}, from: %w[processing queued], **read_details)
     if extraction
       extraction.update!(validations: extraction.validations.merge("hold" => hold.to_h))
     else
       DocumentExtraction.record!(document_link: self, status: "failed", error: hold.message,
                                  validations: validations.merge("hold" => hold.to_h), **read_details)
     end
-    hold!(message: hold.message)
+    transition!(from: from, to: "queued", failure_message: hold.message)
   end
 
   def fail!(message)

@@ -16,7 +16,8 @@ DocumentHold = Data.define(:step, :code, :message, :actions) do
     "statement_permission" => { step: "account", actions: [] },
     "ocr_unreadable" => { step: "ocr", actions: %w[retry] },
     "ocr_not_configured" => { step: "ocr", actions: %w[open_settings] },
-    "read_error" => { step: "read", actions: %w[retry] }
+    "read_error" => { step: "read", actions: %w[retry] },
+    "statement_duplicate" => { step: "check", actions: %w[delete] }
   }.freeze
 
   READER_ACTIONS = { "retry_local" => "local", "retry_online" => "online" }.freeze

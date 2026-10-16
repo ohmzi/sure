@@ -14,6 +14,9 @@
       <% when "retry_online" %>
         <%= render DS::Button.new(text: t("documents.hold_actions.retry_online"), href: retry_document_path(link, reader: "online"),
                                   method: :post, variant: :outline, size: :sm) %>
+      <% when "delete" %>
+        <%= render DS::Button.new(text: t("documents.hold_actions.delete"), href: document_path(link),
+                                  method: :delete, variant: :outline_destructive, size: :sm) %>
       <% when "open_settings" %>
         <%= render DS::Link.new(text: t("documents.hold_actions.open_settings"), href: settings_hosting_path(anchor: "ai-provider"),
                                 variant: "outline", size: "sm") %>

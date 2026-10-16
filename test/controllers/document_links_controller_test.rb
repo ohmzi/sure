@@ -458,6 +458,23 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "a duplicate statement's tile offers Delete and nothing else" do
+    link = document_links(:held_bill)
+    link.update_columns(failure_message: "Duplicate of june.pdf")
+    DocumentExtraction.record!(
+      document_link: link, status: "succeeded",
+      validations: { "hold" => { "step" => "check", "code" => "statement_duplicate",
+                                 "message" => "Duplicate of june.pdf", "actions" => %w[delete] } }
+    )
+
+    get documents_path
+
+    assert_select "##{ActionView::RecordIdentifier.dom_id(link)}" do
+      assert_select "form[action='#{document_path(link)}'] input[name='_method'][value='delete']"
+      assert_select "form[action*='retry']", 0
+    end
+  end
+
   test "the viewer shows a hold's reason and its actions" do
     link = document_links(:held_bill)
     link.update_columns(failure_message: "DeepSeek is overloaded right now. Nothing was imported.")

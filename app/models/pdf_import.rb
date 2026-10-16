@@ -453,7 +453,13 @@ class PdfImport < Import
   end
 
   def publishable?
-    account.present? && statement_with_transactions? && cleaned? && mappings.all?(&:valid?)
+    account.present? && statement_with_transactions? && cleaned? && mappings.all?(&:valid?) && !flagged_duplicate?
+  end
+
+  # A statement flagged as a duplicate month is never imported — by auto-post
+  # or by hand — until the owner deletes the copy.
+  def flagged_duplicate?
+    document_link&.hold_reason&.code == "statement_duplicate"
   end
 
   def cleaned_from_validation_stats?(invalid_rows_count:)
