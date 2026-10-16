@@ -506,7 +506,7 @@ class AccountStatement < ApplicationRecord
     def neighbour(before:)
       scope = account.account_statements.where.not(id: id)
       if before
-        scope.where(period_end_on: ...period_start_on).where.not(closing_balance: nil).order(period_end_on: :desc).first
+        scope.where(period_end_on: ..period_start_on).where.not(closing_balance: nil).order(period_end_on: :desc).first
       else
         scope.where(period_start_on: (period_end_on)..).where.not(opening_balance: nil).order(:period_start_on).first
       end

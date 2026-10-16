@@ -1059,4 +1059,15 @@ class AccountStatementTest < ActiveSupport::TestCase
 
       assert_equal "mismatched", statuses(july)["opening_balance"]
     end
+
+    # Found live on the owner's RBC statements: one statement ends on the day the
+    # next begins (May 12 – Jun 12, then Jun 12 – Jul 10).
+    test "a statement that starts on the day the previous one ended chains to it" do
+      chequing = families(:dylan_family).accounts.create!(name: "Shared-day chequing", balance: 0, currency: "CAD", accountable: Depository.new)
+      june = card_statement(chequing, Date.new(2026, 5, 12), 100, 130, [ [ Date.new(2026, 5, 20), -30 ] ])
+      june.update!(period_end_on: Date.new(2026, 6, 12))
+      july = card_statement(chequing, Date.new(2026, 6, 12), 130, 150, [ [ Date.new(2026, 6, 20), -20 ] ])
+
+      assert_equal "matched", statuses(july)["opening_balance"]
+    end
 end
