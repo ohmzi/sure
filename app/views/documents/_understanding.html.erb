@@ -8,6 +8,15 @@
 <div class="flex h-full min-h-0 flex-col gap-5 overflow-auto" data-document-understanding>
   <h3 class="font-medium text-primary"><%= t(".title") %></h3>
 
+  <%# Why the document stopped and what fixes it (spec §6), above everything
+      else it read. %>
+  <% if (hold = panel.hold) %>
+    <div class="space-y-2 rounded-lg bg-destructive/5 p-3" data-document-hold>
+      <p class="text-sm text-primary"><%= hold.message %></p>
+      <%= render "documents/hold_actions", link: panel.link, hold: hold %>
+    </div>
+  <% end %>
+
   <% if panel.read? %>
     <%# What it decided: the class the router settled on, how sure it was, and
         the account the read resolved to (nil is said, not left blank). %>

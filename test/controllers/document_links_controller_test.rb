@@ -264,6 +264,51 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     DocumentLink::Staging.delete(path)
   end
 
+  # Spec §6: "Retry with local model" / "Retry with online AI" each re-run the
+  # read on that rung only.
+  test "retry with a reader re-reads the document with that reader" do
+    @link.update_columns(status: "failed")
+    @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf")
+
+    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ @link.id, "online" ]) do
+      post retry_document_path(@link, reader: "online")
+    end
+  end
+
+  test "retry with an unknown reader re-reads with the automatic ladder" do
+    @link.update_columns(status: "failed")
+    @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf")
+
+    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ @link.id, "auto" ]) do
+      post retry_document_path(@link, reader: "anything")
+    end
+  end
+
+  # A statement whose rows went to review because they did not add up has
+  # settled (`unlinked`), yet it is exactly the document a re-read can fix.
+  test "retry re-reads a settled document whose rows were never imported" do
+    @link.update_columns(status: "failed", entry_id: nil)
+    @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf")
+    @link.update_columns(status: "unlinked")
+
+    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ @link.id, "online" ]) do
+      post retry_document_path(@link, reader: "online")
+    end
+    assert_equal "queued", @link.reload.status
+  end
+
+  test "retry refuses a settled document whose rows already became transactions" do
+    @link.update_columns(status: "failed")
+    @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf")
+    @link.update_columns(status: "unlinked")
+    DocumentLink.any_instance.stubs(:derived_entries).returns(Entry.where(id: entries(:transaction).id))
+
+    assert_no_enqueued_jobs do
+      post retry_document_path(@link, reader: "online")
+    end
+    assert_response :conflict
+  end
+
   # -- the one Documents page: the type facet, the grid, what needs you -------
   # (Milestone B, design D1/D3/D5.) The literals the plan sketched asserted the
   # page body contained `documents.source.statement` / `.receipt`; the chip
@@ -381,6 +426,60 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     # The tile's "Which account?" leads nowhere; this is the working affordance,
     # and it points at the statement page's picker.
     assert_select "a[href='#{account_statement_path(statement)}']"
+  end
+
+  # Spec §6: the fix is on the tile itself, not three clicks away — the owner's
+  # June statement sat on "Which account?" with no way to act from the grid.
+  test "a statement tile that needs an account offers the account picker inline" do
+    statement = AccountStatement.create_from_upload!(
+      family: @family, account: nil,
+      file: uploaded_file(filename: "needs_account.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    link = DocumentLink.create!(family: @family, source: "statement", status: "unlinked",
+                                account_statement: statement, original_filename: "needs_account.csv")
+
+    get documents_path
+
+    assert_select "##{ActionView::RecordIdentifier.dom_id(link)}" do
+      assert_select "form[action='#{link_account_statement_path(statement)}']" do
+        assert_select "select[name='account_id'] option[value='#{accounts(:credit_card).id}']"
+        assert_select "button[type='submit']"
+      end
+    end
+  end
+
+  test "a held tile shows why and offers the retries its hold allows" do
+    link = document_links(:held_bill)
+    link.update_columns(failure_message: "DeepSeek is overloaded right now. Nothing was imported.")
+    DocumentExtraction.record!(
+      document_link: link, status: "failed", error: link.failure_message,
+      validations: { "hold" => { "step" => "read", "code" => "all_readers_failed",
+                                 "message" => link.failure_message, "actions" => %w[retry_local retry_online] } }
+    )
+
+    get documents_path
+
+    assert_select "##{ActionView::RecordIdentifier.dom_id(link)}" do
+      assert_select "*", text: /DeepSeek is overloaded right now/
+      assert_select "form[action='#{retry_document_path(link, reader: "local")}']"
+      assert_select "form[action='#{retry_document_path(link, reader: "online")}']"
+    end
+  end
+
+  test "the viewer shows a hold's reason and its actions" do
+    link = document_links(:held_bill)
+    link.update_columns(failure_message: "DeepSeek is overloaded right now. Nothing was imported.")
+    DocumentExtraction.record!(
+      document_link: link, status: "failed", error: link.failure_message,
+      validations: { "hold" => { "step" => "read", "code" => "all_readers_failed",
+                                 "message" => link.failure_message, "actions" => %w[retry_online] } }
+    )
+
+    get viewer_document_path(link)
+
+    assert_select "[data-document-hold]" do
+      assert_select "form[action='#{retry_document_path(link, reader: "online")}']"
+    end
   end
 
   test "the attention strip counts what needs a person, breaks it down, and offers to show them" do

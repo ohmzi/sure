@@ -90,9 +90,16 @@
     <% else %>
       <p class="truncate text-sm font-medium text-primary"><%= row.title %></p>
     <% end %>
-    <p class="truncate text-xs <%= state == :needs_you ? "text-destructive" : "text-secondary" %>">
+    <p class="<%= state == :needs_you ? "line-clamp-3 text-destructive" : "truncate text-secondary" %> text-xs">
       <%= meta %>
     </p>
+    <%# The fix sits on the tile (spec §6): a held read offers its retries, and
+        a statement with no account offers the picker. %>
+    <% if state == :needs_you %>
+      <%= render "documents/hold_actions", link: record, hold: record.hold_reason %>
+    <% elsif state == :which_account && statement&.needs_account? %>
+      <%= render "document_browser/account_picker", statement: statement %>
+    <% end %>
   </div>
 
   <%# The tile is purely visual (Milestone B, design D3): the document's

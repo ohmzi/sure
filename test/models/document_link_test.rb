@@ -471,4 +471,26 @@ class DocumentLinkTest < ActiveSupport::TestCase
 
       assert_nil link.hold_reason
     end
+
+    # The tile re-renders over the family stream outside any request, so its new
+    # actions (retries, the account picker) must render without a signed-in user.
+    test "a held tile and a tile that needs an account render for the live update" do
+      family = families(:dylan_family)
+      held = DocumentLink.create!(family: family, source: "receipt", status: "queued",
+                                  failure_message: "DeepSeek is overloaded right now. Nothing was imported.")
+      statement = AccountStatement.create_from_upload!(
+        family: family, account: nil,
+        file: Rack::Test::UploadedFile.new(StringIO.new("date,amount\n2024-01-01,1\n"), "text/csv", original_filename: "s.csv")
+      )
+      picking = DocumentLink.create!(family: family, source: "statement", status: "unlinked", account_statement: statement)
+
+      rendered = []
+      Turbo::StreamsChannel.stubs(:broadcast_replace_to).with { |_family, **options| rendered << options[:html] }
+
+      held.broadcast_row_update!
+      picking.broadcast_row_update!
+
+      assert_includes rendered.first, I18n.t("documents.hold_actions.retry")
+      assert_includes rendered.second, 'name="account_id"'
+    end
 end

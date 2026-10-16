@@ -1,5 +1,10 @@
 en:
   documents:
+    hold_actions:
+      retry: Try again
+      retry_local: Retry with local model
+      retry_online: Retry with online AI
+      open_settings: Set up a reader
     index:
       title: Documents
       receipts_bills_title: Receipts & Bills

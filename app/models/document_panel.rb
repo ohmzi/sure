@@ -86,9 +86,14 @@ class DocumentPanel
   }.freeze
   SOURCE_FALLBACK_LABEL_KEY = "documents.understanding.source_labels.fallback".freeze
 
+  attr_reader :link
+
   def initialize(link)
     @link = link
   end
+
+  # Why the document is held, with its actions — nil when it is not.
+  def hold = @link.hold_reason
 
   # Memoized on purpose. `DocumentLink#extraction` is an un-memoized
   # `order(...).first`, and one viewer render reads it through several readers

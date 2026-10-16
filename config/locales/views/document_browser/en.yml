@@ -1,5 +1,9 @@
 en:
   document_browser:
+    account_picker:
+      label: Which account is this statement for?
+      prompt: Pick an account
+      submit: Use
     filters:
       search_placeholder: Search by text, title or file name
       # The type facet (Milestone B, design D1): one page, the type as a chip.

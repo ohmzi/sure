@@ -192,12 +192,14 @@ class DocumentLinksController < ApplicationController
   def retry
     # Refuse to re-enqueue a row whose read is already in flight, or a row with
     # no held bytes to read.
-    unless @link.status.in?(%w[failed queued]) &&
-           @link.stored_path.present? && DocumentLink::Staging.exists?(@link.stored_path)
+    unless retryable?(@link) && @link.stored_path.present? && DocumentLink::Staging.exists?(@link.stored_path)
       return render(plain: "no held upload to retry", status: :conflict)
     end
-    @link.retry_upload!
-    DocumentUnderstandingJob.perform_later(@link.id)
+
+    # A settled row is re-read through reprocess! (it moves no money); a held or
+    # failed one through retry_upload!.
+    @link.status == "unlinked" ? @link.reprocess! : @link.retry_upload!
+    DocumentUnderstandingJob.perform_later(@link.id, reader_mode)
     redirect_back_or_to documents_path, notice: t("documents.retry.queued")
   end
 
@@ -237,6 +239,21 @@ class DocumentLinksController < ApplicationController
     end
 
     def link_display_title(link) = link.title.presence || link.original_filename
+
+    # Held and failed rows can be re-read, and so can a settled row whose rows
+    # never became transactions (a statement that did not add up, sent to
+    # review) — re-reading one that did would re-judge money already posted.
+    def retryable?(link)
+      return true if link.status.in?(%w[failed queued])
+
+      link.status == "unlinked" && !link.derived_entries.exists?
+    end
+
+    # "Retry with local model" / "Retry with online AI" pick one rung of the
+    # reader ladder; anything else re-reads with the whole ladder.
+    def reader_mode
+      DocumentReaderLadder::MODES.include?(params[:reader]) ? params[:reader] : "auto"
+    end
 
     def set_link
       # A tombstone has left the archive: the viewer, its bytes and its actions

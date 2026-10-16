@@ -1,0 +1,15 @@
+<%# locals: (statement:) %>
+<%# "Which account?" answered on the tile itself (spec §6): the statement's
+    family accounts, its suggestion preselected. The link action enforces who
+    may move a statement, so the picker only collects the choice. %>
+<%= form_with url: link_account_statement_path(statement), method: :patch,
+              class: "flex items-center gap-1.5", data: { turbo_frame: "_top" } do %>
+  <%= select_tag "account_id",
+                 options_from_collection_for_select(statement.family.accounts.visible.alphabetically, :id, :name,
+                                                    statement.suggested_account_id),
+                 include_blank: t("document_browser.account_picker.prompt"),
+                 required: true,
+                 aria: { label: t("document_browser.account_picker.label") },
+                 class: "min-w-0 flex-1 appearance-none bg-container border border-primary rounded-md px-2 py-1 text-xs text-primary focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none" %>
+  <%= render DS::Button.new(text: t("document_browser.account_picker.submit"), type: "submit", variant: :primary, size: :sm) %>
+<% end %>

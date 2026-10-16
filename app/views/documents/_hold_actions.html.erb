@@ -1,0 +1,23 @@
+<%# locals: (link:, hold:) %>
+<%# The buttons a hold offers (spec §6) — one per action the hold recorded.
+    Each retry re-reads the document on that rung of the reader ladder. %>
+<% if hold&.actions.present? %>
+  <div class="flex flex-wrap gap-1.5" data-hold-actions>
+    <% hold.actions.each do |action| %>
+      <% case action %>
+      <% when "retry" %>
+        <%= render DS::Button.new(text: t("documents.hold_actions.retry"), href: retry_document_path(link),
+                                  method: :post, variant: :outline, size: :sm) %>
+      <% when "retry_local" %>
+        <%= render DS::Button.new(text: t("documents.hold_actions.retry_local"), href: retry_document_path(link, reader: "local"),
+                                  method: :post, variant: :outline, size: :sm) %>
+      <% when "retry_online" %>
+        <%= render DS::Button.new(text: t("documents.hold_actions.retry_online"), href: retry_document_path(link, reader: "online"),
+                                  method: :post, variant: :outline, size: :sm) %>
+      <% when "open_settings" %>
+        <%= render DS::Link.new(text: t("documents.hold_actions.open_settings"), href: settings_hosting_path(anchor: "ai-provider"),
+                                variant: "outline", size: "sm") %>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>
