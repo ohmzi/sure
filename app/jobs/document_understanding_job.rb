@@ -327,14 +327,17 @@ class DocumentUnderstandingJob < ApplicationJob
         next unless reader.provider.respond_to?(:supports_document_understanding?) &&
                     reader.provider.supports_document_understanding?
 
-        if reader.local? && reader_mode == "auto" && reader.guard&.busy?
-          attempts << attempt_entry(reader, "skipped_busy", 0)
-          next
-        end
-
         started = monotonic_now
         @provider_called = false
         @deadline = reader.local? ? started + Setting.local_llm_document_budget.to_i : nil
+        # An automatic read never queues behind another model on the GPU; a
+        # retry the owner chose waits its turn, within the document budget.
+        if reader.local? && !(reader_mode == "auto" ? !reader.guard&.busy? : wait_for_gpu(reader.guard))
+          attempts << attempt_entry(reader, "skipped_busy", monotonic_now - started)
+          next
+        end
+        # A model already resident belongs to someone else's read: leave it.
+        was_resident = reader.local? && reader.guard&.loaded?
         begin
           read = read_document(link, reader.provider, result)
           if adds_up?(read)
@@ -352,12 +355,26 @@ class DocumentUnderstandingJob < ApplicationJob
           outcome = e.message.match?(/timeout|timed out|execution expired/i) ? "timed_out" : "failed"
           attempts << attempt_entry(reader, outcome, monotonic_now - started, detail: e.message.to_s.first(200))
         ensure
-          reader.guard&.unload! if reader.local? && @provider_called
+          reader.guard&.unload! if reader.local? && @provider_called && !was_resident
           @deadline = nil
         end
       end
 
       LadderOutcome.new(read: best&.first, reader: best&.last, attempts: attempts)
+    end
+
+    GPU_WAIT_POLL = 10
+
+    # True once the GPU is free; false when it stayed busy past the deadline.
+    def wait_for_gpu(guard)
+      return true if guard.nil?
+
+      loop do
+        return true unless guard.busy?
+        return false if @deadline && monotonic_now >= @deadline
+
+        sleep(GPU_WAIT_POLL)
+      end
     end
 
     # A read that can be judged and does not add up is the only one the ladder

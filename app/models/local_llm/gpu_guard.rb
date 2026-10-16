@@ -23,12 +23,20 @@ class LocalLlm::GpuGuard
   end
 
   def busy?
-    loaded = JSON.parse(request(Net::HTTP::Get, "/api/ps")).fetch("models", [])
+    loaded = resident_models
     return false if loaded.any? { |entry| same_model?(entry) }
 
     loaded.any? { |entry| in_use?(entry) }
   rescue StandardError => e
     Rails.logger.info("LocalLlm::GpuGuard busy check skipped (#{e.class}): treating the GPU as free")
+    false
+  end
+
+  # Whether our model is already resident — then a read found it loaded and
+  # must leave it so (another read, or another client, is using it).
+  def loaded?
+    resident_models.any? { |entry| same_model?(entry) }
+  rescue StandardError
     false
   end
 
@@ -41,9 +49,16 @@ class LocalLlm::GpuGuard
   end
 
   private
-    def same_model?(entry)
-      [ entry["name"], entry["model"] ].include?(@model)
+    def resident_models
+      JSON.parse(request(Net::HTTP::Get, "/api/ps")).fetch("models", [])
     end
+
+    # Ollama lists an untagged model as ":latest".
+    def same_model?(entry)
+      [ entry["name"], entry["model"] ].compact.map { |name| tagged(name) }.include?(tagged(@model))
+    end
+
+    def tagged(name) = name.include?(":") ? name : "#{name}:latest"
 
     def in_use?(entry)
       expires_at = Time.zone.parse(entry["expires_at"].to_s)

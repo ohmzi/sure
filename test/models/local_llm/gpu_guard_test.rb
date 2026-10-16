@@ -70,4 +70,26 @@ class LocalLlm::GpuGuardTest < ActiveSupport::TestCase
 
     assert_not LocalLlm::GpuGuard.new(base_url: "http://192.168.1.5:11434", model: "m").busy?
   end
+
+  # Review finding I4: the read must only unload a model it loaded itself.
+  test "loaded? reports whether our model is already resident" do
+    stub_loaded([ "qwen2.5vl:7b", 1.minute.from_now.iso8601 ])
+    assert guard.loaded?
+
+    stub_loaded([ "qwen3.8:27b", 1.minute.from_now.iso8601 ])
+    assert_not guard.loaded?
+  end
+
+  test "a model named without a tag is the :latest one Ollama lists" do
+    stub_loaded([ "qwen2.5vl:latest", 1.minute.from_now.iso8601 ])
+
+    assert LocalLlm::GpuGuard.new(base_url: BASE_URL, model: "qwen2.5vl").loaded?
+  end
+
+  test "loaded? is false when the server cannot say" do
+    stub_request(:get, PS_URL).to_return(status: 404)
+
+    assert_not guard.loaded?
+  end
+
 end

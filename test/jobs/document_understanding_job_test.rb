@@ -323,16 +323,60 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal "unlinked", @link.status
   end
 
-  test "a retry the owner chose with the local model waits for the GPU instead of skipping" do
+  test "a retry the owner chose with the local model reads with it when the GPU is free" do
     stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
     guard = local_guard
-    guard.expects(:busy?).never
+    guard.stubs(:busy?).returns(false)
     guard.stubs(:unload!).returns(true)
     stub_ladder(reader("local", RECEIPT, kind: :local, guard: guard))
 
     DocumentUnderstandingJob.perform_now(@link.id, "local")
 
     assert_equal "local", @link.reload.extraction.provider
+  end
+
+  test "a model that was already resident is left loaded when the read ends" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    guard = local_guard
+    guard.stubs(:busy?).returns(false)
+    guard.stubs(:loaded?).returns(true)
+    guard.expects(:unload!).never
+    stub_ladder(reader("local", RECEIPT, kind: :local, guard: guard))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "local", @link.reload.extraction.provider
+  end
+
+  # Review finding I3: "Retry with local model" waits its turn for the GPU
+  # (spec §6) rather than queueing a call that times out behind another model.
+  test "a manual local retry waits for a busy GPU to free up, then reads" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    guard = local_guard
+    guard.expects(:busy?).times(3).returns(true, true, false)
+    guard.stubs(:loaded?).returns(false)
+    guard.stubs(:unload!).returns(true)
+    stub_ladder(reader("local", RECEIPT, kind: :local, guard: guard))
+    DocumentUnderstandingJob.any_instance.stubs(:sleep)
+
+    DocumentUnderstandingJob.perform_now(@link.id, "local")
+
+    assert_equal "local", @link.reload.extraction.provider
+  end
+
+  test "a manual local retry gives up when the GPU stays busy past its budget" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    Setting.stubs(:local_llm_document_budget).returns(0)
+    guard = local_guard
+    guard.stubs(:busy?).returns(true)
+    guard.expects(:unload!).never
+    stub_ladder(reader("local", RECEIPT, kind: :local, guard: guard))
+    DocumentUnderstandingJob.any_instance.stubs(:sleep)
+
+    DocumentUnderstandingJob.perform_now(@link.id, "local")
+
+    assert_equal %w[skipped_busy], attempts.map { |attempt| attempt["outcome"] }
+    assert_equal "gpu_busy", @link.reload.hold_reason.code
   end
 
   test "the local model is unloaded once when its read ends, even when it failed" do
