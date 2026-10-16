@@ -73,9 +73,12 @@ class DocumentReaderLadderTest < ActiveSupport::TestCase
   end
 
   # Gap 8: Gemini's default model answered 503 all day; its lighter model was up.
-  test "Gemini's lighter model follows when the configured one differs" do
+  test "Gemini's lighter model follows when the configured one differs, only as Gemini's fallback" do
     Provider::Registry.stubs(:get_provider).with(:gemini_lite).returns(:gemini_lite_client)
 
-    assert_equal [ "the local model (qwen2.5vl:7b)", "DeepSeek", "Gemini", "Gemini (lite)" ], ladder("auto").map(&:label)
+    readers = ladder("auto")
+    assert_equal [ "the local model (qwen2.5vl:7b)", "DeepSeek", "Gemini", "Gemini (lite)" ], readers.map(&:label)
+    assert_equal "Gemini", readers.last.fallback_for
+    assert_nil readers.second.fallback_for
   end
 end

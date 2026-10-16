@@ -57,7 +57,13 @@ class DocumentUnderstanding
     nil
   end
   def payee = verdict[:payee].presence&.to_s
-  def field_confidence = (verdict[:field_confidence] || {}).with_indifferent_access
+  # Any shape a model returns: only a hash of numbers is confidence (review I8).
+  def field_confidence
+    raw = verdict[:field_confidence]
+    return {}.with_indifferent_access unless raw.is_a?(Hash)
+
+    raw.select { |_, value| value.is_a?(Numeric) }.with_indifferent_access
+  end
 
   def total
     self.class.parse_amount(verdict[:total])

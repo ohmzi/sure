@@ -66,10 +66,9 @@ class AutoPostReceiptJob < ApplicationJob
           external_id: "document:#{link.id}",
           source: "document",
           amount: draft.total_amount,
-          # Import#default_currency is private; this is its exact rule
-          # (account&.currency || family.currency), written out so the job can read
-          # it through a public path. The gate has already guaranteed the account.
-          currency: draft.account.currency || draft.family.currency,
+          # The upload's currency, else the family's (the owner's rule) — the
+          # same currency the draft searched existing charges in.
+          currency: draft.default_currency,
           date: draft.purchase_date,
           name: draft.payee.presence || link.title.presence || "Receipt",
           allow_heuristic_matching: false

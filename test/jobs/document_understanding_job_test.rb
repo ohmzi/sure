@@ -298,7 +298,7 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
   def reader(name, verdict, kind: :cloud, success: true, guard: nil)
     DocumentReaderLadder::Reader.new(provider: NamedProvider.new(name, verdict, success: success),
-                                     kind: kind, label: name, guard: guard)
+                                     kind: kind, label: name, guard: guard, fallback_for: nil)
   end
 
   def local_guard = LocalLlm::GpuGuard.new(base_url: "http://ollama:11434/v1", model: "qwen2.5vl:7b")
@@ -529,7 +529,7 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
   test "an unverifiable statement read moves on so the cloud reader gets a turn" do
     local_rows = STATEMENT.merge("transactions" => [ { "date" => "2026-09-03", "amount" => "-1.00", "name" => "Cafe", "notes" => "" } ])
     stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
-    stub_ladder(reader("local", local_rows), reader("DeepSeek", STATEMENT))
+    stub_ladder(reader("local", local_rows, kind: :local), reader("DeepSeek", STATEMENT))
 
     DocumentUnderstandingJob.perform_now(@link.id)
 
@@ -546,6 +546,45 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     DocumentUnderstandingJob.perform_now(@link.id)
 
     assert_equal true, @link.reload.extraction.validations["statement_rows_corroborated"]
+  end
+
+  # Review I6: Gemini's lighter model is a fallback for an overloaded Gemini,
+  # not an extra paid call on every read.
+  def lite(verdict = RECEIPT, success: true)
+    DocumentReaderLadder::Reader.new(provider: NamedProvider.new("Gemini (lite)", verdict, success: success),
+                                     kind: :cloud, label: "Gemini (lite)", guard: nil, fallback_for: "Gemini")
+  end
+
+  test "Gemini's lighter model runs only when Gemini was overloaded" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    overloaded = reader("Gemini", RECEIPT, success: false)
+    overloaded.provider.instance_variable_set(:@response, Struct.new(:success?, :data, :error).new(false, nil, StandardError.new("the server responded with status 503")))
+    stub_ladder(overloaded, lite)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "Gemini (lite)", @link.reload.extraction.provider
+  end
+
+  test "Gemini's lighter model is skipped when Gemini failed for another reason" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    stub_ladder(reader("Gemini", RECEIPT, success: false), lite)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal %w[Gemini], attempts.map { |attempt| attempt["reader"] }
+  end
+
+  test "among unverified reads the stronger reader wins, not the last one tried" do
+    local_rows = STATEMENT.merge("transactions" => [ { "date" => "2026-09-03", "amount" => "-1.00", "name" => "Cafe", "notes" => "" } ])
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    overloaded = reader("Gemini", STATEMENT, success: false)
+    overloaded.provider.instance_variable_set(:@response, Struct.new(:success?, :data, :error).new(false, nil, StandardError.new("status 503")))
+    stub_ladder(reader("DeepSeek", STATEMENT), overloaded, lite(local_rows))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "DeepSeek", @link.reload.extraction.provider
   end
 
   test "when every reader fails the row is held once with each reader's outcome" do

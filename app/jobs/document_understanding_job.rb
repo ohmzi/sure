@@ -357,6 +357,9 @@ class DocumentUnderstandingJob < ApplicationJob
       best = nil
       unverified = []
       DocumentReaderLadder.for(mode: reader_mode).each do |reader|
+        # A fallback model only stands in for an overloaded reader (review I6).
+        next if reader.fallback_for && !overloaded?(attempts, reader.fallback_for)
+
         # A provider that cannot read documents (Anthropic today) is no rung.
         next unless reader.provider.respond_to?(:supports_document_understanding?) &&
                     reader.provider.supports_document_understanding?
@@ -418,8 +421,14 @@ class DocumentUnderstandingJob < ApplicationJob
     def choose_unverified(unverified, attempts)
       fingerprints = unverified.map { |read, _| row_fingerprint(read) }
       agreeing = fingerprints.each_index.find { |i| fingerprints.count(fingerprints[i]) > 1 && fingerprints[i].any? }
-      read, reader = agreeing ? unverified[agreeing] : unverified.last
+      read, reader = agreeing ? unverified[agreeing] : unverified.max_by { |_, candidate| candidate.strength }
       LadderOutcome.new(read: read, reader: reader, attempts: attempts, corroborated: !agreeing.nil?)
+    end
+
+    def overloaded?(attempts, label)
+      attempts.any? do |attempt|
+        attempt["reader"] == label && attempt["outcome"] == "failed" && attempt["detail"].to_s.match?(/status (?:503|429)/)
+      end
     end
 
     def row_fingerprint(read)

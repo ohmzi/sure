@@ -176,4 +176,14 @@ class DocumentUnderstandingTest < ActiveSupport::TestCase
     assert_nil DocumentUnderstanding.new("currency" => "CAD$").currency
     assert_nil DocumentUnderstanding.new("currency" => "dollars").currency
   end
+
+  # Review I8: any shape of model output, never an exception.
+  test "a field_confidence of any shape reads as no confidence, never an error" do
+    [ "high", 1234, [ 1 ], true, 12.5, nil ].each do |shape|
+      understanding = DocumentUnderstanding.new("field_confidence" => shape, "total" => "1.00")
+
+      assert_equal({}, understanding.field_confidence.to_h, shape.inspect)
+    end
+    assert_nil DocumentUnderstanding.new("field_confidence" => { "total" => "sure" }).field_confidence["total"].then { nil }
+  end
 end

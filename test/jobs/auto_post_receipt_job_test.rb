@@ -52,6 +52,16 @@ class AutoPostReceiptJobTest < ActiveSupport::TestCase
     assert_equal entry.id, link.entry_id, "the provenance edge points at the entry"
   end
 
+  # Review I5: the receipt posts in the currency chosen at upload — the same
+  # one its duplicate search used — not the account's.
+  test "an auto-posted receipt keeps the currency chosen at upload" do
+    @draft.document_link.update!(currency: "EUR")
+
+    AutoPostReceiptJob.perform_now(@draft.id)
+
+    assert_equal "EUR", posted_entry.currency
+  end
+
   test "a re-delivered job never posts twice" do
     AutoPostReceiptJob.perform_now(@draft.id)
     assert_not_nil posted_entry

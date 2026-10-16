@@ -12,8 +12,23 @@ class DocumentReaderLadder
   MODES = %w[auto local online].freeze
   CLOUD = { deepseek: "DeepSeek", gemini: "Gemini", gemini_lite: "Gemini (lite)" }.freeze
 
-  Reader = Data.define(:provider, :kind, :label, :guard) do
+  # `fallback_for` names the reader this one only stands in for when that one
+  # was overloaded (Gemini's lighter model for Gemini).
+  Reader = Data.define(:provider, :kind, :label, :guard, :fallback_for) do
+    def initialize(fallback_for: nil, **fields) = super(fallback_for: fallback_for, **fields)
+
     def local? = kind == :local
+
+    # How much a read from this reader is trusted when nothing could verify it:
+    # the cloud readers over the selected provider over the local model, and a
+    # lighter fallback model below the one it stands in for.
+    def strength
+      case kind
+      when :cloud then fallback_for ? 2 : 3
+      when :selected then 2
+      else 1
+      end
+    end
   end
 
   def self.for(mode:)
@@ -52,7 +67,8 @@ class DocumentReaderLadder
     def cloud_readers
       CLOUD.filter_map do |name, label|
         provider = Provider::Registry.get_provider(name)
-        provider && Reader.new(provider: provider, kind: :cloud, label: label, guard: nil)
+        provider && Reader.new(provider: provider, kind: :cloud, label: label, guard: nil,
+                               fallback_for: (CLOUD[:gemini] if name == :gemini_lite))
       end
     end
 
