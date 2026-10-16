@@ -102,7 +102,8 @@ class DocumentNativeReadTest < ApplicationSystemTestCase
 
     link = DocumentLink.order(:created_at).last
     assert_equal "queued", link.status
-    assert_nil link.extraction, "an unreadable document must not record a verdict"
+    assert_empty link.extraction.verdict, "an unreadable document must not record a verdict"
+    assert_equal "ocr_unreadable", link.hold_reason.code, "it says why and offers a retry"
     assert link.stored_path.present?, "the original bytes must survive an unreadable read"
   end
 end
