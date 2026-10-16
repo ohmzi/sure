@@ -24,6 +24,10 @@ x-app-env: &app_env
   # The OCR sidecar contract. The sidecar is internal-only, so web/worker must
   # join its network to reach it.
   OCR_SERVICE_URL: "${OCR_SERVICE_URL:-http://ocr:9000}"
+  # Cloud document readers, used when the local model cannot finish a read.
+  # Optional: blank leaves that reader off (the keys can also be set in Settings).
+  DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+  GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
 
 # Hardening shared by the stateless services.
 x-app-hardening: &app_hardening

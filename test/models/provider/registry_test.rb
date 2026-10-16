@@ -197,4 +197,60 @@ class Provider::RegistryTest < ActiveSupport::TestCase
 
     assert_nil Provider::Registry.preferred_llm_provider
   end
+
+  # --- Cloud document readers (DeepSeek, Gemini) ---
+
+  test "deepseek reader is unconfigured without a key" do
+    Setting.stubs(:deepseek_api_key).returns(nil)
+
+    assert_nil Provider::Registry.get_provider(:deepseek)
+  end
+
+  test "deepseek reader is built on DeepSeek's endpoint with its own key and the default model" do
+    Setting.stubs(:deepseek_api_key).returns("ds-key")
+    Setting.stubs(:deepseek_model).returns(nil)
+
+    Provider::Openai.expects(:new)
+      .with("ds-key", uri_base: "https://api.deepseek.com", model: "deepseek-flash")
+      .returns(:deepseek_client)
+
+    assert_equal :deepseek_client, Provider::Registry.get_provider(:deepseek)
+  end
+
+  test "gemini reader is built on Google's OpenAI-compatible endpoint with a chosen model" do
+    Setting.stubs(:gemini_api_key).returns("g-key")
+    Setting.stubs(:gemini_model).returns("gemini-3.1-flash-lite")
+
+    Provider::Openai.expects(:new)
+      .with("g-key", uri_base: "https://generativelanguage.googleapis.com/v1beta/openai",
+            model: "gemini-3.1-flash-lite")
+      .returns(:gemini_client)
+
+    assert_equal :gemini_client, Provider::Registry.get_provider(:gemini)
+  end
+
+  test "cloud_document_readers lists the configured cloud readers, DeepSeek first" do
+    Provider::Registry.stubs(:deepseek).returns(:deepseek_client)
+    Provider::Registry.stubs(:gemini).returns(:gemini_client)
+
+    assert_equal [ :deepseek_client, :gemini_client ], Provider::Registry.cloud_document_readers
+  end
+
+  test "cloud_document_readers skips a reader that has no key" do
+    Provider::Registry.stubs(:deepseek).returns(nil)
+    Provider::Registry.stubs(:gemini).returns(:gemini_client)
+
+    assert_equal [ :gemini_client ], Provider::Registry.cloud_document_readers
+  end
+
+  # The cloud readers never borrow the general OpenAI key: a key stored for one
+  # service must never be sent to another's endpoint.
+  test "the cloud readers never fall back to the OpenAI key" do
+    Setting.stubs(:deepseek_api_key).returns(nil)
+    Setting.stubs(:gemini_api_key).returns(nil)
+    Setting.stubs(:openai_access_token).returns("openai-key")
+
+    assert_nil Provider::Registry.get_provider(:deepseek)
+    assert_nil Provider::Registry.get_provider(:gemini)
+  end
 end

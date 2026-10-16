@@ -30,6 +30,18 @@ class Setting < RailsSettings::Base
   field :local_llm_model, type: :string, default: ENV["LOCAL_LLM_MODEL"]
   field :local_llm_token, type: :string, default: ENV["LOCAL_LLM_TOKEN"].presence || LOCAL_LLM_PLACEHOLDER_TOKEN
 
+  # Cloud document readers: the services a document is read with when the local
+  # model cannot. Each has its OWN key — never the general OpenAI key — so a
+  # credential is only ever sent to the endpoint it was issued for. The model
+  # defaults are ones that take page images (a text-only model cannot read a
+  # photographed receipt).
+  DEEPSEEK_DEFAULT_MODEL = "deepseek-flash".freeze
+  GEMINI_DEFAULT_MODEL = "gemini-flash-latest".freeze
+  field :deepseek_api_key, type: :string, default: ENV["DEEPSEEK_API_KEY"]
+  field :deepseek_model, type: :string, default: ENV["DEEPSEEK_MODEL"]
+  field :gemini_api_key, type: :string, default: ENV["GEMINI_API_KEY"]
+  field :gemini_model, type: :string, default: ENV["GEMINI_MODEL"]
+
   # Jev (TypeSafe) — a classification provider, not an LLM. Reachable either
   # through OpenRouter's Decisions API (the default) or TypeSafe's own endpoint.
   # Deliberately no OPENROUTER_API_KEY fallback: an operator holding that key
@@ -136,6 +148,8 @@ class Setting < RailsSettings::Base
       openai_access_token
       anthropic_access_token
       local_llm_token
+      deepseek_api_key
+      gemini_api_key
       jev_api_key
       external_assistant_token
     ].freeze

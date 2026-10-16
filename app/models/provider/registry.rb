@@ -39,6 +39,12 @@ class Provider::Registry
       nil
     end
 
+    # The cloud services a document can be read with, in the order they are
+    # tried: the configured ones only, so an empty list means "no cloud reader".
+    def cloud_document_readers
+      %i[deepseek gemini].filter_map { |name| get_provider(name) }
+    end
+
     def plaid_provider_for_region(region)
       region.to_sym == :us ? plaid_us : plaid_eu
     end
@@ -117,6 +123,24 @@ class Provider::Registry
         access_token = Setting.local_llm_token.presence || Setting::LOCAL_LLM_PLACEHOLDER_TOKEN
 
         Provider::Openai.new(access_token, uri_base: uri_base, model: model)
+      end
+
+      # DeepSeek and Gemini both speak the OpenAI chat protocol, so each is the
+      # OpenAI-compatible client pointed at its own endpoint with its own key.
+      def deepseek
+        api_key = Setting.deepseek_api_key.presence
+        return nil unless api_key
+
+        Provider::Openai.new(api_key, uri_base: "https://api.deepseek.com",
+                                      model: Setting.deepseek_model.presence || Setting::DEEPSEEK_DEFAULT_MODEL)
+      end
+
+      def gemini
+        api_key = Setting.gemini_api_key.presence
+        return nil unless api_key
+
+        Provider::Openai.new(api_key, uri_base: "https://generativelanguage.googleapis.com/v1beta/openai",
+                                      model: Setting.gemini_model.presence || Setting::GEMINI_DEFAULT_MODEL)
       end
 
       def anthropic

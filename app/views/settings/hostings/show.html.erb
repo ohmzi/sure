@@ -24,6 +24,7 @@
                 hidden: Setting.llm_provider != "local" do %>
       <%= render "settings/hostings/local_settings" %>
     <% end %>
+    <%= render "settings/hostings/cloud_reader_settings" %>
   </div>
 <% end %>
 <%= settings_section title: t(".general") do %>

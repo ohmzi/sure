@@ -1,0 +1,56 @@
+<%# The cloud document readers. A document is read locally first; when the local
+    model cannot finish, these services read it instead, in the order shown.
+    They sit OUTSIDE the provider tabs above because they matter whichever
+    provider is selected there. Each has its own key, never the OpenAI key. %>
+<%
+  readers = [
+    { key: :deepseek, default_model: Setting::DEEPSEEK_DEFAULT_MODEL },
+    { key: :gemini, default_model: Setting::GEMINI_DEFAULT_MODEL }
+  ]
+%>
+<div id="cloud-document-readers" class="space-y-4 pt-6 border-t border-primary">
+  <div>
+    <h2 class="font-medium mb-1"><%= t(".title") %></h2>
+    <p class="text-secondary text-sm"><%= t(".description") %></p>
+  </div>
+
+  <%= styled_form_with model: Setting.new,
+                       url: settings_hosting_path,
+                       method: :patch,
+                       class: "space-y-6",
+                       data: {
+                         controller: "auto-submit-form",
+                         "auto-submit-form-trigger-event-value": "blur"
+                       } do |form| %>
+    <% readers.each do |reader| %>
+      <% key_field = :"#{reader[:key]}_api_key" %>
+      <% model_field = :"#{reader[:key]}_model" %>
+      <div class="space-y-3">
+        <h3 class="text-sm font-medium text-primary"><%= t(".#{reader[:key]}.name") %></h3>
+        <%= form.password_field key_field,
+                                label: t(".key_label"),
+                                placeholder: t(".key_placeholder"),
+                                value: (Setting.public_send(key_field).present? ? "********" : nil),
+                                autocomplete: "off",
+                                autocapitalize: "none",
+                                spellcheck: "false",
+                                inputmode: "text",
+                                data: { "auto-submit-form-target": "auto" } %>
+        <%= form.text_field model_field,
+                            label: t(".model_label"),
+                            placeholder: reader[:default_model],
+                            value: Setting.public_send(model_field),
+                            autocomplete: "off",
+                            autocapitalize: "none",
+                            spellcheck: "false",
+                            inputmode: "text",
+                            data: { "auto-submit-form-target": "auto" } %>
+        <p class="text-xs text-secondary"><%= t(".#{reader[:key]}.help", default_model: reader[:default_model]) %></p>
+      </div>
+    <% end %>
+  <% end %>
+
+  <%= render DS::Note.new(title: t(".privacy_heading")) do %>
+    <p><%= t(".privacy") %></p>
+  <% end %>
+</div>

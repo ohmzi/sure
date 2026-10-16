@@ -28,7 +28,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
   teardown do
     # These tests persist global Setting.* values; reset them so state can't
     # leak into later (order-dependent) tests.
-    %i[anthropic_access_token anthropic_base_url anthropic_model jev_api_key jev_endpoint jev_model llm_provider local_llm_base_url local_llm_model local_llm_token openai_uri_base openai_model twelve_data_api_key openai_access_token openai_request_timeout ai_response_timeout ai_health_probe_timeout external_assistant_url external_assistant_token external_assistant_model external_assistant_agent_id rentcast_api_key realie_api_key chimnie_api_key demo_family_refresh_enabled demo_family_refresh_family_id].each do |key|
+    %i[anthropic_access_token anthropic_base_url anthropic_model jev_api_key jev_endpoint jev_model llm_provider local_llm_base_url local_llm_model local_llm_token deepseek_api_key deepseek_model gemini_api_key gemini_model openai_uri_base openai_model twelve_data_api_key openai_access_token openai_request_timeout ai_response_timeout ai_health_probe_timeout external_assistant_url external_assistant_token external_assistant_model external_assistant_agent_id rentcast_api_key realie_api_key chimnie_api_key demo_family_refresh_enabled demo_family_refresh_family_id].each do |key|
       Setting.public_send("#{key}=", nil)
     end
   end
@@ -330,6 +330,68 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
       patch settings_hosting_url, params: { setting: { openai_access_token: "********" } }
 
       assert_equal "previous-token", Setting.openai_access_token
+    end
+  end
+
+  # --- Cloud document readers (DeepSeek, Gemini) ---
+
+  test "saves the cloud readers' keys and models" do
+    with_self_hosting do
+      patch settings_hosting_url, params: { setting: {
+        deepseek_api_key: "ds-test-key", deepseek_model: "deepseek-v4-pro",
+        gemini_api_key: "g-test-key", gemini_model: "gemini-3.1-flash-lite"
+      } }
+
+      assert_redirected_to settings_hosting_url
+      assert_equal "ds-test-key", Setting.deepseek_api_key
+      assert_equal "deepseek-v4-pro", Setting.deepseek_model
+      assert_equal "g-test-key", Setting.gemini_api_key
+      assert_equal "gemini-3.1-flash-lite", Setting.gemini_model
+    end
+  end
+
+  test "keeps a cloud reader's stored key when the masked placeholder comes back" do
+    with_self_hosting do
+      Setting.deepseek_api_key = "ds-previous"
+
+      patch settings_hosting_url, params: { setting: { deepseek_api_key: "********" } }
+
+      assert_equal "ds-previous", Setting.deepseek_api_key
+    end
+  end
+
+  test "clears a cloud reader's key when it is submitted blank" do
+    with_self_hosting do
+      Setting.gemini_api_key = "g-previous"
+
+      patch settings_hosting_url, params: { setting: { gemini_api_key: "" } }
+
+      assert_nil Setting.gemini_api_key
+    end
+  end
+
+  test "a blank cloud reader model falls back to the default rather than storing blank" do
+    with_self_hosting do
+      Setting.deepseek_model = "deepseek-v4-pro"
+
+      patch settings_hosting_url, params: { setting: { deepseek_model: "" } }
+
+      assert_nil Setting.deepseek_model
+    end
+  end
+
+  test "the AI section shows the cloud readers panel with stored keys masked" do
+    with_self_hosting do
+      Setting.deepseek_api_key = "ds-stored"
+
+      get settings_hosting_url
+
+      assert_response :success
+      assert_select "#cloud-document-readers"
+      assert_select "input[name='setting[deepseek_api_key]'][value='********']"
+      assert_select "input[name='setting[deepseek_model]']"
+      assert_select "input[name='setting[gemini_api_key]']:not([value])"
+      assert_select "input[name='setting[gemini_model]']"
     end
   end
 

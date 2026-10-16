@@ -17,6 +17,20 @@ en:
           open: Open
           closed: Closed
           invite_only: Invite-only
+      cloud_reader_settings:
+        title: Cloud document readers
+        description: Documents are read on your own hardware first. When the local model cannot finish a read, it is read by these services instead, in this order. Leave a key blank to skip that service.
+        key_label: API key
+        key_placeholder: Paste the service's API key
+        model_label: Model
+        deepseek:
+          name: DeepSeek
+          help: Leave the model blank to use %{default_model}, which reads page images.
+        gemini:
+          name: Google Gemini
+          help: Leave the model blank to use %{default_model}. Pick a model that reads images.
+        privacy_heading: What leaves this server
+        privacy: When a cloud reader is used, that document's page images and text are sent to the service. Nothing is sent while the local model reads successfully.
       demo_refresh_settings:
         description: "Automatically refresh only the selected demo family. All its data and logins will be removed. Other families are untouched. Requires a running worker with at least 2 GiB RAM. First create a disposable demo family using the demo generator, then select it here. Do not choose a real user's family."
         none: No demo family selected
