@@ -971,9 +971,9 @@ class DocumentUnderstandingJob < ApplicationJob
         # bank digits against a card column and produce no suggestion. Same
         # preference resolve_account applies.
         account_last4_hint: understanding.card_last4.presence || understanding.account_last4,
-        # `currency`, not `statement_currency`: the latter is a reader on the
-        # model (currency || account's || family's), not a column.
-        currency: understanding.currency,
+        # No currency from the read: a statement's money is in its account's
+        # currency (the owner's rule), and `statement_currency` falls back to
+        # the account's, then the family's, while the column stays blank.
         period_start_on: understanding.period_start,
         period_end_on: understanding.period_end
       )
@@ -1010,6 +1010,14 @@ class DocumentUnderstandingJob < ApplicationJob
       AccountStatement.create_from_prepared_upload!(
         family: link.family, account: nil, prepared_upload: prepared
       )
+    rescue AccountStatement::DuplicateUploadError => e
+      # An earlier read of THIS document crashed after creating the record:
+      # adopt it rather than fail every retry as a duplicate. A record another
+      # document already owns is a real duplicate and still refuses.
+      owner = e.statement.archived_document_link
+      raise unless e.statement.family_id == link.family_id && (owner.nil? || owner.id == link.id)
+
+      e.statement
     end
 
     # Pages in bounded batches, stitched. The statement's identity fields (class,

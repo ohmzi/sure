@@ -48,7 +48,14 @@ class DocumentUnderstanding
   def account_last4 = digits(verdict[:account_last4], 4)
   def card_last4 = digits(verdict[:card_last4], 4)
   def card_network = Account::CARD_NETWORKS.include?(verdict[:card_network].to_s) ? verdict[:card_network].to_s : nil
-  def currency = verdict[:currency].presence&.to_s&.upcase
+  # Only a real ISO code: the local model answered "$" for the owner's RBC
+  # statements, and that one field failed the whole read.
+  def currency
+    code = verdict[:currency].presence&.to_s&.strip&.upcase
+    code if code&.match?(/\A[A-Z]{3}\z/) && Money::Currency.new(code)
+  rescue Money::Currency::UnknownCurrencyError, ArgumentError
+    nil
+  end
   def payee = verdict[:payee].presence&.to_s
   def field_confidence = (verdict[:field_confidence] || {}).with_indifferent_access
 

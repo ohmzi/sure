@@ -1214,6 +1214,45 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal "Royal Bank of Canada", statement_for(@link).institution_name_hint
   end
 
+  # Gap 4: one bad model field held the whole statement.
+  test "a statement whose model read has a nonsense currency still routes" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT.merge("currency" => "$")))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_nil @link.reload.failure_message
+    assert PdfImport.find_by(account_statement_id: statement_for(@link).id)
+  end
+
+  # Spec currency rule: a statement's money is in its account's currency, never
+  # the currency a model read off the page.
+  test "a statement never takes its currency from the model" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT.merge("currency" => "EUR")))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal @family.currency, statement_for(@link).currency, "the family's (then the account's), never the model's EUR"
+  end
+
+  # Gap: a read that crashed after creating the statement's vault row left an
+  # orphan, and every retry then failed as a duplicate upload of that same file.
+  test "a re-read adopts the statement record an earlier, crashed read left behind" do
+    stage_pdf(@link, "synthetic_statement.pdf")
+    orphan = AccountStatement.create_from_upload!(
+      family: @family, account: nil,
+      file: Rack::Test::UploadedFile.new(file_fixture("statements/synthetic_statement.pdf"), "application/pdf")
+    )
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_nil @link.reload.failure_message
+    assert_equal orphan.id, @link.account_statement_id
+  end
+
   test "the printed identity overrides the model's when the model is still asked" do
     # No issuer line: the identity is incomplete, so the identity-only read runs,
     # but the network the page proves (the 5446 prefix) beats the model's guess.

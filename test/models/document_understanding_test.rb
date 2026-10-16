@@ -165,4 +165,15 @@ class DocumentUnderstandingTest < ActiveSupport::TestCase
            "a page that fell back is flagged even when another page used transactions"
     assert_equal [ "Cafe" ], u.transactions.map { |r| r["name"] }
   end
+
+  # The owner's RBC reads: the model answered currency "$" and the statement
+  # failed validation, holding the whole document. A field that is not a real
+  # ISO code is no currency at all.
+  test "currency is only ever a known ISO code" do
+    assert_equal "CAD", DocumentUnderstanding.new("currency" => "cad").currency
+    assert_equal "USD", DocumentUnderstanding.new("currency" => "USD").currency
+    assert_nil DocumentUnderstanding.new("currency" => "$").currency
+    assert_nil DocumentUnderstanding.new("currency" => "CAD$").currency
+    assert_nil DocumentUnderstanding.new("currency" => "dollars").currency
+  end
 end
