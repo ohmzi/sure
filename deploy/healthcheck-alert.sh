@@ -1,6 +1,6 @@
 #!/bin/sh
 # deploy/healthcheck-alert.sh — container, disk and backup-freshness monitor for
-# the ohmzbudget stack. Runs from the host (cron/systemd timer). Prints no secret
+# the sure stack. Runs from the host (cron/systemd timer). Prints no secret
 # values. Exits 0 when healthy, 1 after posting one alert.
 set -eu
 
@@ -20,7 +20,7 @@ fi
 DC="$DEPLOY_DIR/dc"
 
 ALERT_WEBHOOK_URL="${ALERT_WEBHOOK_URL:?set ALERT_WEBHOOK_URL in deploy/.env}"
-BACKUP_DIR="${BACKUP_DIR:-$HOME/ohmzbudget-backups/backups}"
+BACKUP_DIR="${BACKUP_DIR:-$HOME/sure-backups/backups}"
 DISK_MOUNT="${DISK_MOUNT:-/}"
 DISK_LIMIT_PCT="${DISK_LIMIT_PCT:-90}"
 BACKUP_MAX_AGE_HOURS="${BACKUP_MAX_AGE_HOURS:-26}"
@@ -63,11 +63,11 @@ for glob in 'sure_db_*.sql.gz' 'app-storage_*.tgz'; do
 done
 
 if [ "$fail" -eq 1 ]; then
-  printf 'ohmzbudget healthcheck FAIL:%s\n' "$reasons" >&2
+  printf 'sure healthcheck FAIL:%s\n' "$reasons" >&2
   curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
-    --data "{\"text\":\"ohmzbudget healthcheck FAIL:${reasons}\"}" \
+    --data "{\"text\":\"sure healthcheck FAIL:${reasons}\"}" \
     "$ALERT_WEBHOOK_URL" >/dev/null || true
   exit 1
 fi
 
-printf 'ohmzbudget healthcheck OK (containers healthy, disk %s%%, backups fresh)\n' "$used_pct"
+printf 'sure healthcheck OK (containers healthy, disk %s%%, backups fresh)\n' "$used_pct"

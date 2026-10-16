@@ -1,5 +1,8 @@
-# Pin the two bridge subnets so the existing ohmzbudget_* networks are adopted
-# (host Docker pools are exhausted; a subnet change would force a re-allocate).
+# Pin both bridge subnets: the host's Docker address pools are exhausted, so
+# these networks cannot be allocated one automatically. They are the same two
+# subnets the previous stack held, so the old networks must be removed before
+# `up` — otherwise Docker refuses with "Pool overlaps with other one on this
+# address space" and the stack never comes up.
 networks:
   default:
     ipam:

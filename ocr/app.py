@@ -24,7 +24,7 @@ LANG = os.environ.get("OCR_LANG", "en").split(",")[0].strip() or "en"
 # permanent property of the document, so it must take the 422 "unreadable" path.
 MIN_SIDE = 32
 
-app = FastAPI(title="ohmzbudget-ocr")
+app = FastAPI(title="sure-ocr")
 _engine = None
 
 

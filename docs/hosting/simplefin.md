@@ -1,6 +1,6 @@
 # Connecting a bank feed with SimpleFIN
 
-OhmzBudget uses **SimpleFIN** as its only bank aggregator (spec D12). The
+Sure uses **SimpleFIN** as its only bank aggregator (spec D12). The
 protocol is open and read-only; the fork ships the `Provider::Simplefin`
 client, so the app side needs no extra component. Which *bridge* serves it is
 the decision recorded below.
@@ -40,7 +40,7 @@ The decision is **not closed**. It closes only when (1) the owner's explicit
 sign-off for Branch B is on record **and** (2) the §4 amendment (spec:109)
 lands with the controller. The exact sign-off text the owner must give:
 
-> I approve Branch B for M5 Task 1: OhmzBudget connects banks through the
+> I approve Branch B for M5 Task 1: Sure connects banks through the
 > hosted SimpleFIN Bridge. I accept that the bridge operator holds each bank's
 > per-bank access token (revocable; never a bank login), and I record this as a
 > deviation from §4, permitted by D12 and §16.3. I also approve the §4
@@ -52,7 +52,7 @@ lands with the controller. The exact sign-off text the owner must give:
    consent flow.
 2. Create a **setup token** for this app. The token is a one-time, base64
    string; it is single-use and expires.
-3. In OhmzBudget: **Settings → Providers → SimpleFIN**, paste the token, save.
+3. In Sure: **Settings → Providers → SimpleFIN**, paste the token, save.
 4. The app claims the token (`Provider::Simplefin#claim_access_url`), receives
    an **access URL** with embedded Basic-auth credentials, and stores it
    encrypted (`simplefin_items.access_url`, deterministic encrypt). The access

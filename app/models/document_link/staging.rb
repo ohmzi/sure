@@ -12,7 +12,7 @@ class DocumentLink::Staging
   class TooLargeError < StandardError; end
 
   def self.root
-    Pathname.new(ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"].presence || "/rails/storage/document-store")
+    Pathname.new(ENV["SURE_DOCUMENT_STORE_DIR"].presence || "/rails/storage/document-store")
   end
 
   def self.write(io:, id:)

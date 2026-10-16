@@ -10,8 +10,8 @@ require "fileutils"
 class DocumentStoreTest < ActionDispatch::IntegrationTest
   setup do
     @tmp = Pathname.new(Dir.mktmpdir("document-store"))
-    @previous = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = @tmp.to_s
+    @previous = ENV["SURE_DOCUMENT_STORE_DIR"]
+    ENV["SURE_DOCUMENT_STORE_DIR"] = @tmp.to_s
     @link = document_links(:linked_receipt)
     @link.update_columns(stored_path: @tmp.join(@link.id).to_s)
     File.binwrite(@link.stored_path, "%PDF-1.7")
@@ -19,7 +19,7 @@ class DocumentStoreTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = @previous
+    ENV["SURE_DOCUMENT_STORE_DIR"] = @previous
     FileUtils.remove_entry(@tmp) if @tmp.exist?
   end
 

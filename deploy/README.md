@@ -1,6 +1,6 @@
-# OhmzBudget deploy
+# Sure deploy
 
-Compose project `ohmzbudget`: the Rails app (`web`, `worker`, `worker-heavy`) and
+Compose project `sure`: the Rails app (`web`, `worker`, `worker-heavy`) and
 the internal OCR sidecar (`ocr`). paperless-ngx was removed in Milestone A — the
 app reads documents natively. Its named volumes are left on disk, undeclared by
 compose, until the owner removes them (see "Paperless removal").
@@ -22,7 +22,7 @@ Acceptance test: see deploy/ACCEPTANCE.md
   network to reach it at `OCR_SERVICE_URL`.
 
 The `app-storage` volume (`/rails/storage`) holds both the Active Storage
-attachments and the document store (`OHMZBUDGET_DOCUMENT_STORE_DIR` =
+attachments and the document store (`SURE_DOCUMENT_STORE_DIR` =
 `/rails/storage/paperless-staged`). That path is FIXED: document rows store
 absolute paths, so moving the root would strand every already-read document
 (Ruling R25). The directory rename is deferred to Milestone B.
@@ -31,12 +31,12 @@ absolute paths, so moving the root would strand every already-read document
 
 `paperless`, `paperless-db` and `paperless-valkey` were deleted from
 `compose.yml` and their containers stopped. Their five named volumes are
-intentionally LEFT ON DISK (`ohmzbudget_paperless-{data,media,consume,export,db}`).
+intentionally LEFT ON DISK (`sure_paperless-{data,media,consume,export,db}`).
 Once the native read has been seen to work, remove them with:
 
 ```bash
-docker volume rm ohmzbudget_paperless-data ohmzbudget_paperless-media \
-  ohmzbudget_paperless-consume ohmzbudget_paperless-export ohmzbudget_paperless-db
+docker volume rm sure_paperless-data sure_paperless-media \
+  sure_paperless-consume sure_paperless-export sure_paperless-db
 ```
 
 ## Files
@@ -67,9 +67,9 @@ from dropped caps and `no-new-privileges`. `deploy/dc exec -T web` is the servic
    `postgres_password` and `admin_password` into `secrets/` (never printed).
 3. `./dc up -d --build`, then create the first admin from the repo root:
    ```bash
-   cd ~/StudioProjects/OhmzBudget
+   cd ~/StudioProjects/sure
    set -a; . deploy/.env; set +a          # export ADMIN_EMAIL for the exec below
-   deploy/dc exec -T -e ADMIN_EMAIL="$ADMIN_EMAIL" web ./bin/rails ohmzbudget:first_run < deploy/secrets/admin_password
+   deploy/dc exec -T -e ADMIN_EMAIL="$ADMIN_EMAIL" web ./bin/rails sure:first_run < deploy/secrets/admin_password
    ```
    Both parts are required: `docker compose exec` does not forward the host
    environment (hence the export plus `-e ADMIN_EMAIL=…`), and the password is
@@ -81,23 +81,23 @@ from dropped caps and `no-new-privileges`. `deploy/dc exec -T web` is the servic
 ## Everyday commands
 - `./dc ps` / `./dc logs -f web` — status and logs.
 - `./dc build web && ./dc up -d web worker worker-heavy` — rebuild after a code
-  change (the three app services share the `ohmzbudget:local` image).
+  change (the three app services share the `sure:local` image).
 - Never run raw `./dc config` (or `docker compose … config`) against the live
   deployment — it renders the resolved secret values into its output. Validate
   with `./dc config --services` or `./dc config --quiet` instead.
 
 ## Upgrade the application image
-The app image is built **locally from this checkout** (`image: ohmzbudget:local` +
+The app image is built **locally from this checkout** (`image: sure:local` +
 `build: context: ..` in `compose.yml`); there is no registry tag to pull or bump.
 An image upgrade is therefore a **rebuild**: it ships whatever source this checkout
 holds right now. Record the current image before rebuilding, so you can get back
-to it (`docker tag ohmzbudget:local ohmzbudget:rollback-<YYYYMMDDHHMM>`).
+to it (`docker tag sure:local sure:rollback-<YYYYMMDDHHMM>`).
 
 From the repo root:
 
 ```bash
 git -C . rev-parse HEAD           # record the commit being deployed
-deploy/dc images                  # record the current ohmzbudget:local image id
+deploy/dc images                  # record the current sure:local image id
 # ... land the new source, then:
 deploy/dc build web                       # one image, shared by web/worker/worker-heavy
 deploy/dc up -d web worker worker-heavy   # the web entrypoint runs db:prepare (pending migrations)
@@ -138,7 +138,7 @@ owner sets the live hostname in untracked `deploy/.env` as `TUNNEL_HOST` (never 
 tracked file) for the probes:
 
 ```bash
-cd ~/StudioProjects/OhmzBudget
+cd ~/StudioProjects/sure
 set -a; . deploy/.env; set +a          # TUNNEL_HOST is the untracked live value
 curl -fsS -o /dev/null -w 'local   %{http_code}\n' http://127.0.0.1:7300/up   # 200
 curl -fsS -o /dev/null -w 'tunnel  %{http_code}\n' "https://$TUNNEL_HOST/up"  # 200
@@ -170,14 +170,14 @@ once (or `200` once onboarding is complete); `/up` answers `200` with no
 `$BACKUP_DIR` and prunes the set:
 
 - `sure_db_<ts>.sql.gz` — `pg_dump` of the app database (`db` container, local socket).
-- `app-storage_<ts>.tgz` — the `ohmzbudget_app-storage` volume: the Active Storage
+- `app-storage_<ts>.tgz` — the `sure_app-storage` volume: the Active Storage
   attachments **and** the document store (`/rails/storage/paperless-staged`). With
   paperless gone this volume is the only copy of every uploaded original.
 
 `<ts>` is `date +%Y-%m-%d_%H%M%S`; the run uses one timestamp for both files.
 `BACKUP_DIR` must be set in the untracked `deploy/.env` — the script hard-requires
 it and aborts with `set BACKUP_DIR in deploy/.env` when it is unset; this
-deployment uses `/home/ohmz/ohmzbudget-backups/backups`. `BACKUP_KEEP_DAYS`
+deployment uses `/home/ohmz/sure-backups/backups`. `BACKUP_KEEP_DAYS`
 (default `14`) comes from the same file; artifacts older than `BACKUP_KEEP_DAYS`
 are deleted (`find … -mtime +N -delete`, which also sweeps stray `*.part` files
 and the dot-named `.*.sql` dump temps). Both names are fixed (consumed by the
@@ -201,7 +201,7 @@ Host crontab entry (03:17 — off the top of the hour; the log lives under the
 owner's backup root, not `/var/log`):
 
 ```cron
-17 3 * * * /home/ohmz/StudioProjects/OhmzBudget-native-a/deploy/backup.sh >> /home/ohmz/ohmzbudget-backups/backup.log 2>&1
+17 3 * * * /home/ohmz/StudioProjects/sure/deploy/backup.sh >> /home/ohmz/sure-backups/backup.log 2>&1
 ```
 
 ## Monitoring schedule
@@ -220,7 +220,7 @@ Host crontab entry (every 30 minutes; the log lives under the owner's backup
 root, not `/var/log`):
 
 ```cron
-*/30 * * * * /home/ohmz/StudioProjects/OhmzBudget-native-a/deploy/healthcheck-alert.sh >> "$HOME/ohmzbudget-backups/healthcheck.log" 2>&1
+*/30 * * * * /home/ohmz/StudioProjects/sure/deploy/healthcheck-alert.sh >> "$HOME/sure-backups/healthcheck.log" 2>&1
 ```
 
 Confirm it is installed with `crontab -l | grep healthcheck`.
@@ -229,11 +229,11 @@ Confirm it is installed with `crontab -l | grep healthcheck`.
 `deploy/restore-drill.sh` (mode 0755) proves the newest dump is a real,
 loadable backup — the M0 exit criterion. It **never touches the live database**:
 it loads `sure_db_<ts>.sql.gz` into a scratch database
-`ohmzbudget_restore_drill` on the same `db` container, compares it against live,
+`sure_restore_drill` on the same `db` container, compares it against live,
 then drops the scratch database.
 
 ```bash
-cd ~/StudioProjects/OhmzBudget
+cd ~/StudioProjects/sure
 deploy/restore-drill.sh
 ```
 
@@ -241,7 +241,7 @@ What it does, in order, and what fails the run (any mismatch exits non-zero):
 
 - Picks the newest `sure_db_*.sql.gz` and `app-storage_*.tgz` from `$BACKUP_DIR`
   (a missing app dump or storage archive aborts up front).
-- `DROP DATABASE IF EXISTS` / `CREATE DATABASE ohmzbudget_restore_drill`, then
+- `DROP DATABASE IF EXISTS` / `CREATE DATABASE sure_restore_drill`, then
   loads the gzipped dump into it with `psql`.
 - Compares `entries` **and** `users` row counts, live vs restored; they must be
   equal, and restored `users` must be `>= 1` (an empty dump cannot pass).
@@ -250,10 +250,10 @@ What it does, in order, and what fails the run (any mismatch exits non-zero):
 - Asserts the document store (`/paperless-staged/`) is present inside the
   app-storage archive — with paperless gone that volume is the only copy of every
   uploaded original, so a set without it is not a backup of the documents.
-- `DROP DATABASE ohmzbudget_restore_drill` — no scratch database is left behind.
+- `DROP DATABASE sure_restore_drill` — no scratch database is left behind.
 - Prints `restore drill OK` and exits `0`.
 
-Each run writes only to `ohmzbudget_restore_drill`; the live `sure_production`
+Each run writes only to `sure_restore_drill`; the live `sure_production`
 database is read for the comparison counts and otherwise untouched. The drill is
 the verification for the backup set, so run it after enabling cron and after any
 schema or backup change.
@@ -272,7 +272,7 @@ backup dir first — without it `"$BACKUP_DIR"/sure_db_*.sql.gz` expands to
 come from psql's 0:
 
 ```bash
-cd ~/StudioProjects/OhmzBudget
+cd ~/StudioProjects/sure
 set -a; . deploy/.env; set +a
 : "${BACKUP_DIR:?set BACKUP_DIR in deploy/.env}"
 ```
@@ -304,8 +304,8 @@ merge:
 
 ```bash
 deploy/dc stop web worker worker-heavy
-docker run --rm -v ohmzbudget_app-storage:/data alpine:3.20 sh -c 'find /data -mindepth 1 -delete'
-docker run --rm -v ohmzbudget_app-storage:/data -v "$BACKUP_DIR":/backup:ro alpine:3.20 \
+docker run --rm -v sure_app-storage:/data alpine:3.20 sh -c 'find /data -mindepth 1 -delete'
+docker run --rm -v sure_app-storage:/data -v "$BACKUP_DIR":/backup:ro alpine:3.20 \
   tar xzf "/backup/$(basename "$(ls -t "$BACKUP_DIR"/app-storage_*.tgz | head -1)")" -C /data
 ```
 
@@ -339,7 +339,7 @@ the recorded local-dev branch is **`containers`** — it is the executed,
 evidenced loop below. The **host-Ruby** branch is the documented fidelity
 upgrade and is *not* installed. Both use upstream's `.devcontainer/` stack (its
 own `db`/`redis`/`selenium`; compose project `devcontainer`, separate from the
-`ohmzbudget` deploy project).
+`sure` deploy project).
 
 ### Container branch (recorded default)
 The dev stack's four published ports are loopback-bound — `127.0.0.1:5432`
@@ -371,7 +371,7 @@ docker compose -f .devcontainer/docker-compose.yml restart db
 Build, prepare, smoke, full suite:
 
 ```bash
-cd ~/StudioProjects/OhmzBudget
+cd ~/StudioProjects/sure
 docker compose -f .devcontainer/docker-compose.yml build app
 docker compose -f .devcontainer/docker-compose.yml run --rm app bash -lc \
   'bundle install && bin/rails db:prepare'
@@ -392,7 +392,7 @@ Needs a version manager (`mise`/`asdf` absent). A fresh `mise` install is
 ```bash
 curl -fsSL https://mise.run | sh
 export PATH="$HOME/.local/bin:$PATH"
-cd ~/StudioProjects/OhmzBudget
+cd ~/StudioProjects/sure
 mise settings add idiomatic_version_file_enable_tools ruby
 mise use ruby@3.4.9
 mise install

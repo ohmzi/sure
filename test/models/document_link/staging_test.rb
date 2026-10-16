@@ -6,7 +6,7 @@ class DocumentLink::StagingTest < ActiveSupport::TestCase
   setup do
     @tmp = Pathname.new(Dir.mktmpdir("document-staging"))
     @link = document_links(:queued_receipt)
-    @env = { "OHMZBUDGET_DOCUMENT_STORE_DIR" => @tmp.to_s }
+    @env = { "SURE_DOCUMENT_STORE_DIR" => @tmp.to_s }
   end
 
   teardown { FileUtils.remove_entry(@tmp) if @tmp.exist? }

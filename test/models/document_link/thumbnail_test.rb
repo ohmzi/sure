@@ -18,7 +18,7 @@ class DocumentLink::ThumbnailTest < ActiveSupport::TestCase
 
   setup do
     @tmp = Pathname.new(Dir.mktmpdir("document-thumbnail"))
-    @env = { "OHMZBUDGET_DOCUMENT_STORE_DIR" => @tmp.to_s }
+    @env = { "SURE_DOCUMENT_STORE_DIR" => @tmp.to_s }
     # queued_receipt is the PDF fixture (content_type application/pdf).
     @link = document_links(:queued_receipt)
   end

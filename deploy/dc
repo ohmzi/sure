@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Run docker compose for the ohmzbudget project with secret files injected.
+# Run docker compose for the sure project with secret files injected.
 set -euo pipefail
 cd "$(dirname "$0")"
 

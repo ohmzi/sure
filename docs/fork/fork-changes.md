@@ -1,6 +1,6 @@
-# OhmzBudget — what this fork changes
+# Sure — what this fork changes
 
-This repository is `OhmzBudget`, a working fork of [`we-promise/sure`](https://github.com/we-promise/sure)
+This repository is `Sure`, a working fork of [`we-promise/sure`](https://github.com/we-promise/sure)
 that runs as a self-hosted household finance app. This file records what the fork adds and what it
 changes about upstream, so a reader can tell the two apart.
 
@@ -49,7 +49,7 @@ changes to 286 upstream files (the contact surface the runbook tracks).
 - **The deploy stack** — `deploy/`: a compose project, the `dc` control script, backups, a proven
   restore drill, container healthchecks and an alert path, all described in `deploy/README.md`.
 - **Docs** — `docs/llm-guides/` (architecture, design system, testing, provider work, feature
-  gating), `docs/hosting/` per-integration notes, and `docs/ohmzbudget/`.
+  gating), `docs/hosting/` per-integration notes, and `docs/fork/`.
 - **Tests** — fixtures, system tests and VCR cassettes for the provider paths, throughout.
 
 ## The migrations it adds

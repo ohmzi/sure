@@ -1,4 +1,4 @@
-namespace :ohmzbudget do
+namespace :sure do
   desc "First-run bootstrap: household family + first super_admin (password on stdin) + close signup"
   task first_run: :environment do
     email = ENV["ADMIN_EMAIL"].to_s
@@ -12,7 +12,7 @@ namespace :ohmzbudget do
         STDIN.read.strip
       end
 
-    result = Ohmzbudget::FirstRun.call(email: email, password: password)
+    result = Sure::FirstRun.call(email: email, password: password)
     puts "super_admin=#{result.user.email} role=#{result.user.role} " \
          "family=#{result.family.name} onboarding_state=#{result.onboarding_state}"
   end

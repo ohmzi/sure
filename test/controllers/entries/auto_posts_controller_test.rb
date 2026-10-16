@@ -6,8 +6,8 @@ require "test_helper"
 class Entries::AutoPostsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @tmp = Pathname.new(Dir.mktmpdir("auto-post-undo"))
-    @previous_staging = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = @tmp.to_s
+    @previous_staging = ENV["SURE_DOCUMENT_STORE_DIR"]
+    ENV["SURE_DOCUMENT_STORE_DIR"] = @tmp.to_s
 
     sign_in users(:family_admin)
     @entry = entries(:transaction_entry)
@@ -15,7 +15,7 @@ class Entries::AutoPostsControllerTest < ActionDispatch::IntegrationTest
   end
 
   teardown do
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = @previous_staging
+    ENV["SURE_DOCUMENT_STORE_DIR"] = @previous_staging
     FileUtils.remove_entry(@tmp) if @tmp.exist?
   end
 

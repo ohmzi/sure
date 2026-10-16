@@ -1,6 +1,6 @@
-# OhmzBudget deploy stack — the Rails app plus the internal OCR sidecar. (The
+# Sure deploy stack — the Rails app plus the internal OCR sidecar. (The
 # paperless-ngx services were removed in Milestone A; their volumes stay on disk.)
-name: ohmzbudget
+name: sure
 
 x-app-env: &app_env
   SELF_HOSTED: "true"
@@ -20,7 +20,7 @@ x-app-env: &app_env
   # document (Staging.resolve! rejects them, #file 404s). The directory rename is
   # deferred to Milestone B, where the files and the stored paths move together
   # (Ruling R25).
-  OHMZBUDGET_DOCUMENT_STORE_DIR: "${OHMZBUDGET_DOCUMENT_STORE_DIR:-/rails/storage/paperless-staged}"
+  SURE_DOCUMENT_STORE_DIR: "${SURE_DOCUMENT_STORE_DIR:-/rails/storage/paperless-staged}"
   # The OCR sidecar contract. The sidecar is internal-only, so web/worker must
   # join its network to reach it.
   OCR_SERVICE_URL: "${OCR_SERVICE_URL:-http://ocr:9000}"
@@ -64,7 +64,7 @@ x-drop-hardening: &drop_hardening
 
 services:
   web:
-    image: ohmzbudget:local
+    image: sure:local
     build:
       context: ..
       dockerfile: Dockerfile
@@ -99,7 +99,7 @@ services:
       - internal
 
   worker:
-    image: ohmzbudget:local
+    image: sure:local
     build:
       context: ..
       dockerfile: Dockerfile
@@ -136,7 +136,7 @@ services:
   # document) runs for minutes at a time. Its own worker keeps a 40-page
   # statement from occupying a slot the mailer and the syncs need.
   worker-heavy:
-    image: ohmzbudget:local
+    image: sure:local
     build:
       context: ..
       dockerfile: Dockerfile
@@ -205,7 +205,6 @@ services:
   ocr:
     build:
       context: ../ocr
-    container_name: ocr
     environment:
       OCR_LANG: ${OCR_LANG:-en}
       OCR_DPI: ${OCR_DPI:-300}
@@ -237,7 +236,7 @@ volumes:
 
 networks:
   default:
-    name: ohmzbudget_default
+    name: sure_default
   internal:
-    name: ohmzbudget_internal
+    name: sure_internal
     internal: true

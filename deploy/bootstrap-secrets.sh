@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Generate/re-home the OhmzBudget deploy secrets into deploy/secrets/.
+# Generate/re-home the Sure deploy secrets into deploy/secrets/.
 # Never prints a secret value — only file paths and sizes.
 set -euo pipefail
 cd "$(dirname "$0")"

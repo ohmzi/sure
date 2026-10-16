@@ -34,9 +34,9 @@ involved: [Discord](https://discord.gg/36ZGBsxYEK) • [Website](https://sure.am
 > self-hosted household finance app that adds a native documents → statement → transaction pipeline,
 > YNAB-shaped envelope budgeting, and its own deployable stack. What it adds and what it changes,
 > milestone by milestone, is in
-> [`docs/ohmzbudget/fork-changes.md`](docs/ohmzbudget/fork-changes.md); the procedure for rebasing
+> [`docs/fork/fork-changes.md`](docs/fork/fork-changes.md); the procedure for rebasing
 > onto upstream is in
-> [`docs/ohmzbudget/upstream-rebase.md`](docs/ohmzbudget/upstream-rebase.md).
+> [`docs/fork/upstream-rebase.md`](docs/fork/upstream-rebase.md).
 
 ## Backstory
 

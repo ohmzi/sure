@@ -12,7 +12,7 @@ set -a; . ./.env; set +a
 : "${POSTGRES_USER:=sure_user}"
 : "${POSTGRES_DB:=sure_production}"
 
-SCRATCH="ohmzbudget_restore_drill"
+SCRATCH="sure_restore_drill"
 DUMP="$(ls -1t "$BACKUP_DIR"/sure_db_*.sql.gz 2>/dev/null | head -1 || true)"
 STORAGE="$(ls -1t "$BACKUP_DIR"/app-storage_*.tgz 2>/dev/null | head -1 || true)"
 [ -n "$DUMP" ] || { echo "no dump found in $BACKUP_DIR" >&2; exit 1; }

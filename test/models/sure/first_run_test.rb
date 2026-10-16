@@ -2,9 +2,9 @@
 
 require "test_helper"
 
-class Ohmzbudget::FirstRunTest < ActiveSupport::TestCase
+class Sure::FirstRunTest < ActiveSupport::TestCase
   test "creates a household family and a super_admin and closes signup" do
-    result = Ohmzbudget::FirstRun.call(
+    result = Sure::FirstRun.call(
       email: "first-run-#{SecureRandom.hex(4)}@example.com",
       password: "correct-horse-9A!",
       family_name: "M0 Household"
@@ -21,8 +21,8 @@ class Ohmzbudget::FirstRunTest < ActiveSupport::TestCase
 
   test "is idempotent for the same email and leaves exactly one super_admin" do
     email = "first-run-idem-#{SecureRandom.hex(4)}@example.com"
-    first = Ohmzbudget::FirstRun.call(email: email, password: "correct-horse-9A!", family_name: "M0 Household")
-    second = Ohmzbudget::FirstRun.call(email: email, password: "another-horse-1B!", family_name: "M0 Household")
+    first = Sure::FirstRun.call(email: email, password: "correct-horse-9A!", family_name: "M0 Household")
+    second = Sure::FirstRun.call(email: email, password: "another-horse-1B!", family_name: "M0 Household")
 
     assert_equal first.user.id, second.user.id
     assert_equal 1, User.where(email: email).count
@@ -30,8 +30,8 @@ class Ohmzbudget::FirstRunTest < ActiveSupport::TestCase
   end
 
   test "rejects a password shorter than 8 characters" do
-    assert_raises(Ohmzbudget::FirstRun::Error) do
-      Ohmzbudget::FirstRun.call(email: "short-#{SecureRandom.hex(4)}@example.com", password: "short")
+    assert_raises(Sure::FirstRun::Error) do
+      Sure::FirstRun.call(email: "short-#{SecureRandom.hex(4)}@example.com", password: "short")
     end
   end
 end

@@ -100,8 +100,8 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     # The import pipeline's own statement path must leave the same DocumentLink
     # spine the Documents page reads (Milestone B Task 3, Step 7).
     store = Pathname.new(Dir.mktmpdir("ofx-link"))
-    previous = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = store.to_s
+    previous = ENV["SURE_DOCUMENT_STORE_DIR"]
+    ENV["SURE_DOCUMENT_STORE_DIR"] = store.to_s
 
     import = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
 
@@ -119,7 +119,7 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "statement", link.source
     assert link.stored_path.present?
   ensure
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = previous
+    ENV["SURE_DOCUMENT_STORE_DIR"] = previous
     FileUtils.remove_entry(store) if store&.exist?
   end
 
@@ -130,8 +130,8 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     # derived_entries following the statement's id, so the statement's document
     # still refuses to delete while any of its rows are unreconciled.
     store = Pathname.new(Dir.mktmpdir("ofx-import-link"))
-    previous = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = store.to_s
+    previous = ENV["SURE_DOCUMENT_STORE_DIR"]
+    ENV["SURE_DOCUMENT_STORE_DIR"] = store.to_s
 
     import = OfxImport.create!(family: users(:family_admin).family, account: accounts(:depository))
 
@@ -161,7 +161,7 @@ class Import::UploadsControllerTest < ActionDispatch::IntegrationTest
     assert_not link.deletable?
     assert_includes link.deletion_blockers, entry.name
   ensure
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = previous
+    ENV["SURE_DOCUMENT_STORE_DIR"] = previous
     FileUtils.remove_entry(store) if store&.exist?
   end
 

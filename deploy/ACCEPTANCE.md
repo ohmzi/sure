@@ -63,14 +63,14 @@ in Milestone A's own acceptance run.
     `target_*` and household `user_id` survive (cross-check Task 6's test).
 11. Restore. Take a backup; restore into a scratch DB per the deploy README.
     Observation: `/up` 200, a stored document still streams, a sync recomputes a
-    balance. Run `BACKUP_DIR=/tmp/ohmzbudget-empty-backups ALERT_WEBHOOK_URL=<hook> deploy/healthcheck-alert.sh`
+    balance. Run `BACKUP_DIR=/tmp/sure-empty-backups ALERT_WEBHOOK_URL=<hook> deploy/healthcheck-alert.sh`
     → exit 1 and one alert delivered.
 
 ---
 
 # Milestone A — native document read: live acceptance run (2026-10-12)
 
-Run on the deploy host against the running stack: compose project `ohmzbudget`,
+Run on the deploy host against the running stack: compose project `sure`,
 `http://127.0.0.1:7300`, app commit `a2cbe001`. Every command below was run on
 that stack; raw output is quoted verbatim. No secret value appears here.
 
@@ -246,7 +246,7 @@ configured and a real multi-page statement read with one.
 
 # Milestone B — the native documents surface: live acceptance run (2026-10-13)
 
-Run on the deploy host against the running stack: compose project `ohmzbudget`,
+Run on the deploy host against the running stack: compose project `sure`,
 `http://127.0.0.1:7300`, app commit `ebfbafb2` (image rebuilt from the worktree).
 Every command below was run on that stack; raw output is quoted verbatim. No
 secret value appears here.
@@ -283,7 +283,7 @@ plus a reversible `down`, but this is still the owner's real ledger):
 
 ```
 $ ./backup.sh
-backup complete: 2026-10-13_021708 -> /home/ohmz/ohmzbudget-backups/backups
+backup complete: 2026-10-13_021708 -> /home/ohmz/sure-backups/backups
 $ ls -la .../sure_db_2026-10-13_021708.sql.gz .../app-storage_2026-10-13_021708.tgz
 -rw-r--r-- 1 root root 854883  app-storage_2026-10-13_021708.tgz
 -rw-rw-r-- 1 ohmz ohmz 106394  sure_db_2026-10-13_021708.sql.gz
@@ -292,16 +292,16 @@ $ gzip -t .../app-storage_2026-10-13_021708.tgz && echo "tgz OK"     # app-stora
 ```
 
 Both archives exist, are non-empty and pass `gzip -t`. The current image was
-tagged for rollback (`ohmzbudget:rollback-202610130217` = `570ef399b413`, the
+tagged for rollback (`sure:rollback-202610130217` = `570ef399b413`, the
 Milestone A image), and the compose project was confirmed to resolve to
-`ohmzbudget` (six services) via `./dc config --services` before anything changed.
+`sure` (six services) via `./dc config --services` before anything changed.
 
 ```
-$ ./dc build web                 # Image ohmzbudget:local Built
+$ ./dc build web                 # Image sure:local Built
 $ ./dc up -d web worker worker-heavy
- Container ohmzbudget-web-1 Recreated ... Started
- Container ohmzbudget-worker-1 Recreated ... Started
- Container ohmzbudget-worker-heavy-1 Recreated ... Started
+ Container sure-web-1 Recreated ... Started
+ Container sure-worker-1 Recreated ... Started
+ Container sure-worker-heavy-1 Recreated ... Started
 ```
 
 (The `paperless*` orphan-container warning is expected — those volumes stay on
@@ -311,11 +311,11 @@ Milestone B migrations:
 ```
 $ ./dc ps --format '{{.Name}} {{.State}} {{.Health}}'
 ocr                    running  healthy
-ohmzbudget-db-1        running  healthy
-ohmzbudget-redis-1     running  healthy
-ohmzbudget-web-1       running  healthy
-ohmzbudget-worker-1    running  healthy
-ohmzbudget-worker-heavy-1 running healthy
+sure-db-1        running  healthy
+sure-redis-1     running  healthy
+sure-web-1       running  healthy
+sure-worker-1    running  healthy
+sure-worker-heavy-1 running healthy
 
 $ curl -s -o /dev/null -w 'local %{http_code}\n' http://127.0.0.1:7300/up
 local 200
@@ -472,20 +472,20 @@ touch the viewer, the provenance resolver, the auto-post undo and the statement'
 
 ```
 $ ./backup.sh
-backup complete: 2026-10-13_033625 -> /home/ohmz/ohmzbudget-backups/backups
+backup complete: 2026-10-13_033625 -> /home/ohmz/sure-backups/backups
 $ gzip -t .../sure_db_2026-10-13_033625.sql.gz && echo ok   # ok
 $ tar -tzf .../app-storage_2026-10-13_033625.tgz >/dev/null # ok
 $ ./dc up -d web worker worker-heavy
- Container ohmzbudget-web-1 Recreated ... Started
- Container ohmzbudget-worker-1 Recreated ... Started
- Container ohmzbudget-worker-heavy-1 Recreated ... Started
+ Container sure-web-1 Recreated ... Started
+ Container sure-worker-1 Recreated ... Started
+ Container sure-worker-heavy-1 Recreated ... Started
 $ ./dc ps --format '{{.Name}} {{.State}} {{.Health}}'       # six services healthy
 $ curl -s -o /dev/null -w 'up %{http_code}\n' http://127.0.0.1:7300/up   # up 200
 ```
 
-- Pre-deploy image tagged for rollback: `ohmzbudget:rollback-202610130332`
+- Pre-deploy image tagged for rollback: `sure:rollback-202610130332`
   (= `f60857c7907d`). This wave adds **no migrations**, so a rollback is the image
-  swap alone: `docker tag ohmzbudget:rollback-202610130332 ohmzbudget:local &&
+  swap alone: `docker tag sure:rollback-202610130332 sure:local &&
   ./dc up -d web worker worker-heavy`.
 - Post-deploy: six services healthy, `/up` 200, three columns present, **no pending
   migrations**, and the owner's archive unchanged (10 documents / 21 entries).

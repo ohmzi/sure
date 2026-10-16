@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module Ohmzbudget
+module Sure
   # First-run bootstrap for the fork: an idempotent household family + the
   # first super_admin, then close open signup. Kept as a PORO (house style:
   # logic in models, not app/services) so it is unit-testable without Rake.

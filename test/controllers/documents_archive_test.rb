@@ -3,13 +3,13 @@ require "test_helper"
 class DocumentsArchiveTest < ActionDispatch::IntegrationTest
   setup do
     @tmp = Pathname.new(Dir.mktmpdir("archive"))
-    @previous_staging = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = @tmp.to_s
+    @previous_staging = ENV["SURE_DOCUMENT_STORE_DIR"]
+    ENV["SURE_DOCUMENT_STORE_DIR"] = @tmp.to_s
     sign_in users(:family_admin)
   end
 
   teardown do
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = @previous_staging
+    ENV["SURE_DOCUMENT_STORE_DIR"] = @previous_staging
     FileUtils.remove_entry(@tmp) if @tmp.exist?
   end
 
@@ -282,8 +282,8 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
   # -- the tag facet (M8 Task 6) ----------------------------------------------
 
   test "the tag facet filters by the stored snapshot" do
-    document_links(:unlinked_receipt).update!(tags: %w[ohmzbudget receipt])
-    document_links(:held_bill).update!(tags: %w[ohmzbudget bill])
+    document_links(:unlinked_receipt).update!(tags: %w[sure receipt])
+    document_links(:held_bill).update!(tags: %w[sure bill])
 
     get documents_path(q: { tags: %w[bill] })
     assert_response :success
@@ -296,11 +296,11 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
   # controller -> component -> filter_form relay (M8 Task 6, the plan's
   # `tag_choices` flow; its Files list did not name the two index views).
   test "the tag facet renders the stored snapshot names as choices" do
-    document_links(:held_bill).update!(tags: %w[ohmzbudget bill])
+    document_links(:held_bill).update!(tags: %w[sure bill])
 
     get documents_path
     assert_select "input[name='q[tags][]'][value='bill']"
-    assert_select "input[name='q[tags][]'][value='ohmzbudget']"
+    assert_select "input[name='q[tags][]'][value='sure']"
     assert_select "input[name='q[tags][]'][checked='checked'][value='bill']", count: 0
   end
 

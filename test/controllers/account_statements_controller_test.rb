@@ -149,8 +149,8 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     # Documents page. The link (source "statement", the same bytes staged) is
     # what makes DocumentLink the spine every document has.
     store = Pathname.new(Dir.mktmpdir("statement-link"))
-    previous = ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"]
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = store.to_s
+    previous = ENV["SURE_DOCUMENT_STORE_DIR"]
+    ENV["SURE_DOCUMENT_STORE_DIR"] = store.to_s
 
     assert_difference "DocumentLink.count", 1 do
       post account_statements_url, params: {
@@ -168,7 +168,7 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_equal statement.id, link.account_statement_id
     assert link.stored_path.present?, "the same bytes are staged so the grid can preview it"
   ensure
-    ENV["OHMZBUDGET_DOCUMENT_STORE_DIR"] = previous
+    ENV["SURE_DOCUMENT_STORE_DIR"] = previous
     FileUtils.remove_entry(store) if store&.exist?
   end
 
@@ -813,7 +813,7 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
       file: uploaded_file(filename: "tagged_statement.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
     )
     link = DocumentLink.link_from_upload!(family: tagged.family, uploader: users(:family_admin), source: "statement")
-    link.update!(account_statement: tagged, status: "unlinked", tags: %w[ohmzbudget statement])
+    link.update!(account_statement: tagged, status: "unlinked", tags: %w[sure statement])
     untagged = AccountStatement.create_from_upload!(
       family: @account.family, account: @account,
       file: uploaded_file(filename: "untagged_statement.csv", content_type: "text/csv", content: "date,amount\n2024-01-02,2\n")
@@ -821,7 +821,7 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
 
     get account_statements_path
     assert_select "input[name='q[tags][]'][value='statement']"  # the choices ride the visible links' snapshots
-    assert_select "input[name='q[tags][]'][value='ohmzbudget']"
+    assert_select "input[name='q[tags][]'][value='sure']"
 
     get account_statements_path(q: { tags: %w[statement] })
     assert_match tagged.filename, response.body

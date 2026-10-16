@@ -2,7 +2,7 @@
 # Nightly backup: the Sure DB dump and the app-storage volume.
 #
 # The app-storage volume holds BOTH the Active Storage attachments AND the
-# document store (OHMZBUDGET_DOCUMENT_STORE_DIR = /rails/storage/paperless-staged).
+# document store (SURE_DOCUMENT_STORE_DIR = /rails/storage/paperless-staged).
 # With paperless-ngx removed it is the only copy of every original the app has
 # read, so it must stay in the set.
 set -euo pipefail
@@ -61,7 +61,7 @@ archive_volume() {   # archive_volume <volume> <target>
 
 # 2. app-storage volume: Active Storage attachments + the document store
 #    (/rails/storage/paperless-staged — the only copy of every original).
-archive_volume ohmzbudget_app-storage "$BACKUP_DIR/app-storage_$TS.tgz"
+archive_volume sure_app-storage "$BACKUP_DIR/app-storage_$TS.tgz"
 
 # Retention
 find "$BACKUP_DIR" -type f \( -name '*.sql.gz' -o -name '*.tgz' -o -name '*.part' -o -name '.*.sql' \) -mtime +"$BACKUP_KEEP_DAYS" -delete
