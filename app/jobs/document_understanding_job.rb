@@ -212,7 +212,7 @@ class DocumentUnderstandingJob < ApplicationJob
 
     DocumentExtraction.record!(
       document_link: link,
-      provider: outcome.reader ? outcome.reader.provider.provider_name : STATEMENT_READER,
+      provider: outcome.reader ? outcome.reader.provider.provider_name : TEXT_READER,
       model: outcome.reader&.provider&.llm_model,
       ocr_engine: result.engine,
       page_count: result.pages.size,
@@ -313,8 +313,9 @@ class DocumentUnderstandingJob < ApplicationJob
       end
     end
 
-    # The provider name a read made without any model records.
-    STATEMENT_READER = "statement reader"
+    # The reader name a read made without any model records (statements and
+    # receipts alike: the document's own text).
+    TEXT_READER = "text reader"
 
     # Spec §2/§3: a no-model pass first — a proven statement with a complete
     # printed identity is finished without any reader — then each reader in
@@ -435,7 +436,7 @@ class DocumentUnderstandingJob < ApplicationJob
     def row_count(read) = read.understanding.transactions.size
 
     def attempt_entry(reader, outcome, seconds, detail: nil)
-      { "reader" => reader&.label || STATEMENT_READER, "kind" => reader&.kind&.to_s || "text",
+      { "reader" => reader&.label || TEXT_READER, "kind" => reader&.kind&.to_s || "text",
         "outcome" => outcome, "seconds" => seconds.round(1), "detail" => detail.presence }.compact
     end
 
@@ -566,6 +567,14 @@ class DocumentUnderstandingJob < ApplicationJob
         # The ladder already made the full read (rows wanted). If a reader failure
         # struck before the vision call there is no understanding yet, so fall
         # back to the full read — today's path either way.
+        # A receipt or bill the text alone proves needs no model (the owner's
+        # rule: the reader first).
+        if provider.nil? && model_understanding.nil? && (receipt = proven_receipt(result))
+          printed = DocumentUnderstanding.new(receipt_verdict(receipt))
+          return DocumentRead.new(understanding: printed, statement_read: nil, model_understanding: printed,
+                                  identity_source: "text_layer")
+        end
+
         understanding = model_understanding || understand_in_batches(provider, result, link)
         if understanding.document_class == "statement"
           oriented = StatementRead::SignOrientation.call(understanding.transactions, read.stated_totals)
@@ -575,7 +584,7 @@ class DocumentUnderstandingJob < ApplicationJob
                            identity_source: read.identity ? "text_layer+model" : "model",
                            row_orientation: (oriented.orientation.to_s unless read.reconciled? && read.source != :vision))
         else
-          DocumentRead.new(understanding: understanding, statement_read: nil,
+          DocumentRead.new(understanding: overlay_receipt(understanding, result), statement_read: nil,
                            model_understanding: understanding)
         end
       end
@@ -635,6 +644,34 @@ class DocumentUnderstandingJob < ApplicationJob
       return understanding unless read&.identity
 
       DocumentUnderstanding.new(understanding.to_verdict.merge(read.identity.to_verdict_fields.except("document_class")))
+    end
+
+    # A receipt or bill read from its own text whose arithmetic holds and whose
+    # total and date are both printed; nil otherwise (the model is asked).
+    def proven_receipt(result)
+      receipt = ReceiptRead.call(result.text)
+      receipt if receipt.checked && receipt.complete?
+    end
+
+    def receipt_verdict(receipt)
+      {
+        "document_class" => receipt.document_class, "total" => receipt.total&.to_s("F"),
+        "date" => receipt.date&.iso8601, "payee" => receipt.merchant,
+        "line_items" => receipt.items.map { |item| { "description" => item["description"], "amount" => item["amount"].to_s("F") } }
+      }.compact
+    end
+
+    # The model read a receipt or bill: what the text prints wins — its total and
+    # date always, its items when they add up. The store name stays the model's
+    # when it gave one (it can read a logo the OCR cannot).
+    def overlay_receipt(understanding, result)
+      return understanding unless understanding.document_class.in?(%w[receipt bill])
+
+      receipt = ReceiptRead.call(result.text)
+      printed = receipt_verdict(receipt).slice("total", "date")
+      printed["line_items"] = receipt_verdict(receipt)["line_items"] if receipt.checked
+      printed["payee"] = receipt.merchant if understanding.payee.blank? && receipt.merchant
+      DocumentUnderstanding.new(understanding.to_verdict.merge(printed.compact))
     end
 
     # A statement route MUST carry a read (R-W8B18). This stands in on an

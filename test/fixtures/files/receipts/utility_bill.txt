@@ -1,0 +1,11 @@
+OAKVILLE HYDRO
+Account number 4471-002
+Billing period Aug 1, 2026 to Aug 31, 2026
+Statement date Sep 5, 2026
+Electricity charges        74.30
+Delivery                   41.12
+Regulatory charges          6.45
+Subtotal                  121.87
+HST                        15.84
+Amount due               137.71
+Due date Sep 26, 2026

@@ -309,6 +309,34 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
 
   def attempts(link = @link) = link.reload.extraction.validations["read_attempts"]
 
+  # The owner's rule for receipts: the text reader first. A receipt whose own
+  # arithmetic proves it needs no model at all.
+  test "a receipt the text proves is read with no model call" do
+    stub_ocr_success(pages: [ { page: 1, text: file_fixture("receipts/grocery.txt").read, confidence: 0.97, image: "aGk=" } ])
+    provider = FakeProvider.new(RECEIPT)
+    provider.expects(:understand_document).never
+    stub_provider(provider)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    draft = ReceiptImport.find_by!(document_link: @link)
+    assert_equal BigDecimal("11.92"), draft.total_amount
+    assert_equal Date.new(2026, 9, 14), draft.purchase_date
+    assert_equal "text reader", @link.reload.extraction.provider
+  end
+
+  test "when the model is asked, the reader's total and date beat the model's" do
+    stub_ocr_success(pages: [ { page: 1, text: file_fixture("receipts/fuel.txt").read, confidence: 0.97, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(RECEIPT.merge("total" => "99.99", "date" => "2026-01-01", "payee" => "Petro-Canada")))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    draft = ReceiptImport.find_by!(document_link: @link)
+    assert_equal BigDecimal("62.53"), draft.total_amount, "the printed TOTAL, not the model's"
+    assert_equal Date.new(2026, 9, 28), draft.purchase_date
+    assert_equal "Petro-Canada", draft.payee, "the store name may come from the model"
+  end
+
   test "a busy GPU skips the local reader and the cloud reads the document" do
     stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
     guard = local_guard

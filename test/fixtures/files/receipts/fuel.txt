@@ -1,0 +1,8 @@
+PETRO-CANADA 33755
+OAKVILLE ON
+DATE 09/28/2026  TIME 08:03
+PUMP 4 REGULAR
+40.112 L @ 1.559/L
+FUEL TOTAL                62.53
+TOTAL                     62.53
+DEBIT                     62.53

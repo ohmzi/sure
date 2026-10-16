@@ -1,0 +1,10 @@
+SHAWARMA PALACE
+Server: Kim   Table 4
+Sep 20, 2026  7:15 PM
+Chicken Plate              18.50
+Falafel Wrap               11.00
+Mango Juice                 4.50
+Subtotal                   34.00
+HST                         4.42
+Tip                         6.00
+Total                      44.42

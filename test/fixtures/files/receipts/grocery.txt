@@ -1,0 +1,12 @@
+FRESHMART GROCERY #214
+123 Main St, Oakville ON
+(905) 555-0100
+2026-09-14 18:42
+MILK 2L                    5.49
+BREAD WHOLE WHEAT          3.99
+BANANAS 1.2KG              2.16
+SUBTOTAL                  11.64
+HST 13%                    0.28
+TOTAL                     11.92
+VISA ************1512     11.92
+THANK YOU FOR SHOPPING
