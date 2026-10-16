@@ -224,4 +224,17 @@ class StatementRead::TableParserTest < ActiveSupport::TestCase
   end
 
   def amount_field?(token) = StatementRead::TableParser::AMOUNT_FIELD.match?(token)
+
+  # The live August/September statements (2026-10-16): the side panel's prose
+  # bleeds onto the card header line in the text layer, and the card number was
+  # read to the END of the line — the panel's digits became the card, every row
+  # went unattributed, and a perfect read failed its per-card check.
+  test "a card header with the side panel's text on the same line keeps its own card" do
+    bled = text.sub(/^Purchases - Card #0000 12XX XXXX 1111.*$/,
+                    "Purchases - Card #0000 12XX XXXX 1111                         ** Charges include HST ON 13%, NS 14%")
+    parser = StatementRead::TableParser.call(bled)
+
+    cards = parser.entries.select { |entry| entry["section"] == :purchases }.map { |entry| entry["card"] }.uniq
+    assert_includes cards, "1111"
+  end
 end

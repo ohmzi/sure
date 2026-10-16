@@ -72,7 +72,11 @@ class Provider::Openai < Provider
   # @param uri_base [String, nil] custom endpoint base URL (OpenAI when nil)
   # @param model [String, nil] default model; required when uri_base is set
   # @return [void]
-  def initialize(access_token, uri_base: nil, model: nil, request_timeout: nil)
+  # `cap_document_reads: false` withholds the response cap from document reads:
+  # a cloud reader's reasoning counts against max_tokens (DeepSeek ended the
+  # reply mid-JSON at 8192), and its request timeout already bounds it.
+  def initialize(access_token, uri_base: nil, model: nil, request_timeout: nil, cap_document_reads: true)
+    @cap_document_reads = cap_document_reads
     client_options = { access_token: access_token }
     llm_uri_base = uri_base.presence
     llm_model = model.presence
@@ -390,7 +394,7 @@ class Provider::Openai < Provider
         langfuse_trace: trace,
         family: family,
         rows_expected: rows_expected,
-        max_tokens: explicit_max_response_tokens
+        max_tokens: (explicit_max_response_tokens if @cap_document_reads)
       ).read
 
       upsert_langfuse_trace(trace: trace, output: result.to_verdict)

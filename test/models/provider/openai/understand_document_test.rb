@@ -66,6 +66,19 @@ class Provider::Openai::UnderstandDocumentTest < ActiveSupport::TestCase
     assert_requested(:post, %r{/chat/completions\z}) { |req| JSON.parse(req.body)["max_tokens"] == 8192 }
   end
 
+  # Live regression 2026-10-16: DeepSeek's reasoning counts against max_tokens,
+  # so an 8192 cap ended the reply mid-JSON (finish_reason "length") and every
+  # cloud read failed. A cloud reader is bounded by its timeout, not a cap.
+  test "a provider built without a document cap never sends one" do
+    Setting.stubs(:llm_max_response_tokens).returns(8192)
+    stub_openai_chat(body: { "choices" => [ { "message" => { "content" => { "document_class" => "receipt" }.to_json } } ] })
+
+    Provider::Openai.new("k", uri_base: "https://api.deepseek.com", model: "deepseek-flash", cap_document_reads: false)
+                    .understand_document(pages: [ "aW1n" ], ocr_text: "TOTAL 9.99", family: families(:dylan_family))
+
+    assert_requested(:post, %r{/chat/completions\z}) { |req| !JSON.parse(req.body).key?("max_tokens") }
+  end
+
   test "with no cap configured none is sent, so a stock install is never truncated" do
     Setting.stubs(:llm_max_response_tokens).returns(nil)
     stub_openai_chat(body: { "choices" => [ { "message" => { "content" => { "document_class" => "receipt" }.to_json } } ] })

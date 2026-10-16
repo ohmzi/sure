@@ -211,7 +211,7 @@ class Provider::RegistryTest < ActiveSupport::TestCase
     Setting.stubs(:deepseek_model).returns(nil)
 
     Provider::Openai.expects(:new)
-      .with("ds-key", uri_base: "https://api.deepseek.com", model: "deepseek-flash")
+      .with("ds-key", uri_base: "https://api.deepseek.com", model: "deepseek-flash", cap_document_reads: false)
       .returns(:deepseek_client)
 
     assert_equal :deepseek_client, Provider::Registry.get_provider(:deepseek)
@@ -223,7 +223,7 @@ class Provider::RegistryTest < ActiveSupport::TestCase
 
     Provider::Openai.expects(:new)
       .with("g-key", uri_base: "https://generativelanguage.googleapis.com/v1beta/openai",
-            model: "gemini-3.1-flash-lite")
+            model: "gemini-3.1-flash-lite", cap_document_reads: false)
       .returns(:gemini_client)
 
     assert_equal :gemini_client, Provider::Registry.get_provider(:gemini)

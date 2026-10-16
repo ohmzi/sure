@@ -293,8 +293,11 @@ class StatementRead
         nil
       end
 
+      # Only the header's own column: the text layer can carry the side panel's
+      # prose on the same line (the live August/September statements), and
+      # reading to the end of the line took the panel's digits as the card.
       def card_from(stripped)
-        match = stripped.match(/Card #(.+)\z/)
+        match = fields(stripped).first.to_s.match(/Card #(.+)\z/)
         return nil unless match
 
         digits = match[1].gsub(/\D/, "")

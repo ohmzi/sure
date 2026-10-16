@@ -144,7 +144,8 @@ class Provider::Registry
         return nil unless api_key
 
         Provider::Openai.new(api_key, uri_base: "https://api.deepseek.com",
-                                      model: Setting.deepseek_model.presence || Setting::DEEPSEEK_DEFAULT_MODEL)
+                                      model: Setting.deepseek_model.presence || Setting::DEEPSEEK_DEFAULT_MODEL,
+                                      cap_document_reads: false)
       end
 
       def gemini
@@ -152,7 +153,8 @@ class Provider::Registry
         return nil unless api_key
 
         Provider::Openai.new(api_key, uri_base: "https://generativelanguage.googleapis.com/v1beta/openai",
-                                      model: Setting.gemini_model.presence || Setting::GEMINI_DEFAULT_MODEL)
+                                      model: Setting.gemini_model.presence || Setting::GEMINI_DEFAULT_MODEL,
+                                      cap_document_reads: false)
       end
 
       def anthropic
