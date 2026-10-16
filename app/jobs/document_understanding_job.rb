@@ -206,6 +206,14 @@ class DocumentUnderstandingJob < ApplicationJob
     validations = validations.merge(statement_read_validations(statement_read)) if statement_read
     validations["identity_source"] = read.identity_source if read.identity_source
     validations["statement_rows_orientation"] = read.row_orientation if read.row_orientation
+    # Review C1: for a receipt or bill, `totals_agree` is the MODEL's total
+    # against the text's — the independent check receipt auto-post rests on —
+    # never the text-overlaid total against itself. With no model there is
+    # nothing independent to agree with.
+    if statement_read.nil?
+      validations["totals_agree"] =
+        (self.class.validate(model_understanding, ocr_text: result.text)["totals_agree"] if outcome.reader)
+    end
     validations["read_attempts"] = outcome.attempts
     validations["statement_rows_corroborated"] = true if outcome.corroborated
     classification = classify(understanding, link, result, statement_read)

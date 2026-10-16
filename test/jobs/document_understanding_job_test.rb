@@ -335,6 +335,18 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal BigDecimal("62.53"), draft.total_amount, "the printed TOTAL, not the model's"
     assert_equal Date.new(2026, 9, 28), draft.purchase_date
     assert_equal "Petro-Canada", draft.payee, "the store name may come from the model"
+    # Review C1: the total check compares the MODEL with the text — the gate on
+    # receipt auto-post — never the text with itself.
+    assert_equal false, @link.reload.extraction.validations["totals_agree"]
+  end
+
+  test "a receipt read from its text alone has no model to agree with, so never auto-posts on it" do
+    stub_ocr_success(pages: [ { page: 1, text: file_fixture("receipts/grocery.txt").read, confidence: 0.97, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_nil @link.reload.extraction.validations["totals_agree"]
   end
 
   test "a busy GPU skips the local reader and the cloud reads the document" do
