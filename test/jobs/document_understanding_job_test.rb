@@ -958,6 +958,52 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal 2, import.rows_count, "the model's rows route as before"
   end
 
+  # The live trap (2026-10-16): a model reads the statement's OWN printed signs,
+  # so a scan whose rows came from the model imported every payment as an
+  # expense. The rows are oriented before they route.
+  PRINTED_SIGN_STATEMENT = STATEMENT.merge(
+    "transactions" => [
+      { "date" => "2026-09-03", "amount" => "-500.00", "name" => "PAYMENT THANK YOU", "notes" => "" },
+      { "date" => "2026-09-05", "amount" => "15.75", "name" => "Cafe", "notes" => "" },
+      { "date" => "2026-09-06", "amount" => "4.25", "name" => "Fuel", "notes" => "" }
+    ]
+  ).freeze
+
+  SCAN_TOTALS_TEXT = [
+    "Balance from your last statement $1,000.00",
+    "Total credits -$500.00",
+    "Total charges $20.00",
+    "Your New Balance $520.00"
+  ].join("\n").freeze
+
+  def imported_signed_amounts(link)
+    import = PdfImport.find_by!(account_statement_id: statement_for(link).id)
+    import.rows.order(:source_row_number).map { |row| [ row.name, row.signed_amount ] }.to_h
+  end
+
+  test "a scan's model rows printed in the statement's signs import with a payment as an inflow" do
+    stub_ocr_success(pages: [ { page: 1, text: SCAN_TOTALS_TEXT, confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(PRINTED_SIGN_STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    amounts = imported_signed_amounts(@link)
+    assert amounts["PAYMENT THANK YOU"].negative?, "a payment is money in (negative entry), got #{amounts['PAYMENT THANK YOU']}"
+    assert amounts["Cafe"].positive?, "a purchase is money out"
+    assert_equal "flipped", @link.extraction.validations["statement_rows_orientation"]
+    assert_equal true, @link.extraction.validations["statement_totals_reconcile"]
+  end
+
+  test "a scan with no printed totals is oriented by its credit-named rows, unverified" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(PRINTED_SIGN_STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert imported_signed_amounts(@link)["PAYMENT THANK YOU"].negative?
+    assert_equal "keywords", @link.extraction.validations["statement_rows_orientation"]
+  end
+
   test "a drifting text-layer read holds the link and routes nothing, with the per-check detail" do
     # A mutated copy of the synthetic PDF: its one TEST MART purchase reads
     # 500.00 against the statement's stated 350.00, so the deterministic read

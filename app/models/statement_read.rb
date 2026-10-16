@@ -245,6 +245,9 @@ class StatementRead
 
       text = geometry_text
       totals = StatedTotals.call(text)
+      # A model reads the statement's own printed signs; the gate (and the
+      # import) work in the reader's convention, so orient before judging.
+      rows = SignOrientation.call(rows, totals, text: text).rows
       entries = rows.map { |row| entry_from_row(row) }
       build_result(entries, rows, totals, text: text, source: :vision, missing: [], rejected: [])
     end

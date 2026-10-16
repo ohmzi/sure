@@ -57,8 +57,11 @@ class DocumentUnderstandingJob < ApplicationJob
   # to guard); `model_understanding` is the MODEL's own read for the extraction's
   # `raw_response` (R-W8B17) — which on the identity-only path is the narrow
   # identity read, not a row table.
-  DocumentRead = Data.define(:understanding, :statement_read, :model_understanding, :identity_source) do
-    def initialize(identity_source: nil, **fields) = super(identity_source: identity_source, **fields)
+  DocumentRead = Data.define(:understanding, :statement_read, :model_understanding, :identity_source,
+                             :row_orientation) do
+    def initialize(identity_source: nil, row_orientation: nil, **fields)
+      super(identity_source: identity_source, row_orientation: row_orientation, **fields)
+    end
   end
 
   # An OCR failure is transient far more often than it is terminal — the sidecar
@@ -206,6 +209,7 @@ class DocumentUnderstandingJob < ApplicationJob
     validations = self.class.validate(understanding, ocr_text: result.text)
     validations = validations.merge(statement_read_validations(statement_read)) if statement_read
     validations["identity_source"] = read.identity_source if read.identity_source
+    validations["statement_rows_orientation"] = read.row_orientation if read.row_orientation
     classification = classify(understanding, link, result, statement_read)
 
     DocumentExtraction.record!(
@@ -409,9 +413,12 @@ class DocumentUnderstandingJob < ApplicationJob
         # back to the full read — today's path either way.
         understanding = model_understanding || understand_in_batches(provider, result, link)
         if understanding.document_class == "statement"
-          DocumentRead.new(understanding: adopt_reader_rows(overlay_printed_identity(understanding, read), read),
+          oriented = StatementRead::SignOrientation.call(understanding.transactions, read.stated_totals)
+          routed = overlay_printed_identity(understanding.with_transactions(oriented.rows), read)
+          DocumentRead.new(understanding: adopt_reader_rows(routed, read),
                            statement_read: read, model_understanding: understanding,
-                           identity_source: read.identity ? "text_layer+model" : "model")
+                           identity_source: read.identity ? "text_layer+model" : "model",
+                           row_orientation: (oriented.orientation.to_s unless read.reconciled? && read.source != :vision))
         else
           DocumentRead.new(understanding: understanding, statement_read: nil,
                            model_understanding: understanding)
