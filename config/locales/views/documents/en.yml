@@ -118,6 +118,7 @@ en:
       # STATEMENT_CHECK_LABEL_KEYS). One leaf per validator result; the wording is
       # exactly what the panel showed before it moved here.
       check_labels:
+        statement_rows_signs_verified: Payments and charges have the right signs (checked against the statement's totals)
         totals_agree: OCR and AI agree on the total
         line_items_sum: the line items add up to the total
         last4_in_ocr: the card or account number was found in the page text

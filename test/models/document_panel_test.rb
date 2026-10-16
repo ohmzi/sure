@@ -356,4 +356,22 @@ class DocumentPanelTest < ActiveSupport::TestCase
   test "a read with no recorded attempts has no history" do
     assert_empty DocumentPanel.new(document_links(:queued_receipt)).attempts
   end
+
+  # Review finding I5 (ruled): rows whose signs were guessed, not proven, go to
+  # review — and the panel says so in red, so the owner checks before Import.
+  test "a read whose row signs were guessed shows a red signs check" do
+    link = document_links(:understood_receipt_link)
+    link.document_extractions.delete_all
+    %w[keywords undecided flipped as_read].each do |orientation|
+      DocumentExtraction.record!(document_link: link, provider: "DeepSeek", page_count: 1, status: "succeeded",
+                                 verdict: { "document_class" => "statement" },
+                                 validations: { "statement_rows_orientation" => orientation })
+      check = DocumentPanel.new(link.reload).checks.find { |candidate| candidate.label == I18n.t("documents.understanding.check_labels.statement_rows_signs_verified") }
+
+      assert check, "the signs check shows for #{orientation}"
+      assert_equal orientation.in?(%w[flipped as_read]), check.state, orientation
+      link.document_extractions.delete_all
+    end
+  end
+
 end

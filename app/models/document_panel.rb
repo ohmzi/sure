@@ -71,8 +71,13 @@ class DocumentPanel
     "statement_rows_have_dates" => "documents.understanding.check_labels.statement_rows_have_dates",
     "statement_totals_reconcile" => "documents.understanding.check_labels.statement_totals_reconcile",
     "statement_rows_missing_dates" => "documents.understanding.check_labels.statement_rows_missing_dates",
-    "statement_row_count" => "documents.understanding.check_labels.statement_row_count"
+    "statement_row_count" => "documents.understanding.check_labels.statement_row_count",
+    "statement_rows_signs_verified" => "documents.understanding.check_labels.statement_rows_signs_verified"
   }.freeze
+
+  # A model read's rows are oriented to the reader's signs; only these two
+  # orientations were PROVEN by the statement's totals (the others were guessed).
+  VERIFIED_ORIENTATIONS = %w[as_read flipped].freeze
 
   # R-W8B13: the reader's source is PROVENANCE, not a pass/fail. Rendering a
   # scan's `vision` source red would flag every legitimate scan, and a read that
@@ -226,6 +231,9 @@ class DocumentPanel
       unless validations["statement_row_count"].nil?
         labels["statement_row_count"] = STATEMENT_CHECK_LABEL_KEYS["statement_row_count"]
       end
+      if validations["statement_rows_orientation"].present?
+        labels["statement_rows_signs_verified"] = STATEMENT_CHECK_LABEL_KEYS["statement_rows_signs_verified"]
+      end
       if validations["statement_rows_source"].present?
         labels["statement_rows_source"] =
           SOURCE_LABEL_KEYS.fetch(validations["statement_rows_source"].to_s, SOURCE_FALLBACK_LABEL_KEY)
@@ -240,6 +248,8 @@ class DocumentPanel
     # held, empty read, never a raw value passed through (R-W8B10).
     def check_state(key, validations)
       case key
+      when "statement_rows_signs_verified"
+        VERIFIED_ORIENTATIONS.include?(validations["statement_rows_orientation"].to_s)
       when "statement_rows_source"
         validations[key].present? ? true : nil
       when "statement_row_count"
