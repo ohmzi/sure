@@ -91,5 +91,4 @@ class LocalLlm::GpuGuardTest < ActiveSupport::TestCase
 
     assert_not guard.loaded?
   end
-
 end

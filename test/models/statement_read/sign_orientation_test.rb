@@ -79,5 +79,4 @@ class StatementRead::SignOrientationTest < ActiveSupport::TestCase
     assert_equal :keywords, result.orientation
     assert_equal "40.00", result.rows.first["amount"], "the credit-named row still decides the flip"
   end
-
 end

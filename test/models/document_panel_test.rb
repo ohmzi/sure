@@ -373,5 +373,4 @@ class DocumentPanelTest < ActiveSupport::TestCase
       link.document_extractions.delete_all
     end
   end
-
 end

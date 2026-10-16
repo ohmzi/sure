@@ -62,5 +62,4 @@ class DocumentLink::OcrCacheTest < ActiveSupport::TestCase
 
     assert_equal false, DocumentLink::OcrCache.write(@link, @result)
   end
-
 end
