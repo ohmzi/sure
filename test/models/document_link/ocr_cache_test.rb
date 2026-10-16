@@ -44,4 +44,23 @@ class DocumentLink::OcrCacheTest < ActiveSupport::TestCase
 
     assert_nil DocumentLink::OcrCache.read(@link)
   end
+
+  # Review finding C2: the cache holds 300-DPI page images and went through the
+  # 25 MB upload cap, so a phone photo or a multi-page scan raised before any
+  # reader ran. A cache that cannot be written is simply not written.
+  test "a result too large for the cache is skipped, leaving no partial file" do
+    DocumentLink::OcrCache.stubs(:max_bytes).returns(10)
+
+    assert_equal false, DocumentLink::OcrCache.write(@link, @result)
+
+    assert_nil DocumentLink::OcrCache.read(@link)
+    assert_empty Dir.glob(DocumentLink::Staging.root.join("#{@link.id}.ocr.json*").to_s)
+  end
+
+  test "a failing disk never stops the read" do
+    File.stubs(:open).raises(Errno::ENOSPC)
+
+    assert_equal false, DocumentLink::OcrCache.write(@link, @result)
+  end
+
 end
