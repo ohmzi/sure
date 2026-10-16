@@ -98,7 +98,9 @@
     <% if state == :needs_you %>
       <%= render "documents/hold_actions", link: record, hold: record.hold_reason %>
     <% elsif state == :which_account && statement&.needs_account? %>
-      <%= render "document_browser/account_picker", statement: statement %>
+      <%# Computed once per page, not per tile; nil when no one is signed in. %>
+      <% @tile_picker_accounts = Current.user&.accessible_accounts&.visible&.alphabetically&.to_a unless defined?(@tile_picker_accounts) %>
+      <%= render "document_browser/account_picker", statement: statement, accounts: @tile_picker_accounts %>
     <% end %>
   </div>
 

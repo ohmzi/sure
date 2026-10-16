@@ -491,6 +491,9 @@ class DocumentLinkTest < ActiveSupport::TestCase
       picking.broadcast_row_update!
 
       assert_includes rendered.first, I18n.t("documents.hold_actions.retry")
-      assert_includes rendered.second, 'name="account_id"'
+      # A live update has no signed-in person to scope accounts to, so the tile
+      # links to the statement's own picker instead of listing accounts.
+      assert_not_includes rendered.second, 'name="account_id"'
+      assert_includes rendered.second, Rails.application.routes.url_helpers.account_statement_path(statement)
     end
 end

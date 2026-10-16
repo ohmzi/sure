@@ -428,9 +428,13 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
 
     get documents_path
 
+    accessible = users(:family_admin).accessible_accounts.visible
     assert_select "##{ActionView::RecordIdentifier.dom_id(link)}" do
       assert_select "form[action='#{link_account_statement_path(statement)}']" do
-        assert_select "select[name='account_id'] option[value='#{accounts(:credit_card).id}']"
+        assert_select "input[type='hidden'][name='account_id']"
+        assert_select "[data-select-target='option'][data-value='#{accounts(:credit_card).id}']"
+        # Only the accounts the signed-in person can reach (plus the blank prompt).
+        assert_select "[data-select-target='option']", accessible.count + 1
         assert_select "button[type='submit']"
       end
     end
