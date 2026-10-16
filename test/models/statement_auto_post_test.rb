@@ -92,4 +92,21 @@ class StatementAutoPostTest < ActiveSupport::TestCase
 
     assert_not_equal :duplicate, StatementAutoPost.call(link: second)
   end
+
+  # Review C2: a statement the owner reverted is a decision, not a statement
+  # waiting for review — a re-read must never post it again.
+  test "a statement the owner reverted never posts itself again" do
+    link, import = statement_with_read
+    StatementAutoPost.call(link: link)
+    import.reload.publish
+    assert import.reload.entries.any?, "posted"
+
+    import.revert
+    assert_empty import.reload.entries, "reverted"
+
+    assert_no_enqueued_jobs(only: ImportJob) do
+      assert_equal :reverted, StatementAutoPost.call(link: link.reload)
+    end
+  end
+
 end

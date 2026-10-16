@@ -24,6 +24,8 @@ class StatementAutoPost
       flag_duplicate(original)
       return :duplicate
     end
+    # The owner reverted what this statement posted: never post it again.
+    return :reverted if @link.auto_post_undone?
     return :unverified unless @import.reconciled_read?
 
     account = owning_account

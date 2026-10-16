@@ -111,6 +111,16 @@ class PdfImport < Import
   # publish). Release a lost claim back to pending so the user can re-trigger
   # processing, mirroring ProcessPdfJob's own reclaim; lost reverts keep the
   # base revert_failed behavior.
+  # Reverting a statement is the owner's decision: record it on the statement's
+  # document, so a later re-read never posts it again (review C2 — the same
+  # durable mark a reverted receipt auto-post leaves).
+  def revert
+    super
+    return if revert_failed?
+
+    (document_link || account_statement&.archived_document_link)&.mark_auto_post_undone!
+  end
+
   def force_fail!(error_message = Import.lost_error_message)
     return super if reverting?
 
