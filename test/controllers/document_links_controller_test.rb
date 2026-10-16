@@ -284,24 +284,12 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  # A statement whose rows went to review because they did not add up has
-  # settled (`unlinked`), yet it is exactly the document a re-read can fix.
-  test "retry re-reads a settled document whose rows were never imported" do
+  # Review finding I6: a settled document is not re-read from here — its rows
+  # may be importing or posted, and no screen offers it.
+  test "retry refuses a settled document" do
     @link.update_columns(status: "failed", entry_id: nil)
     @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf")
     @link.update_columns(status: "unlinked")
-
-    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ @link.id, "online" ]) do
-      post retry_document_path(@link, reader: "online")
-    end
-    assert_equal "queued", @link.reload.status
-  end
-
-  test "retry refuses a settled document whose rows already became transactions" do
-    @link.update_columns(status: "failed")
-    @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf")
-    @link.update_columns(status: "unlinked")
-    DocumentLink.any_instance.stubs(:derived_entries).returns(Entry.where(id: entries(:transaction).id))
 
     assert_no_enqueued_jobs do
       post retry_document_path(@link, reader: "online")
