@@ -80,8 +80,12 @@ class StatementRead
   # date or classify, the winning `source`, and a plain `hold_message`.
   Result = Data.define(
     :rows, :stated_totals, :deltas, :checks, :reconciled, :missing_date_rows,
-    :rejected_lines, :source, :verdict, :figures, :rounding_delta
+    :rejected_lines, :source, :verdict, :figures, :rounding_delta, :identity
   ) do
+    # The printed identity (StatementRead::Identity) — only a text-layer read
+    # has one, so every other builder leaves it nil.
+    def initialize(identity: nil, **fields) = super(identity: identity, **fields)
+
     def reconciled? = reconciled
     def rows? = rows.any?
     def row_count = rows.size
@@ -215,6 +219,7 @@ class StatementRead
 
       build_result(parser.entries, parser.rows, totals, text: text, source: :text_layer,
                    missing: parser.missing_date_rows, rejected: parser.rejected_lines)
+        .with(identity: Identity.call(text))
     end
 
     # Rung 2 (task W8-C, landed): the scan front-end reads the OCR boxes. It

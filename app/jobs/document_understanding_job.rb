@@ -57,7 +57,9 @@ class DocumentUnderstandingJob < ApplicationJob
   # to guard); `model_understanding` is the MODEL's own read for the extraction's
   # `raw_response` (R-W8B17) — which on the identity-only path is the narrow
   # identity read, not a row table.
-  DocumentRead = Data.define(:understanding, :statement_read, :model_understanding)
+  DocumentRead = Data.define(:understanding, :statement_read, :model_understanding, :identity_source) do
+    def initialize(identity_source: nil, **fields) = super(identity_source: identity_source, **fields)
+  end
 
   # An OCR failure is transient far more often than it is terminal — the sidecar
   # is restarting, the GPU is busy, the weights are still loading. Retry with
@@ -203,6 +205,7 @@ class DocumentUnderstandingJob < ApplicationJob
 
     validations = self.class.validate(understanding, ocr_text: result.text)
     validations = validations.merge(statement_read_validations(statement_read)) if statement_read
+    validations["identity_source"] = read.identity_source if read.identity_source
     classification = classify(understanding, link, result, statement_read)
 
     DocumentExtraction.record!(
@@ -383,21 +386,32 @@ class DocumentUnderstandingJob < ApplicationJob
         end
 
       if read.reconciled? && read.source != :vision
-        # A DETERMINISTIC rung supplied the rows and they reconcile: the model is
-        # asked for IDENTITY ONLY. `adopt_reader_rows` (R-W8B12) replaces any rows
-        # the model volunteered with the reader's proven ones and clears the
-        # line_items fallback, so nothing mixed-provenance routes.
+        # A DETERMINISTIC rung supplied the rows and they reconcile. When the
+        # page also prints a complete identity, nothing is left for a model to
+        # read (spec §1): no call at all, so no GPU and no cloud egress.
+        if read.identity&.complete?
+          printed = DocumentUnderstanding.new(printed_identity_verdict(read))
+          return DocumentRead.new(understanding: adopt_reader_rows(printed, read), statement_read: read,
+                                  model_understanding: printed, identity_source: "text_layer")
+        end
+
+        # Otherwise the model is asked for IDENTITY ONLY. `adopt_reader_rows`
+        # (R-W8B12) replaces any rows the model volunteered with the reader's
+        # proven ones and clears the line_items fallback, so nothing
+        # mixed-provenance routes.
         identity = understand_in_batches(provider, result, link, rows_expected: false)
-        DocumentRead.new(understanding: adopt_reader_rows(identity, read),
-                         statement_read: read, model_understanding: identity)
+        DocumentRead.new(understanding: adopt_reader_rows(overlay_printed_identity(identity, read), read),
+                         statement_read: read, model_understanding: identity,
+                         identity_source: read.identity ? "text_layer+model" : "model")
       else
         # The ladder already made the full read (rows wanted). If a reader failure
         # struck before the vision call there is no understanding yet, so fall
         # back to the full read — today's path either way.
         understanding = model_understanding || understand_in_batches(provider, result, link)
         if understanding.document_class == "statement"
-          DocumentRead.new(understanding: adopt_reader_rows(understanding, read),
-                           statement_read: read, model_understanding: understanding)
+          DocumentRead.new(understanding: adopt_reader_rows(overlay_printed_identity(understanding, read), read),
+                           statement_read: read, model_understanding: understanding,
+                           identity_source: read.identity ? "text_layer+model" : "model")
         else
           DocumentRead.new(understanding: understanding, statement_read: nil,
                            model_understanding: understanding)
@@ -426,6 +440,25 @@ class DocumentUnderstandingJob < ApplicationJob
 
       proof = DocumentUnderstanding.new(understanding.to_verdict.merge("document_class" => "statement"))
       proof.with_transactions(read.rows).with_statement_rows_fallback(false)
+    end
+
+    # The statement's identity as the page prints it, plus the two figures a
+    # reader of the verdict expects: the new balance as the statement's total
+    # and its closing date as its date.
+    def printed_identity_verdict(read)
+      fields = read.identity.to_verdict_fields
+      new_balance = read.stated_totals["new_balance"]
+      fields["total"] = new_balance.to_s("F") if new_balance
+      fields["date"] = read.identity.period_end&.iso8601
+      fields.compact
+    end
+
+    # Spec §1: a field the page prints always wins over the model's read of it;
+    # the model only fills what the page does not print.
+    def overlay_printed_identity(understanding, read)
+      return understanding unless read&.identity
+
+      DocumentUnderstanding.new(understanding.to_verdict.merge(read.identity.to_verdict_fields.except("document_class")))
     end
 
     # A statement route MUST carry a read (R-W8B18). This stands in on an

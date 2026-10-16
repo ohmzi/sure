@@ -888,6 +888,56 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal "text_layer", @link.extraction.validations["statement_rows_source"]
   end
 
+  # The statement prints its own identity; with the rows proven AND the
+  # identity complete, nothing is left for a model to read (spec §1).
+  IDENTITY_LINES = <<~TEXT
+    Account number: 5446 12XX XXXX 1512
+    The Triangle Mastercard is issued by Canadian Tire Bank.
+  TEXT
+
+  def stage_text_layer_with_identity(link, identity_lines = IDENTITY_LINES)
+    stage_pdf(link, "synthetic_statement.pdf")
+    text = file_fixture("statements/synthetic_statement.txt").read + "\n" + identity_lines
+    StatementRead::PdfTextLayer.stubs(:for).returns(
+      StatementRead::PdfTextLayer::Result.new(text: text, font_count: 1, usable: true)
+    )
+  end
+
+  test "a proven statement with a complete printed identity makes no model call" do
+    stage_text_layer_with_identity(@link)
+    provider = FakeProvider.new(STATEMENT)
+    provider.expects(:understand_document).never
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(provider)
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    statement = statement_for(@link)
+    # The first card the page lists is the statement's card identity (the
+    # existing "card beats account number" rule); the fixture's cards are 1111/2222.
+    assert_equal "1111", statement.account_last4_hint
+    assert_equal "1512", @link.extraction.verdict["account_last4"]
+    assert_equal "Canadian Tire Bank", statement.institution_name_hint
+    assert_equal 9, PdfImport.find_by!(account_statement: statement).rows_count
+    assert_equal "text_layer", @link.extraction.validations["identity_source"]
+    assert_equal "unlinked", @link.reload.status
+  end
+
+  test "the printed identity overrides the model's when the model is still asked" do
+    # No issuer line: the identity is incomplete, so the identity-only read runs,
+    # but the network the page proves (the 5446 prefix) beats the model's guess.
+    stage_text_layer_with_identity(@link, "Account number: 5446 12XX XXXX 1512\n")
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT.merge("card_network" => "amex", "account_last4" => "9999")))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    verdict = @link.extraction.verdict
+    assert_equal "mastercard", verdict["card_network"]
+    assert_equal "1512", verdict["account_last4"]
+    assert_equal "Chase", verdict["institution_name"], "a field the page lacks still comes from the model"
+  end
+
   test "an untrusted read still asks the model for the statement's rows" do
     # The other half of the conditional ask: with no usable deterministic source
     # the request is today's — rows wanted. A scan (no text layer, no boxes)
