@@ -455,6 +455,30 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal false, @link.extraction.validations["statement_totals_reconcile"]
   end
 
+  # Gap 3 from the owner's batch: with no totals on the page to check against,
+  # the local model's read was accepted unchecked and the cloud never ran.
+  test "an unverifiable statement read moves on so the cloud reader gets a turn" do
+    local_rows = STATEMENT.merge("transactions" => [ { "date" => "2026-09-03", "amount" => "-1.00", "name" => "Cafe", "notes" => "" } ])
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_ladder(reader("local", local_rows), reader("DeepSeek", STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal %w[unverified unverified], attempts.map { |attempt| attempt["outcome"] }
+    assert_equal "DeepSeek", @link.extraction.provider, "the stronger, later reader's read routes"
+    assert_equal 2, PdfImport.find_by!(account_statement_id: statement_for(@link).id).rows_count
+    assert_nil @link.extraction.validations["statement_totals_reconcile"], "unverified is never reconciled"
+  end
+
+  test "two readers that agree row for row corroborate an unverifiable read" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_ladder(reader("local", STATEMENT), reader("DeepSeek", STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal true, @link.reload.extraction.validations["statement_rows_corroborated"]
+  end
+
   test "when every reader fails the row is held once with each reader's outcome" do
     stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
     stub_ladder(reader("DeepSeek", RECEIPT, success: false), reader("Gemini", RECEIPT, success: false))

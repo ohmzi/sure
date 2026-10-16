@@ -67,7 +67,9 @@ class DocumentUnderstandingJob < ApplicationJob
   # The ladder's result: the read that routes (nil when none produced one), the
   # reader that made it (nil when the statement's own text was enough), and one
   # entry per reader tried.
-  LadderOutcome = Data.define(:read, :reader, :attempts)
+  LadderOutcome = Data.define(:read, :reader, :attempts, :corroborated) do
+    def initialize(corroborated: false, **fields) = super(corroborated: corroborated, **fields)
+  end
 
   # W8-D: one read's outcome. `understanding` is what routes; `statement_read` is
   # the reader's verdict (nil for a non-statement, which has no statement route
@@ -205,6 +207,7 @@ class DocumentUnderstandingJob < ApplicationJob
     validations["identity_source"] = read.identity_source if read.identity_source
     validations["statement_rows_orientation"] = read.row_orientation if read.row_orientation
     validations["read_attempts"] = outcome.attempts
+    validations["statement_rows_corroborated"] = true if outcome.corroborated
     classification = classify(understanding, link, result, statement_read)
 
     DocumentExtraction.record!(
@@ -236,7 +239,7 @@ class DocumentUnderstandingJob < ApplicationJob
     route(link, understanding, classification, ocr_text: result.text, statement_read: statement_read)
     link.settle!
     # A read that added up will not be retried; one that went to review may be.
-    DocumentLink::OcrCache.delete(link) if adds_up?(read)
+    DocumentLink::OcrCache.delete(link) if standing(read) == :proven
     link.broadcast_row_update!
   rescue Ocr::Error => e
     # Transient upstream failure: let retry_on re-enqueue. Park the row `queued`
@@ -318,13 +321,16 @@ class DocumentUnderstandingJob < ApplicationJob
     def read_with_ladder(link, result, reader_mode)
       begin
         read = read_document(link, nil, result)
-        return LadderOutcome.new(read: read, reader: nil, attempts: [ attempt_entry(nil, "read", 0) ]) if adds_up?(read)
+        if standing(read) == :proven
+          return LadderOutcome.new(read: read, reader: nil, attempts: [ attempt_entry(nil, "read", 0) ])
+        end
       rescue NoReaderAvailable
         # The page alone is not enough; the readers below are.
       end
 
       attempts = []
       best = nil
+      unverified = []
       DocumentReaderLadder.for(mode: reader_mode).each do |reader|
         # A provider that cannot read documents (Anthropic today) is no rung.
         next unless reader.provider.respond_to?(:supports_document_understanding?) &&
@@ -343,14 +349,20 @@ class DocumentUnderstandingJob < ApplicationJob
         was_resident = reader.local? && reader.guard&.loaded?
         begin
           read = read_document(link, reader.provider, result)
-          if adds_up?(read)
+          case standing(read)
+          when :proven
             attempts << attempt_entry(reader, "read", monotonic_now - started)
             return LadderOutcome.new(read: read, reader: reader, attempts: attempts)
+          when :unverified
+            # Nothing on the page to check it against: keep it, and let the
+            # next (stronger) reader have a turn too.
+            attempts << attempt_entry(reader, "unverified", monotonic_now - started)
+            unverified << [ read, reader ]
+          else
+            attempts << attempt_entry(reader, "did_not_add_up", monotonic_now - started,
+                                      detail: read.statement_read&.verdict.to_s)
+            best = [ read, reader ] if best.nil? || row_count(read) > row_count(best.first)
           end
-
-          attempts << attempt_entry(reader, "did_not_add_up", monotonic_now - started,
-                                    detail: read.statement_read&.verdict.to_s)
-          best = [ read, reader ] if best.nil? || row_count(read) > row_count(best.first)
         rescue BudgetExceeded
           attempts << attempt_entry(reader, "timed_out", monotonic_now - started)
         rescue Provider::Error => e
@@ -367,7 +379,26 @@ class DocumentUnderstandingJob < ApplicationJob
         end
       end
 
+      return choose_unverified(unverified, attempts) if unverified.any?
+
       LadderOutcome.new(read: best&.first, reader: best&.last, attempts: attempts)
+    end
+
+    # Among reads nothing could verify: two readers that agree row for row
+    # corroborate each other; otherwise the last reader's (the ladder runs from
+    # the local model to the stronger cloud readers). Either way it goes to
+    # review — unverified is never reconciled, never auto-posted.
+    def choose_unverified(unverified, attempts)
+      fingerprints = unverified.map { |read, _| row_fingerprint(read) }
+      agreeing = fingerprints.each_index.find { |i| fingerprints.count(fingerprints[i]) > 1 && fingerprints[i].any? }
+      read, reader = agreeing ? unverified[agreeing] : unverified.last
+      LadderOutcome.new(read: read, reader: reader, attempts: attempts, corroborated: !agreeing.nil?)
+    end
+
+    def row_fingerprint(read)
+      read.understanding.transactions.map { |row| [ row["date"].to_s, BigDecimal(row["amount"].to_s.delete("$,")).round(2) ] }.tally
+    rescue ArgumentError
+      {}
     end
 
     GPU_WAIT_POLL = 10
@@ -384,14 +415,16 @@ class DocumentUnderstandingJob < ApplicationJob
       end
     end
 
-    # A read that can be judged and does not add up is the only one the ladder
-    # moves past: a non-statement, a reconciled statement, and a statement that
-    # prints nothing to check against are all accepted.
-    def adds_up?(read)
+    # Where a read stands: :proven (a non-statement, or a statement reconciled
+    # to its printed totals), :short (checked against the page and it did not
+    # add up), or :unverified (a statement with nothing on the page the reader
+    # could check it against — never accepted as if it were proven).
+    def standing(read)
       statement_read = read.statement_read
-      return true if statement_read.nil? || statement_read.reconciled?
+      return :proven if statement_read.nil? || statement_read.reconciled?
+      return :short if statement_read.verdict.in?(STATEMENT_HOLD_VERDICTS)
 
-      !statement_read.verdict.in?(STATEMENT_HOLD_VERDICTS)
+      :unverified
     end
 
     def row_count(read) = read.understanding.transactions.size
