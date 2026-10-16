@@ -60,6 +60,9 @@ class DocumentUnderstandingJob < ApplicationJob
   # The read needs a model and this pass has none: the statement reader alone
   # could not finish the document.
   NoReaderAvailable = Class.new(StandardError)
+  # A model's output the read could not use (a bug-shaped error inside the model
+  # read): that reader failed, and the ladder moves on rather than asking it again.
+  ModelReadFailed = Class.new(StandardError)
 
   # The ladder's result: the read that routes (nil when none produced one), the
   # reader that made it (nil when the statement's own text was enough), and one
@@ -354,6 +357,10 @@ class DocumentUnderstandingJob < ApplicationJob
           Rails.logger.warn("DocumentUnderstandingJob reader #{reader.label} failed for document_link #{link.id}: #{e.message}")
           outcome = e.message.match?(/timeout|timed out|execution expired/i) ? "timed_out" : "failed"
           attempts << attempt_entry(reader, outcome, monotonic_now - started, detail: e.message.to_s.first(200))
+        rescue ModelReadFailed, NoMethodError, TypeError, JSON::ParserError => e
+          # Spec §2: output the read cannot use moves on to the next reader.
+          Rails.logger.warn("DocumentUnderstandingJob reader #{reader.label} gave unusable output for document_link #{link.id}: #{e.message}")
+          attempts << attempt_entry(reader, "failed", monotonic_now - started)
         ensure
           reader.guard&.unload! if reader.local? && @provider_called && !was_resident
           @deadline = nil
@@ -485,8 +492,8 @@ class DocumentUnderstandingJob < ApplicationJob
       read =
         begin
           StatementRead.call(link: link, ocr_result: result,
-                             vision: (-> { model_understanding = understand_in_batches(provider, result, link) } if provider))
-        rescue Provider::Error, BudgetExceeded, NoReaderAvailable
+                             vision: (vision_read(provider, result, link) { |read| model_understanding = read } if provider))
+        rescue Provider::Error, BudgetExceeded, NoReaderAvailable, ModelReadFailed
           # A provider failure is transient (the retry_on ladder), never a reader
           # failure: let it propagate exactly as it did when the read ran before
           # the reader.
@@ -533,6 +540,20 @@ class DocumentUnderstandingJob < ApplicationJob
           DocumentRead.new(understanding: understanding, statement_read: nil,
                            model_understanding: understanding)
         end
+      end
+    end
+
+    # The statement reader's vision rung: the model's full read. A failure that
+    # is not the provider's (an output the read could not use) is re-raised as
+    # ModelReadFailed so the statement reader's own rescue cannot swallow it and
+    # send the same model a second, identical request.
+    def vision_read(provider, result, link)
+      lambda do
+        yield understand_in_batches(provider, result, link)
+      rescue Provider::Error, BudgetExceeded, NoReaderAvailable
+        raise
+      rescue StandardError => e
+        raise ModelReadFailed, "#{e.class}: #{e.message}"
       end
     end
 

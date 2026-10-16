@@ -401,6 +401,20 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_no_enqueued_jobs only: DocumentUnderstandingJob
   end
 
+  # Review finding (promoted): output a reader cannot turn into a read is that
+  # reader failing — the next reader reads, and the model is not asked twice.
+  test "a reader whose output breaks the read moves to the next reader, asked once" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
+    broken = reader("DeepSeek", RECEIPT)
+    broken.provider.expects(:understand_document).once.raises(NoMethodError.new("undefined method 'fetch' for nil"))
+    stub_ladder(broken, reader("Gemini", RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    assert_equal "Gemini", @link.reload.extraction.provider
+    assert_equal %w[failed read], attempts.map { |attempt| attempt["outcome"] }
+  end
+
   test "a local read past its document budget is abandoned for the next reader" do
     stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "aGk=" } ])
     Setting.stubs(:local_llm_document_budget).returns(0)
