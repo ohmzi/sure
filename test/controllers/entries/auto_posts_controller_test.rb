@@ -171,7 +171,7 @@ class Entries::AutoPostsControllerTest < ActionDispatch::IntegrationTest
       assert_select "input[name='_method'][value='delete']"
     end
     assert_match I18n.t("entries.auto_post.badge"), response.body
-    assert_select "[data-auto-post='#{dom_id(@entry)}'] a[href=?]", viewer_document_path(document)
+    assert_select "[data-auto-post='#{dom_id(@entry)}'] a[href=?]", viewer_document_path(document, entry_id: @entry.id)
 
     get transaction_path(@entry)
     assert_response :success

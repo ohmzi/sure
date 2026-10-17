@@ -1,13 +1,24 @@
-<%# locals: (row:, panel:) %>
+<%# locals: (row:, panel:, trace: nil) %>
 <%# The split (Milestone B, design D4): the document on the left, what was
     understood on the right. When there is a read worth showing the document
     yields room to the panel; a document with no read keeps most of the width and
-    carries the unread panel — its reason and the two ways forward — beside it. %>
-<div class="flex min-h-0 grow flex-col gap-4 lg:flex-row">
-  <div class="flex min-h-0 min-w-0 flex-col <%= panel.split? ? "lg:flex-[1.15]" : "grow" %>">
-    <%= render "document_browser/viewer_stage", row: row %>
+    carries the unread panel — its reason and the two ways forward — beside it.
+    Opened from a transaction, the panel is about that transaction and comes
+    first on a phone; the document's own read folds away below it. %>
+<div class="flex flex-col gap-4 lg:min-h-0 lg:grow lg:flex-row">
+  <div class="flex min-w-0 flex-col lg:min-h-0 <%= panel&.split? || trace ? "lg:flex-[1.15]" : "lg:grow" %>">
+    <%= render "document_browser/viewer_stage", row: row, mark: trace&.mark %>
   </div>
-  <aside class="min-h-0 shrink-0 border-secondary lg:w-80 lg:overflow-y-auto lg:border-l lg:pl-4">
-    <%= render "documents/understanding", panel: panel %>
+  <aside class="shrink-0 border-secondary lg:min-h-0 lg:w-80 lg:overflow-y-auto lg:border-l lg:pl-4 <%= "order-first lg:order-none" if trace %>">
+    <% if trace %>
+      <%= render "documents/trace", trace: trace %>
+      <% if panel&.shows_panel? %>
+        <%= render DS::Disclosure.new(title: t("documents.trace.about_document"), class: "mt-5", data: { document_about: true }) do %>
+          <%= render "documents/understanding", panel: panel %>
+        <% end %>
+      <% end %>
+    <% else %>
+      <%= render "documents/understanding", panel: panel %>
+    <% end %>
   </aside>
 </div>

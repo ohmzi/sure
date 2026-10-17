@@ -1,4 +1,4 @@
-<%# locals: (row:, panel: nil, previous_url: nil, previous_title: nil, next_url: nil, next_title: nil) %>
+<%# locals: (row:, panel: nil, trace: nil, previous_url: nil, previous_title: nil, next_url: nil, next_title: nil) %>
 <%# The viewer (M8's modal; Milestone B design D4 gives it two modes). It opens
     as a lightbox — the document full-bleed, minimal chrome, ←/→ to move, Esc to
     close. Once there is a read worth showing it becomes a split: document left,
@@ -10,8 +10,8 @@
   <% dialog.with_header(title: row.title, subtitle: row.doc_type_label) %>
   <%# Its own margins (the content slot has none) — the sheet's controls and
       panel no longer touch the screen's edges (2026-10-17). %>
-  <div class="flex h-full min-h-0 flex-col gap-4 px-4 pb-4"
-       data-controller="document-viewer"
+  <div class="flex h-full min-h-0 flex-col gap-4 overflow-y-auto overscroll-contain px-4 pb-4 lg:overflow-hidden"
+       data-controller="document-viewer page-zoom"
        data-action="keydown.left@window->document-viewer#previous keydown.right@window->document-viewer#next">
     <div class="flex items-center justify-between gap-2">
       <%= render "document_browser/viewer_nav", direction: :previous, url: previous_url, title: previous_title %>
@@ -24,6 +24,9 @@
             visual — Review details / Reading… / Retry / Remove are reached from
             the document itself. %>
         <%= render "document_browser/actions", row: row, container_class: "flex items-center gap-3" %>
+        <% if row.respond_to?(:record) && row.record.is_a?(DocumentLink) %>
+          <%= render "documents/transactions_link", link: row.record %>
+        <% end %>
         <%# The stable, shareable page for this document (`Row#details_url`, Task
             4). The modal is the entry point; this breaks out of the modal frame
             to the full page, which needs no JavaScript. %>
@@ -40,8 +43,8 @@
       <%= render "document_browser/viewer_nav", direction: :next, url: next_url, title: next_title %>
     </div>
 
-    <% if panel&.shows_panel? %>
-      <%= render "document_browser/viewer_split", row: row, panel: panel %>
+    <% if panel&.shows_panel? || trace %>
+      <%= render "document_browser/viewer_split", row: row, panel: panel, trace: trace %>
     <% else %>
       <%= render "document_browser/viewer_stage", row: row %>
     <% end %>

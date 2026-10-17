@@ -1,0 +1,67 @@
+<%# locals: (trace:) %>
+<%# Opened from a transaction, the viewer is about that transaction (the owner,
+    2026-10-17): the line it came from as the document printed it, where that
+    line is, how it got into the account, and whether the two agree. What the
+    document says as a whole sits below, folded away. %>
+<% entry = trace.entry %>
+<% line = trace.line %>
+<div class="space-y-5" data-document-trace="<%= trace.how %>">
+  <div class="flex items-center gap-3 rounded-2xl bg-container-inset p-4">
+    <%= render DS::FilledIcon.new(icon: "receipt-text", hex_color: "var(--color-brand-500)", size: "lg") %>
+    <div class="min-w-0 grow">
+      <p class="truncate font-semibold text-primary"><%= entry.name %></p>
+      <p class="truncate text-sm text-secondary"><%= entry.account.name %> · <%= l(entry.date, format: :long) %></p>
+    </div>
+    <span class="shrink-0 font-semibold text-primary privacy-sensitive"><%= format_money(entry.amount_money.abs) %></span>
+  </div>
+
+  <% if line %>
+    <section class="space-y-2">
+      <p class="px-1 text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".where") %></p>
+      <div class="space-y-3 rounded-2xl bg-container-inset p-4">
+        <p class="break-words text-sm font-medium text-primary" data-trace-line>“<%= line.name %>”</p>
+        <div class="flex items-center justify-between gap-3 text-sm">
+          <span class="text-secondary"><%= l(line.date, format: :long) %></span>
+          <span class="font-semibold text-primary privacy-sensitive"><%= format_money(Money.new(line.amount, entry.currency)) %></span>
+        </div>
+        <div class="flex items-center justify-between gap-3 border-t border-subdued pt-3 text-xs text-secondary">
+          <span>
+            <% if trace.page %><%= t(".page", page: trace.page) %> · <% end %><%= t(".row", row: line.row_number) %>
+          </span>
+          <% if trace.mark %>
+            <button type="button" class="inline-flex items-center gap-1 font-semibold text-link" data-action="page-zoom#reveal">
+              <%= icon("scan-search", size: "xs", color: "current") %><%= t(".show_on_page") %>
+            </button>
+          <% end %>
+        </div>
+      </div>
+    </section>
+  <% end %>
+
+  <section class="space-y-2">
+    <p class="px-1 text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".how") %></p>
+    <div class="flex items-start gap-3 rounded-2xl bg-container-inset p-4 text-sm">
+      <%= icon({ created: "file-plus", verified: "file-check", matched: "link" }.fetch(trace.how), size: "sm", class: "mt-0.5") %>
+      <p class="text-primary">
+        <%= t(".how_#{trace.how}", account: entry.account.name, source: entry.provenance.label) %>
+        <% if trace.at %><span class="text-secondary"> · <%= l(trace.at.to_date, format: :long) %></span><% end %>
+      </p>
+    </div>
+  </section>
+
+  <% if line %>
+    <section class="space-y-2">
+      <p class="px-1 text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".checks") %></p>
+      <div class="rounded-2xl bg-container-inset divide-y divide-subdued text-sm">
+        <div class="flex items-center gap-2 px-4 py-2.5">
+          <%= icon(trace.amount_matches? ? "check" : "x", size: "sm", color: trace.amount_matches? ? "success" : "destructive") %>
+          <span class="text-primary"><%= trace.amount_matches? ? t(".same_amount") : t(".different_amount") %></span>
+        </div>
+        <div class="flex items-center gap-2 px-4 py-2.5">
+          <%= icon(trace.days_apart.zero? ? "check" : "calendar-clock", size: "sm", color: trace.days_apart.zero? ? "success" : "warning") %>
+          <span class="text-primary"><%= trace.days_apart.zero? ? t(".same_day") : t(".days_apart", count: trace.days_apart) %></span>
+        </div>
+      </div>
+    </section>
+  <% end %>
+</div>

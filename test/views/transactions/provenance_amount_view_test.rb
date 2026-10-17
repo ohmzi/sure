@@ -19,7 +19,7 @@ class Transactions::ProvenanceAmountViewTest < ActionView::TestCase
 
     amount = html.at_css(".privacy-sensitive")
     assert_equal "a", amount.name, "the amount itself is the link to the document"
-    assert_equal viewer_document_path(document), amount["href"], "the link reuses the viewer route the removed pill used"
+    assert_equal viewer_document_path(document, entry_id: entry.id), amount["href"], "the link reuses the viewer route the removed pill used"
     assert_equal "modal", amount["data-turbo-frame"],
                  "the viewer opens as the modal, not inside the row's own turbo frame"
     assert_equal document.original_filename, amount["title"], "the document stays discoverable by name"
@@ -40,7 +40,7 @@ class Transactions::ProvenanceAmountViewTest < ActionView::TestCase
 
     amount = html.at_css(".privacy-sensitive")
     assert_equal "a", amount.name, "a receipt row's amount is the link to its receipt"
-    assert_equal viewer_document_path(link), amount["href"]
+    assert_equal viewer_document_path(link, entry_id: entry.id), amount["href"]
     assert_equal link.title.presence || link.original_filename, amount["title"]
     assert_includes amount["aria-label"], link.title.presence || link.original_filename
   end

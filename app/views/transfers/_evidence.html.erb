@@ -26,7 +26,7 @@
           </p>
           <p class="text-xs text-secondary"><%= l(side.entry.date, format: :long) %></p>
           <% if side.witnessed? %>
-            <%= link_to viewer_document_path(side.document), data: { turbo_frame: "modal" },
+            <%= link_to viewer_document_path(side.document, entry_id: side.entry.id), data: { turbo_frame: "modal" },
                   class: "inline-flex max-w-full items-center gap-1 text-xs font-medium text-link hover:underline" do %>
               <%= icon("file-check", size: "xs", color: "current") %>
               <span class="truncate"><%= t("transfers.evidence.on_statement", name: side.document.title.presence || side.document.original_filename) %></span>

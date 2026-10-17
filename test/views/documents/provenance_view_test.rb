@@ -16,7 +16,7 @@ module Documents
       html = render(partial: "documents/provenance", locals: { entry: entry.reload })
 
       assert_includes html, I18n.t("entries.provenance.document")
-      assert_includes html, viewer_document_path(import.document_link),
+      assert_includes html, viewer_document_path(import.document_link, entry_id: entry.id),
                       "the producing document must render as a link back to itself"
     end
 
@@ -25,7 +25,7 @@ module Documents
 
       html = render(partial: "documents/provenance", locals: { entry: entry })
 
-      href = viewer_document_path(entry.import.document_link)
+      href = viewer_document_path(entry.import.document_link, entry_id: entry.id)
       assert_equal 1, html.scan("href=\"#{href}\"").size,
                    "a document that both produced the entry and is attached to it must render one chip"
     end

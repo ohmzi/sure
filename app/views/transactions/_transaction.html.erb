@@ -236,7 +236,7 @@
         <% if source_document.present? && source_document.deleted_at.nil? %>
           <% source_name = source_document.title.presence || source_document.original_filename %>
           <%= link_to row_amount,
-              viewer_document_path(source_document),
+              viewer_document_path(source_document, entry_id: entry.id),
               class: [ "hover:underline", *row_amount_classes ],
               title: source_name,
               data: { turbo_frame: "modal" },

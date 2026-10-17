@@ -33,7 +33,7 @@
         truncate: true
       ) %>
     <% else %>
-      <%= link_to viewer_document_path(document), class: "inline-flex min-w-0 max-w-full" do %>
+      <%= link_to viewer_document_path(document, entry_id: entry.id), class: "inline-flex min-w-0 max-w-full" do %>
         <%= render DS::Pill.new(
           label: document.title.presence || document.original_filename,
           tone: :indigo,

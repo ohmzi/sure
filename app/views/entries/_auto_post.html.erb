@@ -21,7 +21,7 @@
 
     <% if document %>
       <%= link_to t("entries.auto_post.source"),
-            viewer_document_path(document),
+            viewer_document_path(document, entry_id: entry.id),
             class: "text-xs text-secondary underline hover:text-primary" %>
     <% end %>
 
