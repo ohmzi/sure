@@ -1,12 +1,10 @@
 <% content_for :page_header do %>
   <div class="space-y-1 mb-6 flex gap-4 justify-between items-center lg:items-start">
     <div class="space-y-1">
+      <p class="text-sm text-secondary"><%= l(Date.current, format: "%A, %B %-d") %></p>
       <h1 class="text-3xl font-bold tracking-tight text-primary">
-        <%= t("pages.dashboard.welcome", name: Current.user.first_name) %>
+        <%= t("pages.dashboard.today_title") %>
       </h1>
-      <p class="text-sm lg:text-base text-secondary">
-        <%= t("pages.dashboard.subtitle") %>
-      </p>
     </div>
 
     <div class="flex items-center gap-2">
@@ -19,14 +17,18 @@
             href: root_path(@dashboard_view_params)
           ) %>
         <% else %>
-          <%= render DS::Link.new(
-            variant: "outline",
-            icon: "layout-grid",
-            href: root_path(@dashboard_view_params.merge(customize: true)),
-            aria: { label: t("pages.dashboard.customize.start") },
-            title: t("pages.dashboard.customize.start"),
-            class: "hidden lg:inline-flex"
-          ) %>
+          <%# An icon-only link keeps its own inline-flex, which beats a
+              "hidden" class on the link, so the wrapper hides it on a phone
+              (where the button below stands in). %>
+          <div class="hidden lg:block">
+            <%= render DS::Link.new(
+              variant: "outline",
+              icon: "layout-grid",
+              href: root_path(@dashboard_view_params.merge(customize: true)),
+              aria: { label: t("pages.dashboard.customize.start") },
+              title: t("pages.dashboard.customize.start")
+            ) %>
+          </div>
 
           <%= render DS::Link.new(
             variant: "icon",
@@ -50,6 +52,14 @@
           Accounts, Transactions and Documents tabs. %>
     </div>
   </div>
+<% end %>
+
+<%# "Today" loads in its own request right after the page, so Home's own
+    render (and its query budget) is unchanged. %>
+<% if accessible_accounts.any? %>
+  <%= turbo_frame_tag "dashboard_today", src: dashboard_today_path, target: "_top" do %>
+    <div class="h-40 mb-6 rounded-3xl bg-container-inset animate-pulse" aria-hidden="true"></div>
+  <% end %>
 <% end %>
 
 <%= turbo_frame_tag "dashboard_sections", target: "_top" do %>

@@ -37,9 +37,35 @@ en:
       title: Terms of Service
       heading: Terms of Service
       placeholder: Terms of service content will be displayed here.
+    more:
+      title: More
+      profile_subtitle: Profile, security and sign-in
+      your_money: Your money
+      app: App
     dashboard:
       welcome: "Welcome back, %{name}"
       subtitle: "Here's what's happening with your finances"
+      today_title: Today
+      today:
+        net_worth: Net worth
+        change_up: "Up %{amount} in 30 days"
+        change_down: "Down %{amount} in 30 days"
+        left_to_spend: "Left to spend in %{month}"
+        percent_spent: "%{percent}% of the budget spent"
+        budget_used: "%{percent}% of budget used · %{days} days left"
+        needs_you: Needs you
+        coming_up: Coming up
+        due_on: "Due %{date}"
+        needs:
+          documents:
+            one: document to review
+            other: documents to review
+          uncategorized:
+            one: uncategorized
+            other: uncategorized
+          bills:
+            one: bill due this week
+            other: bills due this week
       new: "New"
       sections_aria_label: "Dashboard sections"
       drag_to_reorder: "Drag to reorder section"

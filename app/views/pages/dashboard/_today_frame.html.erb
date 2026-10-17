@@ -1,0 +1,4 @@
+<%# locals: (today:) %>
+<%= turbo_frame_tag "dashboard_today", target: "_top" do %>
+  <%= render "pages/dashboard/today", today: today %>
+<% end %>

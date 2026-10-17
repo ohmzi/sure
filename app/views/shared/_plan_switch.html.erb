@@ -1,0 +1,13 @@
+<%# locals: (current:) %>
+<%# The Plan tab's switch (the owner's redesign, 2026-10-17): Budget, Reports
+    and — for preview users — Goals, under one large title. %>
+<div class="space-y-3 mb-6">
+  <h1 class="text-3xl font-bold tracking-tight text-primary"><%= t("shared.plan_switch.title") %></h1>
+  <%= render DS::SegmentedControl.new(sliding: true, full_width: true, aria_label: t("shared.plan_switch.title"), class: "md:max-w-md") do |control| %>
+    <% control.with_segment(t("shared.plan_switch.budget"), href: budgets_path, active: current == :budget, class: "py-1.5") %>
+    <% control.with_segment(t("shared.plan_switch.reports"), href: reports_path, active: current == :reports, class: "py-1.5") %>
+    <% if preview_features_enabled? %>
+      <% control.with_segment(t("shared.plan_switch.goals"), href: goals_path, active: current == :goals, class: "py-1.5") %>
+    <% end %>
+  <% end %>
+</div>

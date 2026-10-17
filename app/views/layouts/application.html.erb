@@ -9,14 +9,14 @@
   ]
 else
   [
+    # Five tabs (the owner's redesign, 2026-10-17): Plan gathers budgets,
+    # reports and goals; More gathers documents, bills, the assistant and
+    # settings.
     { name: t(".nav.home"), path: root_path, icon: "pie-chart", icon_custom: false, active: page_active?(root_path) },
+    { name: t(".nav.activity"), path: transactions_path, icon: "credit-card", icon_custom: false, active: page_active?(transactions_path) },
     { name: t(".nav.accounts"), path: accounts_path, icon: "wallet", icon_custom: false, active: page_active?(accounts_path) },
-    { name: t(".nav.transactions"), path: transactions_path, icon: "credit-card", icon_custom: false, active: page_active?(transactions_path) },
-    bills_nav_item,
-    documents_nav_item,
-    { name: t(".nav.reports"), path: reports_path, icon: "chart-bar", icon_custom: false, active: page_active?(reports_path) },
-    plan_nav_item,
-    ({ name: t(".nav.assistant"), path: chats_path, icon: "icon-assistant", icon_custom: true, active: page_active?(chats_path), mobile_only: true } if assistant_enabled)
+    plan_tab_item,
+    more_tab_item
   ].compact
 end %>
 

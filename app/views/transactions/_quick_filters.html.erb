@@ -1,0 +1,22 @@
+<%# Quick filters (the owner's redesign, 2026-10-17): one tap to what most
+    often needs a look — the uncategorized, this month, one account. The full
+    filter form stays beside the search. %>
+<% this_month = { start_date: Date.current.beginning_of_month.iso8601 } %>
+<% current_q = (params[:q].respond_to?(:to_unsafe_h) ? params[:q].to_unsafe_h : {}).stringify_keys %>
+<% chips = [] %>
+<% chips << [ t("transactions.index.quick_filters.uncategorized", count: @uncategorized_count), transactions_categorize_path, false ] if @uncategorized_count.to_i.positive? %>
+<% chips << [ t("transactions.index.quick_filters.this_month"), transactions_path(q: this_month), current_q.slice("start_date") == this_month.stringify_keys && current_q.except("start_date").blank? ] %>
+<% Current.user.accessible_accounts.visible.alphabetically.limit(4).each do |account| %>
+  <% chips << [ account.name, transactions_path(q: { account_ids: [ account.id ] }), current_q == { "account_ids" => [ account.id ] } ] %>
+<% end %>
+<nav aria-label="<%= t("transactions.index.quick_filters.label") %>">
+  <ul class="flex flex-wrap gap-2">
+    <% chips.each do |label, path, active| %>
+      <li>
+        <%= link_to label, path, aria: { current: ("page" if active) },
+              class: class_names("inline-flex items-center h-9 px-3.5 rounded-full text-sm font-semibold whitespace-nowrap active:scale-95 transition focus-ring",
+                                 active ? "bg-inverse text-inverse" : "border border-secondary bg-container text-primary hover:bg-container-hover") %>
+      </li>
+    <% end %>
+  </ul>
+</nav>

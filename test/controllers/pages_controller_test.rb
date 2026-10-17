@@ -911,6 +911,19 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # The "Today" summary (2026-10-17) loads into its own frame after Home.
+  test "home asks for the Today summary, which renders net worth and what needs you" do
+    get root_path
+    assert_select "turbo-frame#dashboard_today[src='#{dashboard_today_path}']"
+
+    get dashboard_today_path
+    assert_response :success
+    assert_select "turbo-frame#dashboard_today" do
+      assert_select "section", text: /#{Regexp.escape(I18n.t("pages.dashboard.today.net_worth"))}/
+      assert_select "a[href='#{transactions_categorize_path}']"
+    end
+  end
+
   private
     def money_flow_bars
       JSON.parse(css_select("[data-controller='bar-chart']").first["data-bar-chart-data-value"])

@@ -45,6 +45,8 @@
   <% if Current.family.recurring_transactions_disabled? %>
     <%= render "transactions/list", transactions: @transactions, projected_recurring: @projected_recurring, q: params[:q], pagy: @pagy %>
   <% else %>
+    <%= render "transactions/quick_filters" %>
+
     <%= render DS::Tabs.new(active_tab: params[:tab].presence || "transactions") do |tabs| %>
       <% tabs.with_nav(classes: "max-w-fit") do |nav| %>
         <% nav.with_btn(id: "transactions", label: t("transactions.show.tab_transactions"), classes: "px-6") %>
@@ -52,9 +54,7 @@
       <% end %>
 
       <% tabs.with_panel(tab_id: "transactions") do %>
-        <div class="bg-container rounded-xl shadow-border-xs">
-          <%= render "transactions/list", transactions: @transactions, projected_recurring: @projected_recurring, q: params[:q], pagy: @pagy %>
-        </div>
+        <%= render "transactions/list", transactions: @transactions, projected_recurring: @projected_recurring, q: params[:q], pagy: @pagy %>
       <% end %>
 
       <% tabs.with_panel(tab_id: "upcoming") do %>

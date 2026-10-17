@@ -116,6 +116,35 @@ module ApplicationHelper
   # facet. It carries the ready-to-review count as a `DS::Pill` on the entry
   # (M8 Task 9, Ruling M8-L1 decision 3) — the same signal the strip and the
   # tiles read. The count rides the nav on every page; zero renders nothing.
+  # The Plan tab: budgets, reports and goals under one switch (2026-10-17).
+  # Preview users land on the Plan hub, everyone else on this month's budget.
+  def plan_tab_item
+    {
+      name: t("layouts.application.nav.plan"),
+      path: preview_features_enabled? ? plan_path : budgets_path,
+      icon: "compass",
+      icon_custom: false,
+      active: PLAN_PATH_PREFIXES.any? { |prefix| request.path.start_with?(prefix) }
+    }
+  end
+  PLAN_PATH_PREFIXES = %w[/plan /budgets /envelopes /reports /goals].freeze
+
+  # The More tab: documents, bills, the assistant and settings (2026-10-17).
+  # It carries the documents' ready-to-review count.
+  def more_tab_item
+    count = Current.family ? DocumentLink.pending_review_count_for(Current.family) : 0
+    {
+      name: t("layouts.application.nav.more"),
+      path: more_path,
+      icon: "ellipsis",
+      icon_custom: false,
+      active: MORE_PATH_PREFIXES.any? { |prefix| request.path.start_with?(prefix) },
+      badge: count,
+      badge_title: count.positive? ? t("layouts.application.nav.documents_badge", count: count) : nil
+    }
+  end
+  MORE_PATH_PREFIXES = %w[/more /documents /bills /recurring_transactions /chats /account_statements].freeze
+
   def documents_nav_item
     count = Current.family ? DocumentLink.pending_review_count_for(Current.family) : 0
 

@@ -131,7 +131,9 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
   test "index with monthly period" do
     get reports_path(period_type: :monthly)
     assert_response :ok
-    assert_select "h1", text: I18n.t("reports.index.title")
+    # Reports sits under the Plan tab's title and switch (2026-10-17).
+    assert_select "h1", text: I18n.t("shared.plan_switch.title")
+    assert_select "h2", text: I18n.t("reports.index.title")
   end
 
   test "index with quarterly period" do

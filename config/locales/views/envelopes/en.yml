@@ -1,6 +1,10 @@
 ---
 en:
   envelopes:
+    left_to_spend:
+      title: Left to spend
+      spent: "%{amount} spent"
+      of: "of %{amount}"
     accounts:
       heading: "Accounts"
     ready_to_assign:

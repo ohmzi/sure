@@ -94,9 +94,11 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
         find("[type='submit']").click
       end
 
-      # Trigger Capybara's wait mechanism to avoid timing issues with logins.
-      # The greeting around it is translated; the user's own name is not.
-      find("h1", text: user.first_name)
+      # Trigger Capybara's wait mechanism to avoid timing issues with logins:
+      # wait for the signed-in page (Home is titled "Today" since the
+      # 2026-10-17 redesign, so the old greeting with the name is gone).
+      assert_no_current_path Rails.application.routes.url_helpers.new_session_path
+      find("#main", visible: :all)
     end
 
     # Drags horizontally across the full width of `element`. Driven off the

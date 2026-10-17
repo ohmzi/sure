@@ -6,6 +6,8 @@
 
     <%= render UI::Account::Chart.new(account: account, period: chart_period, view: chart_view, loan_chart: loan_chart) %>
 
+    <%= render "accounts/show/statement_strip", account: account, checks: recent_statement_checks if recent_statement_checks.any? %>
+
     <% if (fx_coverage_start = fx_coverage_start_date).present? %>
       <div class="px-3">
         <%= render DS::Alert.new(

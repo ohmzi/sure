@@ -1,0 +1,22 @@
+<%# locals: (budget:) %>
+<%# The month at a glance (the owner's redesign, 2026-10-17): what is left to
+    spend, large, and how much of the budget is gone. Hidden until the month
+    has a budget total. %>
+<% budgeted = budget.budgeted_spending.to_d %>
+<% if budgeted.positive? %>
+  <% spent = budget.actual_spending.to_d %>
+  <% left = budgeted - spent %>
+  <section aria-label="<%= t("envelopes.left_to_spend.title") %>" class="rounded-3xl bg-container shadow-border-xs p-5 space-y-3">
+    <p class="text-sm text-secondary"><%= t("envelopes.left_to_spend.title") %></p>
+    <p class="text-4xl font-bold tracking-tight privacy-sensitive <%= left.negative? ? "text-destructive" : "text-primary" %>">
+      <%= format_money(Money.new(left, budget.currency)) %>
+    </p>
+    <div class="h-2.5 rounded-full bg-container-inset overflow-hidden" role="presentation">
+      <span class="block h-full rounded-full <%= left.negative? ? "bg-warning" : "bg-success" %>" style="width: <%= (spent / budgeted * 100).clamp(0, 100).round %>%"></span>
+    </div>
+    <div class="flex justify-between text-xs text-secondary privacy-sensitive">
+      <span><%= t("envelopes.left_to_spend.spent", amount: format_money(Money.new(spent, budget.currency))) %></span>
+      <span><%= t("envelopes.left_to_spend.of", amount: format_money(Money.new(budgeted, budget.currency))) %></span>
+    </div>
+  </section>
+<% end %>

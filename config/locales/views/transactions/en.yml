@@ -215,7 +215,12 @@ en:
       edit_tags: Edit tags
       import: Import
     index:
-      title: "Transactions"
+      # The Activity tab (the owner's redesign, 2026-10-17).
+      title: "Activity"
+      quick_filters:
+        label: Quick filters
+        uncategorized: "Uncategorized · %{count}"
+        this_month: This month
       transaction: transaction
       transactions: transactions
       import: Import

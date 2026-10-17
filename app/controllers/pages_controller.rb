@@ -56,6 +56,16 @@ class PagesController < ApplicationController
     @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("breadcrumbs.dashboard"), nil ] ]
   end
 
+  # The More tab (2026-10-17): documents, bills, the assistant and settings.
+  def more
+  end
+
+  # The "Today" summary, fetched into Home's dashboard_today frame.
+  def today
+    render partial: "pages/dashboard/today_frame",
+           locals: { today: Dashboard::Today.new(family: Current.family, user: Current.user) }
+  end
+
   def intro
     @breadcrumbs = [ [ t("breadcrumbs.home"), chats_path ], [ t("breadcrumbs.intro"), nil ] ]
   end

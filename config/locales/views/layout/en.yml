@@ -12,6 +12,8 @@ en:
         done: Got it
       nav:
         accounts: Accounts
+        activity: Activity
+        more: More
         assistant: Assistant
         bills: Bills
         documents: Documents

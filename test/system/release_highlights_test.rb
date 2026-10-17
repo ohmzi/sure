@@ -18,7 +18,7 @@ class ReleaseHighlightsSystemTest < ApplicationSystemTestCase
 
   %w[close overlay escape done].each do |method|
     test "#{method} dismissal acknowledges the hotfix across a full reload" do
-      find("h1", text: @user.first_name).click
+      find("h1", match: :first).click
       assert_selector "dialog[open]", text: "Hotfix release notes"
 
       case method
@@ -40,7 +40,7 @@ class ReleaseHighlightsSystemTest < ApplicationSystemTestCase
       end
 
       refresh
-      find("h1", text: @user.first_name).click
+      find("h1", match: :first).click
       assert_no_selector "[data-controller='release-highlight']", visible: :all
       assert_no_selector "dialog[open]"
     end
@@ -77,7 +77,7 @@ class ReleaseHighlightsSystemTest < ApplicationSystemTestCase
   # the popup would open and the drawer would land on top of it.
   test "the popup waits for a drawer that is still loading" do
     page.execute_script("document.getElementById('drawer').setAttribute('busy', '')")
-    find("h1", text: @user.first_name).click
+    find("h1", match: :first).click
 
     assert_popup_waiting
     assert_no_selector "dialog[open]"

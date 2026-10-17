@@ -1,0 +1,40 @@
+<%# The More tab (the owner's redesign, 2026-10-17): your profile first, then
+    the places that are not daily tabs — documents, bills, the assistant —
+    and the app's own settings and help, as iOS grouped lists. %>
+<% count = DocumentLink.pending_review_count_for(Current.family) %>
+<div class="max-w-2xl space-y-7 pb-28 lg:pb-12">
+  <h1 class="text-3xl font-bold tracking-tight text-primary"><%= t(".title") %></h1>
+
+  <%= link_to settings_profile_path, class: "flex items-center gap-3.5 rounded-2xl bg-container p-3.5 shadow-border-xs active:scale-[0.99] transition focus-ring" do %>
+    <div class="size-14 shrink-0">
+      <%= render "settings/user_avatar", avatar_url: (Current.user.profile_image.attached? ? Current.user.profile_image.variant(:small) : nil), initials: Current.user.initials %>
+    </div>
+    <div class="min-w-0 grow">
+      <p class="truncate text-lg font-semibold text-primary"><%= Current.user.display_name %></p>
+      <p class="truncate text-sm text-secondary"><%= t(".profile_subtitle") %></p>
+    </div>
+    <%= icon("chevron-right", size: "sm") %>
+  <% end %>
+
+  <section>
+    <h2 class="px-4 mb-2 text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".your_money") %></h2>
+    <ul class="overflow-hidden rounded-2xl bg-container shadow-border-xs divide-y divide-subdued">
+      <li><%= render "shared/list_row", label: t("layouts.application.nav.documents"), path: documents_path, icon: "receipt-text", tint: "brand", badge: count %></li>
+      <% unless Current.family.recurring_transactions_disabled? %>
+        <li><%= render "shared/list_row", label: t("layouts.application.nav.bills"), path: bills_path, icon: "receipt", tint: "yellow" %></li>
+      <% end %>
+      <% if Current.family.assistant_enabled? %>
+        <li><%= render "shared/list_row", label: t("layouts.application.nav.assistant"), path: chats_path, icon: "sparkles", tint: "cyan" %></li>
+      <% end %>
+    </ul>
+  </section>
+
+  <section>
+    <h2 class="px-4 mb-2 text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".app") %></h2>
+    <ul class="overflow-hidden rounded-2xl bg-container shadow-border-xs divide-y divide-subdued">
+      <li><%= render "shared/list_row", label: t("layouts.settings.title"), path: settings_root_path, icon: "settings", tint: "gray" %></li>
+      <li><%= render "shared/list_row", label: t("settings.settings_nav.whats_new_label"), path: changelog_path, icon: "box", tint: "indigo" %></li>
+      <li><%= render "shared/list_row", label: t("settings.settings_nav.feedback_label"), path: feedback_path, icon: "megaphone", tint: "green" %></li>
+    </ul>
+  </section>
+</div>

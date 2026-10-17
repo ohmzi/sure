@@ -22,16 +22,8 @@
       <h3 class="px-4 mb-2 text-xs font-medium uppercase tracking-wide text-secondary"><%= section[:header] %></h3>
       <ul class="overflow-hidden rounded-2xl bg-container shadow-border-xs divide-y divide-subdued">
         <% section[:items].each do |item| %>
-          <% active = page_active?(item[:path]) %>
           <li>
-            <%= link_to item[:path], class: class_names(
-                  "flex items-center gap-3 pl-3 pr-3.5 min-h-12 py-2 text-base transition-colors focus-ring active:bg-container-inset-hover",
-                  active ? "button-bg-accent text-link font-semibold" : "text-primary hover:bg-container-hover"
-                ), aria: { current: ("page" if active) } do %>
-              <%= render DS::FilledIcon.new(icon: item[:icon], hex_color: "var(--color-#{item[:tint]}-500)", size: "md") %>
-              <span class="grow truncate"><%= item[:label] %></span>
-              <%= icon("chevron-right", size: "sm") %>
-            <% end %>
+            <%= render "shared/list_row", label: item[:label], path: item[:path], icon: item[:icon], tint: item[:tint], active: page_active?(item[:path]) %>
           </li>
         <% end %>
       </ul>

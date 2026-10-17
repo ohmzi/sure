@@ -26,4 +26,17 @@
   <span class="col-span-2 text-right tabular-nums privacy-sensitive <%= budget_category.available_to_spend.negative? ? "text-destructive" : "text-primary" %>">
     <%= format_money(budget_category.available_to_spend_money) %>
   </span>
+  <%# How full the envelope is (the owner's redesign, 2026-10-17): the
+      category's colour, or the warning colour once it is overspent. %>
+  <% budgeted = budget_category.budgeted_spending.to_d %>
+  <% if budgeted.positive? %>
+    <% spent_pct = (budget_category.actual_spending.to_d / budgeted * 100).clamp(0, 100).round %>
+    <div class="col-span-12 h-1.5 rounded-full bg-container-inset overflow-hidden" role="presentation">
+      <% if budget_category.available_to_spend.negative? %>
+        <span class="block h-full w-full rounded-full bg-warning"></span>
+      <% else %>
+        <span class="block h-full rounded-full" style="width: <%= spent_pct %>%; background-color: <%= budget_category.category.color %>"></span>
+      <% end %>
+    </div>
+  <% end %>
 </div>

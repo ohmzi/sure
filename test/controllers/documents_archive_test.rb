@@ -398,16 +398,18 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
 
   # -- the sidebar ready-to-review count (M8 Task 9, Ruling M8-L1 decision 3) --
 
+  # Since the five-tab navigation (2026-10-17) the count rides the More tab,
+  # where Documents now lives.
   test "the main nav badges Receipts & Bills with its ready-to-review count" do
     # Fixtures: receipt_understood's draft is understood (ready); receipt_draft
     # is awaiting_ocr (still reading) — so the family's count is exactly one.
     get documents_path
     assert_response :success
-    assert_select "a[href='#{documents_path}'] [data-nav-badge]", text: "1"
+    assert_select "a[href='#{more_path}'] [data-nav-badge]", text: "1"
 
     # It rides the nav on every page, like the insights badge.
     get root_path
-    assert_select "a[href='#{documents_path}'] [data-nav-badge]", text: "1"
+    assert_select "a[href='#{more_path}'] [data-nav-badge]", text: "1"
 
     # A reviewed-and-published receipt stops counting (else the badge would
     # inflate forever on a family's history).

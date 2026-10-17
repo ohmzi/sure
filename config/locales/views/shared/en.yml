@@ -4,6 +4,11 @@ en:
     self_hostable:
       redis_configured: "Redis is now configured properly! You can now setup your Sure application."
   shared:
+    plan_switch:
+      title: Plan
+      budget: Budget
+      reports: Reports
+      goals: Goals
     preview: Preview
     dot_separator: "·"
     sync_toast:

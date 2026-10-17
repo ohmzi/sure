@@ -1,0 +1,30 @@
+<%# locals: (account:, checks:) %>
+<%# The statement strip (the owner's redesign, 2026-10-17): a month per
+    statement, ✓ when its rows add up to its closing balance. %>
+<% matched = checks.count { |_, status| status == "matched" } %>
+<%= link_to account_path(account, tab: "statements"), data: { statement_strip: true, turbo_frame: "_top" },
+      class: "block mx-3 lg:mx-0 rounded-3xl bg-container shadow-border-xs p-4 space-y-3 hover:bg-container-hover transition-colors focus-ring" do %>
+  <div class="flex items-baseline justify-between gap-3">
+    <h2 class="text-base font-semibold text-primary"><%= t("accounts.show.statement_strip.title") %></h2>
+    <span class="text-sm <%= matched == checks.size ? "text-success" : "text-warning" %>">
+      <%= t("accounts.show.statement_strip.summary", matched: matched, total: checks.size) %>
+    </span>
+  </div>
+  <ol class="grid gap-1.5" style="grid-template-columns: repeat(<%= checks.size %>, minmax(0, 1fr))">
+    <% checks.each do |statement, status| %>
+      <li class="flex flex-col items-center gap-1.5">
+        <span class="flex h-9 w-full items-center justify-center rounded-xl text-sm font-bold
+                     <%= case status
+                         when "matched" then "bg-success/20 text-success"
+                         when "mismatched" then "bg-warning/20 text-warning"
+                         else "bg-surface-inset text-subdued"
+                         end %>"
+              title="<%= t("accounts.show.statement_strip.status.#{status || "unavailable"}") %>">
+          <%= { "matched" => "✓", "mismatched" => "!" }.fetch(status, "–") %>
+          <span class="sr-only"><%= t("accounts.show.statement_strip.status.#{status || "unavailable"}") %></span>
+        </span>
+        <span class="text-xs text-secondary"><%= l(statement.period_end_on, format: "%b") %></span>
+      </li>
+    <% end %>
+  </ol>
+<% end %>

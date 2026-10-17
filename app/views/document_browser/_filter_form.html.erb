@@ -60,9 +60,9 @@
   <%= hidden_field_tag "q[attention]", filters[:attention], id: nil if filters[:attention].present? %>
 
   <% if active.chips.any? %>
-    <nav aria-label="<%= t("document_browser.filters.chips.label") %>"
-         class="-mx-3 px-3 lg:mx-0 lg:px-0 overflow-x-auto [scrollbar-width:none]">
-      <ul class="flex gap-2 w-max lg:w-auto lg:flex-wrap">
+    <%# Chips wrap rather than scroll sideways (the owner, 2026-10-17). %>
+    <nav aria-label="<%= t("document_browser.filters.chips.label") %>">
+      <ul class="flex flex-wrap gap-2">
         <% active.chips.each do |chip| %>
           <li>
             <%= link_to chip.remove_url,

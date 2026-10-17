@@ -124,18 +124,20 @@ class SettingsTest < ApplicationSystemTestCase
       # waiting intent as application_system_test_case#sign_in.
       assert_current_path root_path
 
-      # Go directly to accounts (settings) page
-      visit accounts_path
+      # Go directly to a settings page (Accounts is its own tab since
+      # 2026-10-17; Preferences shows the settings list).
+      visit settings_preferences_path
 
-      # Assert that admin-only settings are not present in the navigation
-      assert_no_selector "li", text: "AI Prompts"
-      assert_no_selector "li", text: "API Keys"
-      assert_no_selector "li", text: "Bank sync"
-      # (Milestone B, design D1) statements are no longer a settings entry of
-      # their own — one Documents entry — so the vault label is gone and the
-      # Documents entry stands in its place.
-      assert_no_selector "li", text: "Statement Vault"
-      assert_selector "li", text: "Documents"
+      # Assert that admin-only settings are not present in the settings list
+      within "#settings-nav-container" do
+        assert_no_selector "li", text: "AI Prompts"
+        assert_no_selector "li", text: "API Keys"
+        assert_no_selector "li", text: "Bank sync"
+        # Statements are not a settings entry, and Documents is a tab of its
+        # own, so neither is in the list.
+        assert_no_selector "li", text: "Statement Vault"
+        assert_selector "li", text: "Preferences"
+      end
     end
   end
 

@@ -3,6 +3,7 @@
     slot (only the wizard/imports layouts do), so the Setup/Categories step
     nav was dead markup. It is rendered in-page instead. %>
 <div class="pb-6 lg:pb-12" data-controller="envelope budget-move">
+  <%= render "shared/plan_switch", current: :budget %>
   <nav class="mb-4" data-testid="budget-steps">
     <%= render "budgets/budget_nav", budget: @budget %>
   </nav>
@@ -15,6 +16,7 @@
     <%= render "envelopes/accounts_column", account_groups: @account_groups %>
 
     <div class="space-y-4">
+      <%= render "envelopes/left_to_spend", budget: @budget %>
       <%= render "envelopes/ready_to_assign", budget: @budget %>
 
       <% if !@budget.initialized? && @source_budget.present? && @editable %>
