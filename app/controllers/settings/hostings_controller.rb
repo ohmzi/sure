@@ -236,7 +236,7 @@ class Settings::HostingsController < ApplicationController
 
     if hosting_params.key?(:llm_provider)
       provider = hosting_params[:llm_provider].to_s
-      if %w[openai anthropic local].include?(provider)
+      if Setting::LLM_PROVIDERS.include?(provider)
         Setting.llm_provider = provider
       end
     end

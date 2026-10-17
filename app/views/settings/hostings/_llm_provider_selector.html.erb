@@ -1,16 +1,20 @@
 <%
   stored = Setting.llm_provider.to_s.downcase
-  active = %w[openai anthropic local].include?(stored) ? stored : "openai"
+  active = Setting::LLM_PROVIDERS.include?(stored) ? stored : "openai"
   locked = ENV["LLM_PROVIDER"].present?
   providers = [
     [ "openai", t(".provider_openai") ],
     [ "anthropic", t(".provider_anthropic") ],
+    [ "deepseek", t(".provider_deepseek") ],
+    [ "gemini", t(".provider_gemini") ],
     [ "local", t(".provider_local") ]
   ]
   active_configured =
     case active
     when "anthropic" then Provider::Anthropic.configured?
     when "local" then Setting.local_llm_model.present?
+    when "deepseek" then Setting.deepseek_api_key.present?
+    when "gemini" then Setting.gemini_api_key.present?
     else Provider::Openai.configured?
     end
 %>

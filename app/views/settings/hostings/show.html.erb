@@ -19,16 +19,15 @@
        data-controller="provider-settings"
        data-provider-settings-active-value="<%= Setting.llm_provider %>">
     <%= render "settings/hostings/llm_provider_selector" %>
-    <%= tag.div data: { "provider-settings-target": "panel", provider: "openai" },
-                hidden: Setting.llm_provider != "openai" do %>
+    <%# Every provider's credentials stay on the page whichever one is chosen
+        (the owner, 2026-10-17), so a key can be entered ahead of switching. %>
+    <%= tag.div data: { provider: "openai" } do %>
       <%= render "settings/hostings/openai_settings" %>
     <% end %>
-    <%= tag.div data: { "provider-settings-target": "panel", provider: "anthropic" },
-                hidden: Setting.llm_provider != "anthropic" do %>
+    <%= tag.div data: { provider: "anthropic" } do %>
       <%= render "settings/hostings/anthropic_settings" %>
     <% end %>
-    <%= tag.div data: { "provider-settings-target": "panel", provider: "local" },
-                hidden: Setting.llm_provider != "local" do %>
+    <%= tag.div data: { provider: "local" } do %>
       <%= render "settings/hostings/local_settings" %>
     <% end %>
     <%= render "settings/hostings/cloud_reader_settings" %>

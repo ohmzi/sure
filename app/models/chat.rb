@@ -58,6 +58,14 @@ class Chat < ApplicationRecord
     # provider's classes would later raise "no LLM provider supports model …"
     # even when the other provider is configured.
     def default_model
+      # DeepSeek and Gemini (2026-10-17): chosen and keyed, their model leads.
+      case Setting.llm_provider
+      when "deepseek"
+        return Setting.deepseek_model.presence || Setting::DEEPSEEK_DEFAULT_MODEL if Setting.deepseek_api_key.present?
+      when "gemini"
+        return Setting.gemini_model.presence || Setting::GEMINI_DEFAULT_MODEL if Setting.gemini_api_key.present?
+      end
+
       prefers_anthropic = Setting.llm_provider == "anthropic"
 
       if prefers_anthropic && Provider::Anthropic.configured?

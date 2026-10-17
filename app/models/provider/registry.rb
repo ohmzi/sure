@@ -31,12 +31,22 @@ class Provider::Registry
     def preferred_llm_provider
       return openai if Setting.llm_provider == "local"
 
-      order = Setting.llm_provider == "anthropic" ? %i[anthropic openai] : %i[openai anthropic]
+      order = llm_provider_order
       order.each do |name|
         provider = get_provider(name)
         return provider if provider
       end
       nil
+    end
+
+    # The LLM providers in the order they are tried: the selected one first,
+    # then OpenAI and Anthropic, then DeepSeek and Gemini. DeepSeek and Gemini
+    # accept any model name, so unselected they must come last or they would
+    # claim another provider's models.
+    def llm_provider_order
+      selected = Setting.llm_provider.to_s.to_sym
+      base = %i[openai anthropic deepseek gemini]
+      base.include?(selected) ? [ selected, *(base - [ selected ]) ] : base
     end
 
     # The cloud services a document can be read with, in the order they are
@@ -310,7 +320,7 @@ class Provider::Registry
       when :securities
         %i[twelve_data yahoo_finance tiingo eodhd alpha_vantage mfapi binance_public moex_public tinkoff_invest mansa]
       when :llm
-        %i[openai anthropic]
+        self.class.llm_provider_order
       when :classification
         # Only providers implementing Provider::ClassificationConcept#decide
         # belong here. OpenAI and Anthropic can auto-categorize but cannot

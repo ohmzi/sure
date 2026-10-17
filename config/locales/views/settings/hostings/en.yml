@@ -151,7 +151,9 @@ en:
         provider_openai: OpenAI
         provider_anthropic: Anthropic (Claude)
         provider_local: Local (self-hosted)
-        provider_help: Switching providers takes effect on the next chat. Configure the active provider's credentials below.
+        provider_deepseek: DeepSeek
+        provider_gemini: Google Gemini
+        provider_help: Switching providers takes effect on the next chat. Every provider's key is below, so a fallback is always ready.
         not_configured_hint: "Add a %{provider} API key below to activate it."
         local_not_configured_hint: Detect your server below, then pick a model to activate it.
         data_retention_heading: Data handling

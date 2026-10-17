@@ -35,6 +35,9 @@ class Setting < RailsSettings::Base
   # credential is only ever sent to the endpoint it was issued for. The model
   # defaults are ones that take page images (a text-only model cannot read a
   # photographed receipt).
+  # The AI providers a person can choose (DeepSeek and Gemini joined OpenAI,
+  # Anthropic and Local on 2026-10-17; both speak the OpenAI protocol).
+  LLM_PROVIDERS = %w[openai anthropic deepseek gemini local].freeze
   DEEPSEEK_DEFAULT_MODEL = "deepseek-flash".freeze
   GEMINI_DEFAULT_MODEL = "gemini-flash-latest".freeze
   # Gemini's lighter model, tried when the configured one is overloaded (its

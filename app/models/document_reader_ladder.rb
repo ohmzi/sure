@@ -64,8 +64,11 @@ class DocumentReaderLadder
                  guard: LocalLlm::GpuGuard.new(base_url: Setting.local_llm_base_url, model: model))
     end
 
+    # A cloud service already chosen as the AI provider is the selected reader;
+    # it is not tried a second time as a fallback (2026-10-17).
     def cloud_readers
       CLOUD.filter_map do |name, label|
+        next if @mode != "online" && name.to_s == Setting.llm_provider.to_s
         provider = Provider::Registry.get_provider(name)
         provider && Reader.new(provider: provider, kind: :cloud, label: label, guard: nil,
                                fallback_for: (CLOUD[:gemini] if name == :gemini_lite))

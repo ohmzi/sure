@@ -1587,6 +1587,27 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+
+  # The owner (2026-10-17): DeepSeek and Gemini are choices beside OpenAI,
+  # Claude and Local, and every provider's key fields stay on the page whichever
+  # is chosen.
+  test "the AI page offers DeepSeek and Gemini and shows every provider's fields" do
+    with_self_hosting do
+      Setting.llm_provider = "local"
+      get settings_ai_url
+
+      assert_response :success
+      %w[openai anthropic deepseek gemini local].each do |provider|
+        assert_select "select[name='setting[llm_provider]'] option[value='#{provider}']"
+      end
+      %w[openai anthropic local].each do |provider|
+        assert_select "[data-provider='#{provider}']:not([hidden])"
+      end
+    ensure
+      Setting.llm_provider = "openai"
+    end
+  end
+
   private
     def enable_preview_features!
       @user = users(:family_admin)
