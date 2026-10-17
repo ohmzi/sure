@@ -1,7 +1,7 @@
 <% content_for :page_header do %>
   <div class="space-y-1 mb-6 flex gap-4 justify-between items-center lg:items-start">
     <div class="space-y-1">
-      <h1 class="text-xl lg:text-3xl font-medium text-primary">
+      <h1 class="text-3xl font-bold tracking-tight text-primary">
         <%= t("pages.dashboard.welcome", name: Current.user.first_name) %>
       </h1>
       <p class="text-sm lg:text-base text-secondary">
@@ -46,13 +46,8 @@
         class: "hidden lg:inline-flex"
       ) %>
 
-      <%= render DS::Link.new(
-          variant: "icon-inverse",
-          icon: "plus",
-          href: new_account_path,
-          frame: :modal,
-          class: "rounded-full lg:hidden"
-        ) %>
+      <%# On a phone the + floats under the thumb, as on the Documents page. %>
+      <%= render DS::Fab.new(icon: "plus", label: t("pages.dashboard.new"), href: new_account_path, frame: :modal, class: "lg:hidden") %>
     </div>
   </div>
 <% end %>
@@ -115,7 +110,7 @@
   <% if accessible_accounts.any? %>
     <% @dashboard_sections.each do |section| %>
       <section
-        class="bg-container rounded-xl shadow-border-xs transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:ring-offset-2<%= " 2xl:col-span-2" if two_column && section[:layout][:col_span] == "full" %>"
+        class="bg-container rounded-3xl shadow-border-xs transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-link focus-visible:ring-offset-2<%= " 2xl:col-span-2" if two_column && section[:layout][:col_span] == "full" %>"
         style="<%= "--dash-widget-h: #{section[:layout][:height_px]}px;" if section[:layout][:grow] %>"
         data-dashboard-sortable-target="section"
         data-section-key="<%= section[:key] %>"
@@ -136,7 +131,7 @@
           touchend->dashboard-sortable#touchEnd
           touchcancel->dashboard-sortable#touchEnd
           keydown->dashboard-sortable#handleKeyDown">
-        <div class="px-4 py-2 flex items-center justify-between">
+        <div class="px-5 pt-4 pb-2 flex items-center justify-between">
           <div class="flex items-center gap-2">
             <button
               type="button"
@@ -147,7 +142,7 @@
               aria-expanded="<%= !Current.user.dashboard_section_collapsed?(section[:key]) %>">
               <%= icon("chevron-down", size: "sm", class: "transition-transform", data: { dashboard_section_target: "chevron" }) %>
             </button>
-            <h2 class="text-base font-medium">
+            <h2 class="text-lg font-semibold tracking-tight">
               <%= t(section[:title]) %>
             </h2>
           </div>

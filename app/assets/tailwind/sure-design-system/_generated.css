@@ -209,6 +209,12 @@
   --color-orange-tint-10: --alpha(var(--color-orange-500) / 10%);
   --budget-unused-fill: var(--color-gray-200);
   --budget-unallocated-fill: var(--color-gray-50);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 22px;
+  --radius-3xl: 28px;
   --border-radius-md: 8px;
   --border-radius-lg: 10px;
   --shadow-xs: 0px 1px 2px 0px --alpha(var(--color-black) / 6%);

@@ -1,32 +1,24 @@
 <%# locals: (name:, path:, icon:, icon_custom:, active:, mobile_only: false, preview: false, badge: nil, badge_title: nil) %>
-
-<%= link_to path, class: "space-y-1 group block relative pb-1 focus-ring rounded-lg", aria: { current: ("page" if active) } do %>
-  <div class="grow flex flex-col lg:flex-row gap-1 items-center">
-    <%= tag.div class: class_names("w-4 h-1 lg:w-1 lg:h-4 rounded-bl-sm rounded-br-sm lg:rounded-tr-sm lg:rounded-br-sm lg:rounded-bl-none", "bg-nav-indicator" => active) %>
-
-    <%= tag.div class: class_names(
-      "w-8 h-8 flex items-center justify-center mx-auto rounded-lg relative",
-      active ? "bg-container shadow-xs text-primary" : "group-hover:bg-surface-hover text-secondary"
-    ) do %>
-      <%= icon(icon, color: active ? "current" : "default", custom: icon_custom) %>
-      <% if preview %>
-        <span class="absolute -top-0.5 -right-0.5">
-          <%= render DS::Pill.new(tone: :violet, dot_only: true, title: t("shared.preview")) %>
-        </span>
-      <% end %>
-      <%# A count badge on the entry (M8 Task 9: the ready-to-review count on
-          Receipts & Bills). Zero renders nothing. %>
-      <% if badge.to_i.positive? %>
-        <span data-nav-badge class="absolute -top-0.5 -right-0.5">
-          <%= render DS::Pill.new(label: badge, tone: :info, marker: false, title: badge_title) %>
-        </span>
-      <% end %>
+<%# One navigation entry, bottom bar and sidebar alike (2026-10-17): an iOS-style
+    tinted pill behind the active icon and a brand-coloured label. The active
+    look is keyed on aria-current alone, so nav_press_controller can light a
+    tapped entry up at once, before the next page has arrived. %>
+<%= link_to path, class: "group flex flex-col items-center gap-1 py-1 rounded-2xl focus-ring active:scale-95 transition-transform", aria: { current: ("page" if active) } do %>
+  <%= tag.div class: "relative flex items-center justify-center w-12 h-8 rounded-full text-secondary transition-colors group-hover:bg-surface-hover group-aria-[current=page]:button-bg-accent group-aria-[current=page]:text-link" do %>
+    <%= icon(icon, color: "current", custom: icon_custom) %>
+    <% if preview %>
+      <span class="absolute -top-0.5 right-1">
+        <%= render DS::Pill.new(tone: :violet, dot_only: true, title: t("shared.preview")) %>
+      </span>
     <% end %>
-  </div>
-
-  <div class="grow flex justify-center lg:pl-2">
-    <%= tag.p class: class_names("font-medium text-[11px]", active ? "text-primary" : "text-secondary") do %>
-      <%= name %>
+    <%# A count badge on the entry (M8 Task 9: the ready-to-review count on
+        Receipts & Bills). Zero renders nothing. %>
+    <% if badge.to_i.positive? %>
+      <span data-nav-badge class="absolute -top-1 right-0.5">
+        <%= render DS::Pill.new(label: badge, tone: :info, marker: false, title: badge_title) %>
+      </span>
     <% end %>
-  </div>
+  <% end %>
+
+  <p class="font-medium text-[11px] text-secondary group-aria-[current=page]:font-semibold group-aria-[current=page]:text-link"><%= name %></p>
 <% end %>

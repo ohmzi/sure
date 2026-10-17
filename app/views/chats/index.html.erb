@@ -10,7 +10,7 @@
       <% if @chats.any? %>
         <div class="grow flex flex-col">
           <div class="flex items-center justify-between my-6">
-            <h1 class="text-xl font-medium"><%= t(".chats") %></h1>
+            <h1 class="text-xl font-bold tracking-tight"><%= t(".chats") %></h1>
             <%= render DS::Link.new(
               id: "new-chat",
               icon: "plus",

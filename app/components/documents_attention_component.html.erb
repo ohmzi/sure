@@ -4,7 +4,7 @@
 <div id="documents_attention" class="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-3xl bg-inverse px-5 py-4 text-inverse shadow-border-sm">
   <div class="min-w-0 grow">
     <p class="text-xl font-bold tracking-tight"><%= t("document_browser.attention.title", count: total) %></p>
-    <p class="text-sm text-inverse/80">
+    <p class="text-sm opacity-80">
       <%= reasons.map { |count, key| t("document_browser.attention.reasons.#{key}", count: count) }.join(" · ") %>
     </p>
   </div>

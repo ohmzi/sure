@@ -14,7 +14,7 @@ import { Controller } from "@hotwired/stimulus";
  * trigger. Use DS::Popover for mixed-content panels (forms, pickers).
  */
 export default class extends Controller {
-  static targets = ["button", "content"];
+  static targets = ["button", "content", "backdrop"];
 
   static values = {
     show: Boolean,
@@ -121,12 +121,19 @@ export default class extends Controller {
     if (nextShow) {
       this.update();
       this.#focusFirstMenuItem();
+    } else {
+      this.#hideBackdrop();
     }
   };
 
   close() {
     this.contentTarget.classList.add("hidden");
     this.buttonTarget.setAttribute("aria-expanded", "false");
+    this.#hideBackdrop();
+  }
+
+  #hideBackdrop() {
+    if (this.hasBackdropTarget) this.backdropTarget.classList.add("hidden");
   }
 
   #menuItems() {
@@ -167,29 +174,41 @@ export default class extends Controller {
   update() {
     if (!this.buttonTarget || !this.contentTarget) return;
 
-    const isSmallScreen = !window.matchMedia("(min-width: 768px)").matches;
+    const isSmallScreen = !window.matchMedia("(min-width: 1024px)").matches;
     const useMobileFullwidth = isSmallScreen && this.mobileFullwidthValue;
 
+    // A phone gets the bottom sheet every popup shares: pinned to the bottom
+    // edge, full width, over a backdrop (a tap on it lands outside and closes).
+    if (useMobileFullwidth) {
+      this.contentTarget.dataset.sheet = "";
+      Object.assign(this.contentTarget.style, {
+        position: "fixed",
+        left: "0px",
+        width: "100vw",
+        top: "auto",
+        bottom: "0px",
+        paddingLeft: "0px",
+        paddingRight: "0px",
+      });
+      // update() also runs on resize while closed; only an open menu shows it.
+      if (this.hasBackdropTarget) this.backdropTarget.classList.toggle("hidden", !this.show);
+      return;
+    }
+    delete this.contentTarget.dataset.sheet;
+    this.#hideBackdrop();
+    Object.assign(this.contentTarget.style, { bottom: "", paddingLeft: "", paddingRight: "" });
+
     computePosition(this.buttonTarget, this.contentTarget, {
-      placement: useMobileFullwidth ? "bottom" : this.placementValue,
+      placement: this.placementValue,
       middleware: [offset(this.offsetValue), flip({ padding: 5 }), shift({ padding: 5 })],
       strategy: "fixed",
     }).then(({ x, y }) => {
-      if (useMobileFullwidth) {
-        Object.assign(this.contentTarget.style, {
-          position: "fixed",
-          left: "0px",
-          width: "100vw",
-          top: `${y}px`,
-        });
-      } else {
-        Object.assign(this.contentTarget.style, {
-          position: "fixed",
-          left: `${x}px`,
-          top: `${y}px`,
-          width: "",
-        });
-      }
+      Object.assign(this.contentTarget.style, {
+        position: "fixed",
+        left: `${x}px`,
+        top: `${y}px`,
+        width: "",
+      });
     });
   }
 }

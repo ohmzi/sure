@@ -6,7 +6,7 @@
 
 <div class="space-y-8 mx-auto max-w-2xl mb-6">
   <div class="text-center space-y-2">
-    <h1 class="text-3xl text-primary font-medium"><%= t(".title") %></h1>
+    <h1 class="text-3xl text-primary font-bold tracking-tight"><%= t(".title") %></h1>
     <p class="text-secondary text-sm"><%= t(".description", product_name: product_name) %></p>
   </div>
 
@@ -14,7 +14,7 @@
 
     <%# ── Date format ─────────────────────────────────────────────── %>
     <%= tag.div class: "space-y-3", data: { controller: "qif-date-format", qif_date_format_previews_value: @date_previews.to_json } do %>
-      <h2 class="text-lg font-medium text-primary"><%= t("imports.date_format.heading") %></h2>
+      <h2 class="text-lg font-semibold tracking-tight text-primary"><%= t("imports.date_format.heading") %></h2>
       <p class="text-sm text-secondary"><%= t("imports.date_format.description") %></p>
 
       <% if @date_formats.any? %>
@@ -55,7 +55,7 @@
     <% if @categories.any? %>
       <div class="space-y-3">
         <div class="flex items-center justify-between">
-          <h2 class="text-lg font-medium text-primary"><%= t(".categories_heading") %></h2>
+          <h2 class="text-lg font-semibold tracking-tight text-primary"><%= t(".categories_heading") %></h2>
           <span class="text-sm text-secondary"><%= t(".categories_found", count: @categories.count) %></span>
         </div>
 
@@ -101,7 +101,7 @@
     <% if @tags.any? %>
       <div class="space-y-3">
         <div class="flex items-center justify-between">
-          <h2 class="text-lg font-medium text-primary"><%= t(".tags_heading") %></h2>
+          <h2 class="text-lg font-semibold tracking-tight text-primary"><%= t(".tags_heading") %></h2>
           <span class="text-sm text-secondary"><%= t(".tags_found", count: @tags.count) %></span>
         </div>
 

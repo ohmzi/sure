@@ -81,7 +81,8 @@ class DS::MenuItem < DesignSystemComponent
 
     def container_classes
       [
-        "flex items-center gap-2 p-2 rounded-md w-full focus-ring",
+        # In the phone's bottom sheet (DS::Menu's data-sheet) a row is iOS-sized.
+        "flex items-center gap-2 p-2 rounded-md w-full focus-ring group-data-[sheet]:gap-3 group-data-[sheet]:px-5 group-data-[sheet]:py-3 group-data-[sheet]:text-base group-data-[sheet]:rounded-none",
         destructive? ? "hover:bg-red-tint-5 theme-dark:hover:bg-red-tint-10" : "hover:bg-container-hover"
       ].join(" ")
     end

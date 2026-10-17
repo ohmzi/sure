@@ -273,6 +273,16 @@
     "unallocated-fill": { "$value": "{color.gray.50}",  "$type": "color", "$extensions": { "sure.dark": "{color.gray.700}" } }
   },
 
+  "radius": {
+    "$description": "Tailwind's rounded-* scale, rounder for the Quicken Simplifi design language (2026-10-17): every rounded-* in the app follows.",
+    "sm":  { "$value": "6px",  "$type": "dimension" },
+    "md":  { "$value": "10px", "$type": "dimension" },
+    "lg":  { "$value": "14px", "$type": "dimension" },
+    "xl":  { "$value": "18px", "$type": "dimension" },
+    "2xl": { "$value": "22px", "$type": "dimension" },
+    "3xl": { "$value": "28px", "$type": "dimension" }
+  },
+
   "border": {
     "radius": {
       "md": { "$value": "8px",  "$type": "dimension" },

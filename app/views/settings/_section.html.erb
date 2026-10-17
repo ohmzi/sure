@@ -11,7 +11,7 @@
           <%= icon "chevron-right", class: "text-secondary group-open:rotate-90 motion-safe:transition-transform motion-safe:duration-150" %>
           <div>
             <div class="flex items-center gap-2 flex-wrap">
-              <h2 class="text-lg font-medium text-primary"><%= title %></h2>
+              <h2 class="text-lg font-semibold tracking-tight text-primary"><%= title %></h2>
               <%= badge if badge.present? %>
             </div>
             <% if subtitle.present? %>
@@ -38,7 +38,7 @@
   <section class="bg-container shadow-border-xs rounded-xl p-4 space-y-4">
     <% if title.present? %>
       <div>
-        <h2 class="text-lg font-medium text-primary"><%= title %></h2>
+        <h2 class="text-lg font-semibold tracking-tight text-primary"><%= title %></h2>
         <% if subtitle.present? %>
           <p class="text-secondary text-sm mt-1"><%= subtitle %></p>
         <% end %>

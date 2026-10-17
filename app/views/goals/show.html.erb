@@ -4,7 +4,7 @@
       <%= render Goals::AvatarComponent.new(goal: @goal, size: "xl") %>
     </div>
     <div class="min-w-0 flex-1">
-      <h1 class="text-2xl font-semibold text-primary break-words"><%= @goal.name %></h1>
+      <h1 class="text-2xl font-bold text-primary break-words tracking-tight"><%= @goal.name %></h1>
       <%# Each segment is its own nowrap span so a short trailing one — "184 days
           left" — moves to the next line whole instead of breaking after "days".
           The first segment carries the target and a long-format date, so it is

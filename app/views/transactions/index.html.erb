@@ -1,6 +1,6 @@
 <div class="space-y-4 pb-6 lg:pb-12 flex flex-col">
   <header class="flex justify-between items-center text-primary font-medium">
-    <h1 class="text-xl"><%= t(".title") %></h1>
+    <h1 class="text-3xl font-bold tracking-tight text-primary"><%= t(".title") %></h1>
     <div class="flex items-center gap-5">
       <div class="flex items-center gap-2">
         <%= render DS::Menu.new do |menu| %>
@@ -35,13 +35,8 @@
             class: "hidden md:inline-flex"
           ) %>
 
-        <%= render DS::Link.new(
-            icon: "plus",
-            variant: "icon-inverse",
-            href: new_transaction_path,
-            frame: :modal,
-            class: "rounded-full md:hidden"
-          ) %>
+        <%# On a phone the + floats under the thumb, as on Home and Documents. %>
+        <%= render DS::Fab.new(icon: "plus", label: t(".new_transaction"), href: new_transaction_path, frame: :modal, class: "md:hidden") %>
       </div>
     </div>
   </header>

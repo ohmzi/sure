@@ -3,7 +3,7 @@
     so the page owns its header explicitly — the drill-through stays on the
     main chrome. %>
 <header class="flex justify-between items-center text-primary font-medium pb-4">
-  <h1 class="text-xl"><%= @statement.filename %></h1>
+  <h1 class="text-xl font-bold tracking-tight"><%= @statement.filename %></h1>
 </header>
 
 <%= settings_section title: t(".title") do %>
