@@ -215,6 +215,29 @@
       "user_input": ":account_id",
       "confidence": "High",
       "note": "account_id is never mass-assigned: build_declared_bill resolves it through Current.user.accessible_accounts.find_by, so a foreign id degrades to no account rather than an association write."
+    },
+    {
+      "warning_type": "Command Injection",
+      "warning_code": 14,
+      "fingerprint": "9bd0d7c6a2a2fda37b737b7230f2e9e357a0dfa1371228f861336a1ef7da622c",
+      "check_name": "Execute",
+      "message": "Possible command injection",
+      "file": "app/models/document_link/page_image.rb",
+      "line": 24,
+      "link": "https://brakemanscanner.org/docs/warning_types/command_injection/",
+      "code": "Open3.capture2(\"pdfinfo\", DocumentLink::Staging.resolve!(link.stored_path).to_s)",
+      "render_path": null,
+      "location": {
+        "type": "method",
+        "class": "DocumentLink::PageImage",
+        "method": "DocumentLink::PageImage.count"
+      },
+      "user_input": "DocumentLink::Staging.resolve!(link.stored_path).to_s",
+      "confidence": "High",
+      "cwe_id": [
+        77
+      ],
+      "note": "pdfinfo runs without a shell (argument list form); the path comes from DocumentLink::Staging.resolve!, which only returns an absolute path inside the document store, so nothing user-supplied reaches the command line. Added 2026-10-17 for in-app PDF pages."
     }
   ],
   "brakeman_version": "7.1.0"
