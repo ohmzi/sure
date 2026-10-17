@@ -386,6 +386,10 @@ Rails.application.routes.draw do
     # The iOS-style Settings list (2026-10-17): the grouped list on a phone, the
     # left pane on a computer.
     root to: "home#show"
+    # The self-hosting page split by subject (the owner, 2026-10-17): AI and
+    # the data providers are their own pages; one controller serves all three.
+    get "ai", to: "hostings#show", defaults: { section: "ai" }, as: :ai
+    get "data_providers", to: "hostings#show", defaults: { section: "data" }, as: :data_providers
     resource :profile, only: [ :show, :destroy ]
     resource :preferences, only: %i[show update]
     resource :budget_shares, only: :update

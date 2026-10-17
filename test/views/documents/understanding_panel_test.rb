@@ -42,7 +42,7 @@ class DocumentsUnderstandingPanelViewTest < ActionView::TestCase
     assert_includes rendered, I18n.t("documents.understanding.unread.enter_by_hand")
     # The affordance points at the settings page's AI provider section, named by
     # the `ai-provider` anchor the view adds.
-    assert_select "a[href=?]", settings_hosting_path(anchor: "ai-provider")
+    assert_select "a[href=?]", settings_ai_path(anchor: "ai-provider")
     # ...and the manual path is still offered.
     assert_select "a[href=?]", new_transaction_path
   end

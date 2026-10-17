@@ -18,11 +18,12 @@ class Settings::HostingsController < ApplicationController
   before_action :ensure_admin, only: [ :update, :clear_cache, :disconnect_external_assistant, :detect_local_models, :persist_local_model ]
   before_action :ensure_super_admin_for_onboarding, only: :update
 
+  # The three pages this controller serves (2026-10-17): AI, data providers,
+  # and what is left of self-hosting proper.
+  SECTIONS = %w[ai data hosting].freeze
+
   def show
-    @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
-      [ t("breadcrumbs.self_hosting"), nil ]
-    ]
+    @section = SECTIONS.include?(params[:section]) ? params[:section] : "hosting"
 
     # Determine which providers are currently selected
     exchange_rate_provider = ENV["EXCHANGE_RATE_PROVIDER"].presence || Setting.exchange_rate_provider
@@ -69,7 +70,7 @@ class Settings::HostingsController < ApplicationController
 
     if hosting_params.key?(:demo_family_refresh_enabled) || hosting_params.key?(:demo_family_refresh_family_id)
       unless Current.user.super_admin?
-        return redirect_to settings_hosting_path, alert: t(".not_authorized")
+        return redirect_to section_return_path, alert: t(".not_authorized")
       end
       if hosting_params.key?(:demo_family_refresh_family_id)
         family_id = hosting_params[:demo_family_refresh_family_id].presence
@@ -168,7 +169,7 @@ class Settings::HostingsController < ApplicationController
       time_value = hosting_params[:auto_sync_time]
       unless Setting.valid_auto_sync_time?(time_value)
         flash[:alert] = t(".invalid_sync_time")
-        return redirect_to settings_hosting_path
+        return redirect_to section_return_path
       end
 
       Setting.auto_sync_time = time_value
@@ -301,9 +302,9 @@ class Settings::HostingsController < ApplicationController
     update_categorization_tuning
 
     if reselect_external_agent
-      redirect_to settings_hosting_path, alert: t("settings.hostings.assistant_settings.external_agent_reselect")
+      redirect_to section_return_path, alert: t("settings.hostings.assistant_settings.external_agent_reselect")
     else
-      redirect_to settings_hosting_path, notice: t(".success")
+      redirect_to section_return_path, notice: t(".success")
     end
   rescue Setting::ValidationError => error
     # Preserve user-submitted OpenAI config so the form re-renders with their
@@ -322,12 +323,13 @@ class Settings::HostingsController < ApplicationController
     # Nothing was saved, so reload the agent options from the stored config;
     # otherwise the 422 page shows an empty, disabled agent dropdown.
     load_external_assistant_models
+    @section = section_from_referer
     render :show, status: :unprocessable_entity
   end
 
   def clear_cache
     DataCacheClearJob.perform_later(Current.family)
-    redirect_to settings_hosting_path, notice: t(".cache_cleared")
+    redirect_to section_return_path, notice: t(".cache_cleared")
   end
 
   def disconnect_external_assistant
@@ -336,10 +338,10 @@ class Settings::HostingsController < ApplicationController
     Setting.external_assistant_model = nil
     Setting.external_assistant_agent_id = nil
     Current.family.update!(assistant_type: "builtin") unless ENV["ASSISTANT_TYPE"].present?
-    redirect_to settings_hosting_path, notice: t(".external_assistant_disconnected")
+    redirect_to section_return_path, notice: t(".external_assistant_disconnected")
   rescue => e
     Rails.logger.error("[External Assistant] Disconnect failed: #{e.message}")
-    redirect_to settings_hosting_path, alert: t("settings.hostings.update.failure")
+    redirect_to section_return_path, alert: t("settings.hostings.update.failure")
   end
 
   # Probes the user's own hardware for a running OpenAI-compatible server and
@@ -412,6 +414,33 @@ class Settings::HostingsController < ApplicationController
   end
 
   private
+    # A form on any of the three pages posts here; send it back to its page.
+    def section_return_path
+      { "ai" => settings_ai_path, "data" => settings_data_providers_path }.fetch(section_from_referer, settings_hosting_path)
+    end
+
+    def section_from_referer
+      path = begin
+        URI.parse(request.referer.to_s).path
+      rescue URI::InvalidURIError
+        nil
+      end
+      from_page = { settings_ai_path => "ai", settings_data_providers_path => "data" }[path]
+      from_page || section_from_fields
+    end
+
+    # Without a referring page (an API client, a test), the submitted fields
+    # say which page they belong to.
+    AI_FIELDS = /\A(openai|anthropic|local_llm|llm_|ai_|jev|assistant|deepseek|gemini|cloud_reader|external_assistant|categorization)/
+    DATA_FIELDS = /\A(twelve_data|tiingo|eodhd|alpha_vantage|tinkoff|mansa|yahoo|exchange_rate|securities|brand_fetch|rentcast|realie|chimnie)/
+    def section_from_fields
+      keys = params.fetch(:setting, {}).keys.map(&:to_s) + params.keys.map(&:to_s)
+      return "ai" if keys.any? { |key| key.match?(AI_FIELDS) }
+      return "data" if keys.any? { |key| key.match?(DATA_FIELDS) }
+
+      "hosting"
+    end
+
     # Strong parameters for the self-hosting settings form.
     def hosting_params
       return ActionController::Parameters.new unless params.key?(:setting)
@@ -566,13 +595,13 @@ class Settings::HostingsController < ApplicationController
     end
 
     def ensure_admin
-      redirect_to settings_hosting_path, alert: t(".not_authorized") unless Current.user.admin?
+      redirect_to section_return_path, alert: t(".not_authorized") unless Current.user.admin?
     end
 
     def ensure_super_admin_for_onboarding
       onboarding_params = %i[onboarding_state invite_only_default_family_id]
       return unless onboarding_params.any? { |p| hosting_params.key?(p) }
-      redirect_to settings_hosting_path, alert: t(".not_authorized") unless Current.user.super_admin?
+      redirect_to section_return_path, alert: t(".not_authorized") unless Current.user.super_admin?
     end
 
     def sync_auto_sync_scheduler!

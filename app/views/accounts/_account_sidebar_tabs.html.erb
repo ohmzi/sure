@@ -14,7 +14,7 @@
     <div class="mb-3">
       <%= render DS::Alert.new(title: t("accounts.sidebar.missing_data"), variant: :warning) do %>
         <p class="text-secondary"><%= t("accounts.sidebar.missing_data_description", product: product_name) %></p>
-        <p><%= link_to t("accounts.sidebar.configure_providers"), settings_hosting_path, class: "underline font-medium" %></p>
+        <p><%= link_to t("accounts.sidebar.configure_providers"), settings_data_providers_path, class: "underline font-medium" %></p>
       <% end %>
     </div>
   <% end %>

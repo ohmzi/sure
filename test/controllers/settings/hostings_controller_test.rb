@@ -57,7 +57,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     sign_in users(:sure_support_staff)
 
     with_self_hosting do
-      get settings_hosting_url(locale: :de)
+      get settings_ai_url(locale: :de)
 
       assert_response :success
       assert_includes response.body, "Konfiguriertes Modell prüfen"
@@ -186,7 +186,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
 
     with_env_overrides("EXCHANGE_RATE_PROVIDER" => "yahoo_finance") do
       with_self_hosting do
-        get settings_hosting_url
+        get settings_data_providers_url
 
         assert_response :success
         assert_select "div[class~=?]", "bg-warning/10"
@@ -203,18 +203,18 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
 
     with_env_overrides("EXCHANGE_RATE_PROVIDER" => "yahoo_finance") do
       with_self_hosting do
-        get settings_hosting_url
+        get settings_data_providers_url
         assert_includes response.body, "Yahoo Finance is active and working."
         assert_select "div[class~=?]", "bg-success"
 
-        get settings_hosting_url
+        get settings_data_providers_url
         assert_includes response.body, "Yahoo Finance is currently unavailable."
         assert_includes response.body, "Could not verify Yahoo Finance."
         assert_includes response.body, "Check your internet connection and try again later."
         assert_not_includes response.body, "firewall"
         assert_select "div[class~=?]", "bg-destructive"
 
-        get settings_hosting_url
+        get settings_data_providers_url
         assert_includes response.body, "Yahoo Finance status is being checked."
         assert_not_includes response.body, "Could not verify Yahoo Finance."
         assert_not_includes response.body, "Yahoo Finance rate limit reached."
@@ -228,15 +228,15 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
 
     with_env_overrides("EXCHANGE_RATE_PROVIDER" => "yahoo_finance") do
       with_self_hosting do
-        get settings_hosting_url(locale: :es)
+        get settings_data_providers_url(locale: :es)
         assert_includes response.body, "Yahoo Finance está limitando temporalmente las solicitudes."
         assert_includes response.body, "No es necesario realizar ninguna acción."
 
-        get settings_hosting_url(locale: :es)
+        get settings_data_providers_url(locale: :es)
         assert_includes response.body, "Yahoo Finance no está disponible en este momento."
         assert_includes response.body, "Comprueba tu conexión a internet"
 
-        get settings_hosting_url(locale: :es)
+        get settings_data_providers_url(locale: :es)
         assert_includes response.body, "Se está comprobando el estado de Yahoo Finance."
       end
     end
@@ -251,7 +251,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
 
     with_env_overrides("EXCHANGE_RATE_PROVIDER" => "yahoo_finance") do
       with_self_hosting do
-        get settings_hosting_url(locale: :it)
+        get settings_data_providers_url(locale: :it)
 
         assert_includes response.body, "Yahoo Finance is temporarily rate limiting requests."
         assert_not_includes response.body, "translation missing"
@@ -342,7 +342,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
         gemini_api_key: "g-test-key", gemini_model: "gemini-3.1-flash-lite"
       } }
 
-      assert_redirected_to settings_hosting_url
+      assert_redirected_to settings_ai_url
       assert_equal "ds-test-key", Setting.deepseek_api_key
       assert_equal "deepseek-v4-pro", Setting.deepseek_model
       assert_equal "g-test-key", Setting.gemini_api_key
@@ -394,7 +394,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
 
   test "the cloud readers panel offers the automatic fallback switch" do
     with_self_hosting do
-      get settings_hosting_url
+      get settings_ai_url
 
       assert_select "#cloud-document-readers input[type='checkbox'][name='setting[cloud_document_fallback]']"
     end
@@ -404,7 +404,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
   # true once a cloud reader takes over a read the local model cannot finish.
   test "the local panel no longer promises nothing leaves the machine" do
     with_self_hosting do
-      get settings_hosting_url
+      get settings_ai_url
 
       assert_no_match(/Nothing leaves your machine/, response.body)
     end
@@ -414,7 +414,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     with_self_hosting do
       Setting.deepseek_api_key = "ds-stored"
 
-      get settings_hosting_url
+      get settings_ai_url
 
       assert_response :success
       assert_select "#cloud-document-readers"
@@ -638,7 +638,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
       Setting.llm_provider = "bogus"
       Provider::Openai.stubs(:configured?).returns(false)
 
-      get settings_hosting_url
+      get settings_ai_url
 
       assert_response :success
       assert_select "select[name=?] option[selected][value=?]", "setting[llm_provider]", "openai"
@@ -810,7 +810,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
       assert_redirected_to settings_hosting_url
       assert_equal "mcp_only", users(:family_admin).family.reload.assistant_type
 
-      get settings_hosting_url
+      get settings_ai_url
       assert_response :success
       assert_select "select[name='family[assistant_type]'] option[value='mcp_only'][selected]"
     end
@@ -827,7 +827,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
         external_assistant_model: "openclaw/finance-bot"
       } }
 
-      assert_redirected_to settings_hosting_url
+      assert_redirected_to settings_ai_url
       assert_equal "https://agent.example.com/v1/chat/completions", Setting.external_assistant_url
       assert_equal "my-secret-token", Setting.external_assistant_token
       assert_equal "openclaw/finance-bot", Setting.external_assistant_model
@@ -840,14 +840,14 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
 
   test "external assistant panel is hidden for builtin and shown for external" do
     with_self_hosting do
-      get settings_hosting_url
+      get settings_ai_url
       assert_response :success
       assert_select "[data-testid='external-assistant-info']", count: 0
 
       users(:family_admin).family.update!(assistant_type: "external")
       Assistant::External::ModelCatalog.any_instance.stubs(:models).returns([])
 
-      get settings_hosting_url
+      get settings_ai_url
       assert_response :success
       assert_select "[data-testid='external-assistant-info']", count: 1
     end
@@ -864,7 +864,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
         { id: "openclaw/research", label: "research (openclaw/research)" }
       ])
 
-      get settings_hosting_url
+      get settings_ai_url
 
       assert_response :success
       assert_select "select[name='setting[external_assistant_model]'][aria-required='true']" do
@@ -966,7 +966,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
           external_assistant_model: "openclaw/research"
         } }
 
-        assert_redirected_to settings_hosting_url
+        assert_redirected_to settings_ai_url
         assert_equal I18n.t("settings.hostings.assistant_settings.external_agent_reselect"), flash[:alert]
         assert_equal "https://new.example.com/v1/chat/completions", Setting.external_assistant_url
         assert_equal "secret", Setting.external_assistant_token
@@ -989,7 +989,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
         Setting.external_assistant_token = "secret"
         stub_request(:get, "https://agent.example.com/v1/models").to_raise(OpenSSL::SSL::SSLError)
 
-        get settings_hosting_url
+        get settings_ai_url
 
         assert_response :success
         assert_select "p.text-destructive", text: /Could not load agents/
@@ -1070,7 +1070,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
         ai_health_probe_timeout: "30"
       } }
 
-      assert_redirected_to settings_hosting_url
+      assert_redirected_to settings_ai_url
       assert_equal 4096, Setting.llm_context_window
       assert_equal 1024, Setting.llm_max_response_tokens
       assert_equal 40, Setting.llm_max_items_per_call
@@ -1147,7 +1147,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
       Setting.openai_request_timeout = 180
 
       with_env_overrides("OPENAI_REQUEST_TIMEOUT" => "300") do
-        get settings_hosting_url
+        get settings_ai_url
 
         assert_response :success
         assert_select "input[name='setting[openai_request_timeout]'][value='300'][disabled='disabled']"
@@ -1162,7 +1162,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
       Setting.ai_health_probe_timeout = 30
 
       with_env_overrides("AI_HEALTH_PROBE_TIMEOUT" => "45") do
-        get settings_hosting_url
+        get settings_ai_url
 
         assert_response :success
         assert_select "input[name='setting[ai_health_probe_timeout]'][value='45'][disabled='disabled']"
@@ -1170,7 +1170,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
 
       # A non-positive env value is ignored by the probes, so it must not lock the field either.
       with_env_overrides("AI_HEALTH_PROBE_TIMEOUT" => "0") do
-        get settings_hosting_url
+        get settings_ai_url
 
         assert_response :success
         assert_select "input[name='setting[ai_health_probe_timeout]'][value='30']:not([disabled])"
@@ -1199,7 +1199,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     with_self_hosting do
       patch settings_hosting_url, params: { setting: { securities_providers: [ "twelve_data", "yahoo_finance" ] } }
 
-      assert_redirected_to settings_hosting_url
+      assert_redirected_to settings_data_providers_url
       assert_equal "twelve_data,yahoo_finance", Setting.securities_providers
     end
   ensure
@@ -1210,7 +1210,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     with_self_hosting do
       patch settings_hosting_url, params: { setting: { securities_providers: [ "twelve_data", "fake_provider", "hacked" ] } }
 
-      assert_redirected_to settings_hosting_url
+      assert_redirected_to settings_data_providers_url
       # Only valid providers are stored
       enabled = Setting.enabled_securities_providers
       assert_includes enabled, "twelve_data"
@@ -1267,7 +1267,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
 
       patch settings_hosting_url, params: { setting: { securities_providers: [] } }
 
-      assert_redirected_to settings_hosting_url
+      assert_redirected_to settings_data_providers_url
       assert_equal [], Setting.enabled_securities_providers
     end
   ensure
@@ -1286,7 +1286,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     with_self_hosting do
       patch settings_hosting_url, params: { setting: { securities_providers: [ "twelve_data" ] } }
 
-      get settings_hosting_url
+      get settings_data_providers_url
 
       assert_response :success
       # "T-Invest (T-Bank)" also appears as a checkbox label in the always-rendered
@@ -1301,7 +1301,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     with_self_hosting do
       patch settings_hosting_url, params: { setting: { securities_providers: [ "tinkoff_invest" ] } }
 
-      get settings_hosting_url
+      get settings_data_providers_url
 
       assert_response :success
       assert_select "input[name='setting[tinkoff_invest_api_key]']"
@@ -1320,7 +1320,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
         de: "Oben nicht für Kursdaten aktiviert – sobald ein Token eingerichtet ist, ruft T-Invest unabhängig vom obigen Kontrollkästchen Logos für alle deine Wertpapiere ab."
       }
       notices.each do |locale, notice|
-        get settings_hosting_url(locale: locale)
+        get settings_data_providers_url(locale: locale)
 
         assert_response :success
         assert_select "input[name='setting[tinkoff_invest_api_key]']"
@@ -1337,7 +1337,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
       Setting.tinkoff_invest_api_key = "some-token"
       patch settings_hosting_url, params: { setting: { securities_providers: [ "twelve_data" ] } }
 
-      get settings_hosting_url
+      get settings_data_providers_url
 
       assert_response :success
       assert_select "input[name='setting[tinkoff_invest_api_key]']"
@@ -1360,7 +1360,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
         local_llm_model: "qwen2.5vl:7b"
       } }
 
-      assert_redirected_to settings_hosting_url
+      assert_redirected_to settings_ai_url
       assert_equal "http://192.168.1.5:11434/v1", Setting.local_llm_base_url
       assert_equal "qwen2.5vl:7b", Setting.local_llm_model
     end
@@ -1424,7 +1424,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
 
   test "renders the AI provider section with a Local option and DeepSeek guidance" do
     with_self_hosting do
-      get settings_hosting_url
+      get settings_ai_url
 
       assert_response :success
       assert_select "#ai-provider"
@@ -1529,7 +1529,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     with_self_hosting do
       Setting.local_llm_model = "qwen2.5vl:3b"
 
-      get settings_hosting_url
+      get settings_ai_url
 
       assert_response :success
       assert_select "#ai-provider"
@@ -1582,7 +1582,7 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
            params: { setting: { local_llm_model: "qwen2.5vl:3b" } },
            as: :json
 
-      assert_redirected_to settings_hosting_url
+      assert_redirected_to settings_ai_url
       assert_equal I18n.t("settings.hostings.not_authorized"), flash[:alert]
     end
   end

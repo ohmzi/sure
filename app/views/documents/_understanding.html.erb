@@ -112,7 +112,7 @@
               where, which is why the owner could not find the key fields
               (report 2026-10-13). The link targets the AI provider section's
               `ai-provider` anchor. %>
-          <%= render DS::Link.new(text: t(".unread.set_up_provider"), href: settings_hosting_path(anchor: "ai-provider"), variant: "primary", size: "sm") %>
+          <%= render DS::Link.new(text: t(".unread.set_up_provider"), href: settings_ai_path(anchor: "ai-provider"), variant: "primary", size: "sm") %>
           <span class="text-sm text-secondary"><%= t(".unread.or") %></span>
           <%= render DS::Link.new(text: t(".unread.enter_by_hand"), href: new_transaction_path, variant: "outline", size: "sm") %>
         </div>

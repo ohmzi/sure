@@ -354,6 +354,8 @@ en:
         pick_description: Pick something from the list to see and change it here.
     settings_nav:
       title: Settings
+      ai_label: AI
+      data_providers_label: Data providers
       accounts_label: Accounts
       advanced_section_title: Advanced
       ai_prompts_label: AI Prompts

@@ -40,6 +40,12 @@ en:
         save_family: Save demo family
         enabled_label: Enable daily demo family refresh
       show:
+        titles:
+          ai: AI
+          data: Data providers
+          hosting: Self-Hosting
+        categorization: Categorization
+        logos: Merchant & institution logos
         demo_refresh: Demo data refresh
         general: General Settings
         ai_assistant: AI Assistant

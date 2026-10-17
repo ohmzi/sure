@@ -810,8 +810,9 @@ end
 
     get transactions_url(q: { types: [ "transfer" ] })
     assert_response :success
-    assert_select "#total-income", text: totals.transfer_inflow_money.format
-    assert_select "#total-expense", text: totals.transfer_outflow_money.format
+    # The exact amount (a phone shows it rounded beside it, 2026-10-17).
+    assert_select "#total-income span.md\\:inline", text: totals.transfer_inflow_money.format
+    assert_select "#total-expense span.md\\:inline", text: totals.transfer_outflow_money.format
   end
 
   test "mark_as_recurring creates a manual recurring transaction" do

@@ -16,7 +16,7 @@ class Settings::CategorizationProviderTest < ApplicationSystemTestCase
   test "the panel is hidden until a user opts into preview features" do
     set_preview_features(false)
 
-    visit settings_hosting_path
+    visit settings_ai_path
 
     assert_no_text "Transaction Categorization"
   end
@@ -24,7 +24,7 @@ class Settings::CategorizationProviderTest < ApplicationSystemTestCase
   test "an opted-in user switches the family onto Jev and back" do
     set_preview_features(true)
 
-    visit settings_hosting_path
+    visit settings_ai_path
 
     assert_text "Transaction Categorization"
     assert_equal "llm", @family.reload.categorization_provider
@@ -45,7 +45,7 @@ class Settings::CategorizationProviderTest < ApplicationSystemTestCase
     # the opposite of "nothing has been sampled yet".
     set_preview_features(true)
 
-    visit settings_hosting_path
+    visit settings_ai_path
 
     assert_text "No comparisons recorded yet"
     assert_no_text "% agreement across"
@@ -64,7 +64,7 @@ class Settings::CategorizationProviderTest < ApplicationSystemTestCase
       shadow_confidence: 0.97, agreed: true
     )
 
-    visit settings_hosting_path
+    visit settings_ai_path
 
     assert_text "50.0% agreement across 2 sampled transactions"
     assert_text "openai chose Groceries; jev chose Restaurants & Bars"
@@ -74,7 +74,7 @@ class Settings::CategorizationProviderTest < ApplicationSystemTestCase
   test "the tuning controls state what they cost" do
     set_preview_features(true)
 
-    visit settings_hosting_path
+    visit settings_ai_path
 
     # Shadow mode doubles spend; that must be on the page, not buried in docs.
     assert_text "doubles the API spend"
@@ -93,7 +93,7 @@ class Settings::CategorizationProviderTest < ApplicationSystemTestCase
     # a key are one task and belong in one place.
     set_preview_features(true)
 
-    visit settings_hosting_path
+    visit settings_ai_path
 
     # Matched by field name, not label: the Anthropic panel on the same page
     # also labels its token "API Key".
@@ -110,7 +110,7 @@ class Settings::CategorizationProviderTest < ApplicationSystemTestCase
     set_preview_features(true)
     Provider::Jev.stubs(:configured?).returns(false)
 
-    visit settings_hosting_path
+    visit settings_ai_path
     select "Jev (TypeSafe)", from: "Categorization provider"
 
     assert_text "Jev is selected but has no API key configured"

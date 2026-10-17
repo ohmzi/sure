@@ -6,7 +6,8 @@
 <% show_transfers = totals.income_money.zero? && totals.expense_money.zero? &&
    (totals.transfer_inflow_money.amount > 0 || totals.transfer_outflow_money.amount > 0) %>
 <%# One compact row on every width (the polish pass, 2026-10-17): on a phone the
-    three figures used to stack into three tall rows above the list. %>
+    three figures used to stack into three tall rows above the list, and its
+    amounts are whole units so each fits one line. %>
 <div class="grid grid-cols-3 bg-container rounded-2xl shadow-border-xs divide-x divide-subdued">
   <div class="min-w-0 p-3 md:p-4 space-y-1 md:space-y-2">
     <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.total_transactions") %></p>
@@ -16,12 +17,12 @@
     <% if show_transfers %>
       <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.inflow") %></p>
       <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-income">
-        <%= (totals.income_money + totals.transfer_inflow_money).format %>
+        <span class="md:hidden"><%= (totals.income_money + totals.transfer_inflow_money).format(precision: 0) %></span><span class="hidden md:inline"><%= (totals.income_money + totals.transfer_inflow_money).format %></span>
       </p>
     <% else %>
       <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.income") %></p>
       <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-income">
-        <%= totals.income_money.format %>
+        <span class="md:hidden"><%= (totals.income_money).format(precision: 0) %></span><span class="hidden md:inline"><%= (totals.income_money).format %></span>
       </p>
     <% end %>
   </div>
@@ -29,12 +30,12 @@
     <% if show_transfers %>
       <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.outflow") %></p>
       <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-expense">
-        <%= (totals.expense_money + totals.transfer_outflow_money).format %>
+        <span class="md:hidden"><%= (totals.expense_money + totals.transfer_outflow_money).format(precision: 0) %></span><span class="hidden md:inline"><%= (totals.expense_money + totals.transfer_outflow_money).format %></span>
       </p>
     <% else %>
       <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.expenses") %></p>
       <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-expense">
-        <%= totals.expense_money.format %>
+        <span class="md:hidden"><%= (totals.expense_money).format(precision: 0) %></span><span class="hidden md:inline"><%= (totals.expense_money).format %></span>
       </p>
     <% end %>
   </div>

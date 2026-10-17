@@ -1,4 +1,11 @@
-<%= content_for :page_title, t(".title") %>
+<%# Self-hosting split by subject (the owner, 2026-10-17). One controller
+    serves three Settings pages; each renders only its own sections:
+    - AI: the assistant, the AI provider and cloud readers, categorization;
+    - Data providers: market data, property valuations, logos;
+    - Self-hosting: sync, invites, demo refresh and the danger zone. %>
+<%= content_for :page_title, t(".titles.#{@section}") %>
+<% case @section %>
+<% when "ai" %>
 <%= settings_section title: t(".ai_assistant") do %>
   <%= render "settings/hostings/assistant_settings" %>
 <% end %>
@@ -27,24 +34,12 @@
     <%= render "settings/hostings/cloud_reader_settings" %>
   </div>
 <% end %>
-<%= settings_section title: t(".general") do %>
-  <div class="space-y-6">
-    <%# Jev is a classification provider, not an LLM: it answers typed questions
-        and cannot generate text. This sits outside the provider panels above so
-        the llm_provider selector never shows or hides it — that selector governs
-        chat and PDF, which Jev can never serve. The panel renders its own
-        credential fields once Jev is selected.
-
-        Preview gates the entry point only — see
-        docs/llm-guides/gating-a-preview-feature.md. Resolution reads the family
-        column, so a family that opts in and then picks the LLM provider keeps
-        the LLM provider. %>
-    <% if preview_features_enabled? %>
-      <%= render "settings/hostings/categorization_provider_selector" %>
-    <% end %>
-    <%= render "settings/hostings/brand_fetch_settings" %>
-  </div>
+<% if preview_features_enabled? %>
+  <%= settings_section title: t(".categorization") do %>
+    <%= render "settings/hostings/categorization_provider_selector" %>
+  <% end %>
 <% end %>
+<% when "data" %>
 <%= settings_section title: t(".financial_data_providers") do %>
   <div class="space-y-6">
     <%= render "settings/hostings/provider_selection" %>
@@ -78,6 +73,10 @@
     <%= render "settings/hostings/chimnie_settings" %>
   </div>
 <% end %>
+<%= settings_section title: t(".logos") do %>
+  <%= render "settings/hostings/brand_fetch_settings" %>
+<% end %>
+<% else %>
 <%= settings_section title: t(".sync_settings") do %>
   <%= render "settings/hostings/sync_settings" %>
 <% end %>
@@ -93,4 +92,5 @@
 <% end %>
 <%= settings_section title: t(".danger_zone") do %>
   <%= render "settings/hostings/danger_zone_settings" %>
+<% end %>
 <% end %>

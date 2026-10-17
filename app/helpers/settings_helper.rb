@@ -56,7 +56,10 @@ module SettingsHelper
         { label: t("settings.settings_nav.mcp_label"), path: settings_mcp_path, icon: "plug", tint: "indigo" },
         { label: t("settings.settings_nav.debug_label", default: "Debug"), path: settings_debug_path, icon: "bug", tint: "red", if: super_admin },
         { label: t("settings.settings_nav.background_jobs_label"), path: settings_background_jobs_path, icon: "list-checks", tint: "gray", if: super_admin },
-        { label: t("settings.settings_nav.self_hosting_label"), path: settings_hosting_path, icon: "database", tint: "gray", if: self_hosted? },
+        # Self-hosting split by subject (2026-10-17).
+        { label: t("settings.settings_nav.ai_label"), path: settings_ai_path, icon: "sparkles", tint: "violet", if: self_hosted? },
+        { label: t("settings.settings_nav.data_providers_label"), path: settings_data_providers_path, icon: "chart-line", tint: "cyan", if: self_hosted? },
+        { label: t("settings.settings_nav.self_hosting_label"), path: settings_hosting_path, icon: "server", tint: "gray", if: self_hosted? },
         { label: t("settings.settings_nav.imports_label"), path: imports_path, icon: "download", tint: "blue" },
         { label: t("settings.settings_nav.exports_label"), path: family_exports_path, icon: "upload", tint: "green" },
         { label: t("settings.settings_nav.sso_providers_label"), path: admin_sso_providers_path, icon: "key-round", tint: "orange", if: super_admin },
