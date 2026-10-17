@@ -17,10 +17,28 @@ DocumentHold = Data.define(:step, :code, :message, :actions) do
     "ocr_unreadable" => { step: "ocr", actions: %w[retry] },
     "ocr_not_configured" => { step: "ocr", actions: %w[open_settings] },
     "read_error" => { step: "read", actions: %w[retry] },
+    "file_missing" => { step: "read", actions: %w[retry] },
     "statement_duplicate" => { step: "check", actions: %w[delete] }
   }.freeze
 
   READER_ACTIONS = { "retry_local" => "local", "retry_online" => "online" }.freeze
+
+  # A failure the system can retry by itself: the GPU was busy, the provider
+  # was unreachable/overloaded, or the read hit an unexpected-but-transient
+  # error. These rows stay sweepable and re-enqueue on a backoff.
+  self::OCR_RETRYABLE_CODES = %w[ocr_unreachable ocr_server_error ocr_bad_response].freeze
+  self::RETRYABLE_CODES = (self::OCR_RETRYABLE_CODES + %w[all_readers_failed gpu_busy read_error]).freeze
+
+  # A failure only a person or a configuration change can fix: the file cannot
+  # be read, OCR or a reader is not configured, the household lacks permission,
+  # the month is a duplicate, or the deterministic check drifted. These are not
+  # re-enqueued; the archive offers Retry instead.
+  self::TERMINAL_CODES = %w[
+    ocr_unreadable ocr_not_configured no_reader_configured file_missing
+    statement_permission statement_duplicate statement_drift retry_exhausted
+  ].freeze
+
+  def retryable? = self.class::RETRYABLE_CODES.include?(code)
 
   def self.named(code, message:)
     spec = NAMED.fetch(code)

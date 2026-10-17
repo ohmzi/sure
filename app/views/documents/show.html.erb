@@ -2,22 +2,36 @@
     Reached from `Row#details_url` and by a direct link; it renders the same
     document-left / what-was-understood-right split the modal shows, with no
     JavaScript required. %>
-<div class="p-4 lg:p-6" data-controller="document-viewer">
-  <header class="flex flex-wrap items-center justify-between gap-3 pb-4">
+<%# The document's own page. It follows the app's phone pattern: the page
+    scrolls naturally (no viewport-height box the panel can collapse), the
+    document comes first, and what was understood follows below it. On a
+    computer the two sit side by side at a fixed height, as before. %>
+<div class="p-4 pb-24 lg:p-6 lg:pb-6" data-controller="document-viewer">
+  <header class="flex flex-col gap-3 pb-4 lg:flex-row lg:items-center lg:justify-between">
     <div class="min-w-0">
-      <h1 class="truncate text-xl font-bold text-primary tracking-tight"><%= @row.title %></h1>
+      <h1 class="break-words text-lg font-bold text-primary tracking-tight lg:truncate lg:text-xl"><%= @row.title %></h1>
       <p class="text-sm text-secondary"><%= @row.doc_type_label %></p>
     </div>
-    <div class="flex flex-wrap items-center gap-3">
+    <div class="flex flex-wrap items-center gap-2 lg:gap-3">
       <% @row.statuses.each do |status| %>
         <%= render DS::Pill.new(label: status.label, tone: status.tone, marker: false) %>
       <% end %>
-      <%= render "document_browser/actions", row: @row, container_class: "flex items-center gap-3" %>
-      <%= render DS::Link.new(text: t(".back"), href: documents_path) %>
+      <%= render "document_browser/actions", row: @row, container_class: "flex items-center gap-2" %>
+      <% if @row.record.is_a?(DocumentLink) %>
+        <%= render "documents/transactions_link", link: @row.record %>
+        <% if @row.record.source.in?(%w[bill receipt other]) %>
+          <%= render DS::Button.new(
+                text: t(".read_as_statement"),
+                href: reprocess_document_path(@row.record, document_class: "statement"),
+                method: :post, variant: "outline", size: :sm
+              ) %>
+        <% end %>
+      <% end %>
+      <%= render DS::Link.new(text: t(".back"), href: documents_path, variant: "outline", size: :sm) %>
     </div>
   </header>
 
-  <div class="flex h-[78vh] min-h-0 flex-col">
+  <div class="flex flex-col lg:h-[78vh] lg:min-h-0">
     <% if @panel.shows_panel? %>
       <%= render "document_browser/viewer_split", row: @row, panel: @panel %>
     <% else %>

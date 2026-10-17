@@ -14,14 +14,16 @@ module DocumentBrowser
       q = params.fetch(:q, {})
       q = ActionController::Parameters.new unless q.is_a?(ActionController::Parameters)
       q.permit(
-        :search, :sort, :date_from, :date_to, :merchant, :amount_min, :amount_max, :attention,
+        :search, :sort, :date_from, :date_to, :merchant, :amount_min, :amount_max, :attention, :duplicates,
         status: [], tags: [], extraction: [], review: [], type: []
       ).to_h.symbolize_keys
     end
 
     # The viewer URL carries the index's query string (the rows are built with
     # it), so prev/next recompute over the same filtered list.
+    # The walk keeps the list's filters; the transaction a viewer was opened
+    # from belongs to that one document, not its neighbours.
     def document_browser_viewer_params
-      request.query_parameters
+      request.query_parameters.except("entry_id")
     end
 end

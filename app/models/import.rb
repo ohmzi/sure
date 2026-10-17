@@ -291,10 +291,31 @@ class Import < ApplicationRecord
     import!
 
     family.sync_later
+    auto_categorize_entries_later
 
     update! status: :complete
   rescue => error
     update! status: :failed, error: error.message
+  end
+
+  # Document imports arrive without categories: the native reader does not ask
+  # for one, unlike the CSV/QIF columns that map a category at row creation.
+  # Hand the rows this import just wrote to the household's categorizer, the
+  # same path a provider sync uses, so a freshly read statement lands
+  # categorized instead of waiting for a hand-made rule.
+  def auto_categorize_entries_later
+    return unless is_a?(PdfImport) || is_a?(ReceiptImport)
+
+    family.categories.bootstrap! if family.categories.none?
+
+    transaction_ids = family.transactions
+                            .joins(:entry)
+                            .where(entries: { import_id: id }, category_id: nil)
+                            .pluck("transactions.id")
+
+    return if transaction_ids.empty?
+
+    family.auto_categorize_transactions_later(family.transactions.where(id: transaction_ids))
   end
 
   def revert_later

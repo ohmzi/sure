@@ -351,7 +351,38 @@ class PdfImportTest < ActiveSupport::TestCase
     assert import.errors[:account_statement].present?
   end
 
+  # The native reader never asks for a category (DocumentReader's schema has no
+  # such field), so a statement's rows land uncategorized. Publishing must hand
+  # them to the household's categorizer, the same way a provider sync does.
+  test "publish queues auto-categorization for the statement's uncategorized transactions" do
+    import = imports(:pdf_with_rows)
+    import.update!(
+      account: accounts(:depository),
+      extracted_data: {
+        "transactions" => [
+          { "date" => "2024-01-15", "amount" => -50.00, "name" => "Coffee Shop", "category" => "", "notes" => "" }
+        ]
+      }
+    )
+    import.generate_rows_from_extracted_data
+
+    assert_enqueued_with(job: AutoCategorizeJob) do
+      import.publish
+    end
+
+    transaction_id = import.entries.first.entryable_id
+    assert_includes queued_auto_categorize_transaction_ids, transaction_id
+  end
+
   private
+
+    def queued_auto_categorize_transaction_ids
+      job = enqueued_jobs.find { |enqueued| enqueued[:job] == AutoCategorizeJob }
+      return [] if job.nil?
+
+      options = job[:args].last
+      options["transaction_ids"] || options[:transaction_ids] || []
+    end
 
     def create_pdf_statement(account: accounts(:depository))
       AccountStatement.create_from_upload!(

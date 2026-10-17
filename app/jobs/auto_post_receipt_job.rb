@@ -89,5 +89,11 @@ class AutoPostReceiptJob < ApplicationJob
     end
 
     draft.document_link.reload.broadcast_row_update! if linked
+
+    # The reviewed publish categorizes on its way out; this writer bypasses
+    # `Import#publish`, so it has to hand its entry to the categorizer itself.
+    # (A corroborated existing charge may already carry a category — the job
+    # filters to the uncategorized ones.)
+    draft.auto_categorize_entries_later
   end
 end

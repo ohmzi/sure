@@ -8,6 +8,12 @@
       <%= reasons.map { |count, key| t("document_browser.attention.reasons.#{key}", count: count) }.join(" · ") %>
     </p>
   </div>
-  <%= link_to t("document_browser.attention.show"), documents_path(q: { attention: 1 }),
-        class: "inline-flex items-center h-10 px-5 rounded-full bg-container text-link text-sm font-semibold hover:bg-container-hover active:scale-95 transition focus-ring" %>
+  <div class="flex flex-wrap items-center gap-2">
+    <% if duplicates.positive? %>
+      <%= link_to t("document_browser.attention.review_duplicates", count: duplicates), documents_path(q: { duplicates: 1 }),
+            class: "inline-flex items-center h-10 px-5 rounded-full bg-container text-link text-sm font-semibold hover:bg-container-hover active:scale-95 transition focus-ring" %>
+    <% end %>
+    <%= link_to t("document_browser.attention.show"), documents_path(q: { attention: 1 }),
+          class: "inline-flex items-center h-10 px-5 rounded-full bg-container text-link text-sm font-semibold hover:bg-container-hover active:scale-95 transition focus-ring" %>
+  </div>
 </div>

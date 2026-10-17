@@ -28,6 +28,12 @@ class DocumentsAttentionComponent < ApplicationComponent
   def total = @total ||= scope.count
   def couldnt_read = @couldnt_read ||= scope.where.not(failure_message: nil).count
 
+  # Duplicate GROUPS, not documents: the review list shows one row per group and
+  # the viewer shows its copies beside it.
+  def duplicates
+    @duplicates ||= DocumentLink.duplicate_representative_ids(family).size
+  end
+
   # A resolved draft OR a statement row that arrived with no account: the tile's
   # "Which account?" state, and the strip's "needs an account". The two live in
   # different places (a receipt draft on its import, a statement on its vault

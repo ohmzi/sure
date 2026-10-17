@@ -141,4 +141,49 @@
       </div>
     <% end %>
   <% end %>
+
+  <% duplicates = panel.respond_to?(:duplicates) ? panel.duplicates : [] %>
+  <% if duplicates.size > 1 %>
+    <section class="space-y-2 pt-2">
+      <p class="px-1 text-xs font-medium uppercase tracking-wide text-secondary">
+        <%= t(".duplicates.title", count: duplicates.size) %>
+      </p>
+      <p class="px-1 text-xs text-secondary"><%= t(".duplicates.description") %></p>
+      <div class="rounded-2xl bg-container-inset divide-y divide-subdued">
+        <% duplicates.each do |document| %>
+          <% statement = document.account_statement %>
+          <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+            <div class="min-w-0 grow">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="truncate text-primary"><%= document.title.presence || document.original_filename %></span>
+                <% if document.id == panel.link.id %>
+                  <%= render DS::Pill.new(label: t(".duplicates.current"), tone: :neutral, marker: false) %>
+                <% end %>
+                <% if document.duplicate_held? %>
+                  <%= render DS::Pill.new(label: t(".duplicates.duplicate_copy"), tone: :warning, marker: false) %>
+                <% end %>
+              </div>
+              <p class="text-xs text-secondary">
+                <%= [ statement&.period_start_on && format_date(statement.period_start_on),
+                      statement&.period_end_on && format_date(statement.period_end_on) ].compact.join(" – ") %>
+                <% if statement&.account.present? %> · <%= statement.account.name %><% end %>
+              </p>
+            </div>
+            <div class="flex shrink-0 flex-wrap items-center gap-1.5">
+              <%= render DS::Link.new(text: t(".duplicates.open"), href: viewer_document_path(document), frame: :modal, variant: "outline", size: :sm) %>
+              <% if statement.present? %>
+                <%= render DS::Link.new(text: t(".duplicates.fix"), href: account_statement_path(statement), variant: "outline", size: :sm) %>
+              <% end %>
+              <% if document.deletable? %>
+                <%= render DS::Button.new(text: t(".duplicates.delete"),
+                                          href: document_path(document, return_to: documents_path(q: { duplicates: 1 })),
+                                          method: :delete, variant: "outline_destructive", size: :sm,
+                                          confirm: CustomConfirm.for_resource_deletion("document")) %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
 </div>

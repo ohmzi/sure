@@ -1,6 +1,8 @@
 require "test_helper"
 
 class DocumentLinkTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @family = families(:dylan_family)
     @entry = entries(:transaction)
@@ -135,6 +137,108 @@ class DocumentLinkTest < ActiveSupport::TestCase
     link.reload
     assert_equal "failed", link.status
     assert_equal "OCR service unreachable after 8 attempts", link.failure_message
+  end
+
+  # Durable retry state (2026-10-17): the row is the source of truth, so a
+  # reboot or a lost job resumes from these columns.
+  test "claim_for_processing! leases the row and refuses a live second claim" do
+    link = staged_link
+
+    assert link.claim_for_processing!
+    link.reload
+    assert_equal "processing", link.status
+    assert_equal 1, link.attempts_count
+
+    assert_not link.claim_for_processing!, "a live lease cannot be stolen"
+
+    link.update_columns(updated_at: 31.minutes.ago)
+    assert link.claim_for_processing!, "an expired lease is reclaimable"
+    assert_equal 2, link.reload.attempts_count
+  end
+
+  test "a transient failure schedules a retry on the row with backoff" do
+    link = staged_link
+    link.claim_for_processing!
+    link.reload
+
+    assert_enqueued_with(job: DocumentUnderstandingJob) do
+      assert link.schedule_retry!(message: "The reader failed; a retry is scheduled.", code: "all_readers_failed")
+    end
+
+    link.reload
+    assert_equal "queued", link.status
+    assert_equal "all_readers_failed", link.failure_code
+    assert_in_delta 1.minute.from_now, link.next_attempt_at, 10.seconds
+    assert link.retrying?
+  end
+
+  test "the retry budget ends visibly instead of retrying forever" do
+    link = staged_link
+    link.update!(attempts_count: DocumentLink::MAX_RETRY_ATTEMPTS, status: "processing")
+
+    link.schedule_retry!(message: "The reader failed.", code: "all_readers_failed")
+
+    link.reload
+    assert_equal "failed", link.status
+    assert_equal "retry_exhausted", link.failure_code
+    assert_includes link.failure_message, "We stopped retrying"
+    assert_nil link.next_attempt_at
+  end
+
+  test "stranded picks up a due retry but not a live lease or a terminal hold" do
+    due = staged_link
+    due.update!(status: "queued", failure_code: "all_readers_failed", failure_message: "temporary",
+                next_attempt_at: 1.minute.ago)
+    assert_includes DocumentLink.stranded(before: 30.minutes.ago), due
+
+    live = staged_link
+    live.claim_for_processing!
+    assert_not_includes DocumentLink.stranded(before: 30.minutes.ago), live
+
+    terminal = staged_link
+    terminal.update!(status: "queued", failure_code: "ocr_unreadable",
+                     failure_message: "This document could not be read", updated_at: 2.hours.ago)
+    assert_not_includes DocumentLink.stranded(before: 30.minutes.ago), terminal
+  end
+
+  test "a statement's transaction filters are its account and printed period" do
+    statement = AccountStatement.new(
+      family: @family, account: accounts(:depository),
+      period_start_on: Date.new(2026, 10, 1), period_end_on: Date.new(2026, 10, 31)
+    )
+    link = DocumentLink.new(account_statement: statement)
+
+    assert_equal(
+      { account_ids: [ accounts(:depository).id ], start_date: "2026-10-01", end_date: "2026-10-31" },
+      link.transaction_index_filters
+    )
+  end
+
+  test "a receipt has no statement filter — its linked entry is the target" do
+    assert_nil document_links(:unlinked_receipt).transaction_index_filters
+  end
+
+  test "a pre-lease processing row is resumable immediately" do
+    link = staged_link
+    link.update!(status: "processing", attempts_count: 0, updated_at: Time.current)
+
+    assert_includes DocumentLink.stranded(before: 30.minutes.ago), link
+    assert link.claim_for_processing!
+    assert_equal 1, link.reload.attempts_count
+  end
+
+  test "duplicate_documents groups the same account and printed period" do
+    first_statement = statement_for_period(Date.new(2026, 6, 12), Date.new(2026, 7, 10))
+    second_statement = statement_for_period(Date.new(2026, 6, 12), Date.new(2026, 7, 10))
+    other_statement = statement_for_period(Date.new(2026, 7, 10), Date.new(2026, 8, 12))
+    first = document_link_for(first_statement)
+    duplicate = document_link_for(second_statement)
+    document_link_for(other_statement)
+
+    assert_equal [ duplicate.id ], first.duplicate_documents.pluck(:id)
+    assert first.duplicate_representative?
+    assert_not duplicate.duplicate_representative?
+    assert_equal [ first.id ], DocumentLink.duplicate_representative_ids(@family)
   end
 
   test "a stale transition on an already-moved row is refused" do
@@ -495,5 +599,34 @@ class DocumentLinkTest < ActiveSupport::TestCase
       # links to the statement's own picker instead of listing accounts.
       assert_not_includes rendered.second, 'name="account_id"'
       assert_includes rendered.second, Rails.application.routes.url_helpers.account_statement_path(statement)
+    end
+
+  private
+    def statement_for_period(start_on, end_on)
+      content = file_fixture("imports/sample_bank_statement.pdf").binread
+      statement = AccountStatement.new(
+        family: @family, account: accounts(:depository),
+        filename: "statement.pdf", content_type: "application/pdf",
+        checksum: SecureRandom.hex, content_sha256: SecureRandom.hex(32), byte_size: content.bytesize,
+        period_start_on: start_on, period_end_on: end_on
+      )
+      statement.original_file.attach(io: StringIO.new(content), filename: "statement.pdf",
+                                     content_type: "application/pdf")
+      statement.save!
+      statement
+    end
+
+    def document_link_for(statement)
+      DocumentLink.create!(family: @family, source: "statement", status: "unlinked",
+                           original_filename: "statement.pdf", content_type: "application/pdf",
+                           account_statement: statement)
+    end
+
+    def staged_link(status: "queued")
+      link = DocumentLink.create!(family: @family, source: "other", status: status,
+                                  original_filename: "retry.png", content_type: "image/png")
+      link.stage!(io: StringIO.new("RETRY-#{SecureRandom.hex(4)}"),
+                  filename: "retry.png", content_type: "image/png")
+      link.reload
     end
 end

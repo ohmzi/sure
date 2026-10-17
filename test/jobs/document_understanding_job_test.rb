@@ -212,6 +212,18 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_not_nil @link.stored_path
   end
 
+  test "a forced class overrides the classifier" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACME STORE\nTOTAL 12.34", confidence: 0.97, image: "iVBORw0KGgo=" } ])
+    stub_provider(FakeProvider.new(RECEIPT))
+
+    DocumentUnderstandingJob.perform_now(@link.id, "auto", "bill")
+    @link.reload
+
+    assert_equal "unlinked", @link.status
+    assert_equal "bill", @link.source
+    assert_equal "owner", @link.classified_by
+  end
+
   test "an unreachable OCR service parks the row for the scheduled retry, never settles it" do
     stub_request(:post, "#{Ocr.url}/ocr").to_raise(Faraday::ConnectionFailed.new("refused"))
     stub_provider(FakeProvider.new(RECEIPT))
@@ -241,30 +253,25 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_nil @link.reload.failure_message
   end
 
-  test "a persistent OCR outage lands the row terminally once the retries are spent" do
+  test "a persistent OCR outage stops after the retry budget" do
     stub_request(:post, "#{Ocr.url}/ocr").to_raise(Faraday::ConnectionFailed.new("refused"))
     stub_provider(FakeProvider.new(RECEIPT))
+    # The durable retry keeps a transient outage going; this proves the budget
+    # ends it visibly rather than retrying forever. Seed the last attempt.
+    @link.update!(attempts_count: DocumentLink::MAX_RETRY_ATTEMPTS)
 
-    # Drive the REAL retry ladder instead of seeding ActiveJob's internal
-    # `exception_executions` hash: perform_enqueued_jobs' block form performs the
-    # retry chain (including the `wait:`-scheduled re-enqueues), so each transient
-    # failure re-enqueues until the attempts are spent and the retry_on block
-    # lands the row terminally — the state the per-attempt test above never
-    # reaches. No ActiveJob-internal key is assumed, so a Rails change cannot
-    # silently stop exercising this path.
-    perform_enqueued_jobs(only: DocumentUnderstandingJob) do
-      DocumentUnderstandingJob.perform_later(@link.id)
-    end
+    DocumentUnderstandingJob.perform_now(@link.id)
 
     assert_equal "failed", @link.reload.status
-    assert_includes @link.failure_message, "unreachable"
+    assert_includes @link.failure_message, "We stopped retrying"
     assert_nil @link.extraction
   end
 
-  test "a failed provider call holds the row with a sentence and schedules no retry of the same provider" do
-    # Spec §2: a provider failure moves to the next reader instead of retrying
-    # the same one eight times; with no other reader the row is held once. The
-    # owner reads a sentence; the provider's raw message stays in the log.
+  test "a failed provider call holds the row with a sentence and schedules a durable retry" do
+    # Spec §2: a provider failure moves to the next reader within this run
+    # instead of hammering the same one; with no other reader the row is held
+    # ONCE and a later durable retry is scheduled. The owner reads a sentence;
+    # the provider's raw message stays in the log.
     stub_ocr_success(pages: [ { page: 1, text: "TOTAL 12.34", confidence: 0.97 } ])
     stub_provider(FakeProvider.new(RECEIPT, success: false))
 
@@ -283,7 +290,8 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_no_match(/AI provider failed/, @link.failure_message,
                     "the provider's raw message must not reach the user")
     assert_includes log.string, "AI provider failed", "the exception stays in the log"
-    assert_no_enqueued_jobs only: DocumentUnderstandingJob
+    assert @link.next_attempt_at.present?, "the transient failure is scheduled, not lost"
+    assert_enqueued_jobs 1, only: DocumentUnderstandingJob
   end
 
   # --- The reader ladder (spec §2/§3) ---
@@ -596,7 +604,8 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     @link.reload
     assert_equal "queued", @link.status
     assert @link.failure_message.present?
-    assert_no_enqueued_jobs only: DocumentUnderstandingJob
+    assert @link.next_attempt_at.present?, "all-readers-failed is transient and is retried"
+    assert_enqueued_jobs 1, only: DocumentUnderstandingJob
     assert_equal "failed", @link.extraction.status
     assert_equal %w[failed failed], attempts.map { |attempt| attempt["outcome"] }
     assert_equal %w[DeepSeek Gemini], attempts.map { |attempt| attempt["reader"] }
@@ -699,7 +708,8 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
                     "raw exception text must never reach the user")
     assert_includes log.string, "duplicate upload",
                     "the exception is kept in the log, where it belongs"
-    assert_enqueued_jobs 0, only: DocumentUnderstandingJob
+    assert @link.next_attempt_at.present?, "an unexpected error gets a bounded durable retry"
+    assert_enqueued_jobs 1, only: DocumentUnderstandingJob
   end
 
   test "validate flags an OCR/model total disagreement" do

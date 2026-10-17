@@ -27,6 +27,17 @@ class DocumentLink < ApplicationRecord
   # one OCR body cannot bloat the row or slow the ILIKE scans unboundedly.
   EXTRACTED_TEXT_LIMIT = 100_000
 
+  # --- durable retry state (2026-10-17) -------------------------------------
+  # The row, not Redis, is the source of truth for an unfinished read. A lost
+  # job or a reboot resumes from here; the reaper only has to find it.
+  PROCESSING_LEASE = 30.minutes
+  MAX_RETRY_ATTEMPTS = 20
+  MAX_RETRY_AGE = 7.days
+  # An unexpected (non-provider, non-OCR) error is usually a bug; retry it a
+  # few times, but do not spend a week of paid reads on a deterministic one.
+  READ_ERROR_ATTEMPTS = 3
+  RETRY_BACKOFF = [ 1.minute, 5.minutes, 15.minutes, 30.minutes, 1.hour ].freeze
+
   belongs_to :family
   belongs_to :entry, optional: true
   belongs_to :account_statement, optional: true
@@ -77,8 +88,20 @@ class DocumentLink < ApplicationRecord
   def self.stranded(before:)
     where(status: %w[queued processing])
       .where.not(stored_path: nil)
-      .where(failure_message: nil)
-      .where("updated_at < ?", before)
+      # A transient failure keeps its reason but stays sweepable. A terminal
+      # one is left for the archive's Retry button; retrying it forever would
+      # re-OCR a file the engine cannot read.
+      .where("(failure_code IS NULL OR failure_code IN (?))", DocumentHold::RETRYABLE_CODES)
+      .where(
+        # A scheduled retry is due at its own time. Everything else waits for
+        # the lease/grace bound, so a freshly uploaded row is never raced by a
+        # sweep enqueuing a second job.
+        "((next_attempt_at IS NOT NULL AND next_attempt_at <= ?) " \
+        "OR (next_attempt_at IS NULL AND updated_at < ? AND " \
+        "(failure_message IS NULL OR failure_code IS NOT NULL)) " \
+        "OR (status = 'processing' AND attempts_count = 0))",
+        Time.current, before
+      )
   end
 
   class << self
@@ -152,7 +175,72 @@ class DocumentLink < ApplicationRecord
   # message into `processing`, and the sweep — which excludes message-bearing
   # rows — would be blind to a genuine crash of the restarted read.
   def mark_processing!
-    transition!(from: %w[queued failed processing], to: "processing", failure_message: nil)
+    transition!(from: %w[queued failed processing], to: "processing",
+                failure_message: nil, failure_code: nil, next_attempt_at: nil)
+  end
+
+  # Atomically take the read for this process. The conditional UPDATE is the
+  # lease: a queued row is claimable at once; a `processing` row only once its
+  # heartbeat (`updated_at`, kept fresh by #heartbeat!) is older than the lease.
+  # Two jobs for the same document — a re-delivery and a reaper tick, say —
+  # therefore cannot both read it. `attempts_count` moves here so the retry
+  # budget travels with the row, not the job.
+  def claim_for_processing!(lease: PROCESSING_LEASE, ignore_schedule: false, owner: nil)
+    scope = self.class
+                .where(id: id, status: %w[queued processing])
+                # A `processing` row with no attempt is a pre-lease row (or one
+                # whose claim never completed): no new-code read owns it, so a
+                # boot sweep may take it immediately instead of waiting out the
+                # lease. New claims always increment the counter.
+                .where("status = 'queued' OR updated_at < ? OR (status = 'processing' AND attempts_count = 0)", lease.ago)
+    # A retry the owner chose ("Retry with online AI") runs now, even if an
+    # automatic retry is already scheduled; an automatic run waits its turn.
+    scope = scope.where("next_attempt_at IS NULL OR next_attempt_at <= ?", Time.current) unless ignore_schedule
+
+    updated = scope
+                  .update_all(
+                    status: "processing",
+                    failure_message: nil,
+                    failure_code: nil,
+                    next_attempt_at: nil,
+                    attempts_count: Arel.sql("attempts_count + 1"),
+                    processing_owner: owner,
+                    updated_at: Time.current
+                  )
+
+    updated == 1
+  end
+
+  # Re-queue a row whose worker is gone, keeping its retry budget. Used by the
+  # startup/reaper sweep when the owning Sidekiq process is no longer alive.
+  def resume!
+    transition!(from: "processing", to: "queued", failure_message: nil, failure_code: nil,
+                next_attempt_at: nil, processing_owner: nil)
+  end
+
+  # Any `processing` row whose owner is not in the live Sidekiq process set was
+  # interrupted by a reboot/deploy. Resume it now instead of waiting out the
+  # 30-minute heartbeat lease. A live-but-hung process is still covered by the
+  # lease; only genuinely absent processes are reclaimed here.
+  def self.recover_orphaned_processing!
+    alive = begin
+      Sidekiq::ProcessSet.new.map { |process| "#{process['hostname']}:#{process['pid']}" }
+    rescue StandardError => e
+      Rails.logger.warn("[DocumentReaper] Could not read the Sidekiq process set: #{e.class}: #{e.message}")
+      return 0
+    end
+
+    count = 0
+    where(status: "processing").find_each do |link|
+      # A nil owner is a pre-owner row (or an interrupted claim); the normal
+      # lease covers it. Only a named owner that is gone is an immediate orphan.
+      next if link.processing_owner.blank? || alive.include?(link.processing_owner)
+      next unless link.resume!
+
+      DocumentUnderstandingJob.perform_later(link.id)
+      count += 1
+    end
+    count
   end
 
   # The read's liveness touch (Task 11 fix round 1, item 1). The `stranded`
@@ -181,7 +269,10 @@ class DocumentLink < ApplicationRecord
 
   # The native read settled: the row is read and ready to be classified, routed
   # (Task 8/9) or linked. Moves only this row's status — never money.
-  def settle! = transition!(from: "processing", to: "unlinked", failure_message: nil)
+  def settle!
+    transition!(from: "processing", to: "unlinked", failure_message: nil,
+                failure_code: nil, next_attempt_at: nil)
+  end
 
   # The AI's class, written once the read settles. `source` is a fact about the
   # document, decided by the read's DocumentClassifier. `corroborated` is the
@@ -193,6 +284,90 @@ class DocumentLink < ApplicationRecord
       classification_confidence: confidence,
       classification_corroborated: corroborated, updated_at: Time.current
     )
+  end
+
+  # --- duplicate review (2026-10-17) ---------------------------------------
+  # A second statement for the same account and the same printed period is a
+  # duplicate: one account cannot have two statements covering one cycle.
+  # Grouping on the statement's own period (not the filename) is what lets the
+  # review screen show the copies together and let a person fix a wrong
+  # account/period or delete the extra.
+  def duplicate_documents
+    statement = account_statement
+    return self.class.none unless statement&.account_id && statement.period_start_on && statement.period_end_on
+
+    self.class.not_deleted
+        .joins(:account_statement)
+        .where.not(id: id)
+        .where(account_statements: {
+          account_id: statement.account_id,
+          period_start_on: statement.period_start_on,
+          period_end_on: statement.period_end_on
+        })
+  end
+
+  def duplicate_group = [ self, *duplicate_documents.to_a ]
+
+  def duplicate_group?
+    duplicate_documents.exists?
+  end
+
+  # The earliest upload is the one the review list shows; the later copies are
+  # the ones a person reviews beside it.
+  def duplicate_representative?
+    return false unless duplicate_group?
+
+    duplicate_group.min_by { |link| [ link.created_at, link.id ] }.id == id
+  end
+
+  # The structured statement_duplicate hold is how a copy is marked; the bare
+  # failure message alone could belong to any hold.
+  def duplicate_held?
+    hold_reason&.code == "statement_duplicate"
+  end
+
+  # One document id per duplicate group, for the Documents page's Duplicates
+  # filter. Groups are (account, printed period); the earliest row represents.
+  def self.duplicate_representative_ids(family)
+    scope = family.document_links.not_deleted
+                  .joins(:account_statement)
+                  .where.not(account_statements: { account_id: nil })
+                  .where.not(account_statements: { period_start_on: nil })
+                  .where.not(account_statements: { period_end_on: nil })
+
+    groups = scope.group(
+      "account_statements.account_id",
+      "account_statements.period_start_on",
+      "account_statements.period_end_on"
+    ).having("COUNT(*) > 1").pluck(
+      "account_statements.account_id", "account_statements.period_start_on", "account_statements.period_end_on"
+    )
+
+    groups.filter_map do |account_id, period_start_on, period_end_on|
+      scope.where(account_statements: {
+                    account_id: account_id,
+                    period_start_on: period_start_on,
+                    period_end_on: period_end_on
+                  })
+           .order(:created_at, :id)
+           .limit(1)
+           .pick(:id)
+    end
+  end
+
+  # The transaction-index filters that show this statement's rows: its account
+  # and the period the statement prints (the whole cycle, not just one day).
+  # A receipt/bill returns nil — its linked entry is the better target — and so
+  # does a statement whose period was not read.
+  def transaction_index_filters
+    statement = account_statement
+    return nil unless statement&.account_id && statement.period_start_on && statement.period_end_on
+
+    {
+      account_ids: [ statement.account_id ],
+      start_date: statement.period_start_on.iso8601,
+      end_date: statement.period_end_on.iso8601
+    }
   end
 
   # The row's displayed "document date" MUST be the same coerced date the
@@ -246,7 +421,39 @@ class DocumentLink < ApplicationRecord
       DocumentExtraction.record!(document_link: self, status: "failed", error: hold.message,
                                  validations: validations.merge("hold" => hold.to_h), **read_details)
     end
-    transition!(from: from, to: "queued", failure_message: hold.message)
+    if hold.retryable?
+      schedule_retry!(message: hold.message, code: hold.code, from: from)
+    else
+      transition!(from: from, to: "queued", failure_message: hold.message,
+                  failure_code: hold.code, next_attempt_at: nil)
+    end
+  end
+
+  # A transient failure schedules itself. The row is the source of truth: the
+  # delayed job is the fast path, and DocumentReaperJob catches the row if that
+  # job (or Redis) is lost. After MAX_RETRY_ATTEMPTS / MAX_RETRY_AGE the read
+  # stops with a visible terminal reason and the archive's Retry button.
+  def schedule_retry!(message:, code:, from: %w[processing queued])
+    unless retry_budget_left?(code)
+      return transition!(
+        from: from, to: "failed",
+        failure_message: I18n.t("document_links.retry_exhausted", reason: message, count: attempts_count),
+        failure_code: "retry_exhausted", next_attempt_at: nil
+      )
+    end
+
+    delay = retry_delay
+    scheduled = transition!(from: from, to: "queued",
+                            failure_message: message, failure_code: code,
+                            next_attempt_at: Time.current + delay)
+    enqueue_retry(delay) if scheduled
+    scheduled
+  end
+
+  # Whether the row is waiting for an automatic retry (as opposed to a terminal
+  # hold the owner must resolve).
+  def retrying?
+    next_attempt_at.present? && DocumentHold::RETRYABLE_CODES.include?(failure_code.to_s)
   end
 
   def fail!(message)
@@ -267,19 +474,22 @@ class DocumentLink < ApplicationRecord
   # provider call and a second DocumentExtraction. The retry still finds the row
   # (the job's guard accepts `queued`), and `mark_processing!` clears the message
   # when the read restarts, so a crash after the restart stays sweepable.
-  def await_retry!(message:)
-    transition!(from: %w[processing queued], to: "queued", failure_message: message)
+  def await_retry!(message:, code: "ocr_unreachable", delay: 1.hour)
+    transition!(from: %w[processing queued], to: "queued", failure_message: message,
+                failure_code: code, next_attempt_at: Time.current + delay)
   end
 
   # The retry ladder is spent: land the row terminally from whatever state it is
   # actually in. A backoff-parked row is `queued`, so `fail!`'s `processing`-only
   # guard would no-op and leave a spent row parked forever.
   def abandon!(message:)
-    transition!(from: %w[processing queued], to: "failed", failure_message: message)
+    transition!(from: %w[processing queued], to: "failed", failure_message: message,
+                failure_code: "retry_exhausted", next_attempt_at: nil)
   end
 
   def retry_upload!
-    transition!(from: %w[failed queued processing], to: "queued", failure_message: nil)
+    transition!(from: %w[failed queued processing], to: "queued", failure_message: nil,
+                failure_code: nil, next_attempt_at: nil, attempts_count: 0)
   end
 
   # A fresh read of the same document: clears the terminal bits and re-queues.
@@ -289,7 +499,8 @@ class DocumentLink < ApplicationRecord
   # `stranded` clock, so a reaper tick cannot re-select it before the fresh job
   # has had its bound.
   def reprocess!
-    transition!(from: STATUSES, to: "queued", failure_message: nil) &&
+    transition!(from: STATUSES, to: "queued", failure_message: nil,
+                failure_code: nil, next_attempt_at: nil, attempts_count: 0) &&
       self.class.where(id: id).update_all(updated_at: Time.current) == 1
   end
 
@@ -414,4 +625,30 @@ class DocumentLink < ApplicationRecord
   def mark_auto_post_undone!
     self.class.where(id: id).update_all(auto_post_undone_at: Time.current, updated_at: Time.current) == 1
   end
+
+  private
+    # A deterministic failure (an unexpected exception) gets a short leash; a
+    # provider/GPU/OCR outage gets the full horizon.
+    def retry_budget_left?(code)
+      limit = code.to_s == "read_error" ? READ_ERROR_ATTEMPTS : MAX_RETRY_ATTEMPTS
+      attempts_count.to_i < limit && created_at > MAX_RETRY_AGE.ago
+    end
+
+    # attempts_count was incremented by claim_for_processing!, so the first
+    # failure (1) waits one minute, then five, fifteen, thirty, and an hour.
+    def retry_delay
+      index = [ attempts_count.to_i - 1, 0 ].max
+      RETRY_BACKOFF[index.clamp(0, RETRY_BACKOFF.length - 1)]
+    end
+
+    def enqueue_retry(delay)
+      DocumentUnderstandingJob.set(wait: delay).perform_later(id)
+    rescue => e
+      # The row already carries next_attempt_at; the reaper is the backstop when
+      # the fast path (a delayed job) cannot be written.
+      Rails.logger.warn(
+        "DocumentLink #{id}: could not enqueue the scheduled retry " \
+        "(#{e.class}: #{e.message}); the reaper will pick it up"
+      )
+    end
 end

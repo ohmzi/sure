@@ -27,6 +27,13 @@
       <% row.statuses.each do |status| %>
         <%= render DS::Pill.new(label: status.label, tone: status.tone, marker: false) %>
       <% end %>
+      <% if row.duplicates_count.to_i.positive? %>
+        <%= render DS::Pill.new(
+              label: t("document_browser.row.duplicates", count: row.duplicates_count),
+              tone: :warning,
+              marker: false
+            ) %>
+      <% end %>
     </div>
     <% if row.failure_message.present? %>
       <p class="text-destructive text-xs"><%= row.failure_message %></p>

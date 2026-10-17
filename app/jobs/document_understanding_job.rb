@@ -52,8 +52,6 @@ class DocumentUnderstandingJob < ApplicationJob
   # cannot drift from how many attempts are actually configured. A provider
   # failure no longer retries the same provider: the reader ladder moves on to
   # the next reader instead (spec §2).
-  RETRY_ATTEMPTS = 3
-
   # A local read past its whole-document budget (Setting.local_llm_document_budget):
   # the ladder abandons it for the next reader so the GPU is never held unbounded.
   BudgetExceeded = Class.new(StandardError)
@@ -87,20 +85,10 @@ class DocumentUnderstandingJob < ApplicationJob
   # is restarting, the GPU is busy, the weights are still loading. Retry with
   # backoff; only a service that ANSWERED and said "unreadable" lands terminally.
   #
-  # The block runs once the retries are SPENT and the sidecar is still
-  # unreachable, and lands the row terminally with a message. Without it the row
-  # would rest mid-read forever — invisible, and never re-driven. That silent
-  # wedge is the predecessor's failure mode this milestone exists to remove.
-  #
-  # It uses abandon!, not fail! (fix round 2): during the backoff the row is
-  # parked `queued` (await_retry!), so fail!'s `processing`-only guard would
-  # no-op and leave a spent row parked forever.
-  retry_on Ocr::Error, wait: :polynomially_longer, attempts: RETRY_ATTEMPTS do |job, error|
-    DocumentLink.find_by(id: job.arguments.first)&.abandon!(
-      message: "OCR service unreachable after #{RETRY_ATTEMPTS} attempts: #{error.message}"
-    )
-  end
-
+  # OCR failures are retried from the DATABASE row (2026-10-17), not by
+  # Sidekiq's in-memory retry chain: a reboot, a flushed Redis or a lost job
+  # must not lose the document. `schedule_retry!` parks the row with a due
+  # time, enqueues a delayed job as the fast path, and leaves it sweepable.
   discard_on ActiveRecord::RecordNotFound
 
   # The user-facing wording for a read that produced nothing usable. Since
@@ -162,20 +150,27 @@ class DocumentUnderstandingJob < ApplicationJob
     }
   end
 
-  def perform(document_link_id, reader_mode = "auto")
+  def perform(document_link_id, reader_mode = "auto", document_class = nil)
     link = DocumentLink.find(document_link_id)
 
-    # Idempotent: a re-delivery, or the reaper re-enqueueing, must be a no-op
-    # once the read settled. `processing` is allowed so a crashed attempt resumes.
-    return unless link.status.in?(%w[queued processing])
-
-    link.mark_processing!
+    # The claim is the lease AND the idempotency guard: a re-delivery, a reaper
+    # tick, or the delayed job cannot start a second read. A `processing` row is
+    # claimable only after its heartbeat has gone stale, so a genuinely running
+    # read is never duplicated.
+    # The owner is this Sidekiq process ("hostname:pid"), the same identity the
+    # process set exposes. A restart can then tell an orphaned read from a live
+    # one immediately.
+    owner = "#{Socket.gethostname}:#{Process.pid}"
+    return unless link.claim_for_processing!(ignore_schedule: reader_mode != "auto", owner: owner)
+    link.reload
 
     unless Ocr.configured?
       return link.hold_for!(DocumentHold.named("ocr_not_configured", message: "no OCR service is configured"))
     end
 
     result = ocr_result(link)
+    # OCR can take minutes; keep the lease fresh before the model read starts.
+    link.heartbeat!
     return land_unreadable(link, result.failure_code) if result.failure?
     # A genuine empty read (Task 3's client reads a body with no `pages` key as
     # a non-failure, empty result) is "nothing was understood": no text AND no
@@ -216,7 +211,7 @@ class DocumentUnderstandingJob < ApplicationJob
     end
     validations["read_attempts"] = outcome.attempts
     validations["statement_rows_corroborated"] = true if outcome.corroborated
-    classification = classify(understanding, link, result, statement_read)
+    classification = classify(understanding, link, result, statement_read, forced_class: document_class)
 
     DocumentExtraction.record!(
       document_link: link,
@@ -245,51 +240,59 @@ class DocumentUnderstandingJob < ApplicationJob
     # "the digits actually appear on the page", and validate already reads the
     # same text.
     route(link, understanding, classification, ocr_text: result.text, statement_read: statement_read)
+    # Settle BEFORE anything routing can enqueue. The statement auto-post calls
+    # publish_later, whose ImportJob claims the statement link; a link still in
+    # `processing` refuses that edge ("would not link from status processing"),
+    # losing the provenance to a race. A route that HELD the link left it
+    # `queued`, so settle! is a no-op and the hold stands.
+    link.settle!
     # The owner's rule: a proven statement for a known account posts itself; a
     # duplicate month is flagged for the owner to delete. Not for a held read.
     if classification.document_class == "statement" && link.reload.failure_message.blank?
       StatementAutoPost.call(link: link)
     end
-    link.settle!
     # A read that added up will not be retried; one that went to review may be.
     DocumentLink::OcrCache.delete(link) if standing(read) == :proven
     link.broadcast_row_update!
   rescue Ocr::Error => e
-    # Transient upstream failure: let retry_on re-enqueue. Park the row `queued`
-    # with the reason (fix round 2) so the sweep cannot select it during the
-    # backoff — the later waits far exceed the sweep's bound, and a second read
-    # would race this one. The retry still finds the row, and mark_processing!
-    # clears the mark when it restarts, so a crash after the restart stays
-    # sweepable.
-    #
-    # The user reads a sentence, never the exception (item 3, cleanup wave):
-    # this reason stays on the row for the WHOLE backoff window, and `Ocr::Error`
-    # carries raw upstream text verbatim on `:unreachable` / `:bad_response`
-    # ("Failed to open TCP connection to ocr:9000 (Connection refused)"). The
-    # reason is named per code; the raw text goes to the log.
+    # Transient upstream failure: the DB row schedules the retry, so a lost job
+    # or a reboot cannot lose the document. The reason stays on the row for the
+    # owner; `Ocr::Error` carries raw upstream text verbatim on `:unreachable` /
+    # `:bad_response` ("Failed to open TCP connection to ocr:9000 ..."), so the
+    # raw text goes to the log and the user reads the named sentence.
     Rails.logger.warn(
       "DocumentUnderstandingJob retry scheduled for document_link #{document_link_id}: #{e.class}: #{e.message}"
     )
-    link&.await_retry!(message: retry_message(e))
-    raise
+    code = ocr_failure_code(e)
+    if DocumentHold::RETRYABLE_CODES.include?(code)
+      link&.schedule_retry!(message: retry_message(e), code: code)
+    else
+      # OCR is not configured: a person has to turn it on. Terminal, with the
+      # settings action the archive already knows how to show.
+      link&.hold_for!(DocumentHold.named("ocr_not_configured", message: retry_message(e)))
+    end
+  rescue Errno::ENOENT, Errno::EACCES => e
+    # The staged bytes are gone (a lost volume, a manual cleanup). Retrying
+    # cannot recreate them; tell the owner plainly and offer a fresh upload.
+    Rails.logger.error(
+      "DocumentUnderstandingJob cannot open document_link #{document_link_id}: #{e.class}: #{e.message}"
+    )
+    DocumentLink.find_by(id: document_link_id)&.hold_for!(
+      DocumentHold.named("file_missing", message: "The uploaded file is no longer on disk. Upload it again.")
+    )
   rescue ActiveRecord::RecordNotFound
     # A vanished link is discarded (the `discard_on` above), never held: there is
     # no row to hold. Re-raised so `discard_on` still sees it.
     raise
   rescue => e
-    # Anything else is ours: record it on the link so the archive can show it,
-    # and STOP. This arm deliberately does NOT re-raise (review finding 1):
-    # nothing matches `retry_on`, and Sidekiq's default is 25 attempts, so
-    # re-raising re-entered through the job's own `queued` guard, cleared the
-    # hold in `mark_processing!`, and re-ran the WHOLE read — the OCR sidecar
-    # plus a paid provider call — on every attempt. That is the unbounded replay
-    # Task 11's two fix rounds removed for the OCR and provider classes; here it
-    # was reintroduced for every other exception (a route failure such as the
-    # statement vault's DuplicateUploadError, a PG::UniqueViolation, a nil-method
-    # bug). A generic exception is usually a bug, not a transient upstream blip,
-    # so a bounded retry ladder would only burn more paid reads on a
-    # deterministic failure. The row is held with its reason and recoverable
-    # through `reprocess!`; a fresh read after that starts from a clean state.
+    # Anything else is ours: record it on the link so the archive can show it.
+    # This arm deliberately does NOT re-raise (review finding 1): Sidekiq's
+    # default is 25 attempts, and re-raising re-entered through the job's own
+    # guard and re-ran the WHOLE read — the OCR sidecar plus a paid provider
+    # call — on every attempt. `hold_for!` classifies the failure instead: a
+    # `read_error` gets READ_ERROR_ATTEMPTS durable retries (a transient DB or
+    # route blip can heal), then stops with a visible reason; a deterministic
+    # bug never burns a week of paid reads.
     #
     # The exception goes to the LOG, never into the message the archive shows:
     # `failure_message` is rendered verbatim on the row, tile and panel, so
@@ -324,11 +327,22 @@ class DocumentUnderstandingJob < ApplicationJob
     # client can raise and a provider failure get their own sentence.
     def retry_message(error)
       case error.code
-      when :not_configured then "The OCR service is not configured; a retry is scheduled."
+      when :not_configured then "The OCR service is not configured."
       when :unreachable then "The OCR service is unreachable; a retry is scheduled."
       when :server_error then "The OCR service reported an error; a retry is scheduled."
       when :bad_response then "The OCR service returned an unexpected response; a retry is scheduled."
       else "This document could not be read; a retry is scheduled."
+      end
+    end
+
+    # The durable retry code for an OCR failure. Configuration is terminal;
+    # everything else (unreachable, timeout, 5xx, a bad body) can heal.
+    def ocr_failure_code(error)
+      case error.code
+      when :not_configured then "ocr_not_configured"
+      when :server_error then "ocr_server_error"
+      when :bad_response then "ocr_bad_response"
+      else "ocr_unreachable"
       end
     end
 
@@ -525,11 +539,19 @@ class DocumentUnderstandingJob < ApplicationJob
     # verdict and source already ride the extraction's `statement_read`
     # diagnostic). A document the reader did NOT reconcile is left entirely
     # untouched — that is the fence.
-    def classify(understanding, link, result, statement_read)
+    def classify(understanding, link, result, statement_read, forced_class: nil)
       classification = DocumentClassifier.call(
         ai_verdict: understanding, filename: link.original_filename,
         content_type: link.content_type, ocr_text: result.text
       )
+      # The owner's explicit class wins over the classifier: a savings statement
+      # the reader called a bill must be routable as a statement.
+      if forced_class.present?
+        return DocumentClassifier::Result.new(
+          document_class: forced_class, confidence: classification.confidence,
+          corroborated: classification.corroborated, classified_by: "owner"
+        )
+      end
       return classification unless reader_proved_statement?(statement_read)
 
       DocumentClassifier::Result.new(

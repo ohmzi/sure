@@ -355,6 +355,31 @@ class ReceiptImportTest < ActiveSupport::TestCase
       ReceiptImport.find(draft.id).import!
     end
   end
+
+  # The native reader does not ask for a category, so a receipt or bill lands
+  # uncategorized. Publishing must hand the minted rows to the household's
+  # categorizer, the same path a provider sync uses.
+  test "publish queues auto-categorization for the receipt's uncategorized transactions" do
+    draft = imports(:receipt_understood)
+    draft.update!(understanding_state: "understood")
+    draft.generate_rows_from_line_items!
+
+    assert_enqueued_with(job: AutoCategorizeJob) do
+      draft.publish
+    end
+
+    transaction_ids = draft.entries.map(&:entryable_id)
+    assert_equal transaction_ids.sort, queued_auto_categorize_transaction_ids.sort
+  end
+
+  private
+    def queued_auto_categorize_transaction_ids
+      job = enqueued_jobs.find { |enqueued| enqueued[:job] == AutoCategorizeJob }
+      return [] if job.nil?
+
+      options = job[:args].last
+      options["transaction_ids"] || options[:transaction_ids] || []
+    end
 end
 
 # A genuine concurrent double-submit needs a second, concurrently-committing
@@ -494,4 +519,13 @@ class ReceiptImportConcurrentPublishTest < ActiveSupport::TestCase
     link.update!(currency: nil)
     assert_equal draft.family.currency, draft.reload.send(:default_currency)
   end
+
+  private
+    def queued_auto_categorize_transaction_ids
+      job = enqueued_jobs.find { |enqueued| enqueued[:job] == AutoCategorizeJob }
+      return [] if job.nil?
+
+      options = job[:args].last
+      options["transaction_ids"] || options[:transaction_ids] || []
+    end
 end

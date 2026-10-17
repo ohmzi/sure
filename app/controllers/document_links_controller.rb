@@ -29,9 +29,9 @@ class DocumentLinksController < ApplicationController
   # entry, one list, statements and receipts together by default, the type in an
   # in-page facet (DocumentLink::Search#type_filters). The old top-level `source`
   # pair narrowed it to receipt|bill; the type facet replaces it.
-  before_action :set_link, only: %i[file viewer show link unlink retry destroy]
+  before_action :set_link, only: %i[file viewer show link unlink retry reprocess destroy]
   before_action :require_document_copy!, only: %i[link unlink]
-  before_action :require_non_guest!, only: %i[create link unlink retry destroy]
+  before_action :require_non_guest!, only: %i[create link unlink retry reprocess destroy]
   rescue_from ActionController::ParameterMissing, with: :bad_request
 
   def index
@@ -61,6 +61,11 @@ class DocumentLinksController < ApplicationController
     # the document — the fields, their confidences, the checks, and what it
     # became — or, unread, the reason and the two ways forward.
     @panel = DocumentPanel.new(@link)
+    # Opened from a transaction, the viewer is about that transaction: the line
+    # it came from, its page, and how it got into the account (the owner,
+    # 2026-10-17). Only a transaction of this family that this document
+    # actually created, verified or was matched to.
+    @trace = (entry = Current.family.entries.find_by(id: params[:entry_id])) && Entry::DocumentTrace.for(entry, @link) if params[:entry_id].present?
     previous_link, next_link = document_browser_neighbours(@link)
     @previous_url = previous_link && viewer_document_path(previous_link, document_browser_viewer_params)
     @previous_title = previous_link && link_display_title(previous_link)
@@ -210,7 +215,20 @@ class DocumentLinksController < ApplicationController
     end
 
     @link.retry_upload!
-    DocumentUnderstandingJob.perform_later(@link.id, reader_mode)
+    DocumentUnderstandingJob.perform_later(@link.id, reader_mode, forced_document_class)
+    redirect_back_or_to documents_path, notice: t("documents.retry.queued")
+  end
+
+  # Re-read a document that already settled, optionally forcing its class. The
+  # "this is a statement, not a bill" escape hatch (the owner's 2026-10-17
+  # report: a savings statement classified as a bill had no way to correct it).
+  def reprocess
+    unless @link.stored_path.present? && DocumentLink::Staging.exists?(@link.stored_path)
+      return render(plain: "no held upload to read", status: :conflict)
+    end
+
+    @link.reprocess!
+    DocumentUnderstandingJob.perform_later(@link.id, "auto", forced_document_class)
     redirect_back_or_to documents_path, notice: t("documents.retry.queued")
   end
 
@@ -226,10 +244,25 @@ class DocumentLinksController < ApplicationController
     end
 
     @link.soft_delete!
-    redirect_back_or_to documents_path, notice: t("documents.destroy.removed")
+
+    # A delete made from the duplicate review should land back on that review
+    # (refreshed, with the now-singleton group gone), not on the deleted
+    # document's own page. Only a same-origin path is honoured.
+    return_to = params[:return_to].to_s
+    if return_to.start_with?("/") && !return_to.start_with?("//")
+      redirect_to return_to, notice: t("documents.destroy.removed")
+    else
+      redirect_back_or_to documents_path, notice: t("documents.destroy.removed")
+    end
   end
 
   private
+
+    # A class the owner chose for this read; unknown/other is ignored, leaving
+    # the normal classifier in charge.
+    def forced_document_class
+      params[:document_class].presence_in(DocumentLink::SOURCES - %w[other])
+    end
 
     def document_browser_search
       DocumentLink::Search.new(family: Current.family, filters: document_browser_filters)

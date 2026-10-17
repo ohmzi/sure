@@ -213,6 +213,46 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "[data-document-pages='3'] img[src*='kind=page']", count: 3
     assert_select "[data-document-pages] img[src*='page=3']"
+    assert_select "[data-document-pages].lg\\:hidden", count: 1
+  end
+
+  # Opened from a transaction (the owner, 2026-10-17), the viewer is about that
+  # transaction: its line in the statement, the page with the line marked, and
+  # how it got into the account. The statement's own read folds away below.
+  test "the viewer opened from a transaction shows its line, marked on its page" do
+    import = statement_import_reading("Customer Transfer to 254724***228 - WANJUHI NJOROGE", "-3700.00")
+    entry = create_statement_entry(import, name: "Customer Transfer to 254724***228 - WANJUHI NJOROGE", amount: 3700)
+
+    get viewer_document_path(import.document_link, entry_id: entry.id)
+
+    assert_response :success
+    assert_select "[data-document-trace='created']"
+    assert_select "[data-trace-line]", text: /WANJUHI NJOROGE/
+    assert_select "[data-page='1'] [data-document-mark]"
+    assert_select "[data-document-pages]:not(.lg\\:hidden)"
+    assert_select "details[data-document-about]"
+  end
+
+  test "the viewer ignores a transaction the document has nothing to do with" do
+    import = statement_import_reading("Customer Transfer to 254724***228 - WANJUHI NJOROGE", "-3700.00")
+
+    get viewer_document_path(import.document_link, entry_id: entries(:transaction_entry).id)
+
+    assert_response :success
+    assert_select "[data-document-trace]", count: 0
+    assert_select "[data-document-mark]", count: 0
+  end
+
+  test "the viewer never traces another family's transaction" do
+    import = statement_import_reading("Customer Transfer to 254724***228 - WANJUHI NJOROGE", "-3700.00")
+    elsewhere = Account.create!(family: families(:empty), name: "Elsewhere", balance: 0, currency: "USD", accountable: Depository.new)
+    other = Entry.create!(account: elsewhere, name: "x", date: Date.current, currency: "USD", amount: 3700,
+                          entryable: Transaction.new, import: import)
+
+    get viewer_document_path(import.document_link, entry_id: other.id)
+
+    assert_response :success
+    assert_select "[data-document-trace]", count: 0
   end
 
   test "file serves an image's own bytes for the thumb kind, rendering nothing" do
@@ -299,7 +339,7 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     @link.update_columns(status: "failed")
     @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf")
 
-    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ @link.id, "online" ]) do
+    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ @link.id, "online", nil ]) do
       post retry_document_path(@link, reader: "online")
     end
   end
@@ -308,7 +348,7 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     @link.update_columns(status: "failed")
     @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf")
 
-    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ @link.id, "auto" ]) do
+    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ @link.id, "auto", nil ]) do
       post retry_document_path(@link, reader: "anything")
     end
   end
@@ -324,6 +364,19 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
       post retry_document_path(@link, reader: "online")
     end
     assert_response :conflict
+  end
+
+  test "reprocess re-reads a settled document with a forced class" do
+    @link.update_columns(status: "failed")
+    @link.stage!(io: StringIO.new("x"), filename: "r.pdf", content_type: "application/pdf")
+    @link.update_columns(status: "unlinked")
+
+    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ @link.id, "auto", "statement" ]) do
+      post reprocess_document_path(@link, document_class: "statement")
+    end
+
+    assert_response :redirect
+    assert_equal "queued", @link.reload.status
   end
 
   # -- the one Documents page: the type facet, the grid, what needs you -------
@@ -735,6 +788,23 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("documents.destroy.removed"), flash[:notice]
   end
 
+  test "destroy returns to the duplicate review when asked" do
+    @link.entry.update!(reconciled_at: Time.current)
+
+    delete document_path(@link, return_to: documents_path(q: { duplicates: 1 }))
+
+    assert_redirected_to documents_path(q: { duplicates: 1 })
+    assert_not_nil @link.reload.deleted_at
+  end
+
+  test "destroy refuses an off-site return_to" do
+    @link.entry.update!(reconciled_at: Time.current)
+
+    delete document_path(@link, return_to: "//evil.example/phish")
+
+    assert_redirected_to documents_path
+  end
+
   test "destroy leaves a tombstone out of the archive" do
     @link.entry.update!(reconciled_at: Time.current)
     delete document_path(@link)
@@ -744,4 +814,24 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_no_match @link.title, response.body,
                     "a soft-deleted document must not appear in the Documents grid"
   end
+  private
+    def statement_import_reading(name, amount)
+      statement = AccountStatement.create_from_upload!(
+        family: @family, account: accounts(:depository),
+        file: uploaded_file(filename: "statement.pdf", content_type: "application/pdf",
+                            content: file_fixture("imports/sample_bank_statement.pdf").binread)
+      )
+      statement.archive_document_link!
+      import = PdfImport.create_from_statement!(statement: statement.reload)
+      import.update!(extracted_data: { "transactions" => [ { "date" => Date.current.iso8601, "amount" => amount, "name" => name } ] })
+      link = import.document_link
+      link.update_columns(stored_path: stage_bytes(link, file_fixture("imports/sample_bank_statement.pdf").binread),
+                          content_type: "application/pdf", page_count: 3)
+      import
+    end
+
+    def create_statement_entry(import, name:, amount:)
+      Entry.create!(account: accounts(:depository), name: name, date: Date.current, currency: "USD", amount: amount,
+                    entryable: Transaction.new, import: import)
+    end
 end

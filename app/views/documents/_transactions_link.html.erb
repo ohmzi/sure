@@ -1,0 +1,20 @@
+<%# locals: (link:, size: :sm) %>
+<%# From the document to the transaction screen. A receipt/bill has one
+    transaction (its linked entry); a statement has a cycle's worth, which the
+    transaction index can show with its account + printed-period filters. The
+    index's normal filter controls clear them, so the person can carry on. %>
+<% if link.entry.present? %>
+  <%= render DS::Link.new(
+        text: t("documents.transactions_link.view"),
+        href: transaction_path(link.entry),
+        variant: "outline",
+        size: size
+      ) %>
+<% elsif (filters = link.transaction_index_filters) %>
+  <%= render DS::Link.new(
+        text: t("documents.transactions_link.view"),
+        href: transactions_path(q: filters),
+        variant: "outline",
+        size: size
+      ) %>
+<% end %>

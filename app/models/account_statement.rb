@@ -95,6 +95,24 @@ class AccountStatement < ApplicationRecord
 
   scope :ordered, -> { order(created_at: :desc) }
   scope :with_account, -> { where.not(account_id: nil) }
+  # A statement whose only archived document was deleted (the duplicate review's
+  # Delete) is a tombstone: keep the row for history, but do not let it count as
+  # a second statement for the month. A statement with no document link at all
+  # (a vault-only upload) is still real and stays.
+  scope :excluding_tombstones, -> {
+    where(<<~SQL.squish)
+      NOT EXISTS (
+        SELECT 1 FROM document_links deleted_links
+        WHERE deleted_links.account_statement_id = account_statements.id
+          AND deleted_links.deleted_at IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM document_links live_links
+            WHERE live_links.account_statement_id = account_statements.id
+              AND live_links.deleted_at IS NULL
+          )
+      )
+    SQL
+  }
   scope :unmatched, -> { where(account_id: nil).where(review_status: "unmatched") }
   scope :for_month, ->(month) {
     month_start = month.to_date.beginning_of_month
@@ -110,7 +128,7 @@ class AccountStatement < ApplicationRecord
   # (Milestone B Task 3, Step 7), so DocumentLink is genuinely the spine every
   # document has. Idempotent: a statement keeps one link, and the native route
   # (already linked) returns it untouched.
-  def archive_document_link!(uploader: nil)
+  def archive_document_link!(uploader: nil, process: false)
     return archived_document_link if archived_document_link.present?
 
     link = DocumentLink.link_from_upload!(family: family, uploader: uploader,
@@ -129,11 +147,26 @@ class AccountStatement < ApplicationRecord
       link.destroy!
       raise
     end
-    # A statement is archived as-is: the vault already read it, so the link
-    # settles straight to `unlinked` rather than re-reading the bytes.
-    link.transition!(from: "queued", to: "unlinked")
     link.update!(account_statement_id: id)
+
+    if process && native_readable?
+      # The vault's own upload path has NOT read the bytes. Leave the link
+      # queued and hand it to the native reader; the row and the staged file
+      # make the read recoverable if the enqueue or the worker is lost.
+      DocumentUnderstandingJob.perform_later(link.id)
+    else
+      # A statement read elsewhere (the native route) is archived as-is; a
+      # CSV/OFX upload has no page for the native reader, so it settles here.
+      link.transition!(from: "queued", to: "unlinked")
+    end
     link
+  end
+
+  # The native reader handles page documents: a PDF's pages and an image. A
+  # vault upload may also be a CSV/OFX bank export, which has no page to OCR and
+  # is imported through its own path.
+  def native_readable?
+    content_type == "application/pdf" || content_type.to_s.start_with?("image/")
   end
 
   class << self

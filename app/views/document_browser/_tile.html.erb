@@ -48,6 +48,7 @@
   meta_parts << row.merchant if row.merchant.present?
   meta_parts << amount if amount.present?
   meta_parts << format_date(row.date) if row.date.present?
+  meta_parts << t("document_browser.tile.duplicates", count: row.duplicates_count) if row.duplicates_count.to_i.positive?
   meta = state == :needs_you ? row.failure_message : meta_parts.join(" · ")
 
   # object-top: a statement page is portrait, and the tile is 4:3 — the head of

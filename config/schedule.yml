@@ -112,8 +112,11 @@ receipt_matcher:
   description: "Scores unlinked and suggested receipts against candidate transactions"
 
 document_reaper:
-  cron: "17 * * * *"
+  # Every five minutes, not hourly (2026-10-17): a reboot or a killed worker
+  # must resume a document in minutes. The test is idempotent — a row with a
+  # live lease, a future retry time, or a terminal failure is left alone.
+  cron: "*/5 * * * *"
   class: "DocumentReaperJob"
   active_job: true
   queue: "default"
-  description: "Re-enqueues documents whose read never finished (mid-read or queued, with bytes, idle past the bound)"
+  description: "Resumes documents whose read never finished or whose transient retry is due (with bytes, lease expired or retry time reached)"

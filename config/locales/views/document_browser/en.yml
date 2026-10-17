@@ -76,6 +76,9 @@ en:
       retry: Retry
       remove: Remove
       assign_account: Which account?
+      duplicates:
+        one: 1 duplicate
+        other: "%{count} duplicates"
       extraction:
         processing: Extracting…
         extraction_failed: Extraction failed
@@ -88,6 +91,9 @@ en:
         which_account: Which account?
         needs_you: Needs you
         posted: Posted
+      duplicates:
+        one: 1 duplicate
+        other: "%{count} duplicates"
     # The "needs you" strip (design D5). It does not render at all when the
     # count is zero.
     attention:
@@ -105,6 +111,9 @@ en:
           one: 1 ready to review
           other: "%{count} ready to review"
       show: Show them
+      review_duplicates:
+        one: Review 1 duplicate
+        other: Review %{count} duplicate groups
     viewer:
       # The phone card for a PDF (2026-10-17): phones cannot show one inline.
       pdf_kind: PDF document

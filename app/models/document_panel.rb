@@ -201,6 +201,11 @@ class DocumentPanel
     [ draft_outcome, entry_outcome ].compact
   end
 
+  # Every document in this statement's duplicate group, including this one.
+  # Rendered by the viewer/show so a person can compare the copies, delete an
+  # extra, or open the statement page and correct its account/period.
+  def duplicates = @link.duplicate_group
+
   private
     def routes = Rails.application.routes.url_helpers
 

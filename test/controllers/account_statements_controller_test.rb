@@ -1,6 +1,8 @@
 require "test_helper"
 
 class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   setup do
     ensure_tailwind_build
     sign_in @user = users(:family_admin)
@@ -187,6 +189,23 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
   ensure
     ENV["SURE_DOCUMENT_STORE_DIR"] = previous
     FileUtils.remove_entry(store) if store&.exist?
+  end
+
+  test "an account-tab PDF upload hands the statement to the native reader" do
+    assert_enqueued_with(job: DocumentUnderstandingJob) do
+      post account_statements_url, params: {
+        account_statement: {
+          account_id: @account.id,
+          files: [ uploaded_file(filename: "tab_statement.pdf", content_type: "application/pdf",
+                                content: file_fixture("imports/sample_bank_statement.pdf").binread) ]
+        }
+      }
+    end
+
+    statement = AccountStatement.order(:created_at).last
+    link = statement.archived_document_link
+    assert_equal "queued", link.status, "the vault upload is read, not merely archived"
+    assert_equal statement.id, link.account_statement_id
   end
 
   test "member with writable account access can upload linked statement" do

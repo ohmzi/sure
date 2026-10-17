@@ -60,6 +60,9 @@ class DocumentLink::Search
     @scope = @scope.where(source: type_filters) if type_filters.any?
     @scope = @scope.where(status: status_filters) if status_filters.any?
     @scope = @scope.where(id: DocumentLink.needs_attention(@family).select(:id)) if @filters[:attention].present?
+    # One representative per duplicate group: opening it shows the other copies
+    # beside it in the viewer's duplicate panel.
+    @scope = @scope.where(id: DocumentLink.duplicate_representative_ids(@family)) if @filters[:duplicates].present?
     @scope = @scope.merge(DocumentLink.search(@filters[:search])) if @filters[:search].present?
     @scope = @scope.where("#{DOCUMENT_DATE_SQL} >= ?", date_from.iso8601) if date_from
     @scope = @scope.where("#{DOCUMENT_DATE_SQL} <= ?", date_to.iso8601) if date_to

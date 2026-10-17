@@ -6,6 +6,7 @@ require "test_helper"
 # the provenance edge, and what a refusal leaves behind.
 class AutoPostReceiptJobTest < ActiveSupport::TestCase
   include EntriesTestHelper
+  include ActiveJob::TestHelper
 
   setup do
     # A draft that clears every gate condition: account depository, total 12.00,
@@ -50,6 +51,20 @@ class AutoPostReceiptJobTest < ActiveSupport::TestCase
     link = @draft.document_link.reload
     assert_equal "linked", link.status
     assert_equal entry.id, link.entry_id, "the provenance edge points at the entry"
+  end
+
+  # The auto-post path writes money without a reviewed publish, so it must also
+  # be the path that hands the new entry to the household's categorizer.
+  test "auto-posting a receipt queues categorization for the minted entry" do
+    assert_enqueued_with(job: AutoCategorizeJob) do
+      AutoPostReceiptJob.perform_now(@draft.id)
+    end
+
+    job = enqueued_jobs.find { |enqueued| enqueued[:job] == AutoCategorizeJob }
+    options = job[:args].last
+    transaction_ids = options["transaction_ids"] || options[:transaction_ids]
+
+    assert_equal [ posted_entry.entryable_id ], transaction_ids
   end
 
   # Review I5: the receipt posts in the currency chosen at upload — the same

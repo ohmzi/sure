@@ -85,7 +85,7 @@ class AccountStatementsController < ApplicationController
       statement = AccountStatement.create_from_prepared_upload!(family: Current.family, account: account, prepared_upload: prepared_upload)
       # The unified Documents page reads DocumentLink; without this the account
       # tab's own upload would be invisible where documents live (Task 3, Step 7).
-      statement.archive_document_link!(uploader: Current.user)
+      statement.archive_document_link!(uploader: Current.user, process: true)
       created << statement
     rescue AccountStatement::InvalidUploadError
       validation_errors << t("account_statements.create.invalid_file_type")

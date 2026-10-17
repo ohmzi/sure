@@ -65,6 +65,16 @@ Sidekiq.configure_server do |config|
 
   # Initialize auto-sync scheduler when Sidekiq server starts
   config.on(:startup) do
+    # Resume document reads immediately after a boot/redeploy instead of waiting
+    # for the five-minute cron tick. The sweep is idempotent (lease + due time),
+    # so the worker and worker-heavy processes both enqueueing it is harmless.
+    begin
+      DocumentReaperJob.perform_later
+      Rails.logger.info("[DocumentReaper] Startup sweep enqueued")
+    rescue => e
+      Rails.logger.warn("[DocumentReaper] Could not enqueue the startup sweep: #{e.class}: #{e.message}")
+    end
+
     AutoSyncScheduler.sync!
     Rails.logger.info("[AutoSyncScheduler] Initialized sync_all_accounts cron job")
   rescue => e

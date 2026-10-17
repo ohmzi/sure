@@ -36,6 +36,7 @@ en:
     # The document's own page — the viewer without the dialog (Task 4).
     show:
       back: Back to documents
+      read_as_statement: Read as statement
     # The native read refuses to mint a statement vault row for an uploader who
     # may not manage statements (Task 2). Because the intake no longer asks the
     # user what a document is, this reason lands on the document's own row — the
@@ -77,6 +78,25 @@ en:
     # §9). It shows the read *and* its doubts — every field with its confidence,
     # the validator results, and what the document became — and, when there is no
     # read, the reason plus the two ways forward rather than an empty panel.
+    # Opened from a transaction (the owner, 2026-10-17): that transaction's line
+    # in the document, where it is, how it got into the account.
+    trace:
+      where: Where it was found
+      page: Page %{page}
+      row: Line %{row} of the statement
+      show_on_page: Show on page
+      how: How it got here
+      how_created: Added to %{account} when this statement was imported
+      how_verified: Already in %{account} (%{source}); this statement's line confirmed it
+      how_matched: Matched to this transaction
+      checks: Checks
+      same_amount: Same amount as the transaction
+      different_amount: The amount differs from the transaction
+      same_day: Same day as the transaction
+      days_apart:
+        one: 1 day from the transaction's date
+        other: "%{count} days from the transaction's date"
+      about_document: About this document
     understanding:
       attempt_outcomes:
         read: Read it
@@ -150,6 +170,18 @@ en:
         awaiting_ocr: Still reading
         needs_understanding: Needs your input
         understood: Ready to review
+      # The duplicate group shown beside a statement: the copies cover the same
+      # account and printed period, so one of them is the wrong copy.
+      duplicates:
+        title:
+          one: Duplicate document
+          other: "Duplicate documents (%{count})"
+        description: "These documents cover the same account and period. Keep the right one; open a document to correct its account or month, or delete an extra."
+        current: This document
+        duplicate_copy: Duplicate copy
+        open: Open
+        fix: Fix details
+        delete: Delete
       # The unread state's two ways forward: let the app read it, or key it in
       # yourself. Never a dead end. "Set up a provider" names its destination —
       # the owner's report (2026-10-13) was that the key fields had no findable
@@ -159,6 +191,8 @@ en:
         or: or
         enter_by_hand: Enter it by hand
         provider_location: "Find the key under Settings → Self-Hosting → AI provider (add a DeepSeek or OpenAI key, or pick a local model)."
+    transactions_link:
+      view: View transactions
   # DocumentIntake: the content router's copy. A file it cannot place is refused
   # with this message on the bar; nothing is archived.
   document_holds:
@@ -181,3 +215,5 @@ en:
     local: the local model (%{model})
   document_intake:
     rejected: We could not tell what this file is. Drop a photo, a PDF, or a bank export.
+  document_links:
+    retry_exhausted: "%{reason} We stopped retrying after %{count} attempts; use Retry from the archive."

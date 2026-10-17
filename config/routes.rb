@@ -558,6 +558,7 @@ Rails.application.routes.draw do
       post :link
       post :unlink
       post :retry
+      post :reprocess
     end
   end
 
@@ -623,6 +624,7 @@ Rails.application.routes.draw do
       post :mark_as_recurring
       post :merge_duplicate
       post :dismiss_duplicate
+      post :apply_category_to_similar, to: "transaction_categories#apply_to_similar"
       post :unlock
       patch :tags, action: :update_tags
     end
@@ -701,10 +703,12 @@ Rails.application.routes.draw do
     end
   end
 
-  resources :rules, except: :show do
+  resources :rules do
     member do
       get :confirm
       post :apply
+      patch :update_category
+      patch :update_transactions
     end
 
     collection do

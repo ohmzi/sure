@@ -24,7 +24,11 @@ class DocumentReaperJobTest < ActiveSupport::TestCase
     # A "processing" row therefore stayed "queued", and the fresh-row test
     # asserted a status the row never had. Reloading first makes the intended
     # status actually persist.
-    link.reload.update!(status: status, updated_at: age.ago)
+    # A real processing row was claimed, so its attempts counter is ≥1. A zero
+    # counter means a pre-lease/interrupted claim, which the reaper may take at
+    # once — not the shape these tests mean by "processing".
+    link.reload.update!(status: status, updated_at: age.ago,
+                        attempts_count: status == "processing" ? 1 : 0)
     link
   end
 
@@ -88,6 +92,22 @@ class DocumentReaperJobTest < ActiveSupport::TestCase
     assert_enqueued_jobs 0, only: DocumentUnderstandingJob do
       DocumentReaperJob.perform_now
     end
+  end
+
+  test "it resumes a read whose owning Sidekiq process is gone and leaves a live one" do
+    live = stranded_link(status: "processing", age: 2.hours)
+    live.update!(processing_owner: "host:1")
+    orphan = stranded_link(status: "processing", age: 2.hours)
+    orphan.update!(processing_owner: "host:2")
+
+    Sidekiq::ProcessSet.stubs(:new).returns([ { "hostname" => "host", "pid" => 1 } ])
+
+    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ orphan.id ]) do
+      DocumentLink.recover_orphaned_processing!
+    end
+
+    assert_equal "queued", orphan.reload.status
+    assert_equal "processing", live.reload.status
   end
 
   test "it reports how many rows it revived" do

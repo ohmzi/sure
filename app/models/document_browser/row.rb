@@ -28,11 +28,11 @@ class DocumentBrowser::Row
 
   attr_reader :record, :key, :title, :doc_type_label, :kind, :thumb_url, :icon,
               :statuses, :date, :tags, :merchant, :amount, :file_url, :download_url,
-              :viewer_url, :details_url, :actions, :failure_message
+              :viewer_url, :details_url, :actions, :failure_message, :duplicates_count
 
   def initialize(record:, key:, title:, doc_type_label:, kind:, thumb_url:, icon:,
                  statuses:, date:, tags:, merchant:, amount:, file_url:, download_url:,
-                 viewer_url:, details_url:, actions:, failure_message: nil)
+                 viewer_url:, details_url:, actions:, failure_message: nil, duplicates_count: 0)
     @record = record
     @key = key
     @title = title
@@ -51,6 +51,7 @@ class DocumentBrowser::Row
     @details_url = details_url
     @actions = actions
     @failure_message = failure_message
+    @duplicates_count = duplicates_count
   end
 
   class << self
@@ -89,7 +90,8 @@ class DocumentBrowser::Row
         # modal (viewer_url).
         details_url: routes.document_path(link),
         actions: document_actions(link, draft, routes),
-        failure_message: link.failure_message
+        failure_message: link.failure_message,
+        duplicates_count: link.duplicate_documents.count
       )
     end
 
