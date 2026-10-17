@@ -129,12 +129,18 @@ class AccountStatement::Coverage
 
       linked_statements = statements_covering(linked_statement_scope, month)
       ambiguous_statements = statements_covering(ambiguous_statement_scope, month)
+      # A month is judged by the statement that ENDS in it, not by every cycle
+      # that happens to overlap it. Consecutive monthly statements share a
+      # boundary date, so an adjacent June statement would otherwise make a
+      # perfectly reconciled May look mismatched.
+      status_statements = statements_ending_in(linked_statements, month)
+      status_statements = linked_statements if status_statements.empty?
 
-      status = if linked_statements.many? && overlapping_statements?(linked_statements)
+      status = if status_statements.many? && overlapping_statements?(status_statements)
         "duplicate"
-      elsif linked_statements.any? { |statement| statement.reconciliation_mismatched?(balance_lookup: balance_lookup) }
+      elsif status_statements.any? { |statement| statement.reconciliation_mismatched?(balance_lookup: balance_lookup) }
         "mismatched"
-      elsif linked_statements.any?
+      elsif status_statements.any?
         "covered"
       elsif ambiguous_statements.any?
         "ambiguous"
@@ -176,6 +182,15 @@ class AccountStatement::Coverage
           statement.period_end_on.present? &&
           statement.period_start_on <= month_end &&
           statement.period_end_on >= month_start
+      end
+    end
+
+    # The statement a coverage month names: the one whose printed period ends
+    # in that calendar month (the "June statement" ends on June 12).
+    def statements_ending_in(statements, month)
+      statements.select do |statement|
+        ending = statement.period_end_on
+        ending.present? && ending.year == month.year && ending.month == month.month
       end
     end
 

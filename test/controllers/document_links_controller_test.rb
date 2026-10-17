@@ -613,8 +613,10 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
   test "the attention strip renders nothing when no document needs a person" do
     DocumentLink.where(family: @family).where.not(failure_message: nil).update_all(failure_message: nil)
     # receipt_understood is the only understood draft; completing it clears the
-    # second branch of needs_attention.
+    # second branch of needs_attention. Pending imports that came from a
+    # document are the third ask (the ledger is waiting), so complete those too.
     imports(:receipt_understood).update!(status: "complete")
+    @family.imports.where(status: "pending").where.not(document_link_id: nil).update_all(status: "complete")
 
     get documents_path
 

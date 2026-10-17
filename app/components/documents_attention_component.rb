@@ -11,7 +11,22 @@ class DocumentsAttentionComponent < ApplicationComponent
 
   attr_reader :family
 
-  def render? = total.positive?
+  def render? = total.positive? || pending_imports.positive?
+
+  def title
+    return I18n.t("document_browser.attention.title", count: total) if total.positive?
+
+    I18n.t("document_browser.attention.imports_title", count: pending_imports)
+  end
+
+  # Imports read from documents but not yet published. They are the other half
+  # of "a document was processed": the rows exist, the ledger is waiting.
+  def pending_imports
+    @pending_imports ||= family.imports
+                               .where(status: "pending")
+                               .where.not(document_link_id: nil)
+                               .count
+  end
 
   # The plain-language breakdown, as [count, key-fragment] pairs. Only the
   # non-zero reasons render; a draft that resolved without an account and a
@@ -21,7 +36,8 @@ class DocumentsAttentionComponent < ApplicationComponent
     [
       [ couldnt_read, "couldnt_read" ],
       [ needs_account, "needs_account" ],
-      [ ready, "ready" ]
+      [ ready, "ready" ],
+      [ pending_imports, "imports" ]
     ].select { |count, _key| count.positive? }
   end
 

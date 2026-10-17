@@ -100,7 +100,13 @@ en:
       title:
         one: 1 document needs you
         other: "%{count} documents need you"
+      imports_title:
+        one: 1 import ready to review
+        other: "%{count} imports ready to review"
       reasons:
+        imports:
+          one: 1 import ready to review
+          other: "%{count} imports ready to review"
         couldnt_read:
           one: 1 couldn't be read
           other: "%{count} couldn't be read"
@@ -114,6 +120,9 @@ en:
       review_duplicates:
         one: Review 1 duplicate
         other: Review %{count} duplicate groups
+      review_imports:
+        one: Review 1 import
+        other: Review %{count} imports
     viewer:
       # The phone card for a PDF (2026-10-17): phones cannot show one inline.
       pdf_kind: PDF document

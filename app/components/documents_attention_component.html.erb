@@ -3,7 +3,7 @@
     to show them. %>
 <div id="documents_attention" class="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-3xl bg-inverse px-5 py-4 text-inverse shadow-border-sm">
   <div class="min-w-0 grow">
-    <p class="text-xl font-bold tracking-tight"><%= t("document_browser.attention.title", count: total) %></p>
+    <p class="text-xl font-bold tracking-tight"><%= title %></p>
     <p class="text-sm opacity-80">
       <%= reasons.map { |count, key| t("document_browser.attention.reasons.#{key}", count: count) }.join(" · ") %>
     </p>
@@ -13,7 +13,13 @@
       <%= link_to t("document_browser.attention.review_duplicates", count: duplicates), documents_path(q: { duplicates: 1 }),
             class: "inline-flex items-center h-10 px-5 rounded-full bg-container text-link text-sm font-semibold hover:bg-container-hover active:scale-95 transition focus-ring" %>
     <% end %>
-    <%= link_to t("document_browser.attention.show"), documents_path(q: { attention: 1 }),
-          class: "inline-flex items-center h-10 px-5 rounded-full bg-container text-link text-sm font-semibold hover:bg-container-hover active:scale-95 transition focus-ring" %>
+    <% if pending_imports.positive? %>
+      <%= link_to t("document_browser.attention.review_imports", count: pending_imports), imports_path,
+            class: "inline-flex items-center h-10 px-5 rounded-full bg-container text-link text-sm font-semibold hover:bg-container-hover active:scale-95 transition focus-ring" %>
+    <% end %>
+    <% if total.positive? %>
+      <%= link_to t("document_browser.attention.show"), documents_path(q: { attention: 1 }),
+            class: "inline-flex items-center h-10 px-5 rounded-full bg-container text-link text-sm font-semibold hover:bg-container-hover active:scale-95 transition focus-ring" %>
+    <% end %>
   </div>
 </div>

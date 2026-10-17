@@ -369,7 +369,7 @@ class PdfImport < Import
           import: self,
           source_row_number: index,
           date: format_date_for_import(txn["date"]),
-          amount: txn["amount"].to_s,
+          amount: normalize_amount(txn["amount"]),
           name: txn["name"].to_s,
           category: txn["category"].to_s,
           notes: txn["notes"].to_s,
@@ -724,12 +724,32 @@ class PdfImport < Import
       statement_with_transactions? && rows_count > 0 ? :pending : :complete
     end
 
+    # A statement reader may return a day-first date ("31-03-2026") or a
+    # thousands separator in an amount ("3,501.79"). Normalize both before the
+    # row validations see them.
     def format_date_for_import(date_str)
       return "" if date_str.blank?
 
-      Date.parse(date_str).strftime(date_format)
-    rescue ArgumentError
-      date_str.to_s
+      date = begin
+        Date.parse(date_str.to_s)
+      rescue ArgumentError
+        parse_date_with_fallbacks(date_str)
+      end
+
+      date ? date.strftime(date_format) : date_str.to_s
+    end
+
+    def parse_date_with_fallbacks(value)
+      [ "%d-%m-%Y", "%d/%m/%Y", "%m-%d-%Y", "%m/%d/%Y", "%Y-%m-%d", "%d %b %Y", "%b %d, %Y" ].each do |format|
+        return Date.strptime(value.to_s, format)
+      rescue ArgumentError
+        next
+      end
+      nil
+    end
+
+    def normalize_amount(value)
+      value.to_s.delete("$,").strip
     end
 
     def account_statement_matches_import

@@ -143,6 +143,25 @@ class PdfImportTest < ActiveSupport::TestCase
     assert_equal "1500.0", salary_row.amount
   end
 
+  test "generate_rows_from_extracted_data normalizes comma amounts and day-first dates" do
+    import = imports(:pdf_with_rows)
+    import.update!(
+      account: accounts(:depository),
+      extracted_data: {
+        "transactions" => [
+          { "date" => "31-03-2026", "amount" => "3,501.79", "name" => "Payroll", "category" => "", "notes" => "" }
+        ]
+      }
+    )
+
+    import.generate_rows_from_extracted_data
+
+    row = import.rows.first
+    assert row.valid?, row.errors.full_messages.to_sentence
+    assert_equal BigDecimal("-3501.79"), row.signed_amount
+    assert_equal "2026-03-31", row.date_iso
+  end
+
   test "generate_rows_from_extracted_data does nothing without extracted transactions" do
     @import.generate_rows_from_extracted_data
     assert_equal 0, @import.rows.count
