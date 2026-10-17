@@ -158,6 +158,40 @@ class TransferTest < ActiveSupport::TestCase
     assert_equal families(:dylan_family).investment_contributions_category, outflow.category
   end
 
+  test "confirm! assigns the credit card payment category to both legs" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+
+    transfer.confirm!
+
+    category = families(:dylan_family).credit_card_payment_category
+    assert_equal "Credit Card Payment", category.name
+    assert_equal category, transfer.outflow_transaction.reload.category
+    assert_equal category, transfer.inflow_transaction.reload.category
+  end
+
+  test "confirm! replaces a guessed category with the credit card payment category" do
+    transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:credit_card))
+    transfer.outflow_transaction.enrich_attribute(:category_id, categories(:food_and_drink).id, source: "ai")
+
+    transfer.confirm!
+
+    assert_equal families(:dylan_family).credit_card_payment_category, transfer.outflow_transaction.reload.category
+  end
+
+  test "Transfer::Creator labels a bank-to-card transfer as a card payment on both legs" do
+    transfer = Transfer::Creator.new(
+      family: families(:dylan_family),
+      source_account_id: accounts(:depository).id,
+      destination_account_id: accounts(:credit_card).id,
+      date: Date.current,
+      amount: 100
+    ).create
+
+    category = families(:dylan_family).credit_card_payment_category
+    assert_equal category, transfer.outflow_transaction.reload.category
+    assert_equal category, transfer.inflow_transaction.reload.category
+  end
+
   test "confirm! keeps an outflow category the user already set" do
     transfer = create_pending_transfer(from: accounts(:depository), to: accounts(:investment))
     transfer.outflow_transaction.update!(category: categories(:income))

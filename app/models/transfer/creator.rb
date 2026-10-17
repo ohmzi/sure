@@ -166,7 +166,7 @@ class Transfer::Creator
 
       Transaction.new(
         kind: kind,
-        category: (investment_contributions_category if kind == "investment_contribution"),
+        category: automatic_category_for(kind),
         entry: source_account.entries.build(
           amount: amount,
           currency: source_account.currency,
@@ -182,6 +182,20 @@ class Transfer::Creator
       source_account.family.investment_contributions_category
     end
 
+    # A bank-to-card payment is a movement between the household's own
+    # accounts, not spending; label it like Transfer#confirm! does. Other
+    # transfer kinds (loan_payment, funds_movement) keep staying blank.
+    def credit_card_payment_category
+      destination_account.family.credit_card_payment_category if destination_account.credit_card?
+    end
+
+    def automatic_category_for(kind)
+      case kind
+      when "investment_contribution" then investment_contributions_category
+      when "cc_payment" then credit_card_payment_category
+      end
+    end
+
     def inflow_transaction
       name = "#{name_prefix} from #{source_account.name}"
 
@@ -189,6 +203,7 @@ class Transfer::Creator
 
       Transaction.new(
         kind: "funds_movement",
+        category: credit_card_payment_category,
         entry: destination_account.entries.build(
           amount: net_inflow * -1,
           currency: destination_account.currency,

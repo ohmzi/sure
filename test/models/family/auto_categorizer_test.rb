@@ -38,6 +38,23 @@ class Family::AutoCategorizerTest < ActiveSupport::TestCase
     assert_equal 1, @account.transactions.reload.enrichable(:category_id).count
   end
 
+  test "does not offer the credit card payment category to the provider" do
+    @family.credit_card_payment_category
+    txn = create_transaction(account: @account, name: "Online Banking payment").transaction
+    offered = nil
+
+    @llm_provider.expects(:auto_categorize).with do |options|
+      offered = options[:user_categories]
+      true
+    end.returns(provider_success_response([]))
+
+    Family::AutoCategorizer.new(@family, transaction_ids: [ txn.id ]).auto_categorize
+
+    names = offered.map { |category| category[:name] }
+    assert_not_includes names, "Credit Card Payment"
+    assert_includes names, @family.categories.first.name
+  end
+
   test "raises when provider returns an unsuccessful response" do
     txn = create_transaction(account: @account, name: "Coffee shop").transaction
     @family.categories.create!(name: "Coffee")

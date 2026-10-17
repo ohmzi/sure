@@ -1,6 +1,8 @@
 require "test_helper"
 
 class TransactionCategoriesControllerTest < ActionDispatch::IntegrationTest
+  include EntriesTestHelper
+
   setup do
     sign_in users(:family_admin)
     @entry = entries(:transaction)
@@ -46,6 +48,34 @@ class TransactionCategoriesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     # The prompt is rendered into the turbo-stream response (flash is cleared once rendered).
     assert_match %r{/rules/new\?[^"]*action_value=#{category.id}}, response.body
+  end
+
+  test "offers to apply the chosen category to similar uncategorized transactions" do
+    category = categories(:income)
+    @entry.update!(name: "AMZN Mktp UK")
+    create_transaction(account: @entry.account, amount: 10, name: "AMZN Mktp UK")
+
+    patch transaction_category_url(@entry),
+      params: { entry: { entryable_type: "Transaction", entryable_attributes: { id: @transaction.id, category_id: category.id } } },
+      as: :turbo_stream
+
+    assert_response :success
+    assert_match "Apply to 1 similar transaction", response.body
+    assert_match apply_category_to_similar_transaction_path(@entry), response.body
+  end
+
+  test "applies the category to similar uncategorized transactions" do
+    category = categories(:income)
+    @entry.update!(name: "AMZN Mktp UK")
+    @transaction.update!(category: category)
+    similar = create_transaction(account: @entry.account, amount: 10, name: "AMZN Mktp UK")
+    other = create_transaction(account: @entry.account, amount: 20, name: "Coffee shop")
+
+    post apply_category_to_similar_transaction_url(@entry)
+
+    assert_redirected_to transaction_path(@entry)
+    assert_equal category, similar.transaction.reload.category
+    assert_nil other.transaction.reload.category
   end
 
   test "does not offer a rule prompt when an existing rule already covers this transaction" do

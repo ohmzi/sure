@@ -267,6 +267,23 @@ class TransactionTest < ActiveSupport::TestCase
     end
   end
 
+  test "similar_uncategorized_entries matches the merchant and cash-flow direction" do
+    family = families(:dylan_family)
+    account = accounts(:depository)
+    merchant = family.merchants.create!(name: "Similar test merchant")
+    category = categories(:food_and_drink)
+
+    categorized = create_transaction(account: account, amount: 100, merchant: merchant, category: category)
+    same = create_transaction(account: account, amount: 50, merchant: merchant)
+    opposite_direction = create_transaction(account: account, amount: -50, merchant: merchant)
+    create_transaction(account: account, amount: 10, name: "Unrelated coffee")
+
+    similar = categorized.transaction.similar_uncategorized_entries(family.entries)
+
+    assert_equal [ same.id ], similar.map(&:id)
+    assert_not_includes similar.map(&:id), opposite_direction.id
+  end
+
   test "category_editable? is true for non-transfer kinds" do
     assert Transaction.new(kind: "standard").category_editable?
     assert Transaction.new(kind: "one_time").category_editable?

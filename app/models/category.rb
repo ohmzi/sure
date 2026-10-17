@@ -110,6 +110,7 @@ class Category < ApplicationRecord
   UNCATEGORIZED_NAME_KEY = "models.category.uncategorized"
   OTHER_INVESTMENTS_NAME_KEY = "models.category.other_investments"
   INVESTMENT_CONTRIBUTIONS_NAME_KEY = "models.category.investment_contributions"
+  CREDIT_CARD_PAYMENT_NAME_KEY = "models.category.defaults.credit_card_payment"
   DEFAULT_CATEGORY_TRANSLATION_KEYS = %w[
     income
     food_and_drink
@@ -129,6 +130,7 @@ class Category < ApplicationRecord
     gifts_and_donations
     taxes
     loan_payments
+    credit_card_payment
     services
     fees
     savings_and_investments
@@ -278,6 +280,10 @@ class Category < ApplicationRecord
       I18n.t(INVESTMENT_CONTRIBUTIONS_NAME_KEY)
     end
 
+    def credit_card_payment_name
+      I18n.t(CREDIT_CARD_PAYMENT_NAME_KEY)
+    end
+
     # Returns all possible investment contributions names across all supported locales
     # Used to detect investment contributions category regardless of locale
     def all_investment_contributions_names
@@ -338,6 +344,7 @@ class Category < ApplicationRecord
           [ I18n.t("models.category.defaults.gifts_and_donations"),   "#61c9ea", "hand-helping" ],
           [ I18n.t("models.category.defaults.taxes"),                 "#dc2626", "landmark" ],
           [ I18n.t("models.category.defaults.loan_payments"),         "#e11d48", "credit-card" ],
+          [ credit_card_payment_name,                             "#444CE7", "credit-card" ],
           [ I18n.t("models.category.defaults.services"),              "#7c3aed", "briefcase" ],
           [ I18n.t("models.category.defaults.fees"),                  "#6b7280", "receipt" ],
           [ I18n.t("models.category.defaults.savings_and_investments"), "#059669", "piggy-bank" ],

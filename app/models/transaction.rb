@@ -121,6 +121,19 @@ class Transaction < ApplicationRecord
   # DataEnrichment sources that represent automatic category assignment
   AUTO_CATEGORY_SOURCES = %w[ai bayes].freeze
 
+  # Whether the category currently on this transaction is the one an automatic
+  # categorizer (AI or Bayes) wrote. A human edit after an automatic one leaves
+  # the enrichment row pointing at the old value, so the comparison tells the
+  # two apart without a separate "user set this" column.
+  def category_assigned_automatically?
+    return false if category_id.blank?
+
+    data_enrichments
+      .where(attribute_name: "category_id", source: AUTO_CATEGORY_SOURCES)
+      .where("value = to_jsonb(?::text)", category_id)
+      .exists?
+  end
+
   # Stored flag values that do not mark a transaction pending: the strings
   # ActiveModel::Type::Boolean casts to false, plus "" (which it casts to nil).
   # Any other present value is pending, as #pending? decides.
@@ -304,6 +317,17 @@ class Transaction < ApplicationRecord
   # hasn't been matched), the same pattern category_editable? uses.
   def payment?
     transfer ? transfer.payment? : kind == "cc_payment"
+  end
+
+  # Uncategorized entries the caller can see that speak the same signal as
+  # this transaction — the merchant/name and cash-flow direction the Quick
+  # Categorize wizard groups by. These are the rows the category chosen here
+  # would also fit ("apply to similar" in the rule prompt).
+  def similar_uncategorized_entries(scope)
+    scope.uncategorized_transactions
+         .where.not(id: entry.id)
+         .includes(entryable: :merchant)
+         .select { |candidate| Transaction::Grouper::ByMerchantOrName.similar?(entry, candidate) }
   end
 
   def set_category!(category)

@@ -86,10 +86,18 @@ class Family::BayesCategorizer
     def training_transactions
       @training_transactions ||= family.transactions
                                       .where.not(category_id: nil)
+                                      .where.not(category_id: system_category_ids)
                                       .includes(:category, :merchant, :entry)
                                       .order(created_at: :desc)
                                       .limit(MAX_TRAINING_TRANSACTIONS)
                                       .to_a
+    end
+
+    # Credit Card Payment is assigned from the account pair at confirmation,
+    # not learned from descriptions: training on it would make "Online Banking
+    # transfer" and e-transfer lines classify as card payments.
+    def system_category_ids
+      @system_category_ids ||= family.categories.where(name: Category.credit_card_payment_name).pluck(:id)
     end
 
     # Per-category token-count models: { category_id => { total:, counts: } }.

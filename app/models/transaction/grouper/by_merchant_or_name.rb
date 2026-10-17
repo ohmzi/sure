@@ -3,6 +3,36 @@ class Transaction::Grouper::ByMerchantOrName < Transaction::Grouper
     new(entries).call(limit: limit, offset: offset)
   end
 
+  # The signal a transaction speaks: its merchant (when detected) or its
+  # name, plus whether the money went out or came in. Exposed so a single
+  # transaction can ask for the other uncategorized rows that share it.
+  def self.grouping_key_for(entry)
+    name = entry.entryable.merchant&.name.presence || entry.name
+    type = entry.amount.negative? ? "income" : "expense"
+    [ name, type ]
+  end
+
+  # Whether two rows are similar enough for a category chosen on one to fit
+  # the other: same cash-flow direction, and either the same detected
+  # merchant or the same description. Checking both matters because one row
+  # may have a merchant detected while its siblings only carry the raw
+  # statement text.
+  def self.similar?(left, right)
+    left_merchant, left_name, left_type = similar_key_for(left)
+    right_merchant, right_name, right_type = similar_key_for(right)
+
+    left_type == right_type &&
+      ((left_merchant.present? && left_merchant == right_merchant) || left_name == right_name)
+  end
+
+  def self.similar_key_for(entry)
+    [
+      entry.entryable.merchant&.name.presence,
+      entry.name,
+      entry.amount.negative? ? "income" : "expense"
+    ]
+  end
+
   def initialize(entries)
     @entries = entries
   end
@@ -28,9 +58,7 @@ class Transaction::Grouper::ByMerchantOrName < Transaction::Grouper
     end
 
     def grouping_key_for(entry)
-      name = entry.entryable.merchant&.name.presence || entry.name
-      type = entry.amount.negative? ? "income" : "expense"
-      [ name, type ]
+      self.class.grouping_key_for(entry)
     end
 
     def build_group(key, entries)

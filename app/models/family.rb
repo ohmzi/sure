@@ -558,6 +558,24 @@ class Family < ApplicationRecord
     end
   end
 
+  # Returns the Credit Card Payment category for this family, creating it if
+  # it doesn't exist. Transfer confirmation assigns it to both legs of a
+  # bank-to-card payment so the money movement is labelled rather than left
+  # blank (its kind still keeps it out of spending reports).
+  def credit_card_payment_category
+    I18n.with_locale(locale) do
+      categories.find_or_create_by!(name: Category.credit_card_payment_name) do |cat|
+        cat.color = Category::TRANSFER_COLOR
+        cat.lucide_icon = "credit-card"
+      end
+    end
+  rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+    # Handle race condition: another process created the category
+    I18n.with_locale(locale) do
+      categories.find_by!(name: Category.credit_card_payment_name)
+    end
+  end
+
   # Returns account IDs for tax-advantaged accounts (401k, IRA, HSA, etc.)
   # Used to exclude these accounts from budget/cashflow calculations.
   # Tax-advantaged accounts are retirement savings, not daily expenses.

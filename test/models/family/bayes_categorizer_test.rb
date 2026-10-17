@@ -63,6 +63,15 @@ class Family::BayesCategorizerTest < ActiveSupport::TestCase
     assert_operator confidence, :>=, Family::BayesCategorizer::CONFIDENCE_THRESHOLD
   end
 
+  test "does not learn the credit card payment category" do
+    train_two_categories
+    create_transaction(account: @account, name: "Online Banking payment", category: @family.credit_card_payment_category)
+
+    txn = create_transaction(account: @account, name: "Online Banking payment")
+
+    assert_nil Family::BayesCategorizer.new(@family).classify(txn.transaction)
+  end
+
   test "wholly novel tokens stay unclassified even when class corpora are lopsided" do
     # The symmetric fixture above cannot catch this: with equal token totals an
     # unknown token contributes the same smoothed likelihood to every class and

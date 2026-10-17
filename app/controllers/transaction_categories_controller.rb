@@ -15,12 +15,7 @@ class TransactionCategoriesController < ApplicationController
     transaction.record_category_usage!
 
     if needs_rule_notification?(transaction)
-      flash[:cta] = {
-        type: "category_rule",
-        category_id: transaction.category_id,
-        category_name: transaction.category.name,
-        merchant_name: @entry.name
-      }
+      flash[:cta] = category_rule_cta(transaction)
     end
 
     transaction.lock_saved_attributes!
@@ -52,12 +47,48 @@ class TransactionCategoriesController < ApplicationController
     end
   end
 
+  # Apply the category the user just chose to the other uncategorized rows
+  # that share this transaction's merchant/name and direction. The rule prompt
+  # then comes back with the "create a rule" offer still attached, so a
+  # one-off fix can become the future rule in the same breath.
+  def apply_to_similar
+    @entry = Current.accessible_entries.transactions.find(params[:id])
+    return unless require_account_permission!(@entry.account, :annotate, redirect_path: transaction_path(@entry))
+
+    transaction = @entry.transaction
+    if transaction.category_id.blank?
+      redirect_back_or_to transaction_path(@entry), alert: t(".no_category")
+      return
+    end
+
+    entries = transaction.similar_uncategorized_entries(Current.accessible_entries)
+    count = Current.accessible_entries.where(id: entries.map(&:id)).bulk_update!({ category_id: transaction.category_id })
+
+    flash[:cta] = category_rule_cta(transaction) if category_rule_prompt_allowed?(transaction)
+    redirect_back_or_to transaction_path(@entry), notice: t(".applied", count: count)
+  end
+
   private
     def entry_params
       params.require(:entry).permit(:entryable_type, entryable_attributes: [ :id, :category_id ])
     end
 
+    def category_rule_cta(transaction)
+      {
+        type: "category_rule",
+        transaction_id: @entry.id,
+        category_id: transaction.category_id,
+        category_name: transaction.category.name,
+        merchant_name: @entry.name,
+        similar_count: transaction.similar_uncategorized_entries(Current.accessible_entries).size
+      }
+    end
+
     def needs_rule_notification?(transaction)
+      transaction.saved_change_to_category_id? && category_rule_prompt_allowed?(transaction)
+    end
+
+    def category_rule_prompt_allowed?(transaction)
       return false if Current.user.rule_prompts_disabled
       return false if transaction.category_id.blank?
 
@@ -66,7 +97,6 @@ class TransactionCategoriesController < ApplicationController
         return false if time_since_last_rule_prompt < 1.day
       end
 
-      transaction.saved_change_to_category_id? &&
       transaction.eligible_for_category_rule?
     end
 end

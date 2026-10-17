@@ -243,8 +243,12 @@ class Family::AutoCategorizer
       provider.class.name.demodulize.underscore
     end
 
+    # Credit Card Payment is a system category: transfer confirmation assigns
+    # it from the account pair, and it names a movement between the household's
+    # own accounts rather than spending. Offering it here lets the model label
+    # every e-transfer and "Online Banking transfer" line with it.
     def user_categories_input
-      family.categories.map do |category|
+      family.categories.where.not(name: Category.credit_card_payment_name).map do |category|
         {
           id: category.id,
           name: category.name,

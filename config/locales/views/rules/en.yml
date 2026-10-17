@@ -6,13 +6,17 @@ en:
     category_rule_cta:
       close: Close
       create_rule: Create rule
-      description: You can create a rule to automatically categorize transactions like this one
+      apply_to_similar:
+        one: "Apply to 1 similar transaction"
+        other: "Apply to %{count} similar transactions"
+      description: Apply it to similar uncategorized transactions now, or create a rule for future ones
       dont_show_again: Don't show this again
       hide_for_today: Hide for today
       hide_for_today_hint: "Hide for today pauses these suggestions for 24 hours."
       message: Updated to %{category_name}
     rule:
       edit: Edit
+      review: Review transactions
       re_apply_rule: Re-apply rule
       delete: Delete
       then: THEN
@@ -130,6 +134,29 @@ en:
         greater_or_equal_to: Greater or equal to
         less_than: Less than
         less_than_or_equal_to: Less than or equal to
+    show:
+      conditions: Conditions
+      matched:
+        one: 1 matched transaction
+        other: "%{count} matched transactions"
+      edit: Edit rule
+      apply: Apply
+      rule_category: Category this rule assigns
+      apply_now: Also update the matched transactions now
+      update_rule: Update rule
+      transactions: Matched transactions
+      select_hint: Uncheck any row you do not want to change.
+      uncategorized: Uncategorized
+      new_category: New category for selected
+      also_update_rule: Also make this the rule's category
+      update_selected: Update selected
+      no_transactions: This rule matches no transactions right now.
+    update_category:
+      success: Rule category updated
+    update_transactions:
+      updated:
+        one: 1 transaction categorized
+        other: "%{count} transactions categorized"
   rule:
     conditions:
       condition_group:

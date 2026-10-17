@@ -201,8 +201,11 @@ class TransactionsController < ApplicationController
       if needs_rule_notification?(transaction)
         flash[:cta] = {
           type: "category_rule",
+          transaction_id: @entry.id,
           category_id: transaction.category_id,
-          category_name: transaction.category.name
+          category_name: transaction.category.name,
+          merchant_name: @entry.name,
+          similar_count: transaction.similar_uncategorized_entries(Current.accessible_entries).size
         }
       end
 

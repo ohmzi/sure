@@ -162,13 +162,31 @@ class Transfer < ApplicationRecord
       # The kind is determined by the DESTINATION account (inflow), matching Transfer::Creator logic
       outflow_kind = Transfer.kind_for_account(to_account, from_account: from_account)
       outflow_attrs = { kind: outflow_kind }
+      inflow_attrs = { kind: "funds_movement" }
 
       if outflow_kind == "investment_contribution" && outflow_transaction.category_id.blank?
         category = to_account.family.investment_contributions_category
         outflow_attrs[:category] = category if category.present?
+      elsif outflow_kind == "cc_payment" && to_account&.credit_card?
+        # A bank-to-card payment is a movement between the household's own
+        # accounts, not spending. The category labels it on both legs (so the
+        # bank statement row and the card statement row read the same); the
+        # cc_payment/funds_movement kinds still keep it out of budgets. A blank
+        # leg and one the automatic categorizer guessed are filled in; a
+        # category a person put there is left alone.
+        category = to_account.family.credit_card_payment_category
+        if category.present?
+          if outflow_transaction.category_id.blank? || outflow_transaction.category_assigned_automatically?
+            outflow_attrs[:category] = category
+          end
+
+          if inflow_transaction.category_id.blank? || inflow_transaction.category_assigned_automatically?
+            inflow_attrs[:category] = category
+          end
+        end
       end
 
-      inflow_transaction.update!(kind: "funds_movement")
+      inflow_transaction.update!(inflow_attrs)
       outflow_transaction.update!(outflow_attrs)
     end
   end
