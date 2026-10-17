@@ -28,6 +28,13 @@ x-app-env: &app_env
   # Optional: blank leaves that reader off (the keys can also be set in Settings).
   DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
   GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+  # ActiveRecord Encryption (2026-10-17). Keys live in deploy/.env, never in
+  # this file. support_unencrypted_data lets pre-encryption rows stay readable
+  # while the backfill re-saves them.
+  ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: "${ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY}"
+  ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: "${ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY}"
+  ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: "${ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT}"
+  ACTIVE_RECORD_ENCRYPTION_SUPPORT_UNENCRYPTED_DATA: "${ACTIVE_RECORD_ENCRYPTION_SUPPORT_UNENCRYPTED_DATA:-true}"
 
 # Hardening shared by the stateless services.
 x-app-hardening: &app_hardening
