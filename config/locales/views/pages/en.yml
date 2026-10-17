@@ -50,6 +50,7 @@ en:
         net_worth: Net worth
         change_up: "Up %{amount} in 30 days"
         change_down: "Down %{amount} in 30 days"
+        no_change: No change in 30 days
         left_to_spend: "Left to spend in %{month}"
         percent_spent: "%{percent}% of the budget spent"
         budget_used: "%{percent}% of budget used · %{days} days left"

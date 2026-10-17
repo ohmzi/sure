@@ -6,7 +6,8 @@
 <% chips = [] %>
 <% chips << [ t("transactions.index.quick_filters.uncategorized", count: @uncategorized_count), transactions_categorize_path, false ] if @uncategorized_count.to_i.positive? %>
 <% chips << [ t("transactions.index.quick_filters.this_month"), transactions_path(q: this_month), current_q.slice("start_date") == this_month.stringify_keys && current_q.except("start_date").blank? ] %>
-<% Current.user.accessible_accounts.visible.alphabetically.limit(4).each do |account| %>
+<%# Accounts with day-to-day activity (cash and cards), not a house or a car. %>
+<% Current.user.accessible_accounts.visible.where(accountable_type: %w[Depository CreditCard]).alphabetically.limit(4).each do |account| %>
   <% chips << [ account.name, transactions_path(q: { account_ids: [ account.id ] }), current_q == { "account_ids" => [ account.id ] } ] %>
 <% end %>
 <nav aria-label="<%= t("transactions.index.quick_filters.label") %>">

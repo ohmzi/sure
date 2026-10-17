@@ -11,10 +11,16 @@
     <% if trend %>
       <p class="text-4xl font-bold tracking-tight privacy-sensitive"><%= trend.current.format %></p>
       <p class="text-sm opacity-80 privacy-sensitive">
-        <%= t(".change_#{trend.direction == "down" ? "down" : "up"}", amount: trend.value.abs.format, default: "") %>
+        <% if trend.value.zero? %>
+          <%= t(".no_change") %>
+        <% else %>
+          <%= t(".change_#{trend.direction == "down" ? "down" : "up"}", amount: trend.value.abs.format) %>
+        <% end %>
       </p>
     <% end %>
-    <% if points.size >= 2 %>
+    <%# No movement draws no line (a flat rule along the card's foot read as
+        broken). %>
+    <% if points.size >= 2 && points.uniq.size > 1 %>
       <% min, max = points.minmax %>
       <% span = (max - min).zero? ? 1 : (max - min) %>
       <% line = points.each_with_index.map { |v, i| "#{(i * 100.0 / (points.size - 1)).round(2)},#{(30 - (v - min) / span * 28).round(2)}" }.join(" ") %>
