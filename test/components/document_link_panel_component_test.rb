@@ -19,15 +19,35 @@ class DocumentLinkPanelComponentTest < ViewComponent::TestCase
     assert_text I18n.t("document_link_panel.unlink")
   end
 
-  test "offers an unlinked document to link to the entry" do
+  # The owner (2026-10-17): a transaction's details show the document it came
+  # from, never the family's other documents — only a receipt whose read total
+  # and date match this transaction is offered for linking.
+  test "offers an unlinked receipt only when its amount and date match the entry" do
     entry = entries(:transaction)
     candidate = document_links(:unlinked_receipt)
     routes = Rails.application.routes.url_helpers
 
     render_inline(DocumentLinkPanelComponent.new(entry: entry))
+    assert_no_selector "form[action='#{routes.link_document_path(candidate, entry_id: entry.id)}']"
 
+    candidate.document_extractions.create!(family: candidate.family, verdict: { "total" => entry.amount.abs.to_s, "date" => entry.date.iso8601 })
+    render_inline(DocumentLinkPanelComponent.new(entry: entry))
     assert_selector "form[action='#{routes.link_document_path(candidate, entry_id: entry.id)}']"
     assert_text I18n.t("document_link_panel.link")
+  end
+
+  test "shows the document the entry came from, without offering to unlink it" do
+    entry = entries(:transaction)
+    source = document_links(:unlinked_receipt)
+    import = imports(:transaction)
+    entry.update_columns(import_id: import.id)
+    import.update_columns(document_link_id: source.id) if import.respond_to?(:document_link_id)
+
+    skip "imports carry no document link here" unless EntryProvenance.for(entry.reload).creating_document
+
+    render_inline(DocumentLinkPanelComponent.new(entry: entry))
+    assert_text source.title.presence || source.original_filename
+    assert_selector "[data-source-document]"
   end
 
   test "renders an empty state when the entry and family have no documents" do

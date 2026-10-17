@@ -189,7 +189,9 @@ en:
       view_data_quality: View data quality details
   document_link_panel:
     title: Documents
-    candidates: Recent documents
-    empty: No documents yet
+    # Only receipts whose amount and date match this transaction (2026-10-17).
+    candidates: Matching receipts
+    source: Where this came from
+    empty: No documents for this transaction
     unlink: Unlink
     link: Link

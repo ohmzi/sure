@@ -260,10 +260,11 @@ class DocumentPanelTest < ActiveSupport::TestCase
     panel = DocumentPanel.new(link.reload)
     by_label = panel.fields.index_by(&:label)
 
+    # The labels a person reads (2026-10-17: sentence case, "Account ending").
     {
-      "type" => "receipt", "institution" => "Chase", "account last4" => "1234",
-      "card last4" => "5678", "card network" => "Visa", "currency" => "USD",
-      "total" => "12.34", "date" => "2026-01-05", "payee" => "Acme"
+      "Type" => "receipt", "Institution" => "Chase", "Account ending" => "1234",
+      "Card ending" => "5678", "Card network" => "Visa", "Currency" => "USD",
+      "Total" => "12.34", "Date" => "2026-01-05", "Merchant" => "Acme"
     }.each do |label, value|
       assert_equal value, by_label.fetch(label).value, "field #{label.inspect} must render its exact label"
     end

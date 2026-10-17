@@ -1,0 +1,42 @@
+<%# locals: (transfer:) %>
+<%# A transfer's proof (the owner, 2026-10-17): the same amount out of one
+    account and into another, how many days apart, and the statement that shows
+    each side. Seen on both banks' statements is the strongest proof. %>
+<% evidence = Transfer::Evidence.new(transfer) %>
+<% headline_icon, tone = { both: [ "shield-check", "text-success" ], one: [ "shield-half", "text-warning" ], none: [ "shield-question", "text-secondary" ] }.fetch(evidence.witness) %>
+<section class="rounded-2xl bg-container-inset p-4 space-y-3" data-transfer-evidence="<%= evidence.witness %>">
+  <div class="flex items-start gap-3">
+    <span class="<%= tone %>"><%= icon(headline_icon, size: "lg", color: "current") %></span>
+    <div class="min-w-0">
+      <p class="text-sm font-semibold text-primary"><%= t("transfers.evidence.headline.#{evidence.witness}") %></p>
+      <p class="text-xs text-secondary"><%= t("transfers.evidence.days_apart", count: evidence.days_apart) %></p>
+    </div>
+  </div>
+
+  <ol class="rounded-xl bg-container divide-y divide-subdued">
+    <% evidence.sides.each do |side| %>
+      <li class="flex items-start gap-3 px-3 py-2.5">
+        <span class="mt-0.5 <%= side.direction == :out ? "text-destructive" : "text-success" %>">
+          <%= icon(side.direction == :out ? "arrow-up-right" : "arrow-down-left", size: "sm", color: "current") %>
+        </span>
+        <div class="min-w-0 grow space-y-0.5">
+          <p class="text-sm text-primary">
+            <span class="font-medium"><%= t("transfers.evidence.#{side.direction}") %></span>
+            <%= link_to side.account.name, account_path(side.account), class: "hover:underline", data: { turbo_frame: "_top" } %>
+          </p>
+          <p class="text-xs text-secondary"><%= l(side.entry.date, format: :long) %></p>
+          <% if side.witnessed? %>
+            <%= link_to viewer_document_path(side.document), data: { turbo_frame: "modal" },
+                  class: "inline-flex max-w-full items-center gap-1 text-xs font-medium text-link hover:underline" do %>
+              <%= icon("file-check", size: "xs", color: "current") %>
+              <span class="truncate"><%= t("transfers.evidence.on_statement", name: side.document.title.presence || side.document.original_filename) %></span>
+            <% end %>
+          <% else %>
+            <p class="text-xs text-subdued"><%= t("transfers.evidence.no_statement") %></p>
+          <% end %>
+        </div>
+        <span class="shrink-0 text-sm font-semibold text-primary privacy-sensitive"><%= format_money(side.entry.amount_money.abs) %></span>
+      </li>
+    <% end %>
+  </ol>
+</section>

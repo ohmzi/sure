@@ -1,6 +1,21 @@
 ---
 en:
   transfers:
+    # A transfer's proof (2026-10-17).
+    evidence:
+      title: Proof
+      headline:
+        both: Witnessed by both statements
+        one: Seen on one statement
+        none: Matched by amount and date
+      days_apart:
+        zero: Same amount, the same day
+        one: Same amount, 1 day apart
+        other: "Same amount, %{count} days apart"
+      out: Left
+      in: Arrived in
+      on_statement: "On %{name}"
+      no_statement: Not on a statement yet
     create:
       success: Transfer created
       exchange_rate_unavailable: Exchange rate unavailable for selected currencies and date

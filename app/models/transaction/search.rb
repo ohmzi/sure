@@ -4,6 +4,7 @@ class Transaction::Search
 
   # Automatic-categorization provenance filter values (used by the view)
   AI_STATUSES = %w[current history].freeze
+  NEEDS_CONFIRMATION = "needs_confirmation".freeze
 
   ATTACHMENT_STATUSES = %w[with without].freeze
 
@@ -300,10 +301,23 @@ class Transaction::Search
       wanted == [ "with" ] ? query.where(attached_sql) : query.where.not(attached_sql)
     end
 
-    # Filter transactions by status (pending or confirmed)
+    # Filter transactions by status (pending or confirmed), and — the owner's
+    # "Needs confirmation" (2026-10-17) — to either side of an auto-matched
+    # transfer still waiting for the person to confirm it.
     def apply_status_filter(query, statuses)
       return query unless statuses.present?
-      return query if statuses.uniq.sort == [ "confirmed", "pending" ] # Both selected = no filter
+
+      statuses = statuses.uniq
+      if statuses.include?(NEEDS_CONFIRMATION)
+        query = query.where(<<~SQL.squish)
+          transactions.id IN (SELECT inflow_transaction_id FROM transfers WHERE status = 'pending')
+          OR transactions.id IN (SELECT outflow_transaction_id FROM transfers WHERE status = 'pending')
+        SQL
+        statuses -= [ NEEDS_CONFIRMATION ]
+        return query if statuses.empty?
+      end
+
+      return query if statuses.sort == [ "confirmed", "pending" ] # Both selected = no filter
 
       # Delegate to the model scopes so the provider list stays sourced from
       # Transaction::PENDING_PROVIDERS. Previously this method hardcoded only

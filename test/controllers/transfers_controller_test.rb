@@ -840,6 +840,17 @@ class TransfersControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("recurring_transactions.transfer_feature_disabled"), flash[:alert]
   end
 
+  # A transfer's proof (2026-10-17): both sides, the gap, and each side's
+  # statement — or a plain statement that none witnesses it yet.
+  test "the transfer details show its proof" do
+    transfer = transfers(:one)
+    get transfer_url(transfer)
+
+    assert_response :success
+    assert_select "[data-transfer-evidence]"
+    assert_match I18n.t("transfers.evidence.title"), response.body
+  end
+
   private
     # A loan owned by family_member and not shared with family_admin
     def member_loan

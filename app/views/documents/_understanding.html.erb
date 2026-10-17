@@ -5,13 +5,15 @@
     marked "check this"), the checks (pass / not checkable / fail), and what it
     became. An unread document is never an empty panel: it states the reason and
     the two ways forward. %>
+<%# iOS grouped cards (2026-10-17): each part of the read is its own rounded
+    card under a small uppercase heading. %>
 <div class="flex h-full min-h-0 flex-col gap-5 overflow-auto" data-document-understanding>
-  <h3 class="font-medium text-primary"><%= t(".title") %></h3>
+  <h3 class="text-lg font-semibold tracking-tight text-primary"><%= t(".title") %></h3>
 
   <%# Why the document stopped and what fixes it (spec §6), above everything
       else it read. %>
   <% if (hold = panel.hold) %>
-    <div class="space-y-2 rounded-lg bg-destructive/5 p-3" data-document-hold>
+    <div class="space-y-2 rounded-2xl bg-destructive/5 p-4" data-document-hold>
       <p class="text-sm text-primary"><%= hold.message %></p>
       <%= render "documents/hold_actions", link: panel.link, hold: hold %>
     </div>
@@ -20,16 +22,17 @@
   <% if panel.read? %>
     <%# What it decided: the class the router settled on, how sure it was, and
         the account the read resolved to (nil is said, not left blank). %>
-    <div class="space-y-1">
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="font-medium text-primary"><%= t("documents.source.#{panel.document_class}") %></span>
-        <% if panel.classification_confidence.to_f.positive? %>
-          <span class="text-sm text-secondary">
-            <%= t(".confidence", percent: (panel.classification_confidence.to_f * 100).round) %>
-          </span>
-        <% end %>
+    <div class="flex items-center gap-3 rounded-2xl bg-container-inset p-4">
+      <%= render DS::FilledIcon.new(icon: panel.document_class.to_s == "statement" ? "landmark" : "receipt-text", hex_color: "var(--color-brand-500)", size: "lg") %>
+      <div class="min-w-0 grow">
+        <p class="font-semibold text-primary"><%= t("documents.source.#{panel.document_class}") %></p>
+        <p class="truncate text-sm text-secondary"><%= panel.account&.name || t(".no_account") %></p>
       </div>
-      <p class="text-sm text-secondary"><%= panel.account&.name || t(".no_account") %></p>
+      <% if panel.classification_confidence.to_f.positive? %>
+        <span class="shrink-0 rounded-full bg-container px-2.5 py-1 text-xs font-semibold text-secondary">
+          <%= t(".confidence", percent: (panel.classification_confidence.to_f * 100).round) %>
+        </span>
+      <% end %>
     </div>
 
     <%# The class is shown in the header above ("what it decided"), so it is not
@@ -38,27 +41,42 @@
         is not, so this stays correct in every locale. %>
     <% read_fields = panel.fields.reject { |field| field.key == "document_class" } %>
     <% if read_fields.any? %>
-      <section class="space-y-1.5">
-        <p class="text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".read") %></p>
-        <% read_fields.each do |field| %>
-          <div class="flex items-baseline gap-2 text-sm" data-field="<%= field.key %>">
-            <span class="w-28 shrink-0 text-secondary"><%= field.label %></span>
-            <span class="min-w-0 truncate text-primary"><%= field.value %></span>
-            <span class="ml-auto shrink-0 text-right <%= field.unsure? ? "text-warning" : "text-secondary" %>">
-              <% if field.confidence.present? %>
-                <%= t(".confidence", percent: (field.confidence * 100).round) %><% if field.unsure? %>, <%= t(".check_this") %><% end %>
-              <% end %>
-            </span>
-          </div>
-        <% end %>
+      <% currency = read_fields.find { |field| field.key == "currency" }&.value %>
+      <section class="space-y-2">
+        <p class="px-1 text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".read") %></p>
+        <dl class="rounded-2xl bg-container-inset divide-y divide-subdued">
+          <% read_fields.each do |field| %>
+            <%# A total reads as money and a date as a date; anything that does
+                not parse is shown as it was read. %>
+            <% value = field.value %>
+            <% money_currency = currency.presence || Current.family&.currency %>
+            <% if field.key == "total" && money_currency.present? && (amount = BigDecimal(value.to_s, exception: false)) && (Money::Currency.new(money_currency) rescue nil) %>
+              <% value = Money.new(amount, money_currency).format %>
+            <% elsif field.key == "date" && (parsed = (Date.iso8601(value.to_s) rescue nil)) %>
+              <% value = l(parsed, format: :long) %>
+            <% end %>
+            <div class="flex items-start justify-between gap-3 px-4 py-2.5 text-sm" data-field="<%= field.key %>">
+              <dt class="shrink-0 text-secondary"><%= field.label %></dt>
+              <dd class="min-w-0 text-right">
+                <span class="block break-words font-medium text-primary"><%= value %></span>
+                <% if field.confidence.present? %>
+                  <span class="block text-xs <%= field.unsure? ? "text-warning" : "text-secondary" %>">
+                    <%= t(".confidence", percent: (field.confidence * 100).round) %><% if field.unsure? %>, <%= t(".check_this") %><% end %>
+                  </span>
+                <% end %>
+              </dd>
+            </div>
+          <% end %>
+        </dl>
       </section>
     <% end %>
 
     <% if panel.checks.any? %>
-      <section class="space-y-1.5">
-        <p class="text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".checks") %></p>
+      <section class="space-y-2">
+        <p class="px-1 text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".checks") %></p>
+        <div class="rounded-2xl bg-container-inset divide-y divide-subdued">
         <% panel.checks.each do |check| %>
-          <div class="flex items-center gap-2 text-sm">
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 px-4 py-2.5 text-sm">
             <% if check.state.nil? %>
               <%= icon("minus", size: "sm", color: "default") %>
             <% elsif check.state %>
@@ -66,22 +84,24 @@
             <% else %>
               <%= icon("x", size: "sm", color: "destructive") %>
             <% end %>
-            <span class="text-primary"><%= check.label %></span>
+            <span class="min-w-0 grow text-primary"><%= check.label.to_s.upcase_first %></span>
             <% if check.state.nil? %>
-              <span class="ml-auto shrink-0 text-xs text-secondary"><%= t(".not_checkable") %></span>
+              <span class="ml-auto text-xs text-secondary"><%= t(".not_checkable") %></span>
             <% end %>
           </div>
         <% end %>
+        </div>
       </section>
     <% end %>
 
     <%= render "documents/read_history", panel: panel %>
 
-    <section class="space-y-1.5">
-      <p class="text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".became") %></p>
+    <section class="space-y-2">
+      <p class="px-1 text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".became") %></p>
       <% if panel.outcomes.any? %>
+        <div class="rounded-2xl bg-container-inset divide-y divide-subdued">
         <% panel.outcomes.each do |outcome| %>
-          <div class="flex items-center gap-2 text-sm">
+          <div class="flex items-center justify-between gap-2 px-4 py-2.5 text-sm">
             <span class="text-secondary"><%= outcome.label %></span>
             <% detail = t(".state.#{outcome.detail}", default: outcome.detail) %>
             <%# Each outcome is linked to the thing it produced (spec §9). %>
@@ -92,8 +112,9 @@
             <% end %>
           </div>
         <% end %>
+        </div>
       <% else %>
-        <p class="text-sm text-secondary"><%= t(".nothing_yet") %></p>
+        <p class="px-1 text-sm text-secondary"><%= t(".nothing_yet") %></p>
       <% end %>
     </section>
   <% else %>

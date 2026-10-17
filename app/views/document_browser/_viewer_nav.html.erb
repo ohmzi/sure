@@ -8,7 +8,7 @@
 <% chevron = direction == :previous ? "chevron-left" : "chevron-right" %>
 <% if url.present? %>
   <%= link_to url,
-        class: "flex min-w-0 items-center gap-1.5 rounded-lg border border-secondary px-2 py-1.5 text-sm text-primary hover:bg-container-inset-hover",
+        class: "inline-flex min-w-0 items-center justify-center gap-1.5 h-10 min-w-10 rounded-full border border-secondary bg-container px-2.5 lg:px-3.5 text-sm text-primary hover:bg-container-hover active:scale-95 transition focus-ring",
         title: label,
         aria: { label: label },
         data: { turbo_frame: "modal", "viewer-#{direction}": true } do %>
@@ -16,7 +16,7 @@
     <span class="hidden max-w-[12rem] truncate lg:inline"><%= title.presence || label %></span>
   <% end %>
 <% else %>
-  <span class="flex items-center gap-1.5 rounded-lg border border-secondary px-2 py-1.5 text-sm opacity-50"
+  <span class="inline-flex items-center justify-center gap-1.5 h-10 min-w-10 rounded-full border border-secondary px-2.5 lg:px-3.5 text-sm opacity-40"
         aria-hidden="true">
     <%= icon(chevron, size: "sm") %>
     <span class="hidden lg:inline"><%= label %></span>

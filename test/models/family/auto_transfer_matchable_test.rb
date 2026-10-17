@@ -623,8 +623,20 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     end
   end
 
-  test "does not match transactions outside the 4-day window" do
-    create_transaction(date: 10.days.ago.to_date, account: @depository, amount: 500)
+  # The owner's rule (2026-10-17): the sides of a transfer post 0-14 days apart.
+  test "matches the two sides of a transfer posted up to 14 days apart, and on the same day" do
+    create_transaction(date: 14.days.ago.to_date, account: @depository, amount: 700)
+    create_transaction(date: Date.current, account: @credit_card, amount: -700)
+    create_transaction(date: Date.current, account: @depository, amount: 42)
+    create_transaction(date: Date.current, account: @credit_card, amount: -42)
+
+    assert_difference -> { Transfer.count }, 2 do
+      @family.auto_match_transfers!
+    end
+  end
+
+  test "does not match transactions outside the 14-day window" do
+    create_transaction(date: 15.days.ago.to_date, account: @depository, amount: 500)
     create_transaction(date: Date.current, account: @credit_card, amount: -500)
 
     assert_no_difference -> { Transfer.count } do

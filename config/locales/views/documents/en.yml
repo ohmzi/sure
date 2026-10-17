@@ -113,15 +113,15 @@ en:
       # it knows (DocumentPanel::FIELD_LABEL_KEYS). Same wording the panel rendered
       # before the labels moved here.
       field_labels:
-        document_class: type
-        institution_name: institution
-        account_last4: account last4
-        card_last4: card last4
-        card_network: card network
-        currency: currency
-        total: total
-        date: date
-        payee: payee
+        document_class: Type
+        institution_name: Institution
+        account_last4: Account ending
+        card_last4: Card ending
+        card_network: Card network
+        currency: Currency
+        total: Total
+        date: Date
+        payee: Merchant
       # The check labels the panel renders (DocumentPanel::CHECK_LABEL_KEYS and
       # STATEMENT_CHECK_LABEL_KEYS). One leaf per validator result; the wording is
       # exactly what the panel showed before it moved here.

@@ -222,7 +222,7 @@ class Transfer < ApplicationRecord
       return unless inflow_transaction&.entry && outflow_transaction&.entry
 
       date_diff = (inflow_transaction.entry.date - outflow_transaction.entry.date).abs
-      max_days = status == "confirmed" ? 30 : 4
+      max_days = status == "confirmed" ? 30 : Family::AutoTransferMatchable::AUTO_MATCH_DAYS
       errors.add(:base, :within_days, count: max_days) if date_diff > max_days
     end
 end

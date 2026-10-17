@@ -9,6 +9,11 @@ module Family::AutoTransferMatchable
   # any two cross-currency amounts inside the date window would match.
   MAX_EXCHANGE_RATE_TOLERANCE = 0.5
 
+  # The owner's rule (2026-10-17): money that leaves one account and arrives in
+  # another within two weeks is a transfer candidate — banks post the two sides
+  # days apart. Every automatic match lands pending, to be confirmed.
+  AUTO_MATCH_DAYS = 14
+
   # The manual "match as transfer" dialog (Transaction#transfer_match_candidates) is never
   # narrower than this: a user is confirming the match themselves, and FX slippage or
   # card-network markup on a manual-account leg can be wide. Mirrors the same
@@ -75,7 +80,8 @@ module Family::AutoTransferMatchable
       restrict_cross_currency_to_linked_accounts: true,
       # Only pair accounts that at least one member can write to on both sides, so
       # someone can always confirm or reject the match.
-      require_common_writer: true
+      require_common_writer: true,
+      date_window: AUTO_MATCH_DAYS
     )
 
     # Track which transactions we've already matched to avoid duplicates

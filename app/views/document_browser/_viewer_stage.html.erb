@@ -4,7 +4,18 @@
     modes — the lightbox and the split — so the two cannot render the document
     differently. %>
 <% if row.file_url.present? && row.kind == :pdf %>
-  <iframe src="<%= row.file_url %>" title="<%= row.title %>" class="grow w-full rounded-lg border border-secondary bg-container-inset"></iframe>
+  <%# Phone browsers cannot show a PDF inline (they draw a bare "file / Open"
+      placeholder), so a phone gets a card that opens it; a computer shows it
+      in place. %>
+  <iframe src="<%= row.file_url %>" title="<%= row.title %>" class="hidden lg:block grow w-full rounded-2xl border border-secondary bg-container-inset"></iframe>
+  <div class="lg:hidden flex items-center gap-4 rounded-2xl bg-container-inset p-4">
+    <%= render DS::FilledIcon.new(icon: "file-text", hex_color: "var(--color-red-500)", size: "lg") %>
+    <div class="min-w-0 grow">
+      <p class="truncate text-sm font-semibold text-primary"><%= row.title %></p>
+      <p class="text-xs text-secondary"><%= t("document_browser.viewer.pdf_kind") %></p>
+    </div>
+    <%= render DS::Link.new(text: t("document_browser.viewer.open_pdf"), href: row.file_url, variant: "primary", target: "_blank", rel: "noopener") %>
+  </div>
 <% elsif row.file_url.present? && row.kind == :image %>
   <div class="grow min-h-0 overflow-auto rounded-lg bg-container-inset flex items-center justify-center"
        data-action="wheel->document-viewer#zoom click->document-viewer#toggleZoom">

@@ -37,6 +37,12 @@ class DocumentBridgeTest < ApplicationSystemTestCase
     # and is listed as an unlinked candidate on the entry page.
     assert_selector "#documents_grid [id^='document_link_']", text: "receipt.png", wait: 5
 
+    # Only a receipt whose read matches the transaction is offered on it
+    # (2026-10-17), so the upload's read names this entry's amount and date.
+    upload = DocumentLink.find_by!(original_filename: "receipt.png")
+    upload.document_extractions.create!(family: upload.family,
+                                        verdict: { "total" => @entry.amount.abs.to_s, "date" => @entry.date.iso8601 })
+
     visit transaction_path(@entry)
     within "#document-link-panel" do
       click_button I18n.t("document_link_panel.link")

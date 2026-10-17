@@ -19,6 +19,9 @@
     </div>
   <% end %>
   <% dialog.with_body do %>
+    <% dialog.with_section(title: t("transfers.evidence.title"), open: true) do %>
+      <div class="px-3 pt-2 pb-4"><%= render "transfers/evidence", transfer: @transfer %></div>
+    <% end %>
     <% dialog.with_section(title: t(".overview"), open: true) do %>
       <div class="pb-4 px-3 pt-2 text-sm space-y-3 text-primary">
         <div class="space-y-3">

@@ -1203,6 +1203,22 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     assert_equal [ without_file.id ], without_ids
   end
 
+
+  # The owner (2026-10-17): a "Needs confirmation" status lists the
+  # transactions waiting on the person — both sides of an auto-matched transfer
+  # that has not been confirmed — and nothing already confirmed.
+  test "the needs-confirmation status finds both sides of an unconfirmed transfer" do
+    pending = create_transfer(from_account: @checking_account, to_account: @credit_card_account, amount: 120)
+    pending.update!(status: "pending")
+    confirmed = create_transfer(from_account: @checking_account, to_account: @credit_card_account, amount: 45)
+
+    ids = Transaction::Search.new(@family, filters: { status: [ "needs_confirmation" ] }).transactions_scope.pluck(:id)
+
+    assert_includes ids, pending.inflow_transaction_id
+    assert_includes ids, pending.outflow_transaction_id
+    assert_not_includes ids, confirmed.inflow_transaction_id
+    assert_not_includes ids, confirmed.outflow_transaction_id
+  end
   private
     # Attaches a small PDF to the transaction.
     def attach_file(transaction, filename: "invoice.pdf")

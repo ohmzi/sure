@@ -220,6 +220,7 @@ en:
       quick_filters:
         label: Quick filters
         uncategorized: "Uncategorized · %{count}"
+        needs_confirmation: "Needs confirmation · %{count}"
         this_month: This month
       transaction: transaction
       transactions: transactions
@@ -354,6 +355,7 @@ en:
           transfer: Transfer
           confirmed: Confirmed
           pending: Pending
+          needs_confirmation: Needs confirmation
           ai_current: AI
           ai_history: AI history
           ai_posted: Written by the app
@@ -377,6 +379,7 @@ en:
         status_filter:
           confirmed: Confirmed
           pending: Pending
+          needs_confirmation: Needs confirmation
       menu:
         account_filter: Account
         amount_filter: Amount

@@ -8,7 +8,9 @@
     viewer predates the Documents panel and passes none — it stays a lightbox). %>
 <%= render DS::Dialog.new(width: "expanded", scrollable: false, content_class: "h-[85vh]") do |dialog| %>
   <% dialog.with_header(title: row.title, subtitle: row.doc_type_label) %>
-  <div class="flex h-full min-h-0 flex-col gap-3"
+  <%# Its own margins (the content slot has none) — the sheet's controls and
+      panel no longer touch the screen's edges (2026-10-17). %>
+  <div class="flex h-full min-h-0 flex-col gap-4 px-4 pb-4"
        data-controller="document-viewer"
        data-action="keydown.left@window->document-viewer#previous keydown.right@window->document-viewer#next">
     <div class="flex items-center justify-between gap-2">
@@ -27,7 +29,7 @@
             to the full page, which needs no JavaScript. %>
         <% if row.details_url.present? %>
           <%= link_to row.details_url,
-                class: "flex items-center rounded-lg border border-secondary px-2 py-1.5 text-primary hover:bg-container-inset-hover",
+                class: "inline-flex items-center justify-center size-10 rounded-full border border-secondary bg-container text-primary hover:bg-container-hover active:scale-95 transition focus-ring",
                 title: t("document_browser.viewer.open_full_page"),
                 aria: { label: t("document_browser.viewer.open_full_page") },
                 data: { turbo_frame: "_top" } do %>

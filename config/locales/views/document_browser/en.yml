@@ -106,6 +106,9 @@ en:
           other: "%{count} ready to review"
       show: Show them
     viewer:
+      # The phone card for a PDF (2026-10-17): phones cannot show one inline.
+      pdf_kind: PDF document
+      open_pdf: Open
       previous: Previous
       next: Next
       download: Download

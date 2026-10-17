@@ -158,6 +158,12 @@
       <%= render "transactions/attachments", transaction: @entry.transaction, can_upload: can_annotate_entry?, can_delete: can_edit_entry? %>
     <% end %>
 
+    <%# A transfer's proof, from either of its sides (2026-10-17). %>
+    <% if (transfer = @entry.transaction.transfer) %>
+      <% dialog.with_section(title: t("transfers.evidence.title"), open: true) do %>
+        <%= render "transfers/evidence", transfer: transfer %>
+      <% end %>
+    <% end %>
     <% dialog.with_section(title: t(".provenance"), open: true) do %>
       <%= render "documents/provenance", entry: @entry %>
       <%= render "entries/auto_post", entry: @entry %>

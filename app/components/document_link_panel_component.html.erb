@@ -1,6 +1,21 @@
 <%= render DS::Card.new do %>
   <div id="document-link-panel" class="space-y-2">
     <h4 class="text-sm text-primary"><%= t("document_link_panel.title") %></h4>
+    <% if source_document %>
+      <%# The document this transaction was read from — its source, not a link
+          to undo. %>
+      <%= link_to viewer_document_path(source_document), data: { turbo_frame: "modal", source_document: true },
+            class: "flex items-center gap-3 rounded-xl p-1 -m-1 hover:bg-container-hover focus-ring" do %>
+        <%= image_tag file_document_path(source_document, kind: "thumb"),
+              alt: source_document.title.presence || source_document.original_filename,
+              loading: "lazy", class: "h-10 w-10 rounded-lg object-cover" %>
+        <span class="min-w-0 grow">
+          <span class="block truncate text-primary"><%= source_document.title.presence || source_document.original_filename %></span>
+          <span class="block text-xs text-secondary"><%= t("document_link_panel.source") %></span>
+        </span>
+        <%= helpers.icon("chevron-right", size: "sm") %>
+      <% end %>
+    <% end %>
     <% if documents.any? %>
       <% documents.each do |document| %>
         <div class="flex items-center gap-3">
@@ -28,7 +43,7 @@
       <% end %>
     <% end %>
 
-    <% if documents.none? && candidates.none? %>
+    <% if source_document.nil? && documents.none? && candidates.none? %>
       <p class="text-secondary text-sm"><%= t("document_link_panel.empty") %></p>
     <% end %>
   </div>

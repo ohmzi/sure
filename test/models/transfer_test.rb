@@ -90,9 +90,10 @@ class TransferTest < ActiveSupport::TestCase
     assert_equal "Must have opposite amounts", transfer.errors.full_messages.first
   end
 
-  test "transfer dates must be within 4 days of each other" do
+  # The owner's rule (2026-10-17): 0-14 days apart is a pending transfer's range.
+  test "a pending transfer's dates must be within 14 days of each other" do
     outflow_entry = create_transaction(date: Date.current, account: accounts(:depository), amount: 500)
-    inflow_entry = create_transaction(date: 5.days.ago.to_date, account: accounts(:credit_card), amount: -500)
+    inflow_entry = create_transaction(date: 15.days.ago.to_date, account: accounts(:credit_card), amount: -500)
 
     transfer = Transfer.new(
       inflow_transaction: inflow_entry.transaction,
@@ -103,7 +104,7 @@ class TransferTest < ActiveSupport::TestCase
       transfer.save
     end
 
-    assert_equal "Must be within 4 days", transfer.errors.full_messages.first
+    assert_equal "Must be within 14 days", transfer.errors.full_messages.first
   end
 
   test "transfer must be from the same family" do
