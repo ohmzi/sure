@@ -71,7 +71,7 @@ class DS::SegmentedControl < DesignSystemComponent
           **wrapper_attributes do %>
       <% if sliding %>
         <span aria-hidden="true" data-segmented-slide-target="indicator"
-              class="absolute top-1 bottom-1 left-0 rounded-md tab-item-active shadow-sm opacity-0 transition-[transform,width] duration-300 ease-out motion-reduce:transition-none"></span>
+              class="absolute top-1 bottom-1 left-0 rounded-full tab-item-active shadow-sm opacity-0 transition-[transform,width] duration-300 ease-out motion-reduce:transition-none"></span>
       <% end %>
       <% segments.each do |segment| %><%= segment %><% end %>
     <% end %>

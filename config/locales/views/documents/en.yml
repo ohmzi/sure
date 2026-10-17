@@ -16,12 +16,14 @@ en:
     # anywhere on the page still uploads it.
     intake_bar:
       add_document: Add document
+      title: Add a document
+      subtitle: "Statements, receipts or bills: Sure reads them for you."
       cancel: Cancel
-      scan: Scan with camera
-      photos: Photo library
-      choose_file: Choose file
+      scan: Scan
+      photos: Photos
+      choose_file: Files
       currency_label: Receipt currency
-      footnote: Statements use their account's currency. PDF, image, CSV, OFX, QFX or XLSX — or drop files anywhere on this page.
+      footnote: Statements use their account's currency. On a computer, drop files anywhere on the page.
       upload_failed: The upload failed. Check your connection and try again.
     # The one dropzone's endpoint copy.
     intakes:

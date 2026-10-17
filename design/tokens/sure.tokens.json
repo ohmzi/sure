@@ -28,18 +28,18 @@
     "info":        { "$value": "{color.blue.600}",   "$type": "color", "$extensions": { "sure.dark": "{color.blue.500}" } },
     "shadow":      { "$value": "{color.black|6%}",   "$type": "color", "$extensions": { "sure.dark": "{color.white|8%}" } },
 
-    "link":                  { "$value": "{color.blue.600}",         "$type": "color", "$extensions": { "sure.dark": "{color.blue.500}" } },
+    "link":                  { "$value": "{color.brand.600}",         "$type": "color", "$extensions": { "sure.dark": "{color.brand.300}" } },
     "focus-ring":            { "$value": "{color.alpha-black.700}",  "$type": "color", "$extensions": { "sure.dark": "{color.alpha-white.700}" } },
     "tertiary":              { "$value": "{color.alpha-black.100}",  "$type": "color", "$extensions": { "sure.dark": "{color.alpha-white.200}" } },
-    "surface":               { "$value": "{color.gray.50}",          "$type": "color", "$extensions": { "sure.dark": "{color.black}" } },
-    "surface-hover":         { "$value": "{color.gray.100}",         "$type": "color", "$extensions": { "sure.dark": "{color.gray.800}" } },
-    "surface-inset":         { "$value": "{color.gray.100}",         "$type": "color", "$extensions": { "sure.dark": "{color.gray.800}" } },
-    "surface-inset-hover":   { "$value": "{color.gray.200}",         "$type": "color", "$extensions": { "sure.dark": "{color.gray.800}" } },
-    "container":             { "$value": "{color.white}",            "$type": "color", "$extensions": { "sure.dark": "{color.gray.900}" } },
-    "container-hover":       { "$value": "{color.gray.50}",          "$type": "color", "$extensions": { "sure.dark": "{color.gray.800}" } },
-    "container-inset":       { "$value": "{color.gray.50}",          "$type": "color", "$extensions": { "sure.dark": "{color.gray.800}" } },
-    "container-inset-hover": { "$value": "{color.gray.100}",         "$type": "color", "$extensions": { "sure.dark": "{color.gray.700}" } },
-    "nav-indicator":         { "$value": "{color.black}",            "$type": "color", "$extensions": { "sure.dark": "{color.white}" } },
+    "surface":               { "$value": "{color.gray.50}",          "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.850}" } },
+    "surface-hover":         { "$value": "{color.gray.100}",         "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.800}" } },
+    "surface-inset":         { "$value": "{color.gray.100}",         "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.800}" } },
+    "surface-inset-hover":   { "$value": "{color.gray.200}",         "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.700}" } },
+    "container":             { "$value": "{color.white}",            "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.800}" } },
+    "container-hover":       { "$value": "{color.gray.50}",          "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.700}" } },
+    "container-inset":       { "$value": "{color.gray.50}",          "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.700}" } },
+    "container-inset-hover": { "$value": "{color.gray.100}",         "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.600}" } },
+    "nav-indicator":         { "$value": "{color.brand.600}",            "$type": "color", "$extensions": { "sure.dark": "{color.brand.300}" } },
     "toggle-track":          { "$value": "{color.gray.300}",         "$type": "color", "$extensions": { "sure.dark": "{color.gray.700}" } },
     "destructive-subtle":    { "$value": "{color.red.200}",          "$type": "color", "$extensions": { "sure.dark": "{color.red.800}" } },
 
@@ -184,6 +184,27 @@
       "tint-10": { "$value": "{color.indigo.500|10%}", "$type": "color" }
     },
 
+    "brand": {
+      "$description": "The Quicken Simplifi-style brand (2026-10-17): indigo for the main action, lavender for accents on dark.",
+      "300": { "$value": "#9E8EF6", "$type": "color" },
+      "400": { "$value": "#7B63F4", "$type": "color" },
+      "500": { "$value": "#5A3CF3", "$type": "color" },
+      "600": { "$value": "#4321F0", "$type": "color" },
+      "700": { "$value": "#3517D0", "$type": "color" },
+      "tint-10": { "$value": "{color.brand.500|10%}", "$type": "color" },
+      "tint-16": { "$value": "{color.brand.500|16%}", "$type": "color" },
+      "tint-24": { "$value": "{color.brand.300|24%}", "$type": "color" }
+    },
+
+    "charcoal": {
+      "$description": "Dark-mode surfaces: a soft charcoal rather than black.",
+      "600": { "$value": "#40454E", "$type": "color" },
+      "700": { "$value": "#343941", "$type": "color" },
+      "800": { "$value": "#2A2E35", "$type": "color" },
+      "850": { "$value": "#212429", "$type": "color" },
+      "900": { "$value": "#1A1C20", "$type": "color" }
+    },
+
     "violet": {
       "25":  { "$value": "#FBFAFF", "$type": "color" },
       "50":  { "$value": "#F5F3FF", "$type": "color" },
@@ -272,8 +293,8 @@
   },
 
   "utility": {
-    "bg-inverse":             { "$type": "utility", "$value": "{color.gray.800}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.white}" } },
-    "bg-inverse-hover":       { "$type": "utility", "$value": "{color.gray.700}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.gray.100}" } },
+    "bg-inverse":             { "$type": "utility", "$value": "{color.brand.600}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.brand.600}" } },
+    "bg-inverse-hover":       { "$type": "utility", "$value": "{color.brand.700}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.brand.500}" } },
     "bg-subdued":             { "$type": "utility", "$value": "{color.gray.400}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.gray.400}" } },
     "bg-overlay": {
       "$type": "utility",
@@ -289,7 +310,7 @@
     },
 
     "text-primary":   { "$type": "utility", "$value": "{color.gray.900}", "$extensions": { "sure.utility": { "prefix": "text" }, "sure.dark": "{color.white}" } },
-    "text-inverse":   { "$type": "utility", "$value": "{color.white}",    "$extensions": { "sure.utility": { "prefix": "text" }, "sure.dark": "{color.gray.900}" } },
+    "text-inverse":   { "$type": "utility", "$value": "{color.white}",    "$extensions": { "sure.utility": { "prefix": "text" }, "sure.dark": "{color.white}" } },
     "text-secondary": { "$type": "utility", "$value": "{color.gray.500}", "$extensions": { "sure.utility": { "prefix": "text" }, "sure.dark": "{color.gray.300}" } },
     "text-subdued":   { "$type": "utility", "$value": "{color.gray.400}", "$extensions": { "sure.utility": { "prefix": "text" }, "sure.dark": "{color.gray.400}" } },
 
@@ -344,8 +365,8 @@
 
     "divide-subdued":     { "$type": "utility", "$value": "{color.alpha-black.50}",  "$extensions": { "sure.utility": { "prefix": "divide" }, "sure.dark": "{color.alpha-white.200}" } },
 
-    "button-bg-primary":           { "$type": "utility", "$value": "{color.gray.900}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.white}" } },
-    "button-bg-primary-hover":     { "$type": "utility", "$value": "{color.gray.800}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.gray.50}" } },
+    "button-bg-primary":           { "$type": "utility", "$value": "{color.brand.600}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.brand.600}" } },
+    "button-bg-primary-hover":     { "$type": "utility", "$value": "{color.brand.700}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.brand.500}" } },
     "button-bg-secondary":         { "$type": "utility", "$value": "{color.gray.50}",  "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.gray.700}" } },
     "button-bg-secondary-hover":   { "$type": "utility", "$value": "{color.gray.100}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.gray.600}" } },
     "button-bg-secondary-strong":       { "$type": "utility", "$value": "{color.gray.200}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.gray.700}" } },
@@ -355,11 +376,11 @@
     "button-bg-destructive-hover": { "$type": "utility", "$value": "{color.red.700}",  "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.red.500}" } },
     "button-bg-ghost-hover":       { "$type": "utility", "$value": "{color.gray.50}",  "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "bg-gray-800 text-inverse" } },
     "button-bg-outline-hover":     { "$type": "utility", "$value": "{color.gray.100}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.gray.700}" } },
-    "button-bg-accent":            { "$type": "utility", "$value": "{color.blue.tint-5}",  "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.blue.tint-5}" } },
-    "button-bg-accent-hover":      { "$type": "utility", "$value": "{color.blue.tint-10}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.blue.tint-10}" } },
+    "button-bg-accent":            { "$type": "utility", "$value": "{color.brand.tint-10}",  "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.brand.tint-24}" } },
+    "button-bg-accent-hover":      { "$type": "utility", "$value": "{color.brand.tint-16}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.brand.tint-16}" } },
 
-    "tab-item-active":  { "$type": "utility", "$value": "{color.white}",     "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.gray.700}" } },
-    "tab-item-hover":   { "$type": "utility", "$value": "{color.gray.200}",  "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.gray.800}" } },
-    "tab-bg-group":     { "$type": "utility", "$value": "{color.gray.50}",   "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.alpha-black.700}" } }
+    "tab-item-active":  { "$type": "utility", "$value": "{color.white}",     "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.charcoal.600}" } },
+    "tab-item-hover":   { "$type": "utility", "$value": "{color.gray.200}",  "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.charcoal.700}" } },
+    "tab-bg-group":     { "$type": "utility", "$value": "{color.gray.100}",   "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.charcoal.900}" } }
   }
 }

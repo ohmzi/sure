@@ -3,7 +3,7 @@
     keyboard target); the chip is how it looks, tinted while it is on. %>
 <label class="cursor-pointer">
   <%= check_box_tag name, value, checked, id: "#{name.parameterize(separator: "_")}_#{value.parameterize(separator: "_")}", class: "peer sr-only" %>
-  <span class="inline-flex items-center h-9 px-3.5 rounded-full text-sm text-primary bg-container-inset hover:bg-container-inset-hover transition active:scale-95 peer-checked:button-bg-accent peer-checked:text-link peer-checked:font-medium peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-link">
+  <span class="inline-flex items-center h-9 px-3.5 rounded-full text-sm text-primary bg-container-inset hover:bg-container-inset-hover transition active:scale-95 peer-checked:bg-inverse peer-checked:text-inverse peer-checked:font-semibold peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-link">
     <%= label %>
   </span>
 </label>

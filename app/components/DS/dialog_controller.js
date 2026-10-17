@@ -40,7 +40,7 @@ export default class extends Controller {
 
     // A sheet cached mid-slide (navigated away during its close) must not come
     // back invisible or offset.
-    if (this.sheetValue) this.#resetSheetStyles();
+    this.#resetSheetStyles();
 
     if (this.element.matches(":modal")) return;
     // Back restores a dialog cached open as a plain open one: no backdrop, no
@@ -50,6 +50,7 @@ export default class extends Controller {
     if (this.autoOpenValue) {
       this._priorFocus = this.#returnFocusTarget();
       this.element.showModal();
+      if (this.#sheetLike()) this.#lockScroll();
       this.#focusInitial();
     }
   }
@@ -84,12 +85,12 @@ export default class extends Controller {
     if (this.element.open) return;
     this._priorFocus = this.#returnFocusTarget();
     this.element.showModal();
-    if (this.sheetValue) this.#lockScroll();
+    if (this.#sheetLike()) this.#lockScroll();
     this.#focusInitial();
   }
 
   close() {
-    if (this.sheetValue && this.element.open && !this.#reducedMotion()) {
+    if (this.#sheetLike() && this.element.open && !this.#reducedMotion()) {
       this.#slideAway();
       return;
     }
@@ -99,7 +100,7 @@ export default class extends Controller {
   // Drag the grabber down: the sheet follows the finger; let go far enough
   // (or with a flick) and it leaves, otherwise it springs back.
   dragStart(event) {
-    if (!this.sheetValue || !this.hasContentTarget) return;
+    if (!this.#sheetLike() || !this.hasContentTarget) return;
     const content = this.contentTarget;
     const startY = event.clientY;
     const startTime = performance.now();
@@ -130,7 +131,7 @@ export default class extends Controller {
 
   #finishClose() {
     this.element.close();
-    if (this.sheetValue) this.#resetSheetStyles();
+    this.#resetSheetStyles();
     // Now as well as on the close event: a reload-on-close visit can cache
     // the page before that event fires.
     this.#clearParentModalFrame();
@@ -212,9 +213,15 @@ export default class extends Controller {
 
   // Escape on a sheet slides it away instead of snapping it shut.
   #onCancel(event) {
-    if (!this.sheetValue || this.#reducedMotion()) return;
+    if (!this.#sheetLike() || this.#reducedMotion()) return;
     event.preventDefault();
     this.close();
+  }
+
+  // A sheet always behaves as one; every other dialog does below lg, where it
+  // is laid out as a bottom sheet too.
+  #sheetLike() {
+    return this.sheetValue || !window.matchMedia("(min-width: 1024px)").matches;
   }
 
   #reducedMotion() {

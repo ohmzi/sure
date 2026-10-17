@@ -16,7 +16,7 @@
   --color-destructive: var(--color-red-500);
   --color-info: var(--color-blue-600);
   --color-shadow: --alpha(var(--color-black) / 6%);
-  --color-link: var(--color-blue-600);
+  --color-link: var(--color-brand-600);
   --color-focus-ring: var(--color-alpha-black-700);
   --color-tertiary: var(--color-alpha-black-100);
   --color-surface: var(--color-gray-50);
@@ -27,7 +27,7 @@
   --color-container-hover: var(--color-gray-50);
   --color-container-inset: var(--color-gray-50);
   --color-container-inset-hover: var(--color-gray-100);
-  --color-nav-indicator: var(--color-black);
+  --color-nav-indicator: var(--color-brand-600);
   --color-toggle-track: var(--color-gray-300);
   --color-destructive-subtle: var(--color-red-200);
   --color-gray-25: #FAFAFA;
@@ -144,6 +144,19 @@
   --color-indigo-900: #2D3282;
   --color-indigo-tint-5: --alpha(var(--color-indigo-500) / 5%);
   --color-indigo-tint-10: --alpha(var(--color-indigo-500) / 10%);
+  --color-brand-300: #9E8EF6;
+  --color-brand-400: #7B63F4;
+  --color-brand-500: #5A3CF3;
+  --color-brand-600: #4321F0;
+  --color-brand-700: #3517D0;
+  --color-brand-tint-10: --alpha(var(--color-brand-500) / 10%);
+  --color-brand-tint-16: --alpha(var(--color-brand-500) / 16%);
+  --color-brand-tint-24: --alpha(var(--color-brand-300) / 24%);
+  --color-charcoal-600: #40454E;
+  --color-charcoal-700: #343941;
+  --color-charcoal-800: #2A2E35;
+  --color-charcoal-850: #212429;
+  --color-charcoal-900: #1A1C20;
   --color-violet-25: #FBFAFF;
   --color-violet-50: #F5F3FF;
   --color-violet-100: #ECE9FE;
@@ -204,8 +217,8 @@
   --shadow-lg: 0px 12px 16px -4px --alpha(var(--color-black) / 6%);
   --shadow-xl: 0px 20px 24px -4px --alpha(var(--color-black) / 6%);
   --animate-stroke-fill: stroke-fill 3s 300ms forwards;
-  --utility-bg-inverse: var(--color-gray-800);
-  --utility-bg-inverse-hover: var(--color-gray-700);
+  --utility-bg-inverse: var(--color-brand-600);
+  --utility-bg-inverse-hover: var(--color-brand-700);
   --utility-bg-subdued: var(--color-gray-400);
   --utility-bg-overlay: --alpha(var(--color-gray-100) / 50%);
   --utility-text-primary: var(--color-gray-900);
@@ -224,8 +237,8 @@
   --utility-border-destructive: var(--color-red-500);
   --utility-border-inverse: var(--color-alpha-white-200);
   --utility-divide-subdued: var(--color-alpha-black-50);
-  --utility-button-bg-primary: var(--color-gray-900);
-  --utility-button-bg-primary-hover: var(--color-gray-800);
+  --utility-button-bg-primary: var(--color-brand-600);
+  --utility-button-bg-primary-hover: var(--color-brand-700);
   --utility-button-bg-secondary: var(--color-gray-50);
   --utility-button-bg-secondary-hover: var(--color-gray-100);
   --utility-button-bg-secondary-strong: var(--color-gray-200);
@@ -234,11 +247,11 @@
   --utility-button-bg-destructive: var(--color-red-600);
   --utility-button-bg-destructive-hover: var(--color-red-700);
   --utility-button-bg-outline-hover: var(--color-gray-100);
-  --utility-button-bg-accent: var(--color-blue-tint-5);
-  --utility-button-bg-accent-hover: var(--color-blue-tint-10);
+  --utility-button-bg-accent: var(--color-brand-tint-10);
+  --utility-button-bg-accent-hover: var(--color-brand-tint-16);
   --utility-tab-item-active: var(--color-white);
   --utility-tab-item-hover: var(--color-gray-200);
-  --utility-tab-bg-group: var(--color-gray-50);
+  --utility-tab-bg-group: var(--color-gray-100);
 
   @keyframes stroke-fill {
     0% { stroke-dashoffset: 43.9822971503; }
@@ -253,18 +266,18 @@
     --color-destructive: var(--color-red-400);
     --color-info: var(--color-blue-500);
     --color-shadow: --alpha(var(--color-white) / 8%);
-    --color-link: var(--color-blue-500);
+    --color-link: var(--color-brand-300);
     --color-focus-ring: var(--color-alpha-white-700);
     --color-tertiary: var(--color-alpha-white-200);
-    --color-surface: var(--color-black);
-    --color-surface-hover: var(--color-gray-800);
-    --color-surface-inset: var(--color-gray-800);
-    --color-surface-inset-hover: var(--color-gray-800);
-    --color-container: var(--color-gray-900);
-    --color-container-hover: var(--color-gray-800);
-    --color-container-inset: var(--color-gray-800);
-    --color-container-inset-hover: var(--color-gray-700);
-    --color-nav-indicator: var(--color-white);
+    --color-surface: var(--color-charcoal-850);
+    --color-surface-hover: var(--color-charcoal-800);
+    --color-surface-inset: var(--color-charcoal-800);
+    --color-surface-inset-hover: var(--color-charcoal-700);
+    --color-container: var(--color-charcoal-800);
+    --color-container-hover: var(--color-charcoal-700);
+    --color-container-inset: var(--color-charcoal-700);
+    --color-container-inset-hover: var(--color-charcoal-600);
+    --color-nav-indicator: var(--color-brand-300);
     --color-toggle-track: var(--color-gray-700);
     --color-destructive-subtle: var(--color-red-800);
     --budget-unused-fill: var(--color-gray-500);
@@ -274,12 +287,12 @@
     --shadow-md: 0px 4px 8px -2px --alpha(var(--color-white) / 8%);
     --shadow-lg: 0px 12px 16px -4px --alpha(var(--color-white) / 8%);
     --shadow-xl: 0px 20px 24px -4px --alpha(var(--color-white) / 8%);
-    --utility-bg-inverse: var(--color-white);
-    --utility-bg-inverse-hover: var(--color-gray-100);
+    --utility-bg-inverse: var(--color-brand-600);
+    --utility-bg-inverse-hover: var(--color-brand-500);
     --utility-bg-subdued: var(--color-gray-400);
     --utility-bg-overlay: var(--color-alpha-black-900);
     --utility-text-primary: var(--color-white);
-    --utility-text-inverse: var(--color-gray-900);
+    --utility-text-inverse: var(--color-white);
     --utility-text-secondary: var(--color-gray-300);
     --utility-text-subdued: var(--color-gray-400);
     --utility-shadow-border-xs: var(--shadow-xs), 0px 0px 0px 1px var(--color-alpha-white-50);
@@ -294,8 +307,8 @@
     --utility-border-destructive: var(--color-red-400);
     --utility-border-inverse: var(--color-alpha-black-300);
     --utility-divide-subdued: var(--color-alpha-white-200);
-    --utility-button-bg-primary: var(--color-white);
-    --utility-button-bg-primary-hover: var(--color-gray-50);
+    --utility-button-bg-primary: var(--color-brand-600);
+    --utility-button-bg-primary-hover: var(--color-brand-500);
     --utility-button-bg-secondary: var(--color-gray-700);
     --utility-button-bg-secondary-hover: var(--color-gray-600);
     --utility-button-bg-secondary-strong: var(--color-gray-700);
@@ -304,21 +317,21 @@
     --utility-button-bg-destructive: var(--color-red-400);
     --utility-button-bg-destructive-hover: var(--color-red-500);
     --utility-button-bg-outline-hover: var(--color-gray-700);
-    --utility-button-bg-accent: var(--color-blue-tint-5);
-    --utility-button-bg-accent-hover: var(--color-blue-tint-10);
-    --utility-tab-item-active: var(--color-gray-700);
-    --utility-tab-item-hover: var(--color-gray-800);
-    --utility-tab-bg-group: var(--color-alpha-black-700);
+    --utility-button-bg-accent: var(--color-brand-tint-24);
+    --utility-button-bg-accent-hover: var(--color-brand-tint-16);
+    --utility-tab-item-active: var(--color-charcoal-600);
+    --utility-tab-item-hover: var(--color-charcoal-700);
+    --utility-tab-bg-group: var(--color-charcoal-900);
   }
 }
 
 @utility bg-inverse {
-  @apply bg-gray-800;
+  @apply bg-brand-600;
   @apply bg-(--utility-bg-inverse);
 }
 
 @utility bg-inverse-hover {
-  @apply bg-gray-700;
+  @apply bg-brand-700;
   @apply bg-(--utility-bg-inverse-hover);
 }
 
@@ -421,12 +434,12 @@
 }
 
 @utility button-bg-primary {
-  @apply bg-gray-900;
+  @apply bg-brand-600;
   @apply bg-(--utility-button-bg-primary);
 }
 
 @utility button-bg-primary-hover {
-  @apply bg-gray-800;
+  @apply bg-brand-700;
   @apply bg-(--utility-button-bg-primary-hover);
 }
 
@@ -479,12 +492,12 @@
 }
 
 @utility button-bg-accent {
-  @apply bg-blue-tint-5;
+  @apply bg-brand-tint-10;
   @apply bg-(--utility-button-bg-accent);
 }
 
 @utility button-bg-accent-hover {
-  @apply bg-blue-tint-10;
+  @apply bg-brand-tint-16;
   @apply bg-(--utility-button-bg-accent-hover);
 }
 
@@ -499,6 +512,6 @@
 }
 
 @utility tab-bg-group {
-  @apply bg-gray-50;
+  @apply bg-gray-100;
   @apply bg-(--utility-tab-bg-group);
 }

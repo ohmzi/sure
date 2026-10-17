@@ -19,42 +19,43 @@
 </button>
 
 <%= render DS::Dialog.new(variant: "sheet", auto_open: false, disable_frame: true, width: "sm", id: "document_add_sheet") do |dialog| %>
-  <% dialog.with_sheet_header(
-       title: t(".add_document"),
-       leading: button_tag(t(".cancel"), type: "button", name: nil, data: { action: "DS--dialog#close" },
-                           class: "py-2 text-base text-link rounded-md focus-ring")) %>
   <% dialog.with_body do %>
+    <%# Add sheet A (the owner's pick, 2026-10-17): a bold title, three big
+        tiles — one tap per source — the receipt currency, and a Cancel pill. %>
+    <h2 id="<%= dialog.title_id %>" class="text-2xl font-bold tracking-tight text-primary"><%= t(".title") %></h2>
+    <p class="mt-1 text-sm text-secondary"><%= t(".subtitle") %></p>
 
-    <div class="space-y-4">
-      <%# The three sources, as an inset grouped list. Each row is the label of
-          its own hidden picker. %>
-      <div class="rounded-xl bg-container-inset divide-y divide-subdued overflow-hidden">
-        <% [ [ "camera", t(".scan"), { accept: "image/*", capture: "environment" } ],
-             [ "images", t(".photos"), { accept: "image/*", multiple: true } ],
-             [ "folder-open", t(".choose_file"), { accept: "image/*,application/pdf,.csv,.ofx,.qfx,.xlsx", multiple: true } ] ].each do |icon_key, label, input| %>
-          <label class="flex items-center gap-3 min-h-12 px-4 py-2 cursor-pointer hover:bg-container-inset-hover active:bg-container-inset-hover focus-within:bg-container-inset-hover transition-colors">
-            <%= render DS::FilledIcon.new(icon: icon_key, hex_color: "var(--color-link)", size: "md") %>
-            <span class="text-base text-primary"><%= label %></span>
-            <%= tag.input type: "file", name: "document", class: "sr-only",
-                  data: { action: "change->document-dropzone#pick" }, **input %>
-          </label>
-        <% end %>
-      </div>
-
-      <%# The currency a receipt or bill is in (the owner's rule): preset to the
-          family's display currency; a statement ignores it — its account
-          decides. %>
-      <div data-intake-currency>
-        <%= fields do |form| %>
-          <%= render DS::Select.new(form: form, method: :currency,
-                                    items: Money::Currency.as_options.map { |currency| { label: "#{currency.iso_code} — #{currency.name}", value: currency.iso_code } },
-                                    selected: Current.family.currency, searchable: true,
-                                    label: t(".currency_label"),
-                                    html_options: { data: { "document-dropzone-target": "currency" } }) %>
-        <% end %>
-      </div>
-
-      <p class="px-1 text-xs text-secondary"><%= t(".footnote") %></p>
+    <div class="mt-5 grid grid-cols-3 gap-3">
+      <%# Each tile is the label of its own hidden picker. %>
+      <% [ [ "camera", t(".scan"), "var(--color-brand-500)", { accept: "image/*", capture: "environment" } ],
+           [ "images", t(".photos"), "var(--color-cyan-600)", { accept: "image/*", multiple: true } ],
+           [ "folder-open", t(".choose_file"), "var(--color-green-600)", { accept: "image/*,application/pdf,.csv,.ofx,.qfx,.xlsx", multiple: true } ] ].each do |icon_key, label, tint, input| %>
+        <label class="flex flex-col items-center gap-2.5 rounded-2xl bg-container-inset px-2 py-4 cursor-pointer hover:bg-container-inset-hover active:scale-95 transition has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-link">
+          <%= render DS::FilledIcon.new(icon: icon_key, hex_color: tint, size: "lg", rounded: true) %>
+          <span class="text-sm font-semibold text-primary"><%= label %></span>
+          <%= tag.input type: "file", name: "document", class: "sr-only",
+                data: { action: "change->document-dropzone#pick" }, **input %>
+        </label>
+      <% end %>
     </div>
+
+    <%# The currency a receipt or bill is in (the owner's rule): preset to the
+        family's display currency; a statement ignores it — its account
+        decides. %>
+    <div class="mt-4" data-intake-currency>
+      <%= fields do |form| %>
+        <%= render DS::Select.new(form: form, method: :currency,
+                                  items: Money::Currency.as_options.map { |currency| { label: "#{currency.iso_code} — #{currency.name}", value: currency.iso_code } },
+                                  selected: Current.family.currency, searchable: true,
+                                  label: t(".currency_label"),
+                                  html_options: { data: { "document-dropzone-target": "currency" } }) %>
+      <% end %>
+    </div>
+
+    <div class="mt-5">
+      <%= render DS::Button.new(text: t(".cancel"), variant: :secondary, size: :lg, full_width: true,
+                                type: "button", data: { action: "DS--dialog#close" }) %>
+    </div>
+    <p class="mt-3 text-center text-xs text-secondary"><%= t(".footnote") %></p>
   <% end %>
 <% end %>

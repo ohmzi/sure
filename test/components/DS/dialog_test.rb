@@ -49,11 +49,21 @@ class DS::DialogTest < ViewComponent::TestCase
     assert_text "Body"
   end
 
-  test "modal and drawer dialogs have no grabber and are not sheets" do
+  # The owner's rule (2026-10-17): every popup on a phone is the same bottom
+  # sheet. Modals and drawers keep their own shape from lg up, and are not
+  # opened on demand (no `sheet:open`), but below lg they rise from the bottom
+  # edge with the grabber like any sheet.
+  test "modal and drawer dialogs are bottom sheets on a phone and keep their shape from lg" do
     render_inline(DS::Dialog.new) { |dialog| dialog.with_body { "Body" } }
-
-    assert_no_selector "[data-ds--dialog-target='grabber']"
     assert_selector "dialog[data-ds--dialog-sheet-value='false']"
+    assert_selector "dialog [data-ds--dialog-target='grabber'].lg\\:hidden"
+    assert_selector "dialog > div.items-end.lg\\:items-center"
+    assert_selector "dialog [data-ds--dialog-target='content'].rounded-t-3xl.lg\\:rounded-2xl"
+
+    render_inline(DS::Dialog.new(variant: "drawer")) { |dialog| dialog.with_body { "Body" } }
+    assert_selector "dialog [data-ds--dialog-target='grabber']"
+    assert_selector "dialog > div.items-end.lg\\:justify-end"
+    assert_selector "dialog [data-ds--dialog-target='content'].rounded-t-3xl.lg\\:h-full"
   end
 
   # The iOS sheet header: a leading action, the centred title the dialog is

@@ -1,9 +1,13 @@
-<div id="documents_attention" class="flex flex-wrap items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-sm">
-  <span class="font-medium text-primary"><%= t("document_browser.attention.title", count: total) %></span>
-  <span class="text-secondary">
-    <%= reasons.map { |count, key| t("document_browser.attention.reasons.#{key}", count: count) }.join(" · ") %>
-  </span>
-  <span class="ml-auto">
-    <%= render DS::Link.new(text: t("document_browser.attention.show"), href: documents_path(q: { attention: 1 }), variant: "outline", size: "sm") %>
-  </span>
+<%# The "needs you" summary (design D5), in the Quicken Simplifi language: one
+    bold indigo card with the count large, the breakdown under it, and a pill
+    to show them. %>
+<div id="documents_attention" class="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-3xl bg-inverse px-5 py-4 text-inverse shadow-border-sm">
+  <div class="min-w-0 grow">
+    <p class="text-xl font-bold tracking-tight"><%= t("document_browser.attention.title", count: total) %></p>
+    <p class="text-sm text-inverse/80">
+      <%= reasons.map { |count, key| t("document_browser.attention.reasons.#{key}", count: count) }.join(" · ") %>
+    </p>
+  </div>
+  <%= link_to t("document_browser.attention.show"), documents_path(q: { attention: 1 }),
+        class: "inline-flex items-center h-10 px-5 rounded-full bg-container text-link text-sm font-semibold hover:bg-container-hover active:scale-95 transition focus-ring" %>
 </div>

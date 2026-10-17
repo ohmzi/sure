@@ -61,8 +61,10 @@
                 "aria-hidden": "true")
   end
 %>
-<div id="<%= row.key %>" class="flex flex-col gap-2 min-w-0" data-document-state="<%= state %>">
-  <div class="relative aspect-[4/3] overflow-hidden rounded-lg bg-container-inset shadow-border-xs<%= " border border-dashed border-secondary" if state == :reading %>">
+<%# A card (the Quicken Simplifi language, 2026-10-17): the thumbnail inset
+    in a rounded container, the state pill in its corner, the title bold. %>
+<div id="<%= row.key %>" class="flex flex-col gap-2.5 min-w-0 rounded-2xl bg-container p-2 shadow-border-xs" data-document-state="<%= state %>">
+  <div class="relative aspect-[4/3] overflow-hidden rounded-xl bg-container-inset<%= " border border-dashed border-secondary" if state == :reading %>">
     <% if state == :reading %>
       <%# Nothing to show yet — the design's dashed box with the state centred. %>
       <div class="absolute inset-0 flex items-center justify-center">
@@ -77,18 +79,18 @@
         <div class="h-full w-full"><%= thumb %></div>
       <% end %>
       <%# The status pill in the tile's corner (design D3). %>
-      <span class="absolute right-1.5 top-1.5">
+      <span class="absolute left-2 top-2">
         <%= render DS::Pill.new(label: state_label, tone: state_tone, marker: false) %>
       </span>
     <% end %>
   </div>
 
-  <div class="min-w-0 space-y-1">
+  <div class="min-w-0 space-y-1 px-1 pb-1">
     <% if row.viewer_url.present? %>
       <%= link_to row.title, row.viewer_url, data: { turbo_frame: "modal" },
-            class: "block truncate text-sm font-medium text-primary" %>
+            class: "block truncate text-sm font-semibold text-primary" %>
     <% else %>
-      <p class="truncate text-sm font-medium text-primary"><%= row.title %></p>
+      <p class="truncate text-sm font-semibold text-primary"><%= row.title %></p>
     <% end %>
     <p class="<%= state == :needs_you ? "line-clamp-3 text-destructive" : "truncate text-secondary" %> text-xs">
       <%= meta %>

@@ -7,9 +7,11 @@ class DS::Buttonish < DesignSystemComponent
       container_classes: "text-inverse bg-inverse hover:bg-inverse-hover disabled:bg-gray-500 theme-dark:disabled:bg-gray-400",
       icon_classes: "text-inverse"
     },
+    # The Quicken-style secondary (2026-10-17): a lavender-tinted pill with the
+    # brand's text colour, beside the solid indigo primary.
     secondary: {
-      container_classes: "text-primary bg-gray-200 theme-dark:bg-gray-700 hover:bg-gray-300 theme-dark:hover:bg-gray-600 disabled:bg-gray-200 theme-dark:disabled:bg-gray-600",
-      icon_classes: "text-primary"
+      container_classes: "text-link button-bg-accent hover:button-bg-accent-hover disabled:button-bg-disabled",
+      icon_classes: "text-link"
     },
     # A tinted call to action for navigation that leaves the app. Backed by the
     # button-bg-accent utilities in design/tokens/sure.tokens.json, so the colour
@@ -51,6 +53,8 @@ class DS::Buttonish < DesignSystemComponent
     }
   }.freeze
 
+  # Every button is a pill (the Quicken Simplifi design language, 2026-10-17).
+  #
   # Icon-only containers share a height rail with the text buttons of the
   # same size (sm ≈ 28px, md ≈ 36px, lg ≈ 48px), so a mixed row — icon
   # trigger next to text buttons, the most common header layout — lines up
@@ -64,19 +68,19 @@ class DS::Buttonish < DesignSystemComponent
     sm: {
       container_classes: "px-2 py-1",
       icon_container_classes: "inline-flex items-center justify-center w-7 h-7 pointer-coarse:w-11 pointer-coarse:h-11",
-      radius_classes: "rounded-md",
+      radius_classes: "rounded-full",
       text_classes: "text-sm"
     },
     md: {
       container_classes: "px-3 py-2",
       icon_container_classes: "inline-flex items-center justify-center w-9 h-9 pointer-coarse:w-11 pointer-coarse:h-11",
-      radius_classes: "rounded-lg",
+      radius_classes: "rounded-full",
       text_classes: "text-sm"
     },
     lg: {
       container_classes: "px-4 py-3",
       icon_container_classes: "inline-flex items-center justify-center w-12 h-12",
-      radius_classes: "rounded-xl",
+      radius_classes: "rounded-full",
       text_classes: "text-base"
     }
   }.freeze

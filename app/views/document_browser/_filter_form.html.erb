@@ -19,7 +19,7 @@
           data: { "auto-submit-form-target": "auto" }) %>
 
     <button type="button"
-            class="relative inline-flex items-center justify-center size-10 pointer-coarse:size-11 shrink-0 rounded-full bg-surface-inset text-primary hover:bg-surface-inset-hover active:scale-95 transition focus-ring"
+            class="relative inline-flex items-center justify-center size-11 shrink-0 rounded-full border border-secondary bg-container text-link hover:bg-container-hover active:scale-95 transition focus-ring"
             aria-controls="document_filters_sheet" aria-haspopup="dialog"
             aria-label="<%= t("document_browser.filters.open_filters") %>"
             <%= tag.attributes(aria: { describedby: ("document_filters_count" if active.count.positive?) }) %>
@@ -29,7 +29,7 @@
       <%= icon("sliders-horizontal", size: "sm", color: "current") %>
       <% if active.count.positive? %>
         <span data-filter-count aria-hidden="true"
-              class="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-inverse text-inverse text-xs font-semibold flex items-center justify-center"><%= active.count %></span>
+              class="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-inverse text-inverse text-xs font-bold flex items-center justify-center"><%= active.count %></span>
         <span id="document_filters_count" class="sr-only"><%= t("document_browser.filters.active_count", count: active.count) %></span>
       <% end %>
     </button>
@@ -46,7 +46,7 @@
                       else ""
                       end %>
     <%= hidden_field_tag "q[type][]", current_type, id: nil if current_type.present? %>
-    <%= render DS::SegmentedControl.new(sliding: true, full_width: true, aria_label: t("document_browser.filters.type"), class: "bg-surface-inset lg:max-w-md") do |control| %>
+    <%= render DS::SegmentedControl.new(sliding: true, full_width: true, aria_label: t("document_browser.filters.type"), class: "lg:max-w-md") do |control| %>
       <% [ [ "", t("document_browser.filters.types.all") ],
            [ "statement", t("document_browser.filters.types.statements") ],
            [ "receipt,bill", t("document_browser.filters.types.receipts_bills") ] ].each do |value, label| %>
@@ -66,7 +66,7 @@
         <% active.chips.each do |chip| %>
           <li>
             <%= link_to chip.remove_url,
-                  class: "inline-flex items-center gap-1 h-8 pl-3 pr-2 rounded-full button-bg-accent hover:button-bg-accent-hover text-link text-sm font-medium whitespace-nowrap active:scale-95 transition focus-ring",
+                  class: "inline-flex items-center gap-1 h-8 pl-3 pr-2 rounded-full border border-secondary bg-container hover:bg-container-hover text-link text-sm font-semibold whitespace-nowrap active:scale-95 transition focus-ring",
                   title: t("document_browser.filters.chips.remove", label: chip.label),
                   aria: { label: t("document_browser.filters.chips.remove", label: chip.label) } do %>
               <%= chip.label %>

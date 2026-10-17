@@ -114,23 +114,25 @@ class DS::Dialog < DesignSystemComponent
     end
   end
 
+  # Every dialog is the same bottom sheet on a phone (the owner's rule,
+  # 2026-10-17): below lg it rises from the bottom edge, full width, with the
+  # grabber, its own safe-area padding and the blurred backdrop. From lg up
+  # each variant keeps its shape — a centred modal, a drawer on the right, the
+  # sheet's centred panel.
   def dialog_classes
     class_names(
-      "w-full h-full bg-transparent text-primary backdrop:bg-overlay pt-[env(safe-area-inset-top)]",
-      sheet? ? "backdrop:backdrop-blur-sm lg:p-3" : "pb-[env(safe-area-inset-bottom)]",
-      (drawer? || responsive?) ? "lg:p-3" : (sheet? ? nil : "lg:p-1")
+      "w-full h-full bg-transparent text-primary backdrop:bg-overlay backdrop:backdrop-blur-sm pt-[env(safe-area-inset-top)]",
+      (drawer? || responsive? || sheet?) ? "lg:p-3" : "lg:p-1"
     )
   end
 
   def dialog_outer_classes
     variant_classes = if sheet?
       "items-end justify-center lg:items-center"
-    elsif responsive?
-      "items-center justify-center lg:items-end lg:justify-end"
-    elsif drawer?
-      "items-end justify-end"
+    elsif responsive? || drawer?
+      "items-end justify-center lg:justify-end"
     else
-      "items-center justify-center"
+      "items-end justify-center lg:items-center"
     end
 
     class_names(
@@ -140,36 +142,24 @@ class DS::Dialog < DesignSystemComponent
   end
 
   def dialog_inner_classes
-    return sheet_inner_classes if sheet?
-
-    variant_classes = if responsive?
-      "max-h-full lg:h-full lg:w-[550px]"
+    variant_classes = if sheet?
+      class_names(WIDTHS[width], "lg:starting:translate-y-0 lg:starting:scale-95 lg:starting:opacity-0")
+    elsif responsive?
+      "lg:max-h-full lg:h-full lg:w-[550px]"
     elsif drawer?
-      "lg:w-[550px] h-full"
+      "lg:max-h-full lg:h-full lg:w-[550px]"
     else
-      class_names(
-        "max-h-full",
-        WIDTHS[width]
-      )
+      class_names("lg:max-h-full", WIDTHS[width])
     end
 
     class_names(
-      "flex flex-col bg-container rounded-xl shadow-border-xs mx-3 lg:mx-0 w-full",
-      variant_classes,
-      content_class
-    )
-  end
-
-  # The sheet owns its own corners, edge and safe-area padding, so it does not
-  # share the modal's gutter and all-round radius. It rises on open
-  # (`starting:`), and fades up into place as a panel from lg.
-  def sheet_inner_classes
-    class_names(
       "flex flex-col w-full max-h-[92dvh] bg-container shadow-border-xs",
       "rounded-t-3xl lg:rounded-2xl pb-[env(safe-area-inset-bottom)] lg:pb-0",
-      WIDTHS[width],
+      # Below lg it rises on open (`starting:`); a sheet also fades up as a
+      # panel from lg.
       "transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
-      "starting:translate-y-full lg:starting:translate-y-0 lg:starting:scale-95 lg:starting:opacity-0",
+      "max-lg:starting:translate-y-full",
+      variant_classes,
       content_class
     )
   end

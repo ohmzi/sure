@@ -14,8 +14,8 @@
 #   chrome, so adding ring + outline here would compete with the
 #   parent's focus-within state.
 #
-# - `:filled` — the iOS search field: a filled, borderless, rounded well
-#   for a page's own search row (the Documents page).
+# - `:filled` — a page's own search row (the Documents page): an outlined
+#   pill on the container colour, the Quicken Simplifi field.
 #
 # For `form.search_field :foo` inside a `styled_form_with` block,
 # keep using the form helper — it routes through `StyledFormBuilder`'s
@@ -48,7 +48,7 @@ class DS::SearchInput < DesignSystemComponent
     # triggered the mobile zoom regression.
     case variant
     when :filled
-      "block w-full h-10 border-0 rounded-xl bg-surface-inset pl-10 pr-3 text-primary text-base sm:text-sm " \
+      "block w-full h-11 border border-secondary rounded-full bg-container pl-11 pr-4 text-primary text-base sm:text-sm " \
         "placeholder:text-secondary focus-ring"
     when :embedded
       # No own focus ring — the parent panel handles focus chrome via
