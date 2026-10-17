@@ -72,8 +72,7 @@ class ProviderMerchant::EnhancerTest < ActiveSupport::TestCase
 
   test "returns zero counts when no LLM provider" do
     # No provider configured: preferred_llm_provider checks both before nil.
-    Provider::Registry.stubs(:get_provider).with(:openai).returns(nil)
-    Provider::Registry.stubs(:get_provider).with(:anthropic).returns(nil)
+    Provider::Registry.stubs(:preferred_llm_provider).returns(nil)
 
     result = ProviderMerchant::Enhancer.new(@family).enhance
 
