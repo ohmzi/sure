@@ -4,9 +4,10 @@
     (document_dropzone_controller#pick), and the page itself is still the drop
     target on a computer. %>
 
-<%# The intake stream writes a refusal here; hidden while empty. %>
+<%# The intake stream writes a refusal here. While empty it is visually hidden
+    but stays in the accessibility tree, so the refusal is announced. %>
 <p id="documents_intake_status" role="status" aria-live="polite"
-   class="text-sm text-destructive empty:hidden" data-document-dropzone-target="status"></p>
+   class="text-sm text-destructive empty:sr-only" data-document-dropzone-target="status"></p>
 
 <button type="button"
         class="fixed z-20 right-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] lg:bottom-8 inline-flex items-center justify-center size-14 rounded-full bg-inverse hover:bg-inverse-hover text-inverse shadow-lg active:scale-95 transition focus-ring"
@@ -18,15 +19,11 @@
 </button>
 
 <%= render DS::Dialog.new(variant: "sheet", auto_open: false, disable_frame: true, width: "sm", id: "document_add_sheet") do |dialog| %>
+  <% dialog.with_sheet_header(
+       title: t(".add_document"),
+       leading: button_tag(t(".cancel"), type: "button", name: nil, data: { action: "DS--dialog#close" },
+                           class: "py-2 text-base text-link rounded-md focus-ring")) %>
   <% dialog.with_body do %>
-    <div class="grid grid-cols-3 items-center -mt-1 mb-3">
-      <button type="button" class="justify-self-start py-2 text-base text-link rounded-md focus-ring" data-action="DS--dialog#close">
-        <%= t(".cancel") %>
-      </button>
-      <h2 id="<%= dialog.title_id %>" class="justify-self-center whitespace-nowrap text-base font-semibold text-primary">
-        <%= t(".add_document") %>
-      </h2>
-    </div>
 
     <div class="space-y-4">
       <%# The three sources, as an inset grouped list. Each row is the label of
@@ -36,9 +33,7 @@
              [ "images", t(".photos"), { accept: "image/*", multiple: true } ],
              [ "folder-open", t(".choose_file"), { accept: "image/*,application/pdf,.csv,.ofx,.qfx,.xlsx", multiple: true } ] ].each do |icon_key, label, input| %>
           <label class="flex items-center gap-3 min-h-12 px-4 py-2 cursor-pointer hover:bg-container-inset-hover active:bg-container-inset-hover focus-within:bg-container-inset-hover transition-colors">
-            <span class="inline-flex items-center justify-center size-8 rounded-lg button-bg-accent text-link">
-              <%= icon(icon_key, size: "sm", color: "current") %>
-            </span>
+            <%= render DS::FilledIcon.new(icon: icon_key, hex_color: "var(--color-link)", size: "md") %>
             <span class="text-base text-primary"><%= label %></span>
             <%= tag.input type: "file", name: "document", class: "sr-only",
                   data: { action: "change->document-dropzone#pick" }, **input %>

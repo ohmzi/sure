@@ -55,4 +55,19 @@ class DS::DialogTest < ViewComponent::TestCase
     assert_no_selector "[data-ds--dialog-target='grabber']"
     assert_selector "dialog[data-ds--dialog-sheet-value='false']"
   end
+
+  # The iOS sheet header: a leading action, the centred title the dialog is
+  # labelled by, and a trailing action.
+  test "a sheet header centres the title between its two actions" do
+    render_inline(DS::Dialog.new(variant: "sheet", auto_open: false, disable_frame: true)) do |dialog|
+      dialog.with_sheet_header(title: "Filters", leading: "<a href='/reset'>Reset</a>".html_safe,
+                               trailing: "<button type='submit'>Done</button>".html_safe)
+    end
+
+    assert_selector "dialog header.grid-cols-3 > div:first-child > a[href='/reset']", text: "Reset"
+    assert_selector "dialog header.grid-cols-3 > h2", text: "Filters"
+    assert_selector "dialog header.grid-cols-3 > div:last-child > button[type='submit']", text: "Done"
+    title_id = page.find("dialog header h2")[:id]
+    assert_selector "dialog[aria-labelledby='#{title_id}']"
+  end
 end

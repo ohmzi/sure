@@ -27,6 +27,12 @@ export default class extends Controller {
 
     clearTimeout(this.timeout);
     this.timeout = setTimeout(() => {
+      // A field blurred by a sheet or modal opening over the page (the
+      // Documents filter and add sheets) must not reload the page out from
+      // under it; the value still travels with the next submit. A form that
+      // lives inside the open dialog submits as before.
+      const openDialog = document.querySelector("dialog:modal");
+      if (openDialog && !openDialog.contains(this.element)) return;
       this.element.requestSubmit();
     }, this.#debounceTimeout(target));
   };

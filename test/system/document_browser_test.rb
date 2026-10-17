@@ -172,4 +172,55 @@ class DocumentBrowserTest < ApplicationSystemTestCase
       assert_text(/#{I18n.t("document_browser.filters.extraction")}/i)
     end
   end
+
+  # Review finding 1: the search field submits on blur, and opening a sheet
+  # blurs it — the sheet must not be closed by its own page reloading.
+  test "a sheet opened from a focused search field stays open" do
+    visit documents_path
+    find("#q_search").fill_in(with: "coff")
+
+    find("button[aria-controls='document_filters_sheet']").click
+    assert_selector "dialog#document_filters_sheet[open]"
+    sleep 1 # past the search field's 500ms blur debounce
+    assert_selector "dialog#document_filters_sheet[open]"
+    assert_no_current_path(/search/)
+  end
+
+  # Review finding 2: with Reduce Motion a drag-dismissed sheet closed without
+  # clearing the offset the drag left, so it reopened shifted down.
+  test "a sheet dismissed with reduced motion reopens in place" do
+    visit documents_path
+    execute_script(<<~JS)
+      const original = window.matchMedia.bind(window);
+      window.matchMedia = (query) =>
+        query.includes("prefers-reduced-motion") ? { matches: true, media: query, addEventListener() {}, removeEventListener() {} } : original(query);
+    JS
+
+    find("button[aria-controls='document_filters_sheet']").click
+    execute_script(<<~JS)
+      const sheet = document.getElementById("document_filters_sheet");
+      sheet.querySelector("[data-ds--dialog-target='content']").style.transform = "translateY(240px)"; // mid-drag
+      sheet.dispatchEvent(new CustomEvent("sheet:close"));
+    JS
+    assert_no_selector "dialog#document_filters_sheet[open]"
+
+    find("button[aria-controls='document_filters_sheet']").click
+    assert_equal "", evaluate_script(%q(document.querySelector("#document_filters_sheet [data-ds--dialog-target='content']").style.transform))
+  end
+
+  # Review finding 3: Back restores the page Turbo cached with the sheet's
+  # just-submitted values; the sheet must show what that page was rendered with.
+  test "back to an earlier page shows that page's filters in the sheet" do
+    visit documents_path
+    find("button[aria-controls='document_filters_sheet']").click
+    within "dialog#document_filters_sheet[open]" do
+      find("label", text: I18n.t("documents.status.queued")).click
+      click_on I18n.t("document_browser.filters.show_results")
+    end
+    assert_selector "[data-filter-count]", text: "1"
+
+    go_back
+    assert_no_selector "[data-filter-count]"
+    assert_selector "dialog#document_filters_sheet input[value='queued']:not(:checked)", visible: :all
+  end
 end

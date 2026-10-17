@@ -5,6 +5,12 @@ import { Controller } from "@hotwired/stimulus";
 // Escape — its fields go back to what the page was rendered with, as an iOS
 // sheet discards unsaved changes.
 export default class extends Controller {
+  // Back restores a page Turbo cached with the sheet holding newer, submitted
+  // values; what the page was rendered with is the truth.
+  connect() {
+    this.discard();
+  }
+
   discard() {
     for (const field of this.element.querySelectorAll("input, select")) {
       if (field.type === "checkbox" || field.type === "radio") {

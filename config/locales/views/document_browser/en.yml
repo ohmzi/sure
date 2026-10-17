@@ -54,7 +54,6 @@ en:
       from: From
       to: To
       amount: Amount
-      search_short: Search
       chips:
         label: Active filters
         remove: "Remove %{label}"

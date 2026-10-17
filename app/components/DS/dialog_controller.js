@@ -38,6 +38,10 @@ export default class extends Controller {
     this.element.addEventListener("close", this._onClose);
     this.element.addEventListener("cancel", this._onCancel);
 
+    // A sheet cached mid-slide (navigated away during its close) must not come
+    // back invisible or offset.
+    if (this.sheetValue) this.#resetSheetStyles();
+
     if (this.element.matches(":modal")) return;
     // Back restores a dialog cached open as a plain open one: no backdrop, no
     // focus trap. Put it back as it was rendered, closed and with no close
@@ -126,6 +130,7 @@ export default class extends Controller {
 
   #finishClose() {
     this.element.close();
+    if (this.sheetValue) this.#resetSheetStyles();
     // Now as well as on the close event: a reload-on-close visit can cache
     // the page before that event fires.
     this.#clearParentModalFrame();
@@ -179,13 +184,13 @@ export default class extends Controller {
     if (this._closing) return;
     this._closing = true;
     const content = this.contentTarget;
-    const finish = () => {
+    const finish = (event) => {
+      // transitionend bubbles from the sheet's own children (chips, rows).
+      if (event && event.target !== content) return;
       if (!this._closing) return;
       this._closing = false;
       content.removeEventListener("transitionend", finish);
       this.#finishClose();
-      content.style.transform = "";
-      content.style.opacity = "";
     };
     content.addEventListener("transitionend", finish);
     setTimeout(finish, 350);
@@ -195,6 +200,14 @@ export default class extends Controller {
     } else {
       content.style.transform = "translateY(100%)";
     }
+  }
+
+  #resetSheetStyles() {
+    if (!this.hasContentTarget) return;
+    const content = this.contentTarget;
+    content.style.transform = "";
+    content.style.opacity = "";
+    content.style.transition = "";
   }
 
   // Escape on a sheet slides it away instead of snapping it shut.

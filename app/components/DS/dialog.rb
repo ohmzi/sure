@@ -21,6 +21,19 @@ class DS::Dialog < DesignSystemComponent
 
   renders_one :body
 
+  # The iOS sheet header (variant "sheet"): a leading action (Cancel, Reset), the
+  # centred title the dialog is labelled by, and a trailing action (Done). It
+  # sits above the scrolling body, so it stays put while the sheet scrolls.
+  renders_one :sheet_header, ->(title:, leading: nil, trailing: nil) do
+    content_tag(:header, class: "grid grid-cols-3 items-center gap-2 px-4 pb-2 lg:pt-4 shrink-0") do
+      safe_join([
+        content_tag(:div, leading, class: "justify-self-start"),
+        content_tag("h#{heading_level}", title, id: title_id, class: "justify-self-center whitespace-nowrap text-base font-semibold text-primary"),
+        content_tag(:div, trailing, class: "justify-self-end")
+      ])
+    end
+  end
+
   renders_many :actions, ->(cancel_action: false, **button_opts) do
     merged_opts = if cancel_action
       button_opts.merge(type: "button", data: { action: "DS--dialog#close" })
