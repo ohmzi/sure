@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 # A transfer's proof (the owner, 2026-10-17): the same amount left one account
-# and arrived in another, how many days apart, and — when they came from one —
-# the statement that shows each side. Seen on both banks' statements is the
-# strongest proof a transfer can have; a match with no statement behind it is
-# only the amounts and dates agreeing.
+# and arrived in another, how many days apart, and the statement that shows
+# each side. Seen on both banks' statements is the strongest proof a transfer
+# can have; a match with no statement behind it is only the amounts and dates
+# agreeing.
 class Transfer::Evidence
   Side = Data.define(:direction, :entry, :account, :document) do
     def witnessed? = document.present? && document.deleted_at.nil?
@@ -20,7 +20,7 @@ class Transfer::Evidence
   def sides
     @sides ||= [ [ :out, transfer.outflow_transaction ], [ :in, transfer.inflow_transaction ] ].map do |direction, transaction|
       entry = transaction.entry
-      Side.new(direction:, entry:, account: entry.account, document: EntryProvenance.for(entry).creating_document)
+      Side.new(direction:, entry:, account: entry.account, document: witnessing_document(entry))
     end
   end
 
@@ -37,4 +37,12 @@ class Transfer::Evidence
     else :none
     end
   end
+
+  private
+    # The statement that shows this side: the one whose import created the row,
+    # else the one whose rows verified it afterwards (a chequing row is often
+    # entered by the bank feed and reconciled against its statement later).
+    def witnessing_document(entry)
+      EntryProvenance.for(entry).creating_document || entry.reconciled_by_statement&.archived_document_link
+    end
 end

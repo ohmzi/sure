@@ -45,6 +45,24 @@ class Transfer::EvidenceTest < ActiveSupport::TestCase
     assert_equal :both, evidence.witness
   end
 
+  # The owner's live data: a chequing row is not created by its statement's
+  # import but verified against the statement's rows afterwards
+  # (reconciled_by_statement). That statement witnesses the side just the same.
+  test "a side verified against a statement is witnessed by that statement's document" do
+    transfer = create_transfer(from_account: @from, to_account: @to, amount: 300).reload
+    statement = AccountStatement.create_from_upload!(
+      family: @from.family, account: @from,
+      file: Rack::Test::UploadedFile.new(file_fixture("receipts/statement.pdf"), "application/pdf")
+    )
+    document = statement.archive_document_link!
+    transfer.outflow_transaction.entry.update_columns(reconciled_by_statement_id: statement.id, reconciled_at: Time.current)
+
+    evidence = Transfer::Evidence.new(transfer.reload)
+
+    assert_equal document, evidence.sides.first.document
+    assert_equal :one, evidence.witness
+  end
+
   test "the automatic match reaches across two weeks" do
     assert_equal 14, Family::AutoTransferMatchable::AUTO_MATCH_DAYS
   end
