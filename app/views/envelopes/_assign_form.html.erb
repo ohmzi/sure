@@ -10,7 +10,7 @@
           budget_category.budgeted_spending,
           step: Money::Currency.new(budget.currency).step,
           autocomplete: "off",
-          class: "form-field__input w-[110px] text-right tabular-nums privacy-sensitive",
+          class: "form-field__input w-full min-w-0 lg:w-[110px] text-right tabular-nums privacy-sensitive",
           data: { envelope_target: "amount",
                   action: "keydown.enter->envelope#submit" } %>
   </div>

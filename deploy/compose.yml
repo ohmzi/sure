@@ -85,6 +85,10 @@ services:
       - app-storage:/rails/storage
     environment:
       <<: *app_env
+      # Three Puma processes (2026-10-17): one process renders one page at a
+      # time, so a page's lazy frames (Home's Today, sparklines, the chat)
+      # queued behind each other. The host has cores and memory to spare.
+      WEB_CONCURRENCY: "3"
     depends_on:
       db:
         condition: service_healthy
@@ -97,7 +101,7 @@ services:
       retries: 3
       start_period: 60s
     <<: *app_hardening
-    mem_limit: 1g
+    mem_limit: 2g
     networks:
       - default
       - internal

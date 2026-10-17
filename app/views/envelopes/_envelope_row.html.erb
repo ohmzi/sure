@@ -1,6 +1,10 @@
 <%# locals: (budget_category:, budget:) %>
-<div id="<%= dom_id(budget_category, :envelope) %>" class="grid grid-cols-12 items-center gap-2 px-3 py-2">
-  <div class="col-span-6 flex items-center gap-2 min-w-0">
+<%# On a phone the name has its own line and the three figures share the next,
+    each labelled, so long amounts ("CA$1,234.00") never run together (the
+    owner, 2026-10-17); from lg up it is the one-line row, the labels living in
+    the figures' alignment. %>
+<div id="<%= dom_id(budget_category, :envelope) %>" class="px-3 py-2 space-y-2 lg:space-y-0 lg:grid lg:grid-cols-12 lg:items-center lg:gap-2">
+  <div class="lg:col-span-6 flex items-center gap-2 min-w-0">
     <span class="w-1 h-3 rounded-xl" style="background-color: <%= budget_category.category.color %>"></span>
     <span class="truncate text-primary"><%= budget_category.category.display_name %></span>
     <%# Opens the shared move dialog filled from this row. The params match
@@ -19,19 +23,28 @@
       <%= icon("arrow-left-right", size: "sm") %>
     </button>
   </div>
-  <div class="col-span-2">
-    <%= render "envelopes/assign_form", budget_category: budget_category, budget: budget %>
+  <div class="grid grid-cols-3 gap-2 items-end lg:contents">
+    <div class="min-w-0 lg:col-span-2">
+      <p class="lg:hidden text-xs text-secondary mb-0.5"><%= t("envelopes.row.assigned") %></p>
+      <%= render "envelopes/assign_form", budget_category: budget_category, budget: budget %>
+    </div>
+    <div class="min-w-0 lg:col-span-2 text-right">
+      <p class="lg:hidden text-xs text-secondary mb-0.5"><%= t("envelopes.row.spent") %></p>
+      <span class="block truncate tabular-nums privacy-sensitive"><%= format_money(budget_category.actual_spending_money) %></span>
+    </div>
+    <div class="min-w-0 lg:col-span-2 text-right">
+      <p class="lg:hidden text-xs text-secondary mb-0.5"><%= t("envelopes.row.available") %></p>
+      <span class="block truncate tabular-nums privacy-sensitive <%= budget_category.available_to_spend.negative? ? "text-destructive" : "text-primary" %>">
+        <%= format_money(budget_category.available_to_spend_money) %>
+      </span>
+    </div>
   </div>
-  <span class="col-span-2 text-right tabular-nums privacy-sensitive"><%= format_money(budget_category.actual_spending_money) %></span>
-  <span class="col-span-2 text-right tabular-nums privacy-sensitive <%= budget_category.available_to_spend.negative? ? "text-destructive" : "text-primary" %>">
-    <%= format_money(budget_category.available_to_spend_money) %>
-  </span>
   <%# How full the envelope is (the owner's redesign, 2026-10-17): the
       category's colour, or the warning colour once it is overspent. %>
   <% budgeted = budget_category.budgeted_spending.to_d %>
   <% if budgeted.positive? %>
     <% spent_pct = (budget_category.actual_spending.to_d / budgeted * 100).clamp(0, 100).round %>
-    <div class="col-span-12 h-1.5 rounded-full bg-container-inset overflow-hidden" role="presentation">
+    <div class="lg:col-span-12 h-1.5 rounded-full bg-container-inset overflow-hidden" role="presentation">
       <% if budget_category.available_to_spend.negative? %>
         <span class="block h-full w-full rounded-full bg-warning"></span>
       <% else %>

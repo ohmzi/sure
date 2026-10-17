@@ -1,6 +1,10 @@
 ---
 en:
   envelopes:
+    row:
+      assigned: Assigned
+      spent: Spent
+      available: Available
     left_to_spend:
       title: Left to spend
       spent: "%{amount} spent"

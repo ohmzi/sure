@@ -6,7 +6,7 @@ import {
   shift,
 } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
-import { placeAsSheet } from "utils/mobile_sheet";
+import { ensureBackdrop, placeAsSheet } from "utils/mobile_sheet";
 
 /**
  * Positioned panel for mixed content (forms, pickers, account menus).
@@ -16,7 +16,7 @@ import { placeAsSheet } from "utils/mobile_sheet";
  * "collapsed" as the panel opens / closes.
  */
 export default class extends Controller {
-  static targets = ["button", "content", "backdrop"];
+  static targets = ["button", "content"];
 
   static values = {
     show: Boolean,
@@ -83,15 +83,15 @@ export default class extends Controller {
     if (nextShow) {
       this.update();
       this.focusFirstElement();
-    } else if (this.hasBackdropTarget) {
-      this.backdropTarget.classList.add("hidden");
+    } else {
+      this.element.querySelector(":scope > [data-sheet-backdrop]")?.classList.add("hidden");
     }
   };
 
   close() {
     this.contentTarget.classList.add("hidden");
     this.buttonTarget.setAttribute("aria-expanded", "false");
-    if (this.hasBackdropTarget) this.backdropTarget.classList.add("hidden");
+    this.element.querySelector(":scope > [data-sheet-backdrop]")?.classList.add("hidden");
   }
 
   focusFirstElement() {
@@ -125,7 +125,10 @@ export default class extends Controller {
     if (!this.buttonTarget || !this.contentTarget) return;
 
     // A phone gets the bottom sheet every popup shares (2026-10-17).
-    if (placeAsSheet(this.contentTarget, this.hasBackdropTarget ? this.backdropTarget : null, this.show)) return;
+    // The backdrop is made on first use, not written into every popover (a
+    // page of transactions carries one per row).
+    const backdrop = this.show ? ensureBackdrop(this.element, () => this.close()) : null;
+    if (placeAsSheet(this.contentTarget, backdrop, this.show)) return;
 
     computePosition(this.buttonTarget, this.contentTarget, {
       placement: this.placementValue,
