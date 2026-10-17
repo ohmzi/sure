@@ -50,6 +50,44 @@
 
   <%= render DS::Card.new(class: "gap-4") do %>
     <div>
+      <h2 class="text-lg font-semibold text-primary"><%= t("admin.system_health.documents.title") %></h2>
+      <p class="mt-1 text-sm text-secondary"><%= t("admin.system_health.documents.description") %></p>
+    </div>
+
+    <dl class="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.documents.documents") %></dt>
+        <dd class="text-primary font-medium"><%= document_health.documents %></dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.documents.in_flight") %></dt>
+        <dd class="text-primary font-medium"><%= document_health.in_flight %></dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.documents.retrying") %></dt>
+        <dd class="text-primary font-medium"><%= document_health.retrying %></dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.documents.exhausted") %></dt>
+        <dd class="<%= document_health.exhausted.positive? ? "text-destructive" : "text-primary" %> font-medium"><%= document_health.exhausted %></dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.documents.awaiting_review") %></dt>
+        <dd class="text-primary font-medium"><%= document_health.awaiting_review %></dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.documents.pending_imports") %></dt>
+        <dd class="<%= document_health.pending_imports.positive? ? "text-warning" : "text-primary" %> font-medium"><%= document_health.pending_imports %></dd>
+      </div>
+    </dl>
+
+    <% unless document_health.healthy? %>
+      <p class="text-sm text-warning"><%= t("admin.system_health.documents.attention") %></p>
+    <% end %>
+  <% end %>
+
+  <%= render DS::Card.new(class: "gap-4") do %>
+    <div>
       <h2 class="text-lg font-semibold text-primary"><%= t("admin.system_health.show.counters_section_title") %></h2>
       <p class="mt-1 text-sm text-secondary"><%= t("admin.system_health.show.counters_section_description") %></p>
     </div>
