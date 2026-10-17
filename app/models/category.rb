@@ -45,6 +45,14 @@ class Category < ApplicationRecord
       .order(:name, :id)
   }
   scope :roots, -> { where(parent_id: nil) }
+  # Movements between the household's own accounts are not spending envelopes.
+  # Keeping them out of budgets means the budget list contains only money the
+  # owner can actually allocate.
+  scope :budgetable, -> { where.not(name: non_budgetable_names) }
+
+  def self.non_budgetable_names
+    [ credit_card_payment_name, investment_contributions_name ]
+  end
   # Legacy scopes - classification removed; these now return all categories
   scope :incomes, -> { all }
   scope :expenses, -> { all }

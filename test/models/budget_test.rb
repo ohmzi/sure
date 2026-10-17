@@ -5,6 +5,17 @@ class BudgetTest < ActiveSupport::TestCase
     @family = families(:empty)
   end
 
+  test "system transfer categories are not budget categories" do
+    @family.categories.bootstrap!
+    budget = Budget.find_or_bootstrap(@family, start_date: Date.current.beginning_of_month)
+    budget.sync_budget_categories
+
+    names = budget.budget_categories.includes(:category).map { |budget_category| budget_category.category.name }
+
+    assert_not_includes names, Category.credit_card_payment_name
+    assert_not_includes names, Category.investment_contributions_name
+  end
+
   test "budget_date_valid? allows going back 2 years even without entries" do
     two_years_ago = 2.years.ago.beginning_of_month
     assert Budget.budget_date_valid?(two_years_ago, family: @family)
