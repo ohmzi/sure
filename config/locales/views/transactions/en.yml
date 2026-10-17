@@ -116,6 +116,10 @@ en:
       tab_transactions: Transactions
       tab_upcoming: Upcoming
       uncategorized: "(uncategorized)"
+      category_from_ai: Category set by AI
+      category_from_bayes: Category learned from your history
+      category_from_rule: Category set by a rule
+      category_from_source: "Category set by %{source}"
       additional_details: "Additional details"
       payee: "Payee"
       description: "Description"

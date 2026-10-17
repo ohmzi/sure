@@ -142,3 +142,18 @@ class TransactionsHelperTest < ActionView::TestCase
     assert_equal({ "someprovider" => { "a" => 1 } }, JSON.parse(details[:raw]))
   end
 end
+
+class TransactionsHelperTest < ActionView::TestCase
+  test "category provenance names an automatic source only while it owns the value" do
+    transaction = transactions(:one)
+    category = categories(:income)
+    transaction.update!(category: category)
+    transaction.data_enrichments.create!(attribute_name: "category_id", source: "ai", value: category.id)
+
+    assert_equal "Category set by AI", category_provenance_label(transaction)
+
+    transaction.update!(category: categories(:food_and_drink))
+
+    assert_nil category_provenance_label(transaction)
+  end
+end

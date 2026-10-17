@@ -259,4 +259,24 @@ module TransactionsHelper
   def entry_provenance_icon(primary)
     PROVENANCE_ICONS.fetch(primary.to_s, "file-text")
   end
+
+  # Who set the category currently on the transaction. A manual pick writes no
+  # enrichment, and an old AI/rule value that the user has since changed no
+  # longer matches, so both read as "not automatic" and render nothing.
+  def category_provenance_label(transaction)
+    return nil if transaction.category_id.blank?
+
+    enrichment = transaction.data_enrichments
+                           .where(attribute_name: "category_id")
+                           .order(updated_at: :desc)
+                           .find { |row| row.value.to_s.delete('"') == transaction.category_id.to_s }
+    return nil if enrichment&.source.blank?
+
+    case enrichment.source
+    when "ai" then t("transactions.show.category_from_ai")
+    when "bayes" then t("transactions.show.category_from_bayes")
+    when "rule" then t("transactions.show.category_from_rule")
+    else t("transactions.show.category_from_source", source: enrichment.source.to_s.titleize)
+    end
+  end
 end

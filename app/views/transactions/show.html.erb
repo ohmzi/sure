@@ -110,6 +110,9 @@
               <p class="text-xs text-secondary"><%= outflow_category ? t(".category_set_on_outflow") : t(".category_set_on_hidden_outflow") %></p>
             </div>
           <% end %>
+          <% if (provenance = category_provenance_label(@entry.transaction)) %>
+            <p class="px-1 text-xs text-secondary"><%= provenance %></p>
+          <% end %>
         <% end %>
       </div>
     <% end %>
