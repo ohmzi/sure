@@ -13,8 +13,8 @@ class ReplaceUrlBackTest < ApplicationSystemTestCase
 
     # Only the copy Turbo caches on leaving carries this mark. A refetch drops it.
     execute_script("document.body.dataset.left = ''")
-    click_link "Transactions"
-    assert_selector "main h1", text: "Transactions"
+    click_link I18n.t("layouts.application.nav.activity")
+    assert_selector "main h1", text: I18n.t("transactions.index.title")
 
     page.go_back
 

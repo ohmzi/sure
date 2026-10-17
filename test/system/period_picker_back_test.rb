@@ -33,8 +33,8 @@ class PeriodPickerBackTest < ApplicationSystemTestCase
 
   test "Back from a page opened after a pick shows the pick, then the previous period" do
     pick_period "90D"
-    click_link "Transactions"
-    assert_selector "main h1", text: "Transactions"
+    click_link I18n.t("layouts.application.nav.activity")
+    assert_selector "main h1", text: I18n.t("transactions.index.title")
 
     page.go_back
     assert_selector period_button("90D")
@@ -55,8 +55,8 @@ class PeriodPickerBackTest < ApplicationSystemTestCase
     JS
     find(any_period_button).click
     click_link "90D"
-    click_link "Transactions"
-    assert_selector "main h1", text: "Transactions"
+    click_link I18n.t("layouts.application.nav.activity")
+    assert_selector "main h1", text: I18n.t("transactions.index.title")
 
     # Turbo 8.0.13 still renders the frame the page left behind, then pushes
     # its URL and promotes it to a visit.

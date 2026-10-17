@@ -53,7 +53,9 @@ class DocumentBrowserTest < ApplicationSystemTestCase
 
   test "the receipts page browses, searches, filters and opens the viewer from the main chrome" do
     visit root_path
-    click_link I18n.t("layouts.application.nav.documents") # the main sidebar entry
+    # Documents lives under the More tab since the five tabs (2026-10-17).
+    click_link I18n.t("layouts.application.nav.more"), match: :first
+    click_link I18n.t("layouts.application.nav.documents")
     assert_current_path documents_path
     assert_no_selector "#settings-nav-container"           # never the settings chrome
 

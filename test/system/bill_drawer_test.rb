@@ -91,7 +91,7 @@ class BillDrawerTest < ApplicationSystemTestCase
     # cached copy of it must not bring the closed drawer back open.
     page.send_keys(:escape)
     assert_no_selector "dialog[open]"
-    click_on I18n.t("layouts.application.nav.transactions"), match: :first
+    click_on I18n.t("layouts.application.nav.activity"), match: :first
     assert_current_path transactions_path
     page.go_back
     assert_selector @row_link

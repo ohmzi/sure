@@ -58,7 +58,14 @@
     render (and its query budget) is unchanged. %>
 <% if accessible_accounts.any? %>
   <%= turbo_frame_tag "dashboard_today", src: dashboard_today_path, target: "_top" do %>
-    <div class="h-40 mb-6 rounded-3xl bg-container-inset animate-pulse" aria-hidden="true"></div>
+    <%# Shaped like Today (two cards, then two rows), so the widgets below do
+        not jump when it lands. %>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6" aria-hidden="true">
+      <div class="h-48 rounded-3xl bg-container-inset animate-pulse"></div>
+      <div class="h-48 rounded-3xl bg-container-inset animate-pulse"></div>
+      <div class="h-28 rounded-2xl bg-container-inset animate-pulse"></div>
+      <div class="h-28 rounded-2xl bg-container-inset animate-pulse"></div>
+    </div>
   <% end %>
 <% end %>
 

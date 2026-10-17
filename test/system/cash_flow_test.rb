@@ -157,7 +157,7 @@ class CashFlowTest < ApplicationSystemTestCase
     sign_in @user
     assert_selector "#cashflow-preview svg .sankey-link"
     install_posthog_fake
-    find("#cashflow-preview").scroll_to(:center)
+    page.scroll_to(find("#cashflow-preview"), align: :center) # into view (an element's own scroll_to scrolls inside it)
     assert_selector "#cashflow-preview [data-preview-sankey-chart-target='chart'] svg"
     assert_event_count "sankey_preview_displayed", 1
     page.execute_script("document.dispatchEvent(new Event('posthog:ready'))")
@@ -227,7 +227,7 @@ class CashFlowTest < ApplicationSystemTestCase
     install_posthog_fake
     assert_event_count "sankey_preview_displayed", 0
     section.find("[data-dashboard-section-target='button']").click
-    find("#cashflow-preview").scroll_to(:center)
+    page.scroll_to(find("#cashflow-preview"), align: :center) # into view (an element's own scroll_to scrolls inside it)
     assert_event_count "sankey_preview_displayed", 1
     within "#cashflow-preview" do
       find_button("Expand", enable_aria_label: true).send_keys(:enter)
@@ -283,7 +283,7 @@ class CashFlowTest < ApplicationSystemTestCase
         };
         document.dispatchEvent(new Event('posthog:ready'));
       JS
-      find("#cashflow-preview").scroll_to(:center)
+      page.scroll_to(find("#cashflow-preview"), align: :center) # into view (an element's own scroll_to scrolls inside it)
       assert_event_count "sankey_preview_displayed", 1
       within "#cashflow-preview" do
         click_button "Expand", enable_aria_label: true
@@ -398,6 +398,10 @@ class CashFlowTest < ApplicationSystemTestCase
     end
 
     def install_posthog_fake
+      # Home's Today summary loads into its own frame after the page
+      # (2026-10-17); let it land first so the charts below stop moving
+      # before the preview's visibility is counted.
+      assert_selector "turbo-frame#dashboard_today[complete]" if page.has_css?("turbo-frame#dashboard_today", wait: 0)
       page.execute_script(<<~JS)
         window.sankeyEvents = [];
         window.posthog = {
