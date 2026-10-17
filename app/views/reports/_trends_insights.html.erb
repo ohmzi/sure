@@ -6,7 +6,28 @@
       </h3>
 
       <% if trends_data.any? %>
-        <div class="bg-container-inset rounded-xl p-1 overflow-x-auto">
+        <%# On a phone each month is one row of a list, so nothing scrolls
+            sideways; from sm up it is the table. %>
+        <ul class="sm:hidden rounded-2xl bg-container shadow-border-xs divide-y divide-subdued">
+          <% trends_data.each do |trend| %>
+            <% savings_rate = trend[:income] > 0 ? ((trend[:net].to_f / trend[:income].to_f) * 100).round(1) : 0 %>
+            <li class="px-4 py-3 space-y-1">
+              <div class="flex items-baseline justify-between gap-3">
+                <span class="text-sm text-primary <%= "font-semibold" if trend[:is_current_month] %>">
+                  <%= trend[:month] %>
+                  <% if trend[:is_current_month] %><span class="text-xs text-subdued">(<%= t("reports.trends.current") %>)</span><% end %>
+                </span>
+                <span class="text-sm font-semibold privacy-sensitive <%= trend[:net] >= 0 ? "text-success" : "text-destructive" %>"><%= Money.new(trend[:net], Current.family.currency).format %></span>
+              </div>
+              <div class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-secondary">
+                <span class="privacy-sensitive"><%= t("reports.trends.income") %> <%= Money.new(trend[:income], Current.family.currency).format %></span>
+                <span class="privacy-sensitive"><%= t("reports.trends.expenses") %> <%= Money.new(trend[:expenses], Current.family.currency).format %></span>
+                <span><%= t("reports.trends.savings_rate") %> <%= savings_rate %>%</span>
+              </div>
+            </li>
+          <% end %>
+        </ul>
+        <div class="hidden sm:block bg-container-inset rounded-xl p-1 overflow-x-auto">
           <div class="w-max sm:w-full">
           <div class="rounded-lg shadow-border-xs bg-container overflow-hidden">
           <table class="w-full">

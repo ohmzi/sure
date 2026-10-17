@@ -6,7 +6,7 @@
       <p class="text-xs text-secondary"><%= (group[:classification] || "other").titleize %></p>
       <% group[:accounts].each do |account| %>
         <div class="flex items-center justify-between text-sm">
-          <span class="truncate text-primary"><%= account.name %></span>
+          <span class="min-w-0 break-words text-primary"><%= account.name %></span>
           <span class="tabular-nums privacy-sensitive"><%= format_money(account.balance_money) %></span>
         </div>
       <% end %>

@@ -97,11 +97,11 @@ class AccountsTest < ApplicationSystemTestCase
 
   private
 
+    # The account sidebar is gone (2026-10-17): Accounts is its own tab, with
+    # "New account" in its header.
     def open_new_account_modal
-      within "[data-controller='DS--tabs']" do
-        click_button "All"
-        click_link "New account"
-      end
+      visit accounts_path
+      click_link "New account", match: :first
     end
 
     # The account page issues a Turbo morph refresh shortly after it loads
@@ -158,12 +158,7 @@ class AccountsTest < ApplicationSystemTestCase
 
       click_button "Create Account"
 
-      within_testid("account-sidebar-tabs") do
-        click_on "All"
-        find("details", text: Accountable.from_type(accountable_type).display_name).click
-        assert_text account_name
-      end
-
+      # The account sidebar is gone (2026-10-17); the Accounts tab lists it.
       visit accounts_url
       assert_text account_name
 

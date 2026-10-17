@@ -1,0 +1,11 @@
+<%# The Settings home: on a phone, the large title and the grouped list; on a
+    computer the list is already the left pane, so this side invites a pick. %>
+<div class="lg:hidden">
+  <h1 class="pt-2 pb-5 text-3xl font-bold tracking-tight text-primary"><%= t("layouts.settings.title") %></h1>
+  <%= render "settings/settings_nav" %>
+</div>
+<div class="hidden lg:flex flex-col items-center justify-center gap-3 min-h-[60vh] text-center">
+  <%= render DS::FilledIcon.new(icon: "settings", hex_color: "var(--color-brand-500)", size: "lg", rounded: true) %>
+  <p class="text-lg font-semibold text-primary"><%= t("settings.home.show.pick_title") %></p>
+  <p class="text-sm text-secondary"><%= t("settings.home.show.pick_description") %></p>
+</div>

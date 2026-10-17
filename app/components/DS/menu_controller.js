@@ -6,6 +6,7 @@ import {
   shift,
 } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
+import { placeAsSheet } from "utils/mobile_sheet";
 
 /**
  * Strict action-list menu. Container is `role="menu"`, items are
@@ -133,7 +134,7 @@ export default class extends Controller {
   }
 
   #hideBackdrop() {
-    if (this.hasBackdropTarget) this.backdropTarget.classList.add("hidden");
+    this.backdropTarget.classList.add("hidden");
   }
 
   #menuItems() {
@@ -174,29 +175,9 @@ export default class extends Controller {
   update() {
     if (!this.buttonTarget || !this.contentTarget) return;
 
-    const isSmallScreen = !window.matchMedia("(min-width: 1024px)").matches;
-    const useMobileFullwidth = isSmallScreen && this.mobileFullwidthValue;
-
-    // A phone gets the bottom sheet every popup shares: pinned to the bottom
-    // edge, full width, over a backdrop (a tap on it lands outside and closes).
-    if (useMobileFullwidth) {
-      this.contentTarget.dataset.sheet = "";
-      Object.assign(this.contentTarget.style, {
-        position: "fixed",
-        left: "0px",
-        width: "100vw",
-        top: "auto",
-        bottom: "0px",
-        paddingLeft: "0px",
-        paddingRight: "0px",
-      });
-      // update() also runs on resize while closed; only an open menu shows it.
-      if (this.hasBackdropTarget) this.backdropTarget.classList.toggle("hidden", !this.show);
-      return;
-    }
-    delete this.contentTarget.dataset.sheet;
-    this.#hideBackdrop();
-    Object.assign(this.contentTarget.style, { bottom: "", paddingLeft: "", paddingRight: "" });
+    // A phone gets the bottom sheet every popup shares, whatever the menu's
+    // mobile_fullwidth (the owner: "every popup should be bottom sheet").
+    if (placeAsSheet(this.contentTarget, this.backdropTarget, this.show)) return;
 
     computePosition(this.buttonTarget, this.contentTarget, {
       placement: this.placementValue,

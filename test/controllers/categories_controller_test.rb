@@ -234,7 +234,7 @@ class CategoriesControllerTest < ActionDispatch::IntegrationTest
     get merge_categories_path
 
     assert_response :success
-    assert_select "#mobile-settings-nav"
+    assert_select "#settings-nav-container" # the settings layout (its list pane)
     assert_select "form[action='#{perform_merge_categories_path}'] button[type='submit']"
   end
 

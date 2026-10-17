@@ -28,6 +28,50 @@ module SettingsHelper
     { name: -> { t("settings.settings_nav.feedback_label") }, path: :feedback_path }
   ]
 
+  # The Settings list's groups, in order (the iOS Settings redesign,
+  # 2026-10-17). Each row has a tint for its icon tile, as iOS colours its
+  # settings. Accounts left the list for its own tab.
+  def settings_nav_sections
+    admin = Current.user&.admin?
+    super_admin = Current.user&.super_admin?
+    [
+      { header: t("settings.settings_nav.general_section_title"), items: [
+        { label: t("settings.settings_nav.bank_sync_label"), path: settings_providers_path, icon: "banknote", tint: "green", if: admin },
+        { label: t("settings.settings_nav.preferences_label"), path: settings_preferences_path, icon: "bolt", tint: "gray" },
+        { label: t("settings.settings_nav.appearance_label"), path: settings_appearance_path, icon: "palette", tint: "brand" },
+        { label: t("settings.settings_nav.security_label"), path: settings_security_path, icon: "shield-check", tint: "blue" },
+        { label: t("settings.settings_nav.payment_label"), path: settings_payment_path, icon: "circle-dollar-sign", tint: "yellow", if: !self_hosted? && Current.family&.can_manage_subscription? }
+      ] },
+      { header: t("settings.settings_nav.transactions_section_title"), items: [
+        { label: t("settings.settings_nav.categories_label"), path: categories_path, icon: "shapes", tint: "orange" },
+        { label: t("settings.settings_nav.tags_label"), path: tags_path, icon: "tags", tint: "fuchsia" },
+        { label: t("settings.settings_nav.rules_label"), path: rules_path, icon: "git-branch", tint: "indigo" },
+        { label: t("settings.settings_nav.merchants_label"), path: family_merchants_path, icon: "store", tint: "cyan" },
+        { label: t("settings.settings_nav.recurring_transactions_label"), path: recurring_transactions_path, icon: "repeat", tint: "green" },
+        { label: t("settings.settings_nav.documents_label"), path: documents_path, icon: "file-text", tint: "blue" }
+      ] },
+      (admin ? { header: t("settings.settings_nav.advanced_section_title"), items: [
+        { label: t("settings.settings_nav.ai_prompts_label"), path: settings_ai_prompts_path, icon: "bot", tint: "violet" },
+        { label: t("settings.settings_nav.llm_usage_label"), path: settings_llm_usage_path, icon: "activity", tint: "pink" },
+        { label: t("settings.settings_nav.api_keys_label"), path: settings_api_keys_path, icon: "key", tint: "yellow" },
+        { label: t("settings.settings_nav.mcp_label"), path: settings_mcp_path, icon: "plug", tint: "indigo" },
+        { label: t("settings.settings_nav.debug_label", default: "Debug"), path: settings_debug_path, icon: "bug", tint: "red", if: super_admin },
+        { label: t("settings.settings_nav.background_jobs_label"), path: settings_background_jobs_path, icon: "list-checks", tint: "gray", if: super_admin },
+        { label: t("settings.settings_nav.self_hosting_label"), path: settings_hosting_path, icon: "database", tint: "gray", if: self_hosted? },
+        { label: t("settings.settings_nav.imports_label"), path: imports_path, icon: "download", tint: "blue" },
+        { label: t("settings.settings_nav.exports_label"), path: family_exports_path, icon: "upload", tint: "green" },
+        { label: t("settings.settings_nav.sso_providers_label"), path: admin_sso_providers_path, icon: "key-round", tint: "orange", if: super_admin },
+        { label: t("settings.settings_nav.users_label"), path: admin_users_path, icon: "users", tint: "cyan", if: super_admin },
+        { label: t("settings.settings_nav.system_health_label"), path: admin_system_health_path, icon: "heart-pulse", tint: "red", if: super_admin }
+      ] } : nil),
+      { header: t("settings.settings_nav.other_section_title"), items: [
+        { label: t("settings.settings_nav.guides_label"), path: settings_guides_path, icon: "book-open", tint: "yellow" },
+        { label: t("settings.settings_nav.whats_new_label"), path: changelog_path, icon: "box", tint: "indigo" },
+        { label: t("settings.settings_nav.feedback_label"), path: feedback_path, icon: "megaphone", tint: "orange" }
+      ] }
+    ].compact.map { |section| section.merge(items: section[:items].reject { |item| item[:if] == false }) }
+  end
+
   def adjacent_setting(current_path, offset)
     visible_settings = SETTINGS_ORDER.select { |setting| setting[:condition].nil? || send(setting[:condition]) }
     current_index = visible_settings.index { |setting| send(setting[:path]) == current_path }

@@ -5,9 +5,9 @@ class SettingsTest < ApplicationSystemTestCase
     sign_in @user = users(:family_admin)
 
     # Base settings available to all users
-    @settings_links = [
-      [ "Accounts", accounts_path ]
-    ]
+    # Accounts left Settings for its own tab (2026-10-17); Profile is the
+    # card at the top of the list.
+    @settings_links = []
 
     @settings_links << [ "Bank sync", settings_providers_path ] if @user.admin?
 
@@ -38,12 +38,12 @@ class SettingsTest < ApplicationSystemTestCase
   test "can access settings from sidebar" do
     VCR.use_cassette("git_repository_provider/fetch_latest_release_notes") do
       open_settings_from_sidebar
-      assert_selector "h1", text: "Accounts"
-      assert_current_path accounts_path, ignore_query: true
+      assert_selector "h1", text: "Settings"
+      assert_current_path settings_root_path
 
       @settings_links.each do |name, path|
-        click_link name, match: :first
-        assert_selector "h1", text: name
+        find("#settings-nav-container a[href='#{path}']").click
+        assert_selector "main h1", text: name
         assert_current_path path
       end
     end

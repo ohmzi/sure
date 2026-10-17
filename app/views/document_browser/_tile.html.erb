@@ -92,7 +92,7 @@
     <% else %>
       <p class="truncate text-sm font-semibold text-primary"><%= row.title %></p>
     <% end %>
-    <p class="<%= state == :needs_you ? "line-clamp-3 text-destructive" : "truncate text-secondary" %> text-xs">
+    <p class="<%= state == :needs_you ? "line-clamp-3 text-destructive" : "line-clamp-2 text-secondary" %> text-xs">
       <%= meta %>
     </p>
     <%# The fix sits on the tile (spec §6): a held read offers its retries, and

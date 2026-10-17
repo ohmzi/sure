@@ -64,11 +64,10 @@ class PropertiesEditTest < ApplicationSystemTestCase
       assert_field locator, with: with
     end
 
+    # The account sidebar is gone (2026-10-17): Accounts is its own tab.
     def open_new_account_modal
-      within "[data-controller='DS--tabs']" do
-        click_button "All"
-        click_link "New account"
-      end
+      visit accounts_path
+      click_link "New account", match: :first
     end
 
     def create_new_property_account

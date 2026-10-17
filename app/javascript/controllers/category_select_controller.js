@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 import { createCategory } from "utils/category_create";
+import { ensureBackdrop, placeAsSheet } from "utils/mobile_sheet";
 
 export default class extends Controller {
   static targets = [
@@ -48,6 +49,12 @@ export default class extends Controller {
     this.isOpen = true;
     this.buttonTarget.setAttribute("aria-expanded", "true");
     this.menuTarget.classList.remove("hidden");
+    // A phone gets the bottom sheet every popup shares (2026-10-17).
+    placeAsSheet(
+      this.menuTarget,
+      ensureBackdrop(this.element, () => this.close()),
+      true,
+    );
 
     this.searchTarget.value = "";
     this.filter();
@@ -58,6 +65,7 @@ export default class extends Controller {
 
   close() {
     this.isOpen = false;
+    ensureBackdrop(this.element, () => this.close()).classList.add("hidden");
     this.buttonTarget.setAttribute("aria-expanded", "false");
     this.menuTarget.classList.add("hidden");
   }
@@ -93,8 +101,10 @@ export default class extends Controller {
       this.createAsSubcategoryTarget.classList.toggle("flex", canNest);
     }
 
-    this.createLabelTarget.textContent =
-      this.createLabelValue.replace("__CATEGORY_NAME__", rawQuery);
+    this.createLabelTarget.textContent = this.createLabelValue.replace(
+      "__CATEGORY_NAME__",
+      rawQuery,
+    );
   }
 
   handleSearchKeydown(event) {
@@ -145,10 +155,7 @@ export default class extends Controller {
     this.optionTargets.forEach((candidate) => {
       const selected = candidate === option;
 
-      candidate.setAttribute(
-        "aria-selected",
-        selected ? "true" : "false",
-      );
+      candidate.setAttribute("aria-selected", selected ? "true" : "false");
 
       candidate.classList.toggle("bg-container-inset", selected);
 
@@ -239,7 +246,8 @@ export default class extends Controller {
       // A subcategory goes at the end of its parent's group, not the list.
       const anchor = parentId ? this.#lastOptionInGroup(parentId) : null;
       if (anchor) anchor.insertAdjacentHTML("afterend", category.html);
-      else this.createFormTarget.insertAdjacentHTML("beforebegin", category.html);
+      else
+        this.createFormTarget.insertAdjacentHTML("beforebegin", category.html);
 
       const newOption = this.optionTargets.find(
         (option) => option.dataset.categoryId === String(category.id),

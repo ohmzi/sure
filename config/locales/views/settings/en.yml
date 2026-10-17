@@ -348,7 +348,12 @@ en:
         revoke_confirm: Revoke access for this client?
       revoke:
         revoked: Connection revoked.
+    home:
+      show:
+        pick_title: Choose a setting
+        pick_description: Pick something from the list to see and change it here.
     settings_nav:
+      title: Settings
       accounts_label: Accounts
       advanced_section_title: Advanced
       ai_prompts_label: AI Prompts

@@ -35,17 +35,17 @@
     </div>
   <% end %>
 <% else %>
-  <section class="bg-container shadow-border-xs rounded-xl p-4 space-y-4">
+  <%# iOS grouped style (2026-10-17): the section's name small and uppercase
+      above its rounded card, the explanation as the card's footnote. %>
+  <section class="space-y-2">
     <% if title.present? %>
-      <div>
-        <h2 class="text-lg font-semibold tracking-tight text-primary"><%= title %></h2>
-        <% if subtitle.present? %>
-          <p class="text-secondary text-sm mt-1"><%= subtitle %></p>
-        <% end %>
-      </div>
+      <h2 class="px-4 text-xs font-medium uppercase tracking-wide text-secondary"><%= title %></h2>
     <% end %>
-    <div class="space-y-4">
+    <div class="bg-container shadow-border-xs rounded-2xl p-4 space-y-4">
       <%= content %>
     </div>
+    <% if subtitle.present? %>
+      <p class="px-4 text-xs text-secondary"><%= subtitle %></p>
+    <% end %>
   </section>
 <% end %>

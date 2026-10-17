@@ -1,118 +1,49 @@
-<%
-nav_sections = [
-  {
-    header: t(".general_section_title"),
-    items: [
-      { label: t(".accounts_label"), path: accounts_path, icon: "layers" },
-      { label: t(".bank_sync_label"), path: settings_providers_path, icon: "banknote", if: Current.user&.admin? },
-      { label: t(".preferences_label"), path: settings_preferences_path, icon: "bolt" },
-      { label: t(".appearance_label"), path: settings_appearance_path, icon: "palette" },
-      { label: t(".profile_label"), path: settings_profile_path, icon: "circle-user" },
-      { label: t(".security_label"), path: settings_security_path, icon: "shield-check" },
-      { label: t(".payment_label"), path: settings_payment_path, icon: "circle-dollar-sign", if: !self_hosted? && Current.family&.can_manage_subscription? }
-    ]
-  },
-  {
-    header: t(".transactions_section_title"),
-    items: [
-      { label: t(".categories_label"), path: categories_path, icon: "shapes" },
-      { label: t(".tags_label"), path: tags_path, icon: "tags" },
-      { label: t(".rules_label"), path: rules_path, icon: "git-branch" },
-      { label: t(".merchants_label"), path: family_merchants_path, icon: "store" },
-      { label: t(".recurring_transactions_label"), path: recurring_transactions_path, icon: "repeat" },
-      { label: t(".documents_label"), path: documents_path, icon: "file-text" },
-    ]
-  },
-  (
-    Current.user&.admin? ? {
-      header: t(".advanced_section_title"),
-      items: [
-        { label: t(".ai_prompts_label"), path: settings_ai_prompts_path, icon: "bot" },
-        { label: t(".llm_usage_label"), path: settings_llm_usage_path, icon: "activity" },
-        { label: t(".api_keys_label"), path: settings_api_keys_path, icon: "key" },
-        { label: t(".mcp_label"), path: settings_mcp_path, icon: "plug" },
-        { label: t(".debug_label", default: "Debug"), path: settings_debug_path, icon: "bug", if: Current.user&.super_admin? },
-        { label: t(".background_jobs_label"), path: settings_background_jobs_path, icon: "list-checks", if: Current.user&.super_admin? },
-        { label: t(".self_hosting_label"), path: settings_hosting_path, icon: "database", if: self_hosted? },
-        { label: t(".imports_label"), path: imports_path, icon: "download" },
-        { label: t(".exports_label"), path: family_exports_path, icon: "upload" },
-        { label: t(".sso_providers_label"), path: admin_sso_providers_path, icon: "key-round", if: Current.user&.super_admin? },
-        { label: t(".users_label"), path: admin_users_path, icon: "users", if: Current.user&.super_admin? },
-        { label: t(".system_health_label"), path: admin_system_health_path, icon: "heart-pulse", if: Current.user&.super_admin? }
-      ]
-    } : nil
-  ),
-  {
-    header: t(".other_section_title"),
-    items: [
-      { label: t(".guides_label"), path: settings_guides_path, icon: "book-open" },
-      { label: t(".whats_new_label"), path: changelog_path, icon: "box" },
-      { label: t(".feedback_label"), path: feedback_path, icon: "megaphone" }
-    ]
-  }
-]
-%>
+<%# The Settings list (the owner's iOS redesign, 2026-10-17): your profile as
+    the first row, then inset grouped lists — a tinted icon tile, the label, a
+    chevron — and Log out on its own at the end. The same list is a phone's
+    Settings page and a computer's left pane, where the open page is marked. %>
+<nav aria-label="<%= t("settings.settings_nav.title", default: "Settings") %>" class="space-y-7">
+  <%= link_to settings_profile_path, class: class_names(
+        "flex items-center gap-3.5 rounded-2xl bg-container p-3.5 shadow-border-xs active:scale-[0.99] transition focus-ring",
+        ("ring-2 ring-link" if page_active?(settings_profile_path))
+      ), aria: { current: ("page" if page_active?(settings_profile_path)) } do %>
+    <div class="size-14 shrink-0">
+      <%= render "settings/user_avatar", avatar_url: (Current.user.profile_image.attached? ? Current.user.profile_image.variant(:small) : nil), initials: Current.user.initials %>
+    </div>
+    <div class="min-w-0 grow">
+      <p class="truncate text-lg font-semibold text-primary"><%= Current.user.display_name %></p>
+      <p class="truncate text-sm text-secondary"><%= Current.user.email %></p>
+    </div>
+    <%= icon("chevron-right", size: "sm") %>
+  <% end %>
 
-<div class="space-y-4">
-  <div class="hidden lg:flex items-center gap-2 p-1.5">
-    <%= render DS::Link.new(
-      text: t("settings.settings_nav_link_large.previous"),
-      icon: "chevron-left",
-      href: previous_path,
-      variant: "ghost",
-    ) %>
-    <%= link_to previous_path, class: "hidden md:block uppercase bg-surface-inset-hover rounded-sm px-1 py-0.5 text-xs text-secondary shadow-sm ml-1 pointer-events-none", data: { controller: "hotkey", hotkey: "Escape" } do %>
-      <kbd>esc</kbd>
-    <% end %>
-  </div>
-  <nav class="space-y-4 hidden md:block">
-    <% nav_sections.compact.each do |section| %>
-      <section class="space-y-2">
-        <div class="flex items-center gap-2 px-3">
-          <h3 class="uppercase text-secondary font-medium text-xs"><%= section[:header] %></h3>
-          <%= render "shared/ruler", classes: "w-full" %>
-        </div>
-        <ul class="space-y-1">
-          <% section[:items].each do |item| %>
-            <% next if item[:if] == false %>
-            <li>
-              <%= render "settings/settings_nav_item", name: item[:label], path: item[:path], icon: item[:icon] %>
-            </li>
-          <% end %>
-        </ul>
-      </section>
-    <% end %>
+  <% settings_nav_sections.each do |section| %>
     <section>
-      <%= button_to session_path(Current.session), method: :delete, class: "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-destructive hover:bg-surface-hover w-full" do %>
-        <%= icon("log-out", color: "current") %>
-        <span><%= t(".logout") %></span>
-      <% end %>
-    </section>
-  </nav>
-  <nav class="space-y-4 overflow-x-auto md:hidden no-scrollbar overscroll-none" id="mobile-settings-nav" data-controller="preserve-scroll scroll-on-connect">
-    <ul class="flex flex-nowrap space-x-1">
-      <li>
-        <%= render DS::Link.new(
-          text: t("settings.settings_nav_link_large.previous"),
-          icon: "chevron-left",
-          href: previous_path,
-          variant: "ghost",
-        ) %>
-      </li>
-      <% nav_sections.compact.each do |section| %>
+      <h3 class="px-4 mb-2 text-xs font-medium uppercase tracking-wide text-secondary"><%= section[:header] %></h3>
+      <ul class="overflow-hidden rounded-2xl bg-container shadow-border-xs divide-y divide-subdued">
         <% section[:items].each do |item| %>
-          <% next if item[:if] == false %>
+          <% active = page_active?(item[:path]) %>
           <li>
-            <%= render "settings/settings_nav_item", name: item[:label], path: item[:path], icon: item[:icon] %>
+            <%= link_to item[:path], class: class_names(
+                  "flex items-center gap-3 pl-3 pr-3.5 min-h-12 py-2 text-base transition-colors focus-ring active:bg-container-inset-hover",
+                  active ? "button-bg-accent text-link font-semibold" : "text-primary hover:bg-container-hover"
+                ), aria: { current: ("page" if active) } do %>
+              <%= render DS::FilledIcon.new(icon: item[:icon], hex_color: "var(--color-#{item[:tint]}-500)", size: "md") %>
+              <span class="grow truncate"><%= item[:label] %></span>
+              <%= icon("chevron-right", size: "sm") %>
+            <% end %>
           </li>
         <% end %>
+      </ul>
+    </section>
+  <% end %>
+
+  <section>
+    <div class="overflow-hidden rounded-2xl bg-container shadow-border-xs">
+      <%= button_to session_path(Current.session), method: :delete,
+            class: "flex w-full items-center justify-center min-h-12 text-base font-medium text-destructive hover:bg-container-hover focus-ring" do %>
+        <%= t("settings.settings_nav.logout") %>
       <% end %>
-      <li>
-        <%= button_to session_path(Current.session), method: :delete, class: "flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-destructive hover:bg-surface-hover w-full" do %>
-          <%= icon("log-out", color: "current") %>
-          <span><%= t(".logout") %></span>
-        <% end %>
-      </li>
-    </ul>
-  </nav>
-</div>
+    </div>
+  </section>
+</nav>

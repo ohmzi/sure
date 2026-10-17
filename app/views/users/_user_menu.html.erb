@@ -53,7 +53,7 @@
         roving: false,
         text: t(".settings"),
         icon: "settings",
-        href: intro_mode ? settings_profile_path : accounts_path(return_to: request.fullpath)
+        href: settings_root_path
       ) %>
       <%= render DS::MenuItem.new(variant: "link", roving: false, text: t(".changelog"), icon: "box", href: changelog_path) %>
 

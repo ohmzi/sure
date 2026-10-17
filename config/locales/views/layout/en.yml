@@ -11,6 +11,7 @@ en:
         title: What's new
         done: Got it
       nav:
+        accounts: Accounts
         assistant: Assistant
         bills: Bills
         documents: Documents
@@ -23,6 +24,10 @@ en:
         reports: Reports
         goals: Goals
         transactions: Transactions
+    # The Settings navigation stack / two panes (2026-10-17).
+    settings:
+      title: Settings
+      back_to_app: Back
     auth:
       existing_account: Already have an account?
       no_account: New to %{product_name}?

@@ -66,7 +66,8 @@ class AccountsController < ApplicationController
 
     # Prevent Turbo Drive from caching this page to ensure fresh account lists
     expires_now
-    render layout: "settings"
+    # Accounts is its own tab in the main chrome (the owner, 2026-10-17).
+    render layout: "application"
   end
 
   def new

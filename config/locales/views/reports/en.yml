@@ -15,6 +15,13 @@ en:
         ytd: Year to Date
         last_6_months: Last 6 Months
         custom: Custom Range
+      # Phone-width labels, so the period switch fits without scrolling.
+      periods_short:
+        monthly: Month
+        quarterly: Quarter
+        ytd: YTD
+        last_6_months: 6 mo
+        custom: Custom
       date_range:
         from: From
         to: To

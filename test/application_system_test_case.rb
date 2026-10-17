@@ -132,6 +132,8 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
     # the one upload path a dropped file takes too.
     def add_document_file(path)
       find("button[aria-controls='document_add_sheet']").click
+      assert_selector "dialog#document_add_sheet[open]"
+      sleep 0.4 # let the sheet finish rising, or the picker is still off screen
       find("dialog#document_add_sheet[open] input[type='file'][accept*='application/pdf']", visible: :all)
         .attach_file(path, make_visible: true)
     end

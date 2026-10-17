@@ -522,7 +522,9 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     VCR.use_cassette("git_repository_provider/fetch_latest_release_notes") do
       get changelog_path
       assert_response :ok
-      assert_select "[data-breadcrumbs]", text: /What's new/
+      # A large title, no breadcrumbs (the iOS redesign, 2026-10-17).
+      assert_select "main h1", text: /#{Regexp.escape(I18n.t("pages.changelog.title"))}/
+      assert_select "[data-breadcrumbs]", count: 0
     end
   end
 
@@ -560,7 +562,8 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
   test "feedback" do
     get feedback_path
     assert_response :ok
-    assert_select "[data-breadcrumbs]", text: /Feedback/
+    assert_select "main h1", text: /#{Regexp.escape(I18n.t("pages.feedback.title"))}/
+    assert_select "[data-breadcrumbs]", count: 0
   end
 
   test "dashboard renders spending trend widget" do

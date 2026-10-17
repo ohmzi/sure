@@ -47,7 +47,7 @@
          <%= "disabled" if disabled %>>
 
   <% unless disabled %>
-    <div class="absolute z-50 p-1.5 w-full min-w-48 rounded-lg shadow-lg bg-container mt-1.5 hidden"
+    <div class="absolute z-50 p-1.5 w-full min-w-48 rounded-lg shadow-lg bg-container mt-1.5 hidden data-[sheet]:mt-0 data-[sheet]:rounded-b-none data-[sheet]:rounded-t-3xl data-[sheet]:pt-3 data-[sheet]:pb-[calc(env(safe-area-inset-bottom)+0.75rem)]"
          data-category-select-target="menu"
          data-action="keydown.esc->category-select#escape">
 

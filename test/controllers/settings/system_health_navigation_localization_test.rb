@@ -9,7 +9,9 @@ class Settings::SystemHealthNavigationLocalizationTest < ActionDispatch::Integra
     assert_equal "Systemstatus", I18n.t("settings.settings_nav.system_health_label", locale: :de, fallback: false, raise: true)
   end
 
-  test "super admins see localized system health links in both navigation layouts" do
+  # One Settings list since the iOS redesign (2026-10-17): the left pane on a
+  # computer, the Settings home on a phone.
+  test "super admins see the localized system health link in the settings list" do
     user = users(:sure_support_staff)
     sign_in user
 
@@ -18,7 +20,7 @@ class Settings::SystemHealthNavigationLocalizationTest < ActionDispatch::Integra
       get settings_preferences_url
 
       assert_response :success
-      assert_select "nav a[href='#{admin_system_health_path}']", text: label, count: 2
+      assert_select "nav a[href='#{admin_system_health_path}']", text: label, count: 1
     end
   end
 

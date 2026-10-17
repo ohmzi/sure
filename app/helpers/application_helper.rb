@@ -152,7 +152,7 @@ module ApplicationHelper
         path: budgets_path,
         icon: "map",
         icon_custom: false,
-        active: page_active?(budgets_path)
+        active: page_active?(budgets_path) || request.path.start_with?("/envelopes")
       }
     end
   end

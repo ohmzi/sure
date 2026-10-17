@@ -381,6 +381,9 @@ Rails.application.routes.draw do
   end
 
   namespace :settings do
+    # The iOS-style Settings list (2026-10-17): the grouped list on a phone, the
+    # left pane on a computer.
+    root to: "home#show"
     resource :profile, only: [ :show, :destroy ]
     resource :preferences, only: %i[show update]
     resource :budget_shares, only: :update

@@ -1,48 +1,48 @@
+<%# Settings, redesigned as an Apple app would (the owner, 2026-10-17). On a
+    phone it is a navigation stack: the grouped list (Settings home), and each
+    page under a "‹ Settings" back bar with its large title. On a computer it is
+    two panes, like System Settings: the list on the left, the page on the
+    right. No breadcrumbs, no tab strip, no next/previous footer. %>
+<% on_home = controller_path == "settings/home" %>
 <%= render "layouts/shared/htmldoc", sidebar_aware: true do %>
-  <div class="flex flex-col md:flex-row h-full bg-surface pt-[env(safe-area-inset-top)]">
+  <div class="flex h-full bg-surface pt-[env(safe-area-inset-top)]">
     <%= link_to t("layouts.application.skip_to_main"), "#main",
         class: "sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus:rounded-lg focus:bg-container focus:text-primary focus:shadow-border-xs" %>
 
-    <div id="settings-nav-container" data-controller="preserve-scroll" class="w-full md:w-auto md:min-w-64 shrink-0 md:h-full md:overflow-y-auto border-divider md:border-r">
-      <div class="p-4">
-        <%= render "settings/settings_nav" %>
+    <aside id="settings-nav-container" data-controller="preserve-scroll"
+           class="hidden lg:block w-96 shrink-0 h-full overflow-y-auto border-r border-divider px-5 pb-10">
+      <div class="sticky top-0 z-10 -mx-5 px-5 pt-5 pb-4 bg-surface/85 backdrop-blur-xl">
+        <%= link_to previous_path, class: "inline-flex items-center gap-1 text-base text-link rounded-md focus-ring",
+              data: { controller: "hotkey", hotkey: "Escape" } do %>
+          <%= icon("chevron-left", size: "sm", color: "current") %><%= t("layouts.settings.back_to_app") %>
+        <% end %>
+        <h1 class="mt-3 text-3xl font-bold tracking-tight text-primary"><%= t("layouts.settings.title") %></h1>
       </div>
-    </div>
+      <%= render "settings/settings_nav" %>
+    </aside>
 
-    <main id="main" class="grow flex h-full" data-notification-tray-target="main">
-      <div class="relative max-w-4xl mx-auto flex flex-col w-full h-full">
-        <div data-controller="settings-scroll" class="grow flex flex-col overflow-y-auto overflow-x-hidden overscroll-contain [-webkit-overflow-scrolling:touch]">
-          <div class="sticky top-0 z-10 px-3 md:px-10 pt-1.5 md:pt-3 pb-3 bg-surface border-b border-tertiary shrink-0">
-            <% if content_for?(:breadcrumbs) %>
-              <%= yield :breadcrumbs %>
-            <% else %>
-              <%= render "layouts/shared/breadcrumbs", breadcrumbs: breadcrumbs %>
+    <main id="main" class="grow min-w-0 h-full overflow-y-auto overscroll-contain" data-controller="settings-scroll" data-notification-tray-target="main">
+      <div class="max-w-5xl mx-auto px-4 lg:px-10 pb-24 lg:pb-12">
+        <%# A phone's navigation bar: back to Settings (or, from Settings itself,
+            back to the app). %>
+        <div class="lg:hidden sticky top-0 z-10 -mx-4 px-4 py-2.5 bg-surface/85 backdrop-blur-xl">
+          <%= link_to (on_home ? previous_path : settings_root_path), class: "inline-flex items-center gap-1 min-h-9 text-base text-link rounded-md focus-ring" do %>
+            <%= icon("chevron-left", size: "sm", color: "current") %><%= on_home ? t("layouts.settings.back_to_app") : t("layouts.settings.title") %>
+          <% end %>
+        </div>
+
+        <% if content_for?(:page_title) || content_for?(:page_actions) %>
+          <header class="flex items-center justify-between gap-4 pt-2 lg:pt-10 pb-5">
+            <h1 class="text-3xl font-bold tracking-tight text-primary"><%= content_for :page_title %></h1>
+            <% if content_for?(:page_actions) %>
+              <div class="flex items-center gap-2 shrink-0"><%= yield :page_actions %></div>
             <% end %>
+          </header>
+        <% end %>
 
-            <div class="flex items-center justify-between gap-4 mt-1.5 min-h-9">
-              <% if content_for?(:page_title) %>
-                <h1 class="text-primary text-3xl font-bold tracking-tight">
-                  <%= content_for :page_title %>
-                </h1>
-              <% else %>
-                <div></div>
-              <% end %>
-              <% if content_for?(:page_actions) %>
-                <div class="flex items-center gap-2 shrink-0">
-                  <%= yield :page_actions %>
-                </div>
-              <% end %>
-            </div>
-          </div>
-
-          <div class="grow space-y-4 px-3 md:px-10 pb-20 pt-4">
-            <%= yield :system_alerts %>
-            <%= yield %>
-            <%= settings_nav_footer_mobile %>
-            <div class="my-4">
-              <%= settings_nav_footer %>
-            </div>
-          </div>
+        <div class="space-y-6">
+          <%= yield :system_alerts %>
+          <%= yield %>
         </div>
       </div>
     </main>

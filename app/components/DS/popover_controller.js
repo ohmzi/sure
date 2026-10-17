@@ -6,6 +6,7 @@ import {
   shift,
 } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
+import { placeAsSheet } from "utils/mobile_sheet";
 
 /**
  * Positioned panel for mixed content (forms, pickers, account menus).
@@ -15,7 +16,7 @@ import { Controller } from "@hotwired/stimulus";
  * "collapsed" as the panel opens / closes.
  */
 export default class extends Controller {
-  static targets = ["button", "content"];
+  static targets = ["button", "content", "backdrop"];
 
   static values = {
     show: Boolean,
@@ -82,12 +83,15 @@ export default class extends Controller {
     if (nextShow) {
       this.update();
       this.focusFirstElement();
+    } else if (this.hasBackdropTarget) {
+      this.backdropTarget.classList.add("hidden");
     }
   };
 
   close() {
     this.contentTarget.classList.add("hidden");
     this.buttonTarget.setAttribute("aria-expanded", "false");
+    if (this.hasBackdropTarget) this.backdropTarget.classList.add("hidden");
   }
 
   focusFirstElement() {
@@ -120,29 +124,20 @@ export default class extends Controller {
   update() {
     if (!this.buttonTarget || !this.contentTarget) return;
 
-    const isSmallScreen = !window.matchMedia("(min-width: 768px)").matches;
-    const useMobileFullwidth = isSmallScreen && this.mobileFullwidthValue;
+    // A phone gets the bottom sheet every popup shares (2026-10-17).
+    if (placeAsSheet(this.contentTarget, this.hasBackdropTarget ? this.backdropTarget : null, this.show)) return;
 
     computePosition(this.buttonTarget, this.contentTarget, {
-      placement: useMobileFullwidth ? "bottom" : this.placementValue,
+      placement: this.placementValue,
       middleware: [offset(this.offsetValue), flip({ padding: 5 }), shift({ padding: 5 })],
       strategy: "fixed",
     }).then(({ x, y }) => {
-      if (useMobileFullwidth) {
-        Object.assign(this.contentTarget.style, {
-          position: "fixed",
-          left: "0px",
-          width: "100vw",
-          top: `${y}px`,
-        });
-      } else {
-        Object.assign(this.contentTarget.style, {
-          position: "fixed",
-          left: `${x}px`,
-          top: `${y}px`,
-          width: "",
-        });
-      }
+      Object.assign(this.contentTarget.style, {
+        position: "fixed",
+        left: `${x}px`,
+        top: `${y}px`,
+        width: "",
+      });
     });
   }
 }

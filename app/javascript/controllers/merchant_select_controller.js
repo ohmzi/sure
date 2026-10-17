@@ -1,5 +1,6 @@
 import { autoUpdate } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
+import { ensureBackdrop, placeAsSheet } from "utils/mobile_sheet";
 
 export default class extends Controller {
   static targets = [
@@ -48,6 +49,12 @@ export default class extends Controller {
     this.isOpen = true;
     this.buttonTarget.setAttribute("aria-expanded", "true");
     this.menuTarget.classList.remove("hidden");
+    // A phone gets the bottom sheet every popup shares (2026-10-17).
+    placeAsSheet(
+      this.menuTarget,
+      ensureBackdrop(this.element, () => this.close()),
+      true,
+    );
     this.searchTarget.value = "";
     this.filter();
     this.startAutoUpdate();
@@ -66,6 +73,7 @@ export default class extends Controller {
 
   close() {
     this.isOpen = false;
+    ensureBackdrop(this.element, () => this.close()).classList.add("hidden");
     this.stopAutoUpdate();
     this.buttonTarget.setAttribute("aria-expanded", "false");
     this.menuTarget.classList.remove("opacity-100", "translate-y-0");
@@ -93,7 +101,9 @@ export default class extends Controller {
 
     this.selectedId = id;
     this.hiddenInputTarget.value = id;
-    this.hiddenInputTarget.dispatchEvent(new Event("change", { bubbles: true }));
+    this.hiddenInputTarget.dispatchEvent(
+      new Event("change", { bubbles: true }),
+    );
 
     this.optionTargets.forEach((target) => this.updateOptionState(target, id));
     this.updateSelectionDisplay(option);
@@ -307,6 +317,15 @@ export default class extends Controller {
   }
 
   updatePosition() {
+    if (
+      this.menuTarget.dataset.sheet !== undefined &&
+      placeAsSheet(
+        this.menuTarget,
+        ensureBackdrop(this.element, () => this.close()),
+        this.isOpen,
+      )
+    )
+      return;
     if (!this.hasButtonTarget || !this.hasMenuTarget || !this.isOpen) return;
 
     const container = this.getScrollParent(this.element);
