@@ -28,6 +28,9 @@ class Transactions::CategorizesController < ApplicationController
     remaining_ids = all_entry_ids - entry_ids
 
     category = Current.family.categories.find(params[:category_id])
+    # The selected rows are this merchant group's list on screen. A category
+    # chosen here applies to those rows (all checked by default; the list's
+    # select-all control makes that explicit).
     entries  = Current.accessible_entries.excluding_split_parents.where(id: entry_ids)
     count    = entries.bulk_update!({ category_id: category.id })
 

@@ -32,10 +32,13 @@
         </div>
 
         <% if content_for?(:page_title) || content_for?(:page_actions) %>
-          <header class="flex items-center justify-between gap-4 pt-2 lg:pt-10 pb-5">
-            <h1 class="text-3xl font-bold tracking-tight text-primary"><%= content_for :page_title %></h1>
+          <%# A phone stacks the actions under the title: a long settings title
+              ("Recurring Transactions") plus a shrink-0 action row would push
+              the action off the right edge. %>
+          <header class="flex flex-col gap-3 pt-2 lg:pt-10 pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <h1 class="min-w-0 text-3xl font-bold tracking-tight text-primary"><%= content_for :page_title %></h1>
             <% if content_for?(:page_actions) %>
-              <div class="flex items-center gap-2 shrink-0"><%= yield :page_actions %></div>
+              <div class="flex flex-wrap items-center gap-2 sm:shrink-0"><%= yield :page_actions %></div>
             <% end %>
           </header>
         <% end %>

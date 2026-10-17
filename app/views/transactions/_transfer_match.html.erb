@@ -1,6 +1,6 @@
 <%# locals: (transaction:) %>
 
-<div id="<%= dom_id(transaction, "transfer_match") %>" class="flex items-center gap-1">
+<div id="<%= dom_id(transaction, "transfer_match") %>" class="flex items-center gap-2 pointer-coarse:gap-3">
   <% if transaction.transfer.confirmed? %>
     <span title="<%= transaction.transfer.payment? ? t("transactions.transfer_match.payment_confirmed") : t("transactions.transfer_match.transfer_confirmed") %>">
       <%= icon "link-2", size: "sm", class: "text-secondary" %>
@@ -23,19 +23,24 @@
       ) %>
     </span>
 
+    <%# Real touch targets, not two bare icons a few pixels apart (the owner's
+        report, mobile). Each is a 36px circle that grows to 44px on a coarse
+        pointer, with a hover surface and extra space between the pair. %>
     <%= button_to transfer_path(transaction.transfer, transfer: { status: "confirmed" }),
                     method: :patch,
-                    class: "text-secondary flex items-center justify-center cursor-pointer",
-                    title: t("transactions.transfer_match.confirm_match") do %>
-      <%= icon "check", size: "sm", class: "text-secondary hover:text-primary" %>
+                    class: "inline-flex items-center justify-center size-9 pointer-coarse:size-11 rounded-full text-secondary hover:bg-container-inset-hover hover:text-primary cursor-pointer transition",
+                    title: t("transactions.transfer_match.confirm_match"),
+                    aria: { label: t("transactions.transfer_match.confirm_match") } do %>
+      <%= icon "check", size: "sm", class: "text-current" %>
     <% end %>
 
     <%= button_to transfer_path(transaction.transfer, transfer: { status: "rejected" }),
                     method: :patch,
                     data: { turbo: false },
-                    class: "text-secondary hover:text-primary flex items-center justify-center cursor-pointer",
-                    title: t("transactions.transfer_match.reject_match") do %>
-      <%= icon "x", size: "sm", class: "text-subdued hover:text-primary" %>
+                    class: "inline-flex items-center justify-center size-9 pointer-coarse:size-11 rounded-full text-subdued hover:bg-container-inset-hover hover:text-primary cursor-pointer transition",
+                    title: t("transactions.transfer_match.reject_match"),
+                    aria: { label: t("transactions.transfer_match.reject_match") } do %>
+      <%= icon "x", size: "sm", class: "text-current" %>
     <% end %>
   <% end %>
 </div>
