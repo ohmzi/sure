@@ -58,9 +58,7 @@ class DocumentsSurfaceTest < ApplicationSystemTestCase
     # The pickers are hidden inputs behind the Add sheet's rows; the chosen
     # file's `change` is what uploads it (the same path a real drop takes), and
     # the sheet slides away once a file is picked.
-    find("button[aria-controls='document_add_sheet']").click
-    assert_selector "dialog#document_add_sheet[open]"
-    attach_file "document", file_fixture("receipts/receipt.png"), make_visible: true, match: :first
+    add_document_file(file_fixture("receipts/receipt.png"))
 
     assert_selector "#documents_grid [id^='document_link_']", count: before + 1, wait: 5
     assert_no_selector "dialog#document_add_sheet[open]"

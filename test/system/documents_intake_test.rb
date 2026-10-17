@@ -24,9 +24,7 @@ class DocumentsIntakeTest < ApplicationSystemTestCase
     # drag/drop takes, though no real dragover/drop event is driven here (no
     # test does; see the report).
     assert_selector "input[type='file'][name='document']", visible: :all
-    find("button[aria-controls='document_add_sheet']").click
-    find("dialog#document_add_sheet input[type='file'][accept*='.csv']", visible: :all)
-      .attach_file(file_fixture("imports/transactions.csv"), make_visible: true)
+    add_document_file(file_fixture("imports/transactions.csv"))
 
     # The redirect was followed as a navigation, not reported as a failure: we
     # are on the configuration screen and its form is rendered.

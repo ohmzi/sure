@@ -60,9 +60,8 @@ class DocumentNativeReadTest < ApplicationSystemTestCase
   def upload_receipt
     visit documents_path
     assert_selector "input[type='file'][name='document']", visible: :all
-    execute_script("document.querySelector(\"input[type='file'][name='document']\").classList.remove('hidden')")
     before = page.all("#documents_grid [id^='document_link_']").size
-    attach_file "document", file_fixture("receipts/receipt.png")
+    add_document_file(file_fixture("receipts/receipt.png"))
     assert_selector "#documents_grid [id^='document_link_']", count: before + 1, wait: 5
   end
 

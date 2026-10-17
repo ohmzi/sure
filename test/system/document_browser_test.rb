@@ -132,7 +132,8 @@ class DocumentBrowserTest < ApplicationSystemTestCase
     page.send_keys(:escape)
     assert_no_selector "dialog#document_filters_sheet[open]", wait: 2
 
-    assert_not find("dialog#document_filters_sheet input[value='queued']", visible: :all).checked?
+    # (waits for the close event's discard, which follows the slide-away)
+    assert_selector "dialog#document_filters_sheet input[value='queued']:not(:checked)", visible: :all
     assert_text document_links(:linked_receipt).title # nothing was applied
   end
 

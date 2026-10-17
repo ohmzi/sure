@@ -31,8 +31,7 @@ class DocumentBridgeTest < ApplicationSystemTestCase
     # the change posts the file to the ONE intake endpoint, whose Turbo Stream
     # appends the row in place — no form submit, no navigation.
     assert_selector "input[type='file'][name='document']", visible: :all
-    execute_script("document.querySelector(\"input[type='file'][name='document']\").classList.remove('hidden')")
-    attach_file "document", file_fixture("receipts/receipt.png")
+    add_document_file(file_fixture("receipts/receipt.png"))
 
     # The upload flow ran inline: the row exists, has been posted and polled,
     # and is listed as an unlinked candidate on the entry page.

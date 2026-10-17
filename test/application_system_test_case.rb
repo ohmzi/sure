@@ -127,6 +127,15 @@ class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
       find("a", text: "Sign in")
     end
 
+    # Pick a file the way a person does on the Documents page: tap the
+    # floating +, then "Choose file" in the Add sheet. Its picker's change is
+    # the one upload path a dropped file takes too.
+    def add_document_file(path)
+      find("button[aria-controls='document_add_sheet']").click
+      find("dialog#document_add_sheet[open] input[type='file'][accept*='application/pdf']", visible: :all)
+        .attach_file(path, make_visible: true)
+    end
+
     def within_testid(testid)
       within "[data-testid='#{testid}']" do
         yield
