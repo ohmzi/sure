@@ -203,4 +203,20 @@ class DocumentReaperJobTest < ActiveSupport::TestCase
     assert_nil marked.reload.failure_message
     assert_includes DocumentLink.stranded(before: 30.minutes.ago), marked
   end
+
+  # The host monitor (deploy/healthcheck-alert.sh) cannot read Sidekiq's cron
+  # table, so the job leaves a timestamp the script can compare. Without it a
+  # dead reaper is invisible: no row is swept, but no other check fails.
+  test "it records when the sweep last ran so the host monitor can alert on a dead reaper" do
+    writes = {}
+    fake_redis = Object.new
+    fake_redis.define_singleton_method(:set) { |key, value| writes[key] = value }
+    Sidekiq.stubs(:redis).yields(fake_redis)
+
+    before = Time.current.to_i
+    DocumentReaperJob.perform_now
+
+    assert writes.key?(DocumentReaperJob::HEARTBEAT_KEY), "the reaper left no heartbeat"
+    assert_includes before..Time.current.to_i, writes[DocumentReaperJob::HEARTBEAT_KEY].to_i
+  end
 end

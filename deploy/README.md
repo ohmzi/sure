@@ -47,7 +47,7 @@ docker volume rm sure_paperless-data sure_paperless-media \
 - `bootstrap-secrets.sh` — writes/re-homes secrets into `secrets/` (never prints a value).
 - `backup.sh` / `restore-drill.sh` — nightly backup and the proven restore drill.
 - `healthcheck-alert.sh` — host monitor (container health, disk headroom, backup
-  freshness); cron-driven, see "Monitoring schedule" below.
+  freshness, document pipeline); cron-driven, see "Monitoring schedule" below.
 - `.env` and `secrets/` — untracked live state (never committed).
 
 ## Hardening
@@ -118,6 +118,39 @@ and in the secret file together, then `deploy/dc up -d --force-recreate web
 worker worker-heavy`. The paperless-era secrets (`paperless_*`) are dead — the
 services that read them are gone — but the files are kept so the archived
 volumes can still be opened by hand.
+
+## Encryption keys (Active Record Encryption)
+The app declares `encrypts` on MFA secrets, provider and bank tokens, and provider
+payloads. Three keys protect those columns and are read from the environment:
+`ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY`, `..._DETERMINISTIC_KEY` and
+`..._KEY_DERIVATION_SALT`. On this stack they live in the untracked `deploy/.env`.
+
+- **Back them up with `secret_key_base`.** The nightly database dump is not enough
+  on its own: without the keys, the encrypted columns cannot be read. Losing them
+  loses MFA secrets, provider tokens and the encrypted user email/name fields, and
+  there is no in-app recovery path.
+- **Generate a first set** with `deploy/dc exec -T web bin/rails db:encryption:init`.
+  Write the values straight into `deploy/.env`; never commit them or leave them in
+  shell history. `bin/rails db:encryption:init` prints secret values.
+- **Enabling encryption on an existing database.** Rows written before the keys
+  existed are unreadable until they are re-saved through `encrypts`. Run with
+  `ACTIVE_RECORD_ENCRYPTION_SUPPORT_UNENCRYPTED_DATA=true`, backfill and verify,
+  then set it back to `false`. Leaving it true also widens queries and keeps
+  accepting new plaintext writes.
+- **Recovery.** If a key is lost or changed by accident, restore the previous
+  values first; restarting with the old keys makes the columns readable again. Do
+  not "fix" a failed decrypt by deleting rows.
+- **Rotation.** Rails supports a list of primary keys (the last encrypts, all are
+  tried), but this initializer wires one value per environment variable, so a
+  rotating deployment needs a comma-separated parse before it can rely on that.
+  More importantly, Rails does **not** rotate deterministic keys, and this app uses
+  deterministic encryption for bank/provider tokens, user email and mobile device
+  ids. Rotating those requires an offline decrypt-and-re-encrypt pass while the old
+  key is still configured; a half-rotated table reads with neither key set. Treat
+  key rotation as a maintenance-window operation with a tested restore point.
+- After any key change, restart every app service (`deploy/dc up -d --force-recreate
+  web worker worker-heavy`) and confirm the `[SECURITY] ActiveRecord Encryption is
+  NOT configured` boot warning is gone.
 
 ## Tunnel (cloudflared)
 The app is reached over a cloudflared tunnel; TLS terminates at the edge, so the
@@ -208,13 +241,17 @@ owner's backup root, not `/var/log`):
 `deploy/healthcheck-alert.sh` (mode 0755, run from the host) checks that every
 service in the current stack is running and none is unhealthy, that `DISK_MOUNT`
 has headroom (`DISK_LIMIT_PCT`, default 90), and that the backup artifacts above
-are fresh (`BACKUP_MAX_AGE_HOURS`, default 26). It matches on the compose **service
-name**, so stopped orphan containers from the removed paperless service are
-ignored. When healthy it prints one OK line and exits 0; on failure it posts one
-JSON alert to `ALERT_WEBHOOK_URL` and exits 1. It sources `deploy/.env` itself,
-because cron gives the job no environment. Until the owner sets `ALERT_WEBHOOK_URL`
-in `deploy/.env`, a run aborts at the guard (message on stderr) — loud by design,
-never silently healthy.
+are fresh (`BACKUP_MAX_AGE_HOURS`, default 26). It also watches the document
+pipeline: it fails when any `document_links` row is in `retry_exhausted`, when the
+heavy lane holds more than `HEAVY_QUEUE_MAX` queued reads (default 15), or when
+`DocumentReaperJob` has not recorded a heartbeat within `REAPER_MAX_AGE_MINUTES`
+(default 20; the key is `sure:document_reaper:last_run` in Redis). It matches on
+the compose **service name**, so stopped orphan containers from the removed
+paperless service are ignored. When healthy it prints one OK line and exits 0; on
+failure it posts one JSON alert to `ALERT_WEBHOOK_URL` and exits 1. It sources
+`deploy/.env` itself, because cron gives the job no environment. Until the owner
+sets `ALERT_WEBHOOK_URL` in `deploy/.env`, a run aborts at the guard (message on
+stderr) — loud by design, never silently healthy.
 
 Host crontab entry (every 30 minutes; the log lives under the owner's backup
 root, not `/var/log`):

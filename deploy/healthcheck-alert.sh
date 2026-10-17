@@ -62,6 +62,41 @@ for glob in 'sure_db_*.sql.gz' 'app-storage_*.tgz'; do
   [ -n "$fresh" ] || { fail=1; reasons="$reasons backup_stale=$glob"; }
 done
 
+# 4. The document pipeline. An exhausted read is a user-visible failure no
+#    automatic path can clear; a backed-up heavy lane means documents are
+#    waiting behind a stalled reader; a stale reaper means the one path that
+#    resumes a killed read has stopped running. Each is silent without this.
+POSTGRES_USER="${POSTGRES_USER:-sure_user}"
+POSTGRES_DB="${POSTGRES_DB:-sure_production}"
+HEAVY_QUEUE_MAX="${HEAVY_QUEUE_MAX:-15}"
+REAPER_MAX_AGE_MINUTES="${REAPER_MAX_AGE_MINUTES:-20}"
+
+exhausted="$("$DC" exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+  "select count(*) from document_links where failure_code = 'retry_exhausted' and deleted_at is null" \
+  2>/dev/null | tr -d '[:space:]')"
+if [ -z "$exhausted" ]; then
+  fail=1; reasons="$reasons document_health_unreadable"
+elif [ "$exhausted" -gt 0 ]; then
+  fail=1; reasons="$reasons documents_exhausted=$exhausted"
+fi
+
+# Sidekiq names each queue's list queue:<name>; DocumentUnderstandingJob runs
+# on the heavy lane (config/sidekiq.yml).
+heavy="$("$DC" exec -T redis redis-cli LLEN queue:heavy 2>/dev/null | tr -d '[:space:]')"
+if [ -z "$heavy" ]; then
+  fail=1; reasons="$reasons redis_unreadable"
+elif [ "$heavy" -gt "$HEAVY_QUEUE_MAX" ]; then
+  fail=1; reasons="$reasons heavy_queue_backlog=$heavy"
+fi
+
+# DocumentReaperJob writes this key after every sweep (every five minutes).
+last_run="$("$DC" exec -T redis redis-cli GET sure:document_reaper:last_run 2>/dev/null | tr -d '[:space:]')"
+if [ -z "$last_run" ]; then
+  fail=1; reasons="$reasons reaper_never_ran"
+elif [ "$last_run" -lt "$(( $(date +%s) - REAPER_MAX_AGE_MINUTES * 60 ))" ]; then
+  fail=1; reasons="$reasons reaper_stale=${REAPER_MAX_AGE_MINUTES}m"
+fi
+
 if [ "$fail" -eq 1 ]; then
   printf 'sure healthcheck FAIL:%s\n' "$reasons" >&2
   curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
@@ -70,4 +105,4 @@ if [ "$fail" -eq 1 ]; then
   exit 1
 fi
 
-printf 'sure healthcheck OK (containers healthy, disk %s%%, backups fresh)\n' "$used_pct"
+printf 'sure healthcheck OK (containers healthy, disk %s%%, backups fresh, documents drained)\n' "$used_pct"
