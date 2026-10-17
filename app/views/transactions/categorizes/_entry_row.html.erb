@@ -1,20 +1,23 @@
 <%= turbo_frame_tag "categorize_entry_#{entry.id}" do %>
   <input type="hidden" name="all_entry_ids[]" value="<%= entry.id %>">
-  <div class="grid grid-cols-[1rem_1fr_5rem_6rem_6.5rem] gap-3 items-center px-5 py-3 bg-container hover:bg-container-hover">
+  <%# One row that reflows on a phone: checkbox / name / amount on the first
+      line, the date under the name, and the per-row category select across
+      the width below. The desktop grid is restored at lg. %>
+  <div class="grid grid-cols-[auto_1fr_auto] items-center gap-x-2 gap-y-1 px-3 py-3 bg-container hover:bg-container-hover lg:grid-cols-[1rem_1fr_5rem_6rem_6.5rem] lg:gap-3 lg:px-5">
     <input type="checkbox" name="entry_ids[]" value="<%= entry.id %>"
-           checked class="checkbox checkbox--light shrink-0"
+           checked class="checkbox checkbox--light shrink-0 col-start-1 row-start-1"
            aria-label="<%= t("transactions.categorizes.entry_row.include_checkbox", name: entry.name) %>"
            data-action="change->categorize#uncheckRule">
-    <span class="min-w-0 font-medium text-primary truncate"><%= entry.name %></span>
-    <span class="text-secondary whitespace-nowrap"><%= format_date(entry.date) %></span>
-    <span class="privacy-sensitive font-medium text-right whitespace-nowrap <%= entry.amount.negative? ? "text-green-600" : "text-primary" %>">
+    <span class="col-start-2 row-start-1 min-w-0 font-medium text-primary truncate lg:col-start-2"><%= entry.name %></span>
+    <span class="col-start-2 row-start-2 text-xs text-secondary whitespace-nowrap lg:col-start-3 lg:row-start-1 lg:text-sm"><%= format_date(entry.date) %></span>
+    <span class="col-start-3 row-start-1 privacy-sensitive font-medium text-right whitespace-nowrap lg:col-start-4 <%= entry.amount.negative? ? "text-green-600" : "text-primary" %>">
       <%= format_money(entry.amount_money.abs) %>
     </span>
     <%= select_tag "category_id",
           options_for_select(Category::Group.select_options(categories)),
           prompt: t("transactions.categorizes.show.assign_category_prompt"),
           aria: { label: t("transactions.categorizes.entry_row.assign_category_select", name: entry.name) },
-          class: "w-full text-xs border border-primary rounded-lg px-1.5 py-0.5 bg-container text-secondary",
+          class: "col-span-2 col-start-2 row-start-3 w-full text-xs border border-primary rounded-lg px-1.5 py-0.5 bg-container text-secondary lg:col-span-1 lg:col-start-5 lg:row-start-1",
           data: { entry_id: entry.id, action: "change->categorize#assignEntry" } %>
   </div>
 <% end %>

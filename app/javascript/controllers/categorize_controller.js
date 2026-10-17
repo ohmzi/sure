@@ -11,6 +11,7 @@ export default class extends Controller {
     "groupingKeyHidden",
     "filter",
     "ruleDetails",
+    "selectAll",
   ];
   static values = { assignEntryUrl: String, position: Number, previewRuleUrl: String, transactionType: String };
 
@@ -18,6 +19,7 @@ export default class extends Controller {
     this.boundSelectFirst = this.selectFirst.bind(this);
     document.addEventListener("keydown", this.boundSelectFirst);
     this.toggleRuleDetails();
+    this.syncSelectAll();
   }
 
   disconnect() {
@@ -57,6 +59,28 @@ export default class extends Controller {
       this.createRuleCheckboxTarget.checked = false;
       this.toggleRuleDetails();
     }
+    this.syncSelectAll();
+  }
+
+  // The list's select-all: every row in THIS group, nothing else. Clearing the
+  // selection also clears the rule checkbox, so an empty selection cannot
+  // silently write a rule for a group the person excluded.
+  toggleAll(event) {
+    const checked = event.target.checked;
+    this.element
+      .querySelectorAll("input[name='entry_ids[]']")
+      .forEach((box) => { box.checked = checked; });
+
+    if (!checked && this.hasCreateRuleCheckboxTarget) {
+      this.createRuleCheckboxTarget.checked = false;
+      this.toggleRuleDetails();
+    }
+  }
+
+  syncSelectAll() {
+    if (!this.hasSelectAllTarget) return;
+    const boxes = Array.from(this.element.querySelectorAll("input[name='entry_ids[]']"));
+    this.selectAllTarget.checked = boxes.length > 0 && boxes.every((box) => box.checked);
   }
 
   toggleRuleDetails() {

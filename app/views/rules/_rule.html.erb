@@ -5,7 +5,9 @@
     <% if rule.name.present? || rule.stop_processing? %>
       <div class="flex items-center gap-2">
         <% if rule.name.present? %>
-          <h3 class="font-medium text-md"><%= rule.name %></h3>
+          <h3 class="font-medium text-md">
+            <%= link_to rule.name, rule_path(rule), class: "hover:underline" %>
+          </h3>
         <% end %>
         <% if rule.stop_processing? %>
           <%= render DS::Pill.new(label: t(".stop_processing"), tone: :neutral, marker: false, title: t(".stop_processing_hint")) %>
@@ -74,6 +76,7 @@
       <%= f.toggle :active, { data: { auto_submit_form_target: "auto" } } %>
     <% end %>
     <%= render DS::Menu.new do |menu| %>
+      <% menu.with_item(variant: "link", text: t(".review"), href: rule_path(rule), icon: "list") %>
       <% menu.with_item(variant: "link", text: t(".edit"), href: edit_rule_path(rule), icon: "pencil", data: { turbo_frame: "modal" }) %>
       <% menu.with_item(variant: "link", text: t(".re_apply_rule"), href: confirm_rule_path(rule), icon: "refresh-cw", data: { turbo_frame: "modal" }) %>
       <% menu.with_item(

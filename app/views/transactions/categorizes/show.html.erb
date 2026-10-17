@@ -6,14 +6,14 @@
      data-categorize-position-value="<%= @position %>"
      data-categorize-transaction-type-value="<%= @group.transaction_type %>">
   <%# Top bar: remaining count + skip %>
-  <div class="flex items-center justify-between">
+  <div class="flex flex-wrap items-center justify-between gap-2">
     <%= turbo_frame_tag "categorize_remaining" do %>
       <span class="text-sm text-secondary">
         <%= t(".remaining", count: @total_uncategorized) %>
       </span>
     <% end %>
     <%= link_to transactions_categorize_path(position: @position + 1),
-          class: "flex items-center gap-1.5 text-sm font-medium text-secondary hover:text-primary" do %>
+          class: "flex items-center gap-1.5 rounded-full px-2 py-1 pointer-coarse:px-3 pointer-coarse:py-2 text-sm font-medium text-secondary hover:text-primary" do %>
       <%= t(".skip") %>
       <%= icon("arrow-right", size: "sm") %>
     <% end %>
@@ -21,7 +21,7 @@
 
   <%# Group identity — above columns %>
   <div>
-    <div class="flex items-center gap-3 mb-1">
+    <div class="flex min-w-0 flex-wrap items-center gap-3 mb-1">
       <%= render partial: "transactions/categorizes/group_title",
                  locals: { display_name: @group.display_name, color: @group.merchant&.color || "#737373", transaction_type: @group.transaction_type } %>
     </div>
@@ -39,9 +39,12 @@
     <%= form.hidden_field :position, value: @position %>
     <%= form.hidden_field :transaction_type, value: @group.transaction_type %>
 
-    <div class="grid grid-cols-[3fr_2fr] gap-4 items-start w-full">
+    <%# On a phone the category picker leads (it is the one decision on this
+        screen), then the rule card, then the rows. On a computer it is the
+        familiar 60/40 split. %>
+    <div class="flex flex-col gap-4 items-start w-full lg:grid lg:grid-cols-[3fr_2fr]">
       <%# Left column (60%): rule creation + transaction list %>
-      <div class="space-y-4">
+      <div class="order-2 w-full space-y-4 lg:order-none">
         <%# Rule creation %>
         <div class="bg-container shadow-border-xs rounded-xl p-4 space-y-3">
           <label class="flex items-center gap-2.5 cursor-pointer">
@@ -86,18 +89,36 @@
           </div>
         </div>
 
-        <%# Transaction list %>
+        <%# Transaction list. Every row starts checked, so picking a category
+            applies it to this whole same-name group. The explicit select-all
+            control makes that visible after someone unchecks a few. %>
         <div class="bg-container rounded-xl shadow-border-xs p-4 space-y-3">
-          <p class="text-xs text-secondary"><%= t(".transactions_hint") %></p>
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <p class="text-xs text-secondary"><%= t(".transactions_hint") %></p>
+            <label class="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-primary">
+              <input type="checkbox" checked
+                     class="checkbox checkbox--light pointer-coarse:size-5"
+                     data-categorize-target="selectAll"
+                     data-action="change->categorize#toggleAll"
+                     aria-label="<%= t(".select_all") %>">
+              <%= t(".select_all") %>
+            </label>
+          </div>
           <%= render partial: "transactions/categorizes/transaction_list",
                      locals: { entries: @group.entries, categories: @categories } %>
         </div>
       </div>
 
       <%# Right column (40%): category picker %>
-      <div>
+      <div class="order-1 w-full lg:order-none">
         <div class="bg-container shadow-border-xs rounded-xl p-4 space-y-3">
-          <p class="text-sm font-medium text-secondary"><%= t(".assign_category") %></p>
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm font-medium text-secondary"><%= t(".assign_category") %></p>
+            <%# Opens the standard new-category dialog. Its create redirects to
+                the referer (this wizard), so the new category lands in the
+                picker with the same group still on screen. %>
+            <%= render DS::Link.new(text: t(".new_category"), href: new_category_path, variant: "ghost", size: :sm, frame: :modal) %>
+          </div>
 
           <div data-controller="list-filter" class="space-y-3">
             <%# Search field %>
@@ -126,7 +147,7 @@
                   <button type="submit"
                           name="category_id"
                           value="<%= category.id %>"
-                          class="filterable-item flex items-center gap-1 text-sm font-medium rounded-full px-2.5 py-1 border cursor-pointer hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-offset-1"
+                          class="filterable-item flex items-center gap-1 text-sm font-medium rounded-full px-2.5 py-1 pointer-coarse:px-3 pointer-coarse:py-2 border cursor-pointer hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-offset-1"
                           style="background-color: color-mix(in oklab, <%= category.color %> 10%, transparent);
                                  border-color: color-mix(in oklab, <%= category.color %> 20%, transparent);
                                  color: <%= category.color %>;"

@@ -2,7 +2,8 @@ class RulesController < ApplicationController
   include StreamExtensions
 
   before_action :require_non_guest!, except: %i[index]
-  before_action :set_rule, only: [  :edit, :update, :destroy, :apply, :confirm ]
+  before_action :set_rule, only: [ :show, :edit, :update, :destroy, :apply, :confirm,
+                                   :update_category, :update_transactions ]
 
   def index
     @rules = Current.family.rules.includes(conditions: :sub_conditions).ordered
@@ -63,6 +64,55 @@ class RulesController < ApplicationController
     if @rule.actions.any? { |a| a.action_type == "auto_categorize" }
       @selected_model, @estimated_cost = auto_categorize_estimate(@rule)
     end
+  end
+
+  # The rule's own review page: what it matches, the category it assigns, and a
+  # way to fix either the rule or individual matched transactions — the owner's
+  # request (2026-10-17).
+  def show
+    @category_action = @rule.actions.find_by(action_type: "set_transaction_category")
+    @categories = Current.family.categories.alphabetically_by_hierarchy.to_a
+    matched = @rule.matching_scope
+    @matched_count = matched.count
+    @pagy, @matched_entries = pagy(
+      Current.accessible_entries
+             .where(entryable_type: "Transaction", entryable_id: matched.select(:id))
+             .preload(:entryable, :account)
+             .order("entries.date DESC"),
+      limit: 50
+    )
+    render layout: "settings"
+  end
+
+  # Change the category the rule assigns. `apply_now` re-runs the rule across
+  # its current matches in the background.
+  def update_category
+    category = Current.family.categories.find(params[:category_id])
+
+    @rule.actions.where(action_type: "set_transaction_category").find_each do |action|
+      action.update!(value: category.id.to_s)
+    end
+
+    @rule.apply_later(ignore_attribute_locks: true) if params[:apply_now] == "1"
+
+    redirect_to rule_path(@rule), notice: t(".success")
+  end
+
+  # Fix the category on the selected matched transactions; optionally make the
+  # same category the rule's going forward.
+  def update_transactions
+    category = Current.family.categories.find(params[:category_id])
+    entry_ids = Array.wrap(params[:entry_ids]).reject(&:blank?)
+
+    count = Current.accessible_entries.where(id: entry_ids).bulk_update!({ category_id: category.id })
+
+    if params[:update_rule] == "1"
+      @rule.actions.where(action_type: "set_transaction_category").find_each do |action|
+        action.update!(value: category.id.to_s)
+      end
+    end
+
+    redirect_to rule_path(@rule), notice: t(".updated", count: count)
   end
 
   def edit

@@ -1,8 +1,61 @@
 require "test_helper"
 
 class RulesControllerTest < ActionDispatch::IntegrationTest
+  include EntriesTestHelper
+  include ActiveJob::TestHelper
+
   setup do
     sign_in @user = users(:family_admin)
+  end
+
+  def create_category_rule(name:, category:)
+    rule = @user.family.rules.build(name: name, resource_type: "transaction", active: true)
+    rule.conditions.build(condition_type: "transaction_name", operator: "like", value: name)
+    rule.actions.build(action_type: "set_transaction_category", value: category.id.to_s)
+    rule.save!
+    rule
+  end
+
+  test "review page lists the rule's matched transactions" do
+    rule = create_category_rule(name: "Coffee Shop", category: categories(:food_and_drink))
+    create_transaction(account: accounts(:depository), name: "Coffee Shop", amount: 10)
+    create_transaction(account: accounts(:depository), name: "Unrelated store", amount: 20)
+
+    get rule_url(rule)
+
+    assert_response :success
+    assert_includes response.body, "Coffee Shop"
+    assert_not_includes response.body, "Unrelated store"
+  end
+
+  test "updating the rule category rewrites its category action and can apply now" do
+    rule = create_category_rule(name: "Coffee Shop", category: categories(:food_and_drink))
+
+    assert_enqueued_with(job: RuleJob) do
+      patch update_category_rule_url(rule), params: { category_id: categories(:income).id, apply_now: "1" }
+    end
+
+    assert_redirected_to rule_url(rule)
+    assert_equal categories(:income).id.to_s,
+                 rule.actions.find_by(action_type: "set_transaction_category").reload.value
+  end
+
+  test "updating selected transactions can also update the rule category" do
+    rule = create_category_rule(name: "Coffee Shop", category: categories(:food_and_drink))
+    selected = create_transaction(account: accounts(:depository), name: "Coffee Shop", amount: 10)
+    untouched = create_transaction(account: accounts(:depository), name: "Coffee Shop", amount: 20)
+
+    patch update_transactions_rule_url(rule), params: {
+      entry_ids: [ selected.id ],
+      category_id: categories(:income).id,
+      update_rule: "1"
+    }
+
+    assert_redirected_to rule_url(rule)
+    assert_equal categories(:income), selected.transaction.reload.category
+    assert_nil untouched.transaction.reload.category, "only the selected row is changed"
+    assert_equal categories(:income).id.to_s,
+                 rule.actions.find_by(action_type: "set_transaction_category").reload.value
   end
 
   test "should get new" do

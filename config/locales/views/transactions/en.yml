@@ -248,6 +248,7 @@ en:
         transactions_hint: "Uncheck to exclude a transaction, or assign it a different category directly in its row."
         assign_category: "Assign a category"
         assign_category_prompt: "→ assign"
+        new_category: "New category"
         filter_placeholder: "Search categories..."
         col_transaction: "Transaction"
         col_date: "Date"
@@ -260,6 +261,7 @@ en:
         rule_description_suffix: "should also get this category."
         no_categories: "No matching categories"
         all_done: "All transactions are categorized"
+        select_all: "Select all"
       create:
         categorized:
           one: "1 transaction categorized"
@@ -418,3 +420,9 @@ en:
         other: "Files (%{count})"
       browse_to_add: "Browse to add files"
       max_reached: "Maximum file limit reached (%{count}/%{max}). Delete an existing file to upload another."
+  transaction_categories:
+    apply_to_similar:
+      applied:
+        one: "1 similar transaction categorized"
+        other: "%{count} similar transactions categorized"
+      no_category: "Choose a category first"
