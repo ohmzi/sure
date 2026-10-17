@@ -1,0 +1,137 @@
+<%# locals: (active:, filters:, documents:, tag_choices:) %>
+<%# The Filters sheet: an iOS bottom sheet on a phone, a panel on a computer.
+    It sits inside the filter form, so Show results and Done submit every field
+    at once; closing it any other way puts the fields back as they were
+    (filter_sheet_controller). Reset keeps only the search and the type. %>
+<%= render DS::Dialog.new(variant: "sheet", auto_open: false, disable_frame: true, width: "md",
+      id: "document_filters_sheet",
+      data: { controller: "filter-sheet", action: "close->filter-sheet#discard" }) do |dialog| %>
+  <% dialog.with_body do %>
+    <div class="grid grid-cols-3 items-center -mt-1 mb-3">
+      <%= link_to t("document_browser.filters.reset"), active.reset_url,
+            class: "justify-self-start py-2 text-base text-link rounded-md focus-ring" %>
+      <h2 id="<%= dialog.title_id %>" class="justify-self-center text-base font-semibold text-primary">
+        <%= t("document_browser.filters.sheet_title") %>
+      </h2>
+      <button type="submit" class="justify-self-end py-2 text-base font-semibold text-link rounded-md focus-ring">
+        <%= t("document_browser.filters.done") %>
+      </button>
+    </div>
+
+    <div class="space-y-5">
+      <section>
+        <h3 class="px-1 mb-1.5 text-xs font-medium uppercase tracking-wide text-secondary"><%= t("document_browser.filters.sort") %></h3>
+        <label class="flex items-center justify-between gap-3 min-h-11 px-4 rounded-xl bg-container-inset">
+          <span class="text-base text-primary"><%= t("document_browser.filters.order") %></span>
+          <%= select_tag "q[sort]", options_for_select(document_browser_sort_options, filters[:sort]),
+                id: "q_sort",
+                class: "bg-transparent border-0 py-2 pl-2 pr-7 text-right text-base sm:text-sm text-secondary rounded-md focus-ring" %>
+        </label>
+      </section>
+
+      <% if documents %>
+        <section>
+          <h3 class="px-1 mb-1.5 text-xs font-medium uppercase tracking-wide text-secondary"><%= t("document_browser.filters.status") %></h3>
+          <div class="flex flex-wrap gap-2">
+            <% DocumentLink::STATUSES.each do |status| %>
+              <%= render "document_browser/toggle_chip", name: "q[status][]", value: status,
+                    label: t("documents.status.#{status}"), checked: Array(filters[:status]).include?(status) %>
+            <% end %>
+          </div>
+        </section>
+      <% else %>
+        <section>
+          <h3 class="px-1 mb-1.5 text-xs font-medium uppercase tracking-wide text-secondary"><%= t("document_browser.filters.review") %></h3>
+          <div class="flex flex-wrap gap-2">
+            <% AccountStatement::Search::REVIEW_FILTERS.each do |review| %>
+              <%= render "document_browser/toggle_chip", name: "q[review][]", value: review,
+                    label: t("account_statements.status.#{review}"), checked: Array(filters[:review]).include?(review) %>
+            <% end %>
+          </div>
+        </section>
+        <section>
+          <h3 class="px-1 mb-1.5 text-xs font-medium uppercase tracking-wide text-secondary"><%= t("document_browser.filters.extraction") %></h3>
+          <div class="flex flex-wrap gap-2">
+            <% AccountStatement::Search::EXTRACTION_FILTERS.each do |extraction| %>
+              <%= render "document_browser/toggle_chip", name: "q[extraction][]", value: extraction,
+                    label: t("document_browser.filters.extraction_states.#{extraction}"),
+                    checked: Array(filters[:extraction]).include?(extraction) %>
+            <% end %>
+          </div>
+        </section>
+      <% end %>
+
+      <section>
+        <h3 class="px-1 mb-1.5 text-xs font-medium uppercase tracking-wide text-secondary"><%= t("document_browser.filters.date") %></h3>
+        <div class="grid grid-cols-2 gap-2">
+          <%= render layout: "document_browser/sheet_field", locals: { label: t("document_browser.filters.from") } do %>
+            <%= date_field_tag "q[date_from]", filters[:date_from], autocomplete: "off",
+                  aria: { label: t("document_browser.filters.date_from") },
+                  class: "w-full bg-transparent border-0 p-0 text-base text-primary focus:outline-hidden focus:ring-0" %>
+          <% end %>
+          <%= render layout: "document_browser/sheet_field", locals: { label: t("document_browser.filters.to") } do %>
+            <%= date_field_tag "q[date_to]", filters[:date_to], autocomplete: "off",
+                  aria: { label: t("document_browser.filters.date_to") },
+                  class: "w-full bg-transparent border-0 p-0 text-base text-primary focus:outline-hidden focus:ring-0" %>
+          <% end %>
+        </div>
+      </section>
+
+      <% if documents %>
+        <%# Documents read the understood draft's extracted total. %>
+        <section>
+          <h3 class="px-1 mb-1.5 text-xs font-medium uppercase tracking-wide text-secondary"><%= t("document_browser.filters.amount") %></h3>
+          <div class="grid grid-cols-2 gap-2">
+            <%= render layout: "document_browser/sheet_field", locals: { label: t("document_browser.filters.amount_min") } do %>
+              <%= number_field_tag "q[amount_min]", filters[:amount_min], min: 0, step: "any", inputmode: "decimal",
+                    autocomplete: "off", placeholder: "0", aria: { label: t("document_browser.filters.amount_min") },
+                    class: "w-full bg-transparent border-0 p-0 text-base text-primary placeholder:text-subdued focus:outline-hidden focus:ring-0" %>
+            <% end %>
+            <%= render layout: "document_browser/sheet_field", locals: { label: t("document_browser.filters.amount_max") } do %>
+              <%= number_field_tag "q[amount_max]", filters[:amount_max], min: 0, step: "any", inputmode: "decimal",
+                    autocomplete: "off", placeholder: "0", aria: { label: t("document_browser.filters.amount_max") },
+                    class: "w-full bg-transparent border-0 p-0 text-base text-primary placeholder:text-subdued focus:outline-hidden focus:ring-0" %>
+            <% end %>
+          </div>
+        </section>
+      <% end %>
+
+      <%# Documents filter on the merchant; statements on the institution hint
+          and carry no extracted total, which the note says plainly. %>
+      <section>
+        <% merchant_label = documents ? t("document_browser.filters.merchant") : t("document_browser.filters.institution") %>
+        <h3 class="px-1 mb-1.5 text-xs font-medium uppercase tracking-wide text-secondary"><%= merchant_label %></h3>
+        <%= render layout: "document_browser/sheet_field", locals: { label: nil } do %>
+          <%= text_field_tag "q[merchant]", filters[:merchant], autocomplete: "off",
+                placeholder: documents ? t("document_browser.filters.merchant_placeholder") : t("document_browser.filters.institution_placeholder"),
+                aria: { label: merchant_label },
+                class: "w-full bg-transparent border-0 p-0 text-base text-primary placeholder:text-subdued focus:outline-hidden focus:ring-0" %>
+        <% end %>
+        <% unless documents %>
+          <p class="px-1 mt-1.5 text-xs text-secondary"><%= t("document_browser.filters.statements_amount_note") %></p>
+        <% end %>
+      </section>
+
+      <%# The Tags facet (M8 Task 6): the stored snapshot names; with none stored
+          yet it says so rather than showing an empty box. %>
+      <section>
+        <h3 class="px-1 mb-1.5 text-xs font-medium uppercase tracking-wide text-secondary"><%= t("document_browser.filters.tags") %></h3>
+        <% if tag_choices.any? %>
+          <div class="flex flex-wrap gap-2">
+            <% tag_choices.each do |tag| %>
+              <%= render "document_browser/toggle_chip", name: "q[tags][]", value: tag, label: tag,
+                    checked: Array(filters[:tags]).include?(tag) %>
+            <% end %>
+          </div>
+        <% else %>
+          <p class="px-1 text-sm text-secondary"><%= t("document_browser.filters.no_tags") %></p>
+        <% end %>
+      </section>
+    </div>
+
+    <%# Pinned to the sheet's true bottom edge (past the scroll padding). %>
+    <div class="sticky -bottom-4 -mx-4 px-4 pt-4 pb-4 mt-2 bg-container">
+      <%= render DS::Button.new(text: t("document_browser.filters.show_results"), type: "submit", full_width: true, size: :lg) %>
+    </div>
+  <% end %>
+<% end %>

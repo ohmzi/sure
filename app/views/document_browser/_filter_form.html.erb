@@ -1,141 +1,82 @@
-<%# locals: (url:, filters:, documents:, tag_choices:) %>
-<%= form_with url: url, method: :get, data: { controller: "auto-submit-form" },
-      class: "flex flex-wrap items-center gap-2" do |form| %>
+<%# locals: (url:, filters:, active:, documents:, tag_choices:) %>
+<%# The Documents redesign (2026-10-16, docs/superpowers/specs/2026-10-16-
+    documents-intake-and-filters-design.md): phone first and Apple-like. The
+    page keeps only a search row, the type switch and one chip per filter that
+    is on; every facet lives in the Filters sheet, which applies on Show results
+    (or Done) instead of on each tap. The field names are the ones the server
+    has always read, so bookmarks and the search itself are untouched. %>
+<%= form_with url: url, method: :get, data: { controller: "auto-submit-form" }, class: "space-y-3" do |form| %>
+  <div class="flex items-center gap-2">
+    <%# (repaired 2026-10-11, re-verifier: F9 residual) DS::SearchInput renders
+        no id of its own; `#q_search` is pinned here. It submits on blur (the
+        auto-submit controller) and on Enter. %>
+    <%= render DS::SearchInput.new(
+          variant: :filled,
+          id: "q_search",
+          name: "q[search]", value: filters[:search],
+          placeholder: t("document_browser.filters.search_placeholder"),
+          class: "grow lg:max-w-md",
+          data: { "auto-submit-form-target": "auto" }) %>
+
+    <button type="button"
+            class="relative inline-flex items-center justify-center size-10 pointer-coarse:size-11 shrink-0 rounded-full bg-surface-inset text-primary hover:bg-surface-inset-hover active:scale-95 transition focus-ring"
+            aria-controls="document_filters_sheet" aria-haspopup="dialog"
+            aria-label="<%= t("document_browser.filters.open_filters") %>"
+            <%= tag.attributes(aria: { describedby: ("document_filters_count" if active.count.positive?) }) %>
+            title="<%= t("document_browser.filters.open_filters") %>"
+            data-controller="sheet-opener" data-sheet-opener-sheet-value="document_filters_sheet"
+            data-action="sheet-opener#open">
+      <%= icon("sliders-horizontal", size: "sm", color: "current") %>
+      <% if active.count.positive? %>
+        <span data-filter-count aria-hidden="true"
+              class="absolute -top-1 -right-1 min-w-5 h-5 px-1 rounded-full bg-inverse text-inverse text-xs font-semibold flex items-center justify-center"><%= active.count %></span>
+        <span id="document_filters_count" class="sr-only"><%= t("document_browser.filters.active_count", count: active.count) %></span>
+      <% end %>
+    </button>
+  </div>
+
   <% if documents %>
-    <%# The type facet (Milestone B, design D1): one page, so the type is a
-        chip rather than a second destination. It is a SINGLE-select radio
-        group, not checkboxes: three independent checkboxes let "All" submit
-        alongside a still-checked type, so from a filtered state All would
-        visibly do nothing. A radio group submits exactly one value, so All
-        (the empty value) genuinely clears the facet. The values are validated
-        against DocumentLink::SOURCES the way the old top-level source facet
-        was; "Receipts & Bills" carries the comma-joined pair. %>
+    <%# The type facet (Milestone B, design D1), now the iOS segmented control:
+        each segment is a link to the same filters with that type, and its pill
+        slides there as you tap. The hidden field carries the type through a
+        search or Show results. "Receipts & Bills" is the comma-joined pair. %>
     <% selected_types = Array(filters[:type]).flat_map { |value| value.to_s.split(",") }.map(&:strip).select { |source| DocumentLink::SOURCES.include?(source) } %>
-    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
-      <span class="text-sm text-secondary"><%= t("document_browser.filters.type") %></span>
-      <% [ [ "", t("document_browser.filters.types.all"), selected_types.empty? ],
-           [ "statement", t("document_browser.filters.types.statements"), selected_types.include?("statement") ],
-           [ "receipt,bill", t("document_browser.filters.types.receipts_bills"), (selected_types & %w[receipt bill]).any? ] ].each do |value, label, checked| %>
-        <label class="flex items-center gap-1.5 text-sm text-primary">
-          <%= radio_button_tag "q[type][]", value, checked,
-                class: "radio", data: { "auto-submit-form-target": "auto" } %>
-          <%= label %>
-        </label>
+    <% current_type = if selected_types.include?("statement") then "statement"
+                      elsif (selected_types & %w[receipt bill]).any? then "receipt,bill"
+                      else ""
+                      end %>
+    <%= hidden_field_tag "q[type][]", current_type, id: nil if current_type.present? %>
+    <%= render DS::SegmentedControl.new(sliding: true, full_width: true, aria_label: t("document_browser.filters.type"), class: "bg-surface-inset lg:max-w-md") do |control| %>
+      <% [ [ "", t("document_browser.filters.types.all") ],
+           [ "statement", t("document_browser.filters.types.statements") ],
+           [ "receipt,bill", t("document_browser.filters.types.receipts_bills") ] ].each do |value, label| %>
+        <% control.with_segment(label, href: active.type_url(value), active: current_type == value, class: "py-1.5") %>
       <% end %>
-    </div>
-
-    <%# The status facet (M8 Task 9, Ruling M8-L2): the row's own vocabulary —
-        "show me what is still processing". %>
-    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
-      <span class="text-sm text-secondary"><%= t("document_browser.filters.status") %></span>
-      <% DocumentLink::STATUSES.each do |status| %>
-        <label class="flex items-center gap-1.5 text-sm text-primary">
-          <%= check_box_tag "q[status][]", status, Array(filters[:status]).include?(status),
-                class: "checkbox checkbox--light", data: { "auto-submit-form-target": "auto" } %>
-          <%= t("documents.status.#{status}") %>
-        </label>
-      <% end %>
-    </div>
-  <% else %>
-    <%# The review / extraction facets (M8 Task 9, Ruling M8-L2; the query side
-        landed with AccountStatement::Search in Task 3 — these are the controls
-        the Close-out clause promised). %>
-    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
-      <span class="text-sm text-secondary"><%= t("document_browser.filters.review") %></span>
-      <% AccountStatement::Search::REVIEW_FILTERS.each do |review| %>
-        <label class="flex items-center gap-1.5 text-sm text-primary">
-          <%= check_box_tag "q[review][]", review, Array(filters[:review]).include?(review),
-                class: "checkbox checkbox--light", data: { "auto-submit-form-target": "auto" } %>
-          <%= t("account_statements.status.#{review}") %>
-        </label>
-      <% end %>
-    </div>
-
-    <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
-      <span class="text-sm text-secondary"><%= t("document_browser.filters.extraction") %></span>
-      <% AccountStatement::Search::EXTRACTION_FILTERS.each do |extraction| %>
-        <label class="flex items-center gap-1.5 text-sm text-primary">
-          <%= check_box_tag "q[extraction][]", extraction, Array(filters[:extraction]).include?(extraction),
-                class: "checkbox checkbox--light", data: { "auto-submit-form-target": "auto" } %>
-          <%= t("document_browser.filters.extraction_states.#{extraction}") %>
-        </label>
-      <% end %>
-    </div>
+    <% end %>
   <% end %>
 
-  <%# The Tags facet (M8 Task 6): the choices are the stored snapshot names, so
-      the facet renders and filters locally (locked decisions 4/6).
-      No tags stored yet renders the honest empty line, never a dead box. %>
-  <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
-    <span class="text-sm text-secondary"><%= t("document_browser.filters.tags") %></span>
-    <% if tag_choices.any? %>
-      <% tag_choices.each do |tag| %>
-        <label class="flex items-center gap-1.5 text-sm text-primary">
-          <%= check_box_tag "q[tags][]", tag, Array(filters[:tags]).include?(tag),
-                class: "checkbox checkbox--light", data: { "auto-submit-form-target": "auto" } %>
-          <%= tag %>
-        </label>
-      <% end %>
-    <% else %>
-      <span class="text-sm text-secondary"><%= t("document_browser.filters.no_tags") %></span>
-    <% end %>
-  </div>
+  <%# The "needs you" link's filter has no control in the sheet; this carries it
+      through a search or Show results until its chip is removed. %>
+  <%= hidden_field_tag "q[attention]", filters[:attention], id: nil if filters[:attention].present? %>
 
-  <%# The Merchant / Amount facet (M8 Task 7, locked decision 7). Documents
-      read the understood draft's extracted payee/total; statements read the
-      institution hint and carry no extracted total, so their amount fields are
-      replaced by one honest note — the degradation is explicit, never silent. %>
-  <div class="flex flex-wrap items-center gap-3 rounded-lg border border-secondary px-3 py-2">
-    <span class="text-sm text-secondary">
-      <%= documents ? t("document_browser.filters.merchant") : t("document_browser.filters.institution") %>
-    </span>
-    <%= text_field_tag "q[merchant]", filters[:merchant],
-          placeholder: documents ? t("document_browser.filters.merchant_placeholder") : t("document_browser.filters.institution_placeholder"),
-          autocomplete: "off",
-          data: { "auto-submit-form-target": "auto" },
-          aria: { label: documents ? t("document_browser.filters.merchant") : t("document_browser.filters.institution") },
-          class: "form-field__input w-auto" %>
-    <% if documents %>
-      <%= number_field_tag "q[amount_min]", filters[:amount_min],
-            placeholder: t("document_browser.filters.amount_min"),
-            min: 0, step: "any",
-            autocomplete: "off",
-            data: { "auto-submit-form-target": "auto" },
-            aria: { label: t("document_browser.filters.amount_min") },
-            class: "form-field__input w-auto" %>
-      <%= number_field_tag "q[amount_max]", filters[:amount_max],
-            placeholder: t("document_browser.filters.amount_max"),
-            min: 0, step: "any",
-            autocomplete: "off",
-            data: { "auto-submit-form-target": "auto" },
-            aria: { label: t("document_browser.filters.amount_max") },
-            class: "form-field__input w-auto" %>
-    <% else %>
-      <span class="text-sm text-secondary"><%= t("document_browser.filters.statements_amount_note") %></span>
-    <% end %>
-  </div>
+  <% if active.chips.any? %>
+    <nav aria-label="<%= t("document_browser.filters.chips.label") %>"
+         class="-mx-3 px-3 lg:mx-0 lg:px-0 overflow-x-auto [scrollbar-width:none]">
+      <ul class="flex gap-2 w-max lg:w-auto lg:flex-wrap">
+        <% active.chips.each do |chip| %>
+          <li>
+            <%= link_to chip.remove_url,
+                  class: "inline-flex items-center gap-1 h-8 pl-3 pr-2 rounded-full button-bg-accent hover:button-bg-accent-hover text-link text-sm font-medium whitespace-nowrap active:scale-95 transition focus-ring",
+                  title: t("document_browser.filters.chips.remove", label: chip.label),
+                  aria: { label: t("document_browser.filters.chips.remove", label: chip.label) } do %>
+              <%= chip.label %>
+              <%= icon("x", size: "xs", color: "current") %>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    </nav>
+  <% end %>
 
-  <%# (repaired 2026-10-11, re-verifier: F9 residual) DS::SearchInput renders no
-      id of its own, so the acceptance step's `find("#q_search")` cannot resolve -
-      pin the id here (and the blur still goes through the auto-submit controller). %>
-  <%= render DS::SearchInput.new(
-        id: "q_search",
-        name: "q[search]", value: filters[:search],
-        placeholder: t("document_browser.filters.search_placeholder"),
-        class: "grow max-w-xs",
-        data: { "auto-submit-form-target": "auto" }) %>
-  <%= select_tag "q[sort]",
-        options_for_select(document_browser_sort_options, filters[:sort]),
-        data: { "auto-submit-form-target": "auto" },
-        class: "form-field__input w-auto" %>
-  <%= date_field_tag "q[date_from]", filters[:date_from],
-        data: { "auto-submit-form-target": "auto" },
-        aria: { label: t("document_browser.filters.date_from") },
-        autocomplete: "off",
-        class: "form-field__input w-auto" %>
-  <%= date_field_tag "q[date_to]", filters[:date_to],
-        data: { "auto-submit-form-target": "auto" },
-        aria: { label: t("document_browser.filters.date_to") },
-        autocomplete: "off",
-        class: "form-field__input w-auto" %>
+  <%= render "document_browser/filter_sheet", active: active, filters: filters, documents: documents, tag_choices: tag_choices %>
 <% end %>

@@ -19,13 +19,14 @@ class DocumentsIntakeTest < ApplicationSystemTestCase
   test "a CSV dropped on the documents page opens the import configuration screen" do
     visit documents_path
 
-    # The bar's picker is a hidden input behind the Add document button. The
+    # The Add sheet's "Choose file" row is the label of a hidden picker. The
     # chosen file's change is what uploads it — the SAME upload() path a real
     # drag/drop takes, though no real dragover/drop event is driven here (no
     # test does; see the report).
     assert_selector "input[type='file'][name='document']", visible: :all
-    execute_script("document.querySelector(\"input[type='file'][name='document']\").classList.remove('hidden')")
-    attach_file "document", file_fixture("imports/transactions.csv")
+    find("button[aria-controls='document_add_sheet']").click
+    find("dialog#document_add_sheet input[type='file'][accept*='.csv']", visible: :all)
+      .attach_file(file_fixture("imports/transactions.csv"), make_visible: true)
 
     # The redirect was followed as a navigation, not reported as a failure: we
     # are on the configuration screen and its form is rendered.

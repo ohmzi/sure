@@ -90,6 +90,23 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action='#{account_statements_path}'][method='post']", count: 0
   end
 
+  # The Documents redesign (2026-10-16) reaches the archive too: the same
+  # search row and filters sheet with the archive's own facets, but no type
+  # switch and no + (the archive has no upload).
+  test "the archive has the search row and a filters sheet with its own facets" do
+    get account_statements_path(q: { review: %w[unmatched] })
+
+    assert_select "input#q_search[type='search']"
+    assert_select "button[aria-controls='document_filters_sheet'] [data-filter-count]", text: "1"
+    assert_select "dialog#document_filters_sheet" do
+      assert_select "input[name='q[review][]']", count: AccountStatement::Search::REVIEW_FILTERS.size
+      assert_select "input[name='q[extraction][]']", count: AccountStatement::Search::EXTRACTION_FILTERS.size
+      assert_select "input[name='q[amount_min]']", count: 0
+    end
+    assert_select "[data-controller~='segmented-slide']", count: 0
+    assert_select "#document_add_sheet", count: 0
+  end
+
   test "an unmatched statement keeps its suggestion actions in the browser" do
     suggestion = accounts(:other_asset)
     statement = AccountStatement.create_from_upload!(

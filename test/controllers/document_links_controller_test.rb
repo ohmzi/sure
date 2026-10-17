@@ -327,15 +327,23 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_no_match document_links(:held_bill).title.to_s, response.body
   end
 
-  test "the type chips render All / Statements / Receipts & Bills as a single-select group" do
+  # (Documents redesign, 2026-10-16) The radio group became the iOS segmented
+  # control: three links, exactly one current, each to exactly one type — still
+  # single-select, so All still genuinely clears the facet.
+  test "the type segments render All / Statements / Receipts & Bills as a single-select group" do
     get documents_path
-    assert_select "input[type='radio'][name='q[type][]'][value=''][checked='checked']"
-    assert_select "input[type='radio'][name='q[type][]'][value='statement'][checked='checked']", count: 0
-    assert_select "input[type='radio'][name='q[type][]']", count: 3
+    assert_select "[data-controller~='segmented-slide']" do
+      assert_select "a", count: 3
+      assert_select "a[aria-current='true']", count: 1
+      assert_select "a[aria-current='true'][href='#{documents_path}']", text: I18n.t("document_browser.filters.types.all")
+    end
+    assert_select "input[type='hidden'][name='q[type][]']", count: 0
 
     get documents_path(q: { type: [ "statement" ] })
-    assert_select "input[type='radio'][name='q[type][]'][value='statement'][checked='checked']"
-    assert_select "input[type='radio'][name='q[type][]'][value=''][checked='checked']", count: 0
+    assert_select "[data-controller~='segmented-slide'] a[aria-current='true']", count: 1
+    assert_select "[data-controller~='segmented-slide'] a[aria-current='true'][href='#{documents_path(q: { type: [ "statement" ] })}']"
+    # The chosen type rides along with a search or Show results.
+    assert_select "input[type='hidden'][name='q[type][]'][value='statement']"
   end
 
   test "the All chip genuinely clears the type facet" do

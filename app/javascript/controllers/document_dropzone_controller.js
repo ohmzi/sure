@@ -24,10 +24,14 @@ export default class extends Controller {
   }
 
   pick(event) {
-    // The bar's button is a label for a hidden file input; a chosen file takes
-    // the same path a dropped one does.
+    // Each Add sheet row is the label of a hidden file input; a chosen file
+    // takes the same path a dropped one does. The sheet then slides away, and
+    // the input is cleared so the same file can be picked again.
     event.preventDefault();
-    this.upload(event.target.files);
+    const input = event.target;
+    this.upload(input.files);
+    input.value = "";
+    input.closest("dialog")?.dispatchEvent(new CustomEvent("sheet:close"));
   }
 
   showOverlay(event) {

@@ -32,4 +32,27 @@ class DS::DialogTest < ViewComponent::TestCase
 
     assert_selector "turbo-frame#modal > dialog[data-turbo-temporary]"
   end
+
+  # The sheet (Documents redesign, 2026-10-16): an iOS bottom sheet below lg —
+  # a grabber to drag it down by, anchored to the bottom edge, its own safe-area
+  # padding — and a centered panel from lg up. Opened by an event, never on
+  # render, so it can live inline in a page.
+  test "a sheet is a bottom sheet with a grabber that a page opens on demand" do
+    render_inline(DS::Dialog.new(variant: "sheet", auto_open: false, disable_frame: true, id: "filters_sheet")) do |dialog|
+      dialog.with_body { "Body" }
+    end
+
+    assert_selector "dialog#filters_sheet[data-ds--dialog-sheet-value='true'][data-ds--dialog-auto-open-value='false']"
+    assert_selector "dialog[data-action~='sheet:open->DS--dialog#open'][data-action~='sheet:close->DS--dialog#close']"
+    assert_selector "dialog [data-ds--dialog-target='grabber']"
+    assert_selector "dialog [data-ds--dialog-target='content'].rounded-t-3xl"
+    assert_text "Body"
+  end
+
+  test "modal and drawer dialogs have no grabber and are not sheets" do
+    render_inline(DS::Dialog.new) { |dialog| dialog.with_body { "Body" } }
+
+    assert_no_selector "[data-ds--dialog-target='grabber']"
+    assert_selector "dialog[data-ds--dialog-sheet-value='false']"
+  end
 end

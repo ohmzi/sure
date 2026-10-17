@@ -134,8 +134,64 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     # #documents_intake_status; both must exist for the flow to work.
     assert_select "#documents_grid"
     assert_select "#documents_intake_status"
-    # The bar's copy reaches the page (not a "Translation missing:" fallback).
-    assert_select "label", text: I18n.t("documents.intake_bar.add_document")
+    # The + button's name reaches the page (not a "Translation missing:" fallback).
+    assert_select "button[aria-label='#{I18n.t("documents.intake_bar.add_document")}']"
+  end
+
+  # -- the Apple-style top of the page (Documents redesign, 2026-10-16) -------
+
+  test "the top of the page is a search row, a type switch and a floating + that opens the add sheet" do
+    get documents_path
+
+    assert_select "input#q_search[type='search'][name='q[search]']"
+    assert_select "button[aria-controls='document_filters_sheet'][aria-label='#{I18n.t("document_browser.filters.open_filters")}']"
+    assert_select "[data-controller~='segmented-slide']" do
+      assert_select "a[href='#{documents_path}'][aria-current='true']", text: I18n.t("document_browser.filters.types.all")
+      assert_select "a[href='#{documents_path(q: { type: [ "statement" ] })}']", text: I18n.t("document_browser.filters.types.statements")
+    end
+    assert_select "button[aria-controls='document_add_sheet'][aria-label='#{I18n.t("documents.intake_bar.add_document")}']"
+
+    # The add sheet: camera, photo library and any file, each through the one
+    # upload path, and the receipt currency the upload carries.
+    assert_select "dialog#document_add_sheet" do
+      assert_select "input[type='file'][accept='image/*'][capture='environment'][data-action~='change->document-dropzone#pick']"
+      assert_select "input[type='file'][accept='image/*']:not([capture])[data-action~='change->document-dropzone#pick']"
+      assert_select "input[type='file'][accept*='application/pdf'][data-action~='change->document-dropzone#pick']"
+      assert_select "[data-document-dropzone-target='currency']"
+    end
+  end
+
+  test "the filters sheet holds the facets, which wait for Show results instead of submitting on each tap" do
+    get documents_path
+
+    assert_select "dialog#document_filters_sheet" do
+      assert_select "input[name='q[status][]']", count: DocumentLink::STATUSES.size
+      assert_select "select[name='q[sort]']"
+      assert_select "input[name='q[date_from]']"
+      assert_select "input[name='q[amount_min]']"
+      assert_select "input[name='q[merchant]']"
+      assert_select "[data-auto-submit-form-target]", count: 0
+      assert_select "button[type='submit']", text: I18n.t("document_browser.filters.show_results")
+    end
+  end
+
+  test "each filter that is on is a removable chip, and the filter button counts them" do
+    get documents_path(q: { status: %w[queued], attention: "1", search: "coffee" })
+
+    assert_select "nav[aria-label='#{I18n.t("document_browser.filters.chips.label")}']" do
+      assert_select "a[href='#{documents_path(q: { attention: "1", search: "coffee" })}']", text: I18n.t("documents.status.queued")
+      assert_select "a[href='#{documents_path(q: { status: %w[queued], search: "coffee" })}']", text: I18n.t("document_browser.filters.chips.needs_you")
+    end
+    assert_select "button[aria-controls='document_filters_sheet'] [data-filter-count]", text: "2"
+    # The needs-you link survives a search or Show results: the form carries it.
+    assert_select "input[type='hidden'][name='q[attention]'][value='1']"
+  end
+
+  test "with nothing on there are no chips and no badge" do
+    get documents_path
+
+    assert_select "nav[aria-label='#{I18n.t("document_browser.filters.chips.label")}']", count: 0
+    assert_select "[data-filter-count]", count: 0
   end
 
   test "a failed document surfaces its failure message on the card" do

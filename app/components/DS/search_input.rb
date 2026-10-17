@@ -2,7 +2,7 @@
 
 # `DS::SearchInput` is the search-field primitive.
 #
-# Two variants:
+# Three variants:
 #
 # - `:standalone` (default) — top-of-list filter inputs (Preferences
 #   currency search, Settings/Bank Sync provider filter). Bordered
@@ -14,11 +14,14 @@
 #   chrome, so adding ring + outline here would compete with the
 #   parent's focus-within state.
 #
+# - `:filled` — the iOS search field: a filled, borderless, rounded well
+#   for a page's own search row (the Documents page).
+#
 # For `form.search_field :foo` inside a `styled_form_with` block,
 # keep using the form helper — it routes through `StyledFormBuilder`'s
 # form-field CSS, which is a different visual contract.
 class DS::SearchInput < DesignSystemComponent
-  VARIANTS = %i[standalone embedded].freeze
+  VARIANTS = %i[standalone embedded filled].freeze
 
   attr_reader :variant, :name, :placeholder, :value, :aria_label, :extra_classes, :opts
 
@@ -44,6 +47,9 @@ class DS::SearchInput < DesignSystemComponent
     # 14px from `sm:` upward. The previous unconditional `text-sm`
     # triggered the mobile zoom regression.
     case variant
+    when :filled
+      "block w-full h-10 border-0 rounded-xl bg-surface-inset pl-10 pr-3 text-primary text-base sm:text-sm " \
+        "placeholder:text-secondary focus-ring"
     when :embedded
       # No own focus ring — the parent panel handles focus chrome via
       # `focus-within`. `focus:outline-hidden focus:ring-0` neutralizes

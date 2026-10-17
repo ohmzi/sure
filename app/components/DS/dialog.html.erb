@@ -13,14 +13,22 @@
       evaluated lazily at slot-render time (after the `<dialog>` opening
       tag attributes are computed), so the flag was never `true` when
       this attribute was read. %>
-  <%= tag.dialog class: "w-full h-full bg-transparent text-primary backdrop:bg-overlay pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] #{(drawer? || responsive?) ? "lg:p-3" : "lg:p-1"}",
+  <%= tag.dialog class: dialog_classes,
               role: "dialog",
               "aria-modal": "true",
               "aria-labelledby": title_id,
               **merged_opts do %>
     <%= tag.div class: dialog_outer_classes do %>
       <%= tag.div class: dialog_inner_classes, data: { DS__dialog_target: "content" } do %>
-        <div class="grow py-4 space-y-4 flex flex-col <%= "overflow-auto" if scrollable %>">
+        <% if sheet? %>
+          <%# The grabber: drag the sheet down by it to dismiss (phones only). %>
+          <div class="lg:hidden flex justify-center pt-2 pb-1 cursor-grab touch-none shrink-0"
+               data-DS--dialog-target="grabber"
+               data-action="pointerdown->DS--dialog#dragStart">
+            <span class="h-1.5 w-9 rounded-full bg-surface-inset-hover"></span>
+          </div>
+        <% end %>
+        <div class="grow <%= sheet? ? "pt-1 pb-4 overscroll-contain" : "py-4" %> space-y-4 flex flex-col <%= "overflow-auto" if scrollable %>">
           <% if header? %>
             <%= header %>
           <% end %>

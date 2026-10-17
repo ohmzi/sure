@@ -83,19 +83,71 @@ class DocumentBrowserTest < ApplicationSystemTestCase
     assert_no_selector "dialog[open]"
   end
 
-  test "the type facet is single-select — the All chip clears a chosen type" do
+  test "the type facet is single-select — the All segment clears a chosen type" do
     # (Review ruling 1) The three chips used to be independent checkboxes, so
     # from a filtered state All submitted alongside the still-checked type and
-    # visibly did nothing. As a radio group, All submits the empty value and
-    # the facet clears — proved end to end here, through the auto-submit.
+    # visibly did nothing. Each segment is now a link to exactly one type, so
+    # All genuinely clears the facet — proved end to end here.
     statement = document_links(:queued_receipt)
     statement.update!(source: "statement", title: "Statement to filter")
 
     visit documents_path(q: { type: [ "statement" ] })
     assert_no_text document_links(:held_bill).title # narrowed to statements
 
-    find("label", text: I18n.t("document_browser.filters.types.all"), match: :first).click
+    click_link I18n.t("document_browser.filters.types.all")
     assert_text document_links(:held_bill).title, wait: 5
+  end
+
+  # --- the Documents redesign (2026-10-16): the Filters sheet ----------------
+
+  test "the filters sheet applies on Show results, and the chip it leaves takes it off" do
+    visit documents_path
+    assert_text document_links(:linked_receipt).title
+
+    find("button[aria-controls='document_filters_sheet']").click
+    within "dialog#document_filters_sheet[open]" do
+      find("label", text: I18n.t("documents.status.queued")).click
+      click_on I18n.t("document_browser.filters.show_results")
+    end
+
+    assert_no_text document_links(:linked_receipt).title, wait: 5
+    assert_text document_links(:held_bill).title
+    assert_selector "[data-filter-count]", text: "1"
+
+    within "nav[aria-label='#{I18n.t("document_browser.filters.chips.label")}']" do
+      find("a", text: I18n.t("documents.status.queued")).click
+    end
+    assert_text document_links(:linked_receipt).title, wait: 5
+    assert_no_selector "[data-filter-count]"
+  end
+
+  test "closing the filters sheet without applying puts its fields back" do
+    visit documents_path
+
+    find("button[aria-controls='document_filters_sheet']").click
+    within "dialog#document_filters_sheet[open]" do
+      find("label", text: I18n.t("documents.status.queued")).click
+      assert find("input[value='queued']", visible: :all).checked?
+    end
+    page.send_keys(:escape)
+    assert_no_selector "dialog#document_filters_sheet[open]", wait: 2
+
+    assert_not find("dialog#document_filters_sheet input[value='queued']", visible: :all).checked?
+    assert_text document_links(:linked_receipt).title # nothing was applied
+  end
+
+  test "the floating + opens the add sheet, and Cancel slides it away" do
+    visit documents_path
+
+    find("button[aria-controls='document_add_sheet']").click
+    within "dialog#document_add_sheet[open]" do
+      assert_text I18n.t("documents.intake_bar.scan")
+      assert_text I18n.t("documents.intake_bar.photos")
+      assert_text I18n.t("documents.intake_bar.choose_file")
+      assert_text I18n.t("documents.intake_bar.currency_label")
+      click_on I18n.t("documents.intake_bar.cancel")
+    end
+    assert_no_selector "dialog#document_add_sheet[open]", wait: 2
   end
 
   test "the statements vault is a first-class page with its facets" do
@@ -110,5 +162,13 @@ class DocumentBrowserTest < ApplicationSystemTestCase
     assert_current_path account_statements_path
     assert_no_selector "#settings-nav-container"
     assert_text statement.filename
+
+    # The same filter button and sheet, with the archive's own facets.
+    find("button[aria-controls='document_filters_sheet']").click
+    within "dialog#document_filters_sheet[open]" do
+      # Section labels are uppercased by CSS.
+      assert_text(/#{I18n.t("document_browser.filters.review")}/i)
+      assert_text(/#{I18n.t("document_browser.filters.extraction")}/i)
+    end
   end
 end

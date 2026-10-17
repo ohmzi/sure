@@ -1,6 +1,7 @@
-<div id="document-browser" class="space-y-4 pb-6 lg:pb-12">
-  <header class="flex justify-between items-center text-primary font-medium">
-    <h1 class="text-xl"><%= title %></h1>
+<%# The Documents page leaves room under its last row for the floating +. %>
+<div id="document-browser" class="space-y-4 <%= documents? ? "pb-28" : "pb-6 lg:pb-12" %>">
+  <header class="flex justify-between items-center text-primary">
+    <h1 class="text-3xl font-bold tracking-tight"><%= title %></h1>
   </header>
 
   <%= upload %>
@@ -9,7 +10,7 @@
       nothing needs a person. %>
   <%= attention if attention? %>
 
-  <%= render "document_browser/filter_form", url: url, filters: filters,
+  <%= render "document_browser/filter_form", url: url, filters: filters, active: active_filter_chips,
         documents: documents?, tag_choices: tag_choices %>
 
   <% if rows.any? %>

@@ -55,12 +55,15 @@ class DocumentsSurfaceTest < ApplicationSystemTestCase
 
     assert_selector "input[type='file'][name='document']", visible: :all
     before = page.all("#documents_grid [id^='document_link_']").size
-    # The picker is a hidden input behind the Add document button; the chosen
-    # file's `change` is what uploads it (the same path a real drop takes).
-    execute_script("document.querySelector(\"input[type='file'][name='document']\").classList.remove('hidden')")
-    attach_file "document", file_fixture("receipts/receipt.png")
+    # The pickers are hidden inputs behind the Add sheet's rows; the chosen
+    # file's `change` is what uploads it (the same path a real drop takes), and
+    # the sheet slides away once a file is picked.
+    find("button[aria-controls='document_add_sheet']").click
+    assert_selector "dialog#document_add_sheet[open]"
+    attach_file "document", file_fixture("receipts/receipt.png"), make_visible: true, match: :first
 
     assert_selector "#documents_grid [id^='document_link_']", count: before + 1, wait: 5
+    assert_no_selector "dialog#document_add_sheet[open]"
 
     link = DocumentLink.order(:created_at).last
     within "#document_link_#{link.id}" do
@@ -88,13 +91,13 @@ class DocumentsSurfaceTest < ApplicationSystemTestCase
       assert_text bill_title
     end
 
-    find("label", text: I18n.t("document_browser.filters.types.statements"), match: :first).click
+    click_link I18n.t("document_browser.filters.types.statements")
     within "#documents_grid" do
       assert_text statement.title, wait: 5
       assert_no_text bill_title
     end
 
-    find("label", text: I18n.t("document_browser.filters.types.all"), match: :first).click
+    click_link I18n.t("document_browser.filters.types.all")
     within "#documents_grid" do
       assert_text bill_title, wait: 5
     end

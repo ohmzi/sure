@@ -48,4 +48,19 @@ class DS::SegmentedControlTest < ViewComponent::TestCase
 
     assert_selector "button.segmented-control__segment--active.custom-x[data-id='a']"
   end
+
+  # The sliding pill (opt-in): one indicator moves between segments instead of
+  # each segment painting its own active background, the iOS behaviour.
+  test "sliding renders one indicator and marks the active segment without its own pill" do
+    render_inline(DS::SegmentedControl.new(sliding: true, full_width: true)) do |sc|
+      sc.with_segment("All", href: "/a", active: true)
+      sc.with_segment("Statements", href: "/b")
+    end
+
+    assert_selector "div.segmented-control[data-controller~='segmented-slide']"
+    assert_selector "[data-segmented-slide-target='indicator']", count: 1
+    assert_selector "a[data-segmented-slide-target='segment']", count: 2
+    assert_selector "a[aria-current='true'][data-active='true']", text: "All"
+    assert_no_selector ".segmented-control__segment--active"
+  end
 end

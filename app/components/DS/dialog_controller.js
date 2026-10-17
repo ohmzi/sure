@@ -15,12 +15,15 @@ const returnFocusByFrame = new WeakMap();
 
 // Connects to data-controller="dialog"
 export default class extends Controller {
-  static targets = ["content"]
+  static targets = ["content", "grabber"]
 
   static values = {
     autoOpen: { type: Boolean, default: false },
     reloadOnClose: { type: Boolean, default: false },
     disableClickOutside: { type: Boolean, default: false },
+    // The iOS bottom sheet (DS::Dialog variant: "sheet"): opened on demand by
+    // a `sheet:open` event, closed by sliding away, dragged down to dismiss.
+    sheet: { type: Boolean, default: false },
   };
 
   connect() {
@@ -29,8 +32,11 @@ export default class extends Controller {
     this._onKeydown = this.#onKeydown.bind(this);
     this._onClose = this.#onClose.bind(this);
 
+    this._onCancel = this.#onCancel.bind(this);
+
     this.element.addEventListener("keydown", this._onKeydown);
     this.element.addEventListener("close", this._onClose);
+    this.element.addEventListener("cancel", this._onCancel);
 
     if (this.element.matches(":modal")) return;
     // Back restores a dialog cached open as a plain open one: no backdrop, no
@@ -47,6 +53,8 @@ export default class extends Controller {
   disconnect() {
     this.element.removeEventListener("keydown", this._onKeydown);
     this.element.removeEventListener("close", this._onClose);
+    this.element.removeEventListener("cancel", this._onCancel);
+    this.#unlockScroll();
 
     // Replaced while still open: one drawer linking to the next inside the
     // same frame. The link that did it left with this dialog, so focus would
@@ -67,7 +75,56 @@ export default class extends Controller {
     }
   }
 
+  // Open on demand (a sheet rendered inline in the page, never auto-opened).
+  open() {
+    if (this.element.open) return;
+    this._priorFocus = this.#returnFocusTarget();
+    this.element.showModal();
+    if (this.sheetValue) this.#lockScroll();
+    this.#focusInitial();
+  }
+
   close() {
+    if (this.sheetValue && this.element.open && !this.#reducedMotion()) {
+      this.#slideAway();
+      return;
+    }
+    this.#finishClose();
+  }
+
+  // Drag the grabber down: the sheet follows the finger; let go far enough
+  // (or with a flick) and it leaves, otherwise it springs back.
+  dragStart(event) {
+    if (!this.sheetValue || !this.hasContentTarget) return;
+    const content = this.contentTarget;
+    const startY = event.clientY;
+    const startTime = performance.now();
+    let offset = 0;
+    content.style.transition = "none";
+    this.grabberTarget.setPointerCapture?.(event.pointerId);
+
+    const move = (moveEvent) => {
+      offset = Math.max(0, moveEvent.clientY - startY);
+      content.style.transform = `translateY(${offset}px)`;
+    };
+    const end = () => {
+      this.grabberTarget.removeEventListener("pointermove", move);
+      this.grabberTarget.removeEventListener("pointerup", end);
+      this.grabberTarget.removeEventListener("pointercancel", end);
+      content.style.transition = "";
+      const velocity = offset / Math.max(1, performance.now() - startTime);
+      if (offset > content.offsetHeight * 0.25 || velocity > 0.6) {
+        this.close();
+      } else {
+        content.style.transform = "";
+      }
+    };
+    this.grabberTarget.addEventListener("pointermove", move);
+    this.grabberTarget.addEventListener("pointerup", end);
+    this.grabberTarget.addEventListener("pointercancel", end);
+  }
+
+  #finishClose() {
     this.element.close();
     // Now as well as on the close event: a reload-on-close visit can cache
     // the page before that event fires.
@@ -115,7 +172,58 @@ export default class extends Controller {
     }
   }
 
+  // Slide the sheet off the bottom edge (fade it as a panel from lg), then
+  // close it for real. One close at a time; a timer covers a lost
+  // transitionend.
+  #slideAway() {
+    if (this._closing) return;
+    this._closing = true;
+    const content = this.contentTarget;
+    const finish = () => {
+      if (!this._closing) return;
+      this._closing = false;
+      content.removeEventListener("transitionend", finish);
+      this.#finishClose();
+      content.style.transform = "";
+      content.style.opacity = "";
+    };
+    content.addEventListener("transitionend", finish);
+    setTimeout(finish, 350);
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      content.style.opacity = "0";
+      content.style.transform = "scale(0.95)";
+    } else {
+      content.style.transform = "translateY(100%)";
+    }
+  }
+
+  // Escape on a sheet slides it away instead of snapping it shut.
+  #onCancel(event) {
+    if (!this.sheetValue || this.#reducedMotion()) return;
+    event.preventDefault();
+    this.close();
+  }
+
+  #reducedMotion() {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  // A sheet holds the page still behind it: the app scrolls in #main, and
+  // iOS scrolls the document through the backdrop.
+  #lockScroll() {
+    this._scrollLocked = [document.documentElement, document.getElementById("main")]
+      .filter(Boolean)
+      .map((element) => [element, element.style.overflow]);
+    for (const [element] of this._scrollLocked) element.style.overflow = "hidden";
+  }
+
+  #unlockScroll() {
+    for (const [element, overflow] of this._scrollLocked ?? []) element.style.overflow = overflow;
+    this._scrollLocked = null;
+  }
+
   #onClose() {
+    this.#unlockScroll();
     const prior = this._priorFocus;
     this._priorFocus = null;
     if (prior && typeof prior.focus === "function" && document.body.contains(prior)) {

@@ -1,39 +1,65 @@
-<%# The slim bar (design D2: "slim bar, drop anywhere"). One row: the picker, the
-    drop hint, a search affordance, and the status line the intake stream writes
-    a refusal into. The page itself is the drop target — document_dropzone_
-    controller listens on `document` — so this bar is only the visible half. %>
-<div class="flex flex-wrap items-center gap-3">
-  <%# The button is the label; the chosen file's `change` is what uploads it
-      (document_dropzone_controller#pick), the same path a dropped one takes. %>
-  <label class="flex items-center gap-2 cursor-pointer rounded-lg border border-secondary px-3 py-2 text-sm text-primary hover:bg-surface-hover focus-within:bg-surface-hover">
-    <%= icon("plus", size: "sm") %>
-    <span><%= t(".add_document") %></span>
-    <input type="file" name="document" accept="image/*,application/pdf,.csv,.ofx,.qfx,.xlsx"
-           class="hidden" data-action="change->document-dropzone#pick">
-  </label>
+<%# The way in (Documents redesign, 2026-10-16): a floating + that opens the Add
+    sheet — camera, photo library, any file, and the receipt's currency. Every
+    picker's `change` takes the one upload path a dropped file takes
+    (document_dropzone_controller#pick), and the page itself is still the drop
+    target on a computer. %>
 
-  <%# The currency a receipt or bill is in (the owner's rule): preset to the
-      family's display currency; a statement ignores it — its account decides. %>
-  <div class="w-40" data-intake-currency>
-    <%= fields do |form| %>
-      <%= render DS::Select.new(form: form, method: :currency,
-                                items: Money::Currency.as_options.map { |currency| { label: "#{currency.iso_code} — #{currency.name}", value: currency.iso_code } },
-                                selected: Current.family.currency, searchable: true,
-                                label: t(".currency_label"),
-                                html_options: { data: { "document-dropzone-target": "currency" } }) %>
-    <% end %>
-  </div>
+<%# The intake stream writes a refusal here; hidden while empty. %>
+<p id="documents_intake_status" role="status" aria-live="polite"
+   class="text-sm text-destructive empty:hidden" data-document-dropzone-target="status"></p>
 
-  <span class="text-sm text-secondary"><%= t(".drop_hint") %></span>
+<button type="button"
+        class="fixed z-20 right-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] lg:bottom-8 inline-flex items-center justify-center size-14 rounded-full bg-inverse hover:bg-inverse-hover text-inverse shadow-lg active:scale-95 transition focus-ring"
+        aria-controls="document_add_sheet" aria-haspopup="dialog"
+        aria-label="<%= t(".add_document") %>" title="<%= t(".add_document") %>"
+        data-controller="sheet-opener floating-action" data-sheet-opener-sheet-value="document_add_sheet"
+        data-action="sheet-opener#open">
+  <%= icon("plus", size: "xl", color: "current") %>
+</button>
 
-  <%# The intake stream updates this span with a refusal; empty until then. %>
-  <span id="documents_intake_status" role="status" aria-live="polite"
-        class="text-sm text-destructive" data-document-dropzone-target="status"></span>
+<%= render DS::Dialog.new(variant: "sheet", auto_open: false, disable_frame: true, width: "sm", id: "document_add_sheet") do |dialog| %>
+  <% dialog.with_body do %>
+    <div class="grid grid-cols-3 items-center -mt-1 mb-3">
+      <button type="button" class="justify-self-start py-2 text-base text-link rounded-md focus-ring" data-action="DS--dialog#close">
+        <%= t(".cancel") %>
+      </button>
+      <h2 id="<%= dialog.title_id %>" class="justify-self-center whitespace-nowrap text-base font-semibold text-primary">
+        <%= t(".add_document") %>
+      </h2>
+    </div>
 
-  <%# The filter form below carries the search field; this is the affordance
-      that takes you to it. %>
-  <%= link_to "#q_search", class: "ml-auto flex items-center gap-1.5 text-sm text-secondary hover:text-primary" do %>
-    <%= icon("search", size: "sm") %>
-    <span><%= t(".search") %></span>
+    <div class="space-y-4">
+      <%# The three sources, as an inset grouped list. Each row is the label of
+          its own hidden picker. %>
+      <div class="rounded-xl bg-container-inset divide-y divide-subdued overflow-hidden">
+        <% [ [ "camera", t(".scan"), { accept: "image/*", capture: "environment" } ],
+             [ "images", t(".photos"), { accept: "image/*", multiple: true } ],
+             [ "folder-open", t(".choose_file"), { accept: "image/*,application/pdf,.csv,.ofx,.qfx,.xlsx", multiple: true } ] ].each do |icon_key, label, input| %>
+          <label class="flex items-center gap-3 min-h-12 px-4 py-2 cursor-pointer hover:bg-container-inset-hover active:bg-container-inset-hover focus-within:bg-container-inset-hover transition-colors">
+            <span class="inline-flex items-center justify-center size-8 rounded-lg button-bg-accent text-link">
+              <%= icon(icon_key, size: "sm", color: "current") %>
+            </span>
+            <span class="text-base text-primary"><%= label %></span>
+            <%= tag.input type: "file", name: "document", class: "sr-only",
+                  data: { action: "change->document-dropzone#pick" }, **input %>
+          </label>
+        <% end %>
+      </div>
+
+      <%# The currency a receipt or bill is in (the owner's rule): preset to the
+          family's display currency; a statement ignores it — its account
+          decides. %>
+      <div data-intake-currency>
+        <%= fields do |form| %>
+          <%= render DS::Select.new(form: form, method: :currency,
+                                    items: Money::Currency.as_options.map { |currency| { label: "#{currency.iso_code} — #{currency.name}", value: currency.iso_code } },
+                                    selected: Current.family.currency, searchable: true,
+                                    label: t(".currency_label"),
+                                    html_options: { data: { "document-dropzone-target": "currency" } }) %>
+        <% end %>
+      </div>
+
+      <p class="px-1 text-xs text-secondary"><%= t(".footnote") %></p>
+    </div>
   <% end %>
-</div>
+<% end %>

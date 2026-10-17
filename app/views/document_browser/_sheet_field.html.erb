@@ -1,0 +1,9 @@
+<%# locals: (label:) %>
+<%# One field in the Filters sheet: an inset rounded cell, its small label over
+    the input the block renders. %>
+<label class="flex flex-col justify-center gap-0.5 min-h-11 px-3 py-2 rounded-xl bg-container-inset focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-link">
+  <% if label %>
+    <span class="text-xs text-secondary"><%= label %></span>
+  <% end %>
+  <%= yield %>
+</label>

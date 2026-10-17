@@ -39,7 +39,11 @@ class DS::Dialog < DesignSystemComponent
 
   attr_reader :variant, :auto_open, :reload_on_close, :width, :disable_frame, :content_class, :disable_click_outside, :opts, :responsive, :scrollable, :heading_level, :title_id
 
-  VARIANTS = %w[modal drawer].freeze
+  # `sheet` (Documents redesign, 2026-10-16) is the iOS bottom sheet: below lg
+  # it rises from the bottom edge with a grabber to drag it down by; from lg up
+  # it is a centered panel. It never opens on render (pass `auto_open: false`):
+  # a page renders it inline and opens it with a `sheet:open` event.
+  VARIANTS = %w[modal drawer sheet].freeze
   # `expanded` is the "give this cramped thing the whole screen" shape used by
   # expand-on-hover affordances (the dashboard cashflow chart, the debug log
   # table). It keeps a sliver of viewport margin — unlike `full` — and caps out
@@ -97,8 +101,18 @@ class DS::Dialog < DesignSystemComponent
     end
   end
 
+  def dialog_classes
+    class_names(
+      "w-full h-full bg-transparent text-primary backdrop:bg-overlay pt-[env(safe-area-inset-top)]",
+      sheet? ? "backdrop:backdrop-blur-sm lg:p-3" : "pb-[env(safe-area-inset-bottom)]",
+      (drawer? || responsive?) ? "lg:p-3" : (sheet? ? nil : "lg:p-1")
+    )
+  end
+
   def dialog_outer_classes
-    variant_classes = if responsive?
+    variant_classes = if sheet?
+      "items-end justify-center lg:items-center"
+    elsif responsive?
       "items-center justify-center lg:items-end lg:justify-end"
     elsif drawer?
       "items-end justify-end"
@@ -113,6 +127,8 @@ class DS::Dialog < DesignSystemComponent
   end
 
   def dialog_inner_classes
+    return sheet_inner_classes if sheet?
+
     variant_classes = if responsive?
       "max-h-full lg:h-full lg:w-[550px]"
     elsif drawer?
@@ -131,6 +147,20 @@ class DS::Dialog < DesignSystemComponent
     )
   end
 
+  # The sheet owns its own corners, edge and safe-area padding, so it does not
+  # share the modal's gutter and all-round radius. It rises on open
+  # (`starting:`), and fades up into place as a panel from lg.
+  def sheet_inner_classes
+    class_names(
+      "flex flex-col w-full max-h-[92dvh] bg-container shadow-border-xs",
+      "rounded-t-3xl lg:rounded-2xl pb-[env(safe-area-inset-bottom)] lg:pb-0",
+      WIDTHS[width],
+      "transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
+      "starting:translate-y-full lg:starting:translate-y-0 lg:starting:scale-95 lg:starting:opacity-0",
+      content_class
+    )
+  end
+
   def merged_opts
     merged_opts = opts.dup
     data = merged_opts.delete(:data) || {}
@@ -139,7 +169,12 @@ class DS::Dialog < DesignSystemComponent
     data[:DS__dialog_auto_open_value] = auto_open
     data[:DS__dialog_reload_on_close_value] = reload_on_close
     data[:DS__dialog_disable_click_outside_value] = disable_click_outside
-    data[:action] = [ "click->DS--dialog#clickOutside", data[:action] ].compact.join(" ")
+    data[:DS__dialog_sheet_value] = sheet?
+    data[:action] = [
+      "click->DS--dialog#clickOutside",
+      ("sheet:open->DS--dialog#open sheet:close->DS--dialog#close" if sheet?),
+      data[:action]
+    ].compact.join(" ")
     data[:hotkey] = "esc:DS--dialog#close"
     # Fetched into a frame over the page, the dialog is left out of Turbo's
     # cached copy of that page, or Back brings it back: stray if it was still
@@ -155,6 +190,10 @@ class DS::Dialog < DesignSystemComponent
 
   def drawer?
     variant == :drawer
+  end
+
+  def sheet?
+    variant == :sheet
   end
 
   def responsive?

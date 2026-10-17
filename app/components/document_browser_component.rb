@@ -35,4 +35,11 @@ class DocumentBrowserComponent < ApplicationComponent
   def active_filters?
     filters.values.any?(&:present?)
   end
+
+  # The chips and the badge count (the Documents redesign). Amounts read in the
+  # family's own currency.
+  def active_filter_chips
+    DocumentBrowser::ActiveFilters.new(filters: filters, url: url, family: family,
+                                       currency: Current.family&.currency || "USD")
+  end
 end

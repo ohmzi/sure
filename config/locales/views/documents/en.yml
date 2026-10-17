@@ -11,13 +11,17 @@ en:
       receipts_bills_title: Receipts & Bills
       upload: Upload
       source_auto: Detect automatically
-    # The slim bar (design D2). One row: the picker, the drop hint, a search
-    # affordance, and the status line the intake stream writes refusals into.
+    # The floating + and its Add sheet (Documents redesign, 2026-10-16), and
+    # the status line the intake stream writes refusals into. Dropping a file
+    # anywhere on the page still uploads it.
     intake_bar:
       add_document: Add document
-      drop_hint: …or drop files anywhere on this page
+      cancel: Cancel
+      scan: Scan with camera
+      photos: Photo library
+      choose_file: Choose file
       currency_label: Receipt currency
-      search: Search
+      footnote: Statements use their account's currency. PDF, image, CSV, OFX, QFX or XLSX — or drop files anywhere on this page.
       upload_failed: The upload failed. Check your connection and try again.
     # The one dropzone's endpoint copy.
     intakes:

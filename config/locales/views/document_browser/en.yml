@@ -38,6 +38,33 @@ en:
         name: Name
       date_from: From date
       date_to: To date
+      # The Documents redesign (2026-10-16): the search row, the filter button
+      # and its sheet, and one removable chip per filter that is on.
+      open_filters: Filters
+      active_count:
+        one: 1 filter on
+        other: "%{count} filters on"
+      sheet_title: Filters
+      reset: Reset
+      done: Done
+      show_results: Show results
+      sort: Sort
+      order: Order
+      date: Date
+      from: From
+      to: To
+      amount: Amount
+      search_short: Search
+      chips:
+        label: Active filters
+        remove: "Remove %{label}"
+        needs_you: Needs you
+        amount_between: "%{min} – %{max}"
+        amount_over: "Over %{amount}"
+        amount_under: "Under %{amount}"
+        date_between: "%{from} – %{to}"
+        date_from: "From %{date}"
+        date_to: "Until %{date}"
     empty:
       title: Nothing matches these filters
       description: Try widening or clearing the filters.
