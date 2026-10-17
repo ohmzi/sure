@@ -10,6 +10,8 @@ class Rule::ConditionFilter
     "text" => [
       [ :contains, "like" ],
       [ :does_not_contain, "not_like" ],
+      [ :matches_regex, "matches" ],
+      [ :does_not_match_regex, "not_matches" ],
       [ :equal_to, "=" ],
       [ :not_equal_to, "!=" ],
       [ :is_empty, "is_null" ],
@@ -102,7 +104,11 @@ class Rule::ConditionFilter
           "#{field} #{sanitize_operator(operator)}"
         )
       else
-        normalized_value = normalize_value(value)
+        normalized_value = if %w[matches not_matches].include?(operator)
+          value.to_s
+        else
+          normalize_value(value)
+        end
         normalized_field = normalize_field(field)
 
         if operator == "like" || operator == "not_like"
@@ -115,6 +121,13 @@ class Rule::ConditionFilter
           # "Does not contain" should also match rows where the field is absent (NULL),
           # otherwise NOT ILIKE silently drops them due to SQL's three-valued logic.
           operator == "not_like" ? "(#{expression} OR #{field} IS NULL)" : expression
+        elsif operator == "not_matches"
+          expression = ActiveRecord::Base.sanitize_sql_for_conditions([
+            "#{normalized_field} #{sanitize_operator(operator)} ?",
+            normalized_value
+          ])
+          # Same NULL rule as "does not contain": a missing value is not a match.
+          "(#{expression} OR #{field} IS NULL)"
         else
           ActiveRecord::Base.sanitize_sql_for_conditions([
             "#{normalized_field} #{sanitize_operator(operator)} ?",
@@ -132,6 +145,10 @@ class Rule::ConditionFilter
         "ILIKE"
       when "not_like"
         "NOT ILIKE"
+      when "matches"
+        "~*"
+      when "not_matches"
+        "!~*"
       when "is_null"
         "IS NULL"
       when "is_not_null"

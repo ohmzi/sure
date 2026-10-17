@@ -10,6 +10,11 @@
         <p class="text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".conditions") %></p>
         <p class="text-primary font-medium"><%= @rule.primary_condition_title %></p>
         <p class="text-xs text-secondary"><%= t(".matched", count: @matched_count) %></p>
+        <% if @rules_above.any? %>
+          <p class="text-xs text-warning">
+            <%= t(".conflict_warning", names: @rules_above.map { |rule| rule.name.presence || rule.primary_condition_title }.to_sentence) %>
+          </p>
+        <% end %>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <%= render DS::Link.new(text: t(".edit"), href: edit_rule_path(@rule), frame: :modal, variant: "outline", size: :sm) %>

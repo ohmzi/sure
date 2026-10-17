@@ -821,6 +821,15 @@ class Rule::ConditionTest < ActiveSupport::TestCase
     assert_not filtered.map(&:id).include?(contribution_entry.transaction.id)
   end
 
+  test "rejects an invalid regex value" do
+    condition = Rule::Condition.new(
+      rule: @transaction_rule, condition_type: "transaction_name", operator: "matches", value: "["
+    )
+
+    assert_not condition.valid?
+    assert condition.errors[:value].present?
+  end
+
   private
     # @param operator [String] a transaction_details operator
     # @param value [String] the text the rule searches for

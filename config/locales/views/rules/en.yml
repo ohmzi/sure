@@ -125,6 +125,8 @@ en:
       operators:
         contains: Contains
         does_not_contain: Does not contain
+        matches_regex: Matches (regex)
+        does_not_match_regex: Does not match (regex)
         equal_to: Equal to
         is_equal_to: Is equal to
         not_equal_to: Not equal to
@@ -139,6 +141,7 @@ en:
       matched:
         one: 1 matched transaction
         other: "%{count} matched transactions"
+      conflict_warning: "Rules above this one run first and may claim some matches: %{names}."
       edit: Edit rule
       apply: Apply
       rule_category: Category this rule assigns

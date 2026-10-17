@@ -71,6 +71,7 @@ class RulesController < ApplicationController
   # request (2026-10-17).
   def show
     @category_action = @rule.actions.find_by(action_type: "set_transaction_category")
+    @rules_above = @rule.active_rules_above
     @categories = Current.family.categories.alphabetically_by_hierarchy.to_a
     matched = @rule.matching_scope
     @matched_count = matched.count

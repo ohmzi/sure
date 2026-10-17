@@ -19,6 +19,7 @@ class Rule::Condition < ApplicationRecord
     unless: -> { compound? || Rule::ConditionFilter::VALUELESS_OPERATORS.include?(operator) },
     if: -> { value.to_s.valid_encoding? }
   validates_with DatabaseTextValidator, attributes: %i[condition_type operator value]
+  validate :regex_value_is_valid, if: -> { operator.in?(%w[matches not_matches]) && value.present? }
 
   accepts_nested_attributes_for :sub_conditions, allow_destroy: true
 
@@ -92,5 +93,14 @@ class Rule::Condition < ApplicationRecord
       else
         sub_conditions.reduce(scope) { |s, sub| sub.apply(s) }
       end
+    end
+
+    # A malformed pattern would otherwise reach PostgreSQL and fail the whole
+    # rule run. Ruby and PostgreSQL regex syntax overlap enough to catch the
+    # common errors at save time.
+    def regex_value_is_valid
+      Regexp.new(value.to_s)
+    rescue RegexpError => error
+      errors.add(:value, error.message)
     end
 end

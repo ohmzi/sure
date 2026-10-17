@@ -119,6 +119,20 @@ class Rule::ConditionFilter::TransactionNameTest < ActiveSupport::TestCase
     assert_empty matching_entry_ids(operator: "=", value: "%")
   end
 
+  test "a regex operator matches case-insensitively" do
+    amzn = manual_entry(name: "AMZN Mktp CA")
+    manual_entry(name: "Coffee Shop")
+
+    assert_equal [ amzn.id ], matching_entry_ids(operator: "matches", value: "^amzn")
+  end
+
+  test "a not-matches regex excludes matching rows and keeps the rest" do
+    manual_entry(name: "AMZN Mktp CA")
+    keeper = manual_entry(name: "Coffee Shop")
+
+    assert_equal [ keeper.id ], matching_entry_ids(operator: "not_matches", value: "^amzn")
+  end
+
   private
     # PlaidEntry::Processor#process writes the name and the stored
     # original_description in one import_transaction call, so a combined name
