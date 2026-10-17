@@ -746,6 +746,7 @@ Rails.application.routes.draw do
       patch :link
       patch :unlink
       patch :reject
+      patch :review
     end
   end
 

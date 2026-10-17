@@ -75,9 +75,12 @@ en:
         unknown_check: Unknown check
       matched: Matched
       mismatched: Mismatched
+      reviewed: Reviewed
       unavailable: Not checked
     reject:
       success: Statement match rejected.
+    review:
+      success: Statement marked reviewed.
     show:
       account_label: Account
       account_last4_hint: Account last four
@@ -98,6 +101,8 @@ en:
       period_end_on: Period end
       period_start_on: Period start
       reconciliation_title: Reconciliation
+      mark_reviewed: Mark reviewed
+      reviewed: "Reviewed %{date}"
       reconciliation_unavailable: Add a statement period and opening or closing balance, then make sure Sure has balance history for those dates.
       reject: Reject
       save: Save statement

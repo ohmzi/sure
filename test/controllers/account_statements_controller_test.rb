@@ -23,6 +23,20 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", text: I18n.t("account_statements.index.title") # still the pinned title key
   end
 
+  test "marks a statement reviewed" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "review.csv", content_type: "text/csv",
+                          content: "date,amount\n2026-01-01,1\n")
+    )
+
+    patch review_account_statement_url(statement)
+
+    assert_redirected_to account_statement_path(statement)
+    assert statement.reload.reviewed?
+    assert_equal @user, statement.reviewed_by
+  end
+
   test "the statement details page renders in the main chrome, never the settings chrome" do
     # (Ruling M8-C5, 2026-10-11 close-out) the vault's drill-through must not
     # move the user from the main page into the settings chrome.

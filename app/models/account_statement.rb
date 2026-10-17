@@ -48,6 +48,9 @@ class AccountStatement < ApplicationRecord
   belongs_to :family
   belongs_to :account, optional: true
   belongs_to :suggested_account, class_name: "Account", optional: true
+  # A person who has checked this statement by hand. Reconciliation checks stay
+  # factual; the acknowledgement is a separate fact.
+  belongs_to :reviewed_by, class_name: "User", optional: true
 
   has_many :pdf_imports, -> { where(type: "PdfImport").ordered }, class_name: "PdfImport", dependent: :restrict_with_error
   has_one_attached :original_file, dependent: :purge_later
@@ -242,7 +245,8 @@ class AccountStatement < ApplicationRecord
       balance_lookup = balance_lookup_for(account, statement_list)
 
       statement_list.to_h do |statement|
-        [ statement.id, statement.reconciliation_status(balance_lookup: balance_lookup) ]
+        status = statement.reviewed? ? "reviewed" : statement.reconciliation_status(balance_lookup: balance_lookup)
+        [ statement.id, status ]
       end
     end
 
@@ -428,6 +432,8 @@ class AccountStatement < ApplicationRecord
 
     checks.any? { |check| check[:status] == "mismatched" } ? "mismatched" : "matched"
   end
+
+  def reviewed? = reviewed_at.present?
 
   def reconciliation_mismatched?(balance_lookup: nil)
     reconciliation_status(balance_lookup: balance_lookup) == "mismatched"

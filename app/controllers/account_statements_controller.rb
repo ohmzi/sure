@@ -7,8 +7,8 @@ class AccountStatementsController < ApplicationController
   # hold: the account may learn its card identity from the read (spec N14).
   include ImportAccountTeacher
 
-  before_action :set_statement, only: %i[show viewer update destroy link unlink reject]
-  before_action :ensure_statement_manager!, only: %i[index create update destroy link unlink reject]
+  before_action :set_statement, only: %i[show viewer update destroy link unlink reject review]
+  before_action :ensure_statement_manager!, only: %i[index create update destroy link unlink reject review]
 
   def index
     @filters = document_browser_filters
@@ -164,6 +164,15 @@ class AccountStatementsController < ApplicationController
 
     @statement.reject_match!
     redirect_to account_statements_path, notice: t("account_statements.reject.success")
+  end
+
+  # A person has checked this statement by hand. The reconciliation checks are
+  # facts and stay visible; this records that a human looked at them.
+  def review
+    return if @statement.account && !require_account_permission!(@statement.account)
+
+    @statement.update!(reviewed_at: Time.current, reviewed_by: Current.user)
+    redirect_back_or_to account_statement_path(@statement), notice: t("account_statements.review.success")
   end
 
   def destroy

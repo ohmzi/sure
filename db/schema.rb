@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_200000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_210000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -66,6 +66,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_200000) do
     t.date "period_end_on"
     t.date "period_start_on"
     t.string "review_status", default: "unmatched", null: false
+    t.datetime "reviewed_at"
+    t.uuid "reviewed_by_id"
     t.jsonb "sanitized_parser_output", default: {}, null: false
     t.string "source", default: "manual_upload", null: false
     t.uuid "suggested_account_id"
@@ -77,6 +79,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_200000) do
     t.index ["family_id", "content_sha256"], name: "index_account_statements_on_family_content_sha256", unique: true, where: "(content_sha256 IS NOT NULL)"
     t.index ["family_id", "review_status"], name: "index_account_statements_on_family_review_status"
     t.index ["family_id"], name: "index_account_statements_on_family_id"
+    t.index ["reviewed_by_id"], name: "index_account_statements_on_reviewed_by_id"
     t.index ["suggested_account_id", "review_status"], name: "index_account_statements_on_suggested_account_review"
     t.index ["suggested_account_id"], name: "index_account_statements_on_suggested_account_id"
     t.check_constraint "account_last4_hint IS NULL OR char_length(account_last4_hint::text) <= 4", name: "chk_account_statements_account_last4_hint_length"
@@ -3054,6 +3057,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_200000) do
   add_foreign_key "account_statements", "accounts", column: "suggested_account_id", on_delete: :nullify
   add_foreign_key "account_statements", "accounts", on_delete: :nullify
   add_foreign_key "account_statements", "families", on_delete: :cascade
+  add_foreign_key "account_statements", "users", column: "reviewed_by_id", on_delete: :nullify
   add_foreign_key "accounts", "families"
   add_foreign_key "accounts", "imports"
   add_foreign_key "accounts", "plaid_accounts"
