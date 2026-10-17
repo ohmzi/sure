@@ -23,8 +23,14 @@ namespace :encryption do
       count = 0
       model.find_each do |record|
         begin
-          # Through the encrypting writer: a plaintext value is read with
-          # support_unencrypted_data, then written back as ciphertext.
+          # Through the encrypting writer. A plain, unchanged value would not
+          # be marked dirty and would not be rewritten, so force each encrypted
+          # attribute dirty first; the encrypting type then writes ciphertext.
+          model.encrypted_attributes.each do |attribute|
+            next unless record.has_attribute?(attribute) && record.public_send(attribute).present?
+
+            record.public_send("#{attribute}_will_change!")
+          end
           record.save!(validate: false)
           count += 1
         rescue => error
