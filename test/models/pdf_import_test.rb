@@ -162,6 +162,27 @@ class PdfImportTest < ActiveSupport::TestCase
     assert_equal "2026-03-31", row.date_iso
   end
 
+  test "generate_rows_from_extracted_data fills a date missing at a page break" do
+    import = imports(:pdf_with_rows)
+    import.update!(
+      account: accounts(:depository),
+      extracted_data: {
+        "transactions" => [
+          { "date" => "2026-05-01", "amount" => "10", "name" => "First", "source_page" => 1 },
+          { "date" => "", "amount" => "20", "name" => "Second", "source_page" => 2 },
+          { "date" => "2026-05-07", "amount" => "30", "name" => "Third", "source_page" => 2 },
+          { "date" => "", "amount" => "40", "name" => "Fourth", "source_page" => 3 }
+        ]
+      }
+    )
+
+    import.generate_rows_from_extracted_data
+
+    rows = import.rows.index_by(&:name)
+    assert_equal "2026-05-07", rows.fetch("Second").date_iso, "the next dated row on the same page wins"
+    assert_equal "2026-05-07", rows.fetch("Fourth").date_iso, "otherwise the previous date carries forward"
+  end
+
   test "generate_rows_from_extracted_data does nothing without extracted transactions" do
     @import.generate_rows_from_extracted_data
     assert_equal 0, @import.rows.count

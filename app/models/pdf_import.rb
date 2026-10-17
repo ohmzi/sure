@@ -364,7 +364,9 @@ class PdfImport < Import
       end
 
       currency = account&.currency || family.currency
-      candidates = extracted_transactions.map.with_index(1) do |txn, index|
+      transactions = extracted_transactions
+      fill_missing_dates!(transactions)
+      candidates = transactions.map.with_index(1) do |txn, index|
         Import::Row.new(
           import: self,
           source_row_number: index,
@@ -727,6 +729,26 @@ class PdfImport < Import
     # A statement reader may return a day-first date ("31-03-2026") or a
     # thousands separator in an amount ("3,501.79"). Normalize both before the
     # row validations see them.
+    # A statement prints the date once per group, so a row at a page break can
+    # arrive with no date. Prefer the next dated row on the same page (the date
+    # is often printed beside/below the group); otherwise carry the previous
+    # row's date forward. A row with no dated neighbour either side stays blank
+    # and remains visibly invalid for the review screen.
+    def fill_missing_dates!(transactions)
+      transactions.each_with_index do |row, index|
+        next if row["date"].present?
+
+        page = row["source_page"]
+        next_dated = transactions[(index + 1)..].to_a.find do |candidate|
+          candidate["date"].present? && (page.nil? || candidate["source_page"] == page)
+        end
+        previous_dated = transactions[0...index].to_a.reverse.find { |candidate| candidate["date"].present? }
+
+        source = next_dated || previous_dated
+        row["date"] = source["date"] if source
+      end
+    end
+
     def format_date_for_import(date_str)
       return "" if date_str.blank?
 
