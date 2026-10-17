@@ -12,7 +12,7 @@ class DocumentLinksController < ApplicationController
   # the rest); `thumb` is the tile-sized preview — a PDF's rasterized first page
   # where one can be rendered, the stored bytes otherwise (an image's own bytes
   # ARE its picture).
-  FILE_KINDS = { "original" => :original, "preview" => :preview, "thumb" => :thumb }.freeze
+  FILE_KINDS = { "original" => :original, "preview" => :preview, "thumb" => :thumb, "page" => :page }.freeze
   # The filename guard moved into DocumentLink::Intake (M7 — the archive form and
   # the wizard share one intake path); this alias keeps M1's constant name
   # resolving for any caller.
@@ -147,6 +147,18 @@ class DocumentLinksController < ApplicationController
     # needless download, so this answers 404 and the tile's icon stands. An
     # image never comes through here: its own bytes are the picture and it
     # falls through to the branch below.
+    # One page of a PDF as a picture (2026-10-17): a phone shows the pages in
+    # the app rather than leaving it for the browser's PDF viewer.
+    if kind == :page
+      return render(plain: "no pages", status: :not_found) unless DocumentLink::Thumbnail.pdf?(@link)
+
+      image = DocumentLink::PageImage.new(@link, page: params[:page]).path
+      return render(plain: "no such page", status: :not_found) unless image
+
+      return send_data(image.binread, type: "image/png", disposition: :inline,
+                       filename: "#{File.basename(@link.original_filename.presence || "document", ".*")}-page-#{params[:page].to_i}.png")
+    end
+
     if kind == :thumb && DocumentLink::Thumbnail.pdf?(@link)
       preview = DocumentLink::Thumbnail.path_for(@link)
       return render(plain: "no preview", status: :not_found) unless preview

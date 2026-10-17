@@ -4,10 +4,34 @@
     modes — the lightbox and the split — so the two cannot render the document
     differently. %>
 <% if row.file_url.present? && row.kind == :pdf %>
-  <%# Phone browsers cannot show a PDF inline (they draw a bare "file / Open"
-      placeholder), so a phone gets a card that opens it; a computer shows it
-      in place. %>
+  <%# Phone browsers cannot show a PDF inline, and handing it to the browser
+      takes an installed app somewhere with no way back (the owner, 2026-10-17).
+      So a phone shows the document's pages as pictures, here in the sheet — tap
+      a page to zoom — and a computer shows the PDF in place. %>
   <iframe src="<%= row.file_url %>" title="<%= row.title %>" class="hidden lg:block grow w-full rounded-2xl border border-secondary bg-container-inset"></iframe>
+  <% link = row.record if row.respond_to?(:record) && row.record.is_a?(DocumentLink) %>
+  <% pages = link ? DocumentLink::PageImage.count(link) : 0 %>
+  <% if pages.positive? %>
+    <div class="lg:hidden flex min-h-0 flex-col gap-2" data-controller="page-zoom" data-document-pages="<%= pages %>">
+      <div class="flex items-center justify-between gap-3 px-1 text-xs text-secondary">
+        <span><%= t("document_browser.viewer.pages", count: pages) %> · <%= t("document_browser.viewer.tap_to_zoom") %></span>
+        <% if row.download_url.present? %>
+          <%= link_to t("document_browser.viewer.download"), row.download_url, class: "font-semibold text-link", data: { turbo: false } %>
+        <% end %>
+      </div>
+      <div class="max-h-[55dvh] space-y-3 overflow-y-auto overscroll-contain rounded-2xl">
+        <% (1..pages).each do |number| %>
+          <div class="max-h-[55dvh] overflow-auto rounded-xl bg-container-inset shadow-border-xs" data-page-zoom-target="frame">
+            <img src="<%= file_document_path(link, kind: "page", page: number) %>"
+                 alt="<%= t("document_browser.viewer.page_alt", number: number, total: pages, title: row.title) %>"
+                 loading="<%= number <= 2 ? "eager" : "lazy" %>"
+                 class="block w-full max-w-none cursor-zoom-in"
+                 data-action="click->page-zoom#toggle">
+          </div>
+        <% end %>
+      </div>
+    </div>
+  <% else %>
   <div class="lg:hidden flex items-center gap-4 rounded-2xl bg-container-inset p-4">
     <%= render DS::FilledIcon.new(icon: "file-text", hex_color: "var(--color-red-500)", size: "lg") %>
     <div class="min-w-0 grow">
@@ -16,6 +40,7 @@
     </div>
     <%= render DS::Link.new(text: t("document_browser.viewer.open_pdf"), href: row.file_url, variant: "primary", target: "_blank", rel: "noopener") %>
   </div>
+  <% end %>
 <% elsif row.file_url.present? && row.kind == :image %>
   <div class="grow min-h-0 overflow-auto rounded-lg bg-container-inset flex items-center justify-center"
        data-action="wheel->document-viewer#zoom click->document-viewer#toggleZoom">

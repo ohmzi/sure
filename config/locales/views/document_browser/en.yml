@@ -109,6 +109,11 @@ en:
       # The phone card for a PDF (2026-10-17): phones cannot show one inline.
       pdf_kind: PDF document
       open_pdf: Open
+      pages:
+        one: 1 page
+        other: "%{count} pages"
+      tap_to_zoom: tap a page to zoom
+      page_alt: "Page %{number} of %{total}, %{title}"
       previous: Previous
       next: Next
       download: Download

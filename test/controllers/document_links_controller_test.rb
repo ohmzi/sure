@@ -186,6 +186,35 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_equal "no preview", response.body
   end
 
+  # One page of a PDF as a picture (2026-10-17): a phone shows the pages in the
+  # app instead of leaving it for the browser's PDF viewer.
+  test "file serves one page of a PDF as a PNG, and 404s a page that is not there" do
+    @link.update_columns(stored_path: stage_bytes(@link, "%PDF-1.7"), content_type: "application/pdf")
+    page = @tmp.join("page-2.png")
+    File.binwrite(page, "\x89PNG\r\n\x1a\npage-two")
+    DocumentLink::PageImage.any_instance.stubs(:path).returns(page)
+
+    get file_document_path(@link, kind: "page", page: 2)
+
+    assert_response :success
+    assert_equal "image/png", response.headers["Content-Type"]
+    assert_match(/\Ainline/, response.headers["Content-Disposition"])
+
+    DocumentLink::PageImage.any_instance.stubs(:path).returns(nil)
+    get file_document_path(@link, kind: "page", page: 99)
+    assert_response :not_found
+  end
+
+  test "the viewer shows a PDF's pages as pictures for a phone, with a download" do
+    @link.update_columns(stored_path: stage_bytes(@link, "%PDF-1.7"), content_type: "application/pdf", page_count: 3)
+
+    get viewer_document_path(@link)
+
+    assert_response :success
+    assert_select "[data-document-pages='3'] img[src*='kind=page']", count: 3
+    assert_select "[data-document-pages] img[src*='page=3']"
+  end
+
   test "file serves an image's own bytes for the thumb kind, rendering nothing" do
     @link.update_columns(stored_path: stage_bytes(@link, "png-bytes"),
                          content_type: "image/png")
