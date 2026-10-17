@@ -49,13 +49,16 @@ class SettingsTest < ApplicationSystemTestCase
     end
   end
 
-  test "the settings sidebar carries the one Documents entry, not a Statements one" do
-    # (Milestone B, design D1) Statements stop being a settings destination of
-    # their own; the Documents entry stands in their place, and the vault is
-    # reached from the account tab's "Open inbox".
+  test "the settings list carries no Documents or Statements shortcut" do
+    # (Milestone B, design D1) Statements stopped being a settings destination;
+    # the vault is reached from the account tab's "Open inbox". Documents is a
+    # tab of its own, so Settings has no shortcut to it either (the owner,
+    # 2026-10-17).
     open_settings_from_sidebar
-    assert_no_selector "a[href='#{account_statements_path}']"
-    assert_selector "a[href='#{documents_path}']"
+    within "#settings-nav-container" do
+      assert_no_selector "a[href='#{account_statements_path}']"
+      assert_no_selector "a[href='#{documents_path}']"
+    end
   end
 
   test "can update self hosting settings" do

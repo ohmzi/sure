@@ -1184,8 +1184,10 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", edit_plaid_item_path(item, add_accounts: true), count: 0
   end
 
+  # (From the Accounts tab the sheet leaves the document row out on purpose —
+  # see "the new-account sheet from the Accounts tab leaves out Add a document".)
   test "the New popup lists the one document option in every variant" do
-    [ {}, { classification: "asset" }, { classification: "liability" }, { return_to: accounts_path } ].each do |params|
+    [ {}, { classification: "asset" }, { classification: "liability" } ].each do |params|
       get new_account_path(params)
       assert_response :success
 
@@ -1273,5 +1275,18 @@ class AccountsControllerSimplefinCtaTest < ActionDispatch::IntegrationTest
     assert_response :success
     refute_includes @response.body, setup_accounts_simplefin_item_path(item)
     refute_includes @response.body, "Link existing accounts"
+  end
+
+  # The owner (2026-10-17): the Accounts tab's + offers every kind of account
+  # but not "Add a document" (that lives on the Documents tab); from Home the
+  # sheet still offers it.
+  test "the new-account sheet from the Accounts tab leaves out Add a document" do
+    get new_account_path(return_to: accounts_path)
+    assert_response :success
+    assert_select "dialog a[href='#{documents_path}']", count: 0
+    assert_select "dialog a[href^='#{new_depository_path}']"
+
+    get new_account_path
+    assert_select "dialog a[href='#{documents_path}']", text: /#{Regexp.escape(I18n.t("accounts.new.document"))}/
   end
 end

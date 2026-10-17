@@ -37,11 +37,14 @@
           </div>
         </div>
 
-        <div class="bg-container-inset rounded-xl p-1 space-y-1 overflow-x-auto">
-          <div class="px-4 py-2 flex items-center uppercase text-xs font-medium text-secondary">
-            <div class="w-40 shrink-0"><%= t(".name") %></div>
-            <div class="ml-auto text-right flex items-center gap-2">
-              <div class="w-20 shrink-0">
+        <%# The name column takes what is left and wraps, and a phone shows the
+            weight as just its percentage, so the table fits its card with no
+            sideways scroll (the owner, 2026-10-17). %>
+        <div class="bg-container-inset rounded-xl p-1 space-y-1">
+          <div class="px-3 sm:px-4 py-2 flex items-center gap-2 uppercase text-xs font-medium text-secondary">
+            <div class="min-w-0 grow"><%= t(".name") %></div>
+            <div class="shrink-0 text-right flex items-center gap-2">
+              <div class="w-12 sm:w-20 shrink-0">
                 <p><%= t(".weight") %></p>
               </div>
               <div class="w-24 shrink-0">
@@ -50,22 +53,22 @@
             </div>
           </div>
 
-          <div class="rounded-lg bg-container font-medium text-sm min-w-fit">
+          <div class="rounded-lg bg-container font-medium text-sm">
             <% classification_group.account_groups.each_with_index do |account_group, idx| %>
               <details class="group open:bg-container
                 <%= idx == 0 ? "rounded-t-lg" : "" %>
                 <%= idx == classification_group.account_groups.size - 1 ? "rounded-b-lg" : "" %>
               " data-group-key="<%= account_group.key %>"
               <%= "open" if Current.user.always_expanded_account_group?(account_group.key) %>>
-                <summary class="cursor-pointer p-4 group-open:bg-container rounded-lg flex items-center justify-between">
-                  <div class="w-40 shrink-0 flex items-center gap-1">
+                <summary class="cursor-pointer p-3 sm:p-4 group-open:bg-container rounded-lg flex items-center justify-between gap-2">
+                  <div class="min-w-0 grow flex items-center gap-1">
                     <%= icon("chevron-right", class: "group-open:rotate-90") %>
 
-                    <p><%= account_group.name %></p>
+                    <p class="min-w-0 break-words"><%= account_group.name %></p>
                   </div>
 
-                  <div class="flex items-center justify-between text-right gap-2">
-                    <div class="w-20 shrink-0 flex items-center justify-end gap-2">
+                  <div class="shrink-0 flex items-center justify-between text-right gap-2">
+                    <div class="w-12 sm:w-20 shrink-0 flex items-center justify-end gap-2">
                       <%= render "pages/dashboard/group_weight", weight: account_group.weight, color: account_group.color %>
                     </div>
 
@@ -77,15 +80,15 @@
 
                 <div>
                   <% account_group.accounts.each_with_index do |account, idx| %>
-                    <div class="pl-7 pr-4 py-3 flex items-center justify-between text-sm font-medium">
-                      <div class="flex items-center gap-2">
+                    <div class="pl-5 sm:pl-7 pr-3 sm:pr-4 py-3 flex items-center justify-between gap-2 text-sm font-medium">
+                      <div class="min-w-0 grow flex items-center gap-2">
                         <%= render "accounts/logo", account: account, size: "sm", color: account_group.color %>
 
-                        <%= link_to account.name, account_path(account) %>
+                        <%= link_to account.name, account_path(account), class: "min-w-0 break-words" %>
                       </div>
 
-                      <div class="ml-auto flex items-center text-right gap-2">
-                        <div class="w-20 shrink-0 flex items-center justify-end gap-2">
+                      <div class="shrink-0 flex items-center text-right gap-2">
+                        <div class="w-12 sm:w-20 shrink-0 flex items-center justify-end gap-2">
                           <%
                               # Calculate weight as percentage of classification total
                               classification_total = classification_group.total_money.amount

@@ -12,12 +12,16 @@
         it lands on the full page rather than inside the popup. The label uses an
         absolute i18n key: inside the container layout's block a relative t()
         would resolve against accounts.new.container, not accounts.new. %>
+    <%# Opened from the Accounts tab, the sheet offers only accounts — the
+        document row lives on the Documents tab (the owner, 2026-10-17). %>
+    <% unless params[:return_to] == accounts_path %>
     <%= link_to documents_path,
                 data: { turbo_frame: :_top },
                 class: "group flex items-center gap-4 w-full text-center focus:outline-hidden hover:bg-surface-hover focus:bg-surface-hover text-primary border border-transparent block px-2 rounded-lg p-2" do %>
       <%= render DS::FilledIcon.new(icon: "receipt-text", hex_color: "#12B76A") %>
       <%= t("accounts.new.document") %>
       <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
+    <% end %>
     <% end %>
 
     <% unless params[:classification] == "liability" %>

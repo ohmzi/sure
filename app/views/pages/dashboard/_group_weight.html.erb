@@ -2,8 +2,9 @@
 
 <% effective_weight = weight.presence || 0 %>
 
-<div class="w-full flex items-center justify-between gap-2">
-  <div class="flex gap-[3px]">
+<div class="w-full flex items-center justify-end sm:justify-between gap-2">
+  <%# The bars need room; a phone shows the percentage alone. %>
+  <div class="hidden sm:flex gap-[3px]">
     <% 5.times do |i| %>
       <div class="w-0.5 h-2.5 rounded-lg <%= i < (effective_weight / 20.0).ceil ? "" : "opacity-20" %>" style="background-color: <%= color %>;"></div>
     <% end %>

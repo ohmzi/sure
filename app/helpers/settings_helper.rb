@@ -30,7 +30,7 @@ module SettingsHelper
 
   # The Settings list's groups, in order (the iOS Settings redesign,
   # 2026-10-17). Each row has a tint for its icon tile, as iOS colours its
-  # settings. Accounts left the list for its own tab.
+  # settings. Accounts and Documents are tabs of their own, not settings.
   def settings_nav_sections
     admin = Current.user&.admin?
     super_admin = Current.user&.super_admin?
@@ -47,8 +47,7 @@ module SettingsHelper
         { label: t("settings.settings_nav.tags_label"), path: tags_path, icon: "tags", tint: "fuchsia" },
         { label: t("settings.settings_nav.rules_label"), path: rules_path, icon: "git-branch", tint: "indigo" },
         { label: t("settings.settings_nav.merchants_label"), path: family_merchants_path, icon: "store", tint: "cyan" },
-        { label: t("settings.settings_nav.recurring_transactions_label"), path: recurring_transactions_path, icon: "repeat", tint: "green" },
-        { label: t("settings.settings_nav.documents_label"), path: documents_path, icon: "file-text", tint: "blue" }
+        { label: t("settings.settings_nav.recurring_transactions_label"), path: recurring_transactions_path, icon: "repeat", tint: "green" }
       ] },
       (admin ? { header: t("settings.settings_nav.advanced_section_title"), items: [
         { label: t("settings.settings_nav.ai_prompts_label"), path: settings_ai_prompts_path, icon: "bot", tint: "violet" },

@@ -46,8 +46,8 @@
         class: "hidden lg:inline-flex"
       ) %>
 
-      <%# On a phone the + floats under the thumb, as on the Documents page. %>
-      <%= render DS::Fab.new(icon: "plus", label: t("pages.dashboard.new"), href: new_account_path, frame: :modal, class: "lg:hidden") %>
+      <%# No + on a phone's Home (the owner, 2026-10-17): adding lives on the
+          Accounts, Transactions and Documents tabs. %>
     </div>
   </div>
 <% end %>
