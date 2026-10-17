@@ -151,6 +151,7 @@ class AccountStatement::Coverage
 
     def linked_statement_scope
       @linked_statement_scope ||= account.account_statements
+        .excluding_tombstones
         .where("period_start_on <= ? AND period_end_on >= ?", end_month.end_of_month, start_month)
         .ordered
         .to_a
@@ -159,6 +160,7 @@ class AccountStatement::Coverage
     def ambiguous_statement_scope
       @ambiguous_statement_scope ||= account.family.account_statements
         .unmatched
+        .excluding_tombstones
         .where(suggested_account: account)
         .where("period_start_on <= ? AND period_end_on >= ?", end_month.end_of_month, start_month)
         .ordered
@@ -177,10 +179,14 @@ class AccountStatement::Coverage
       end
     end
 
+    # Consecutive monthly statements share a boundary date (one ends where the
+    # next begins). That is not an overlap — strict inequalities are what make
+    # a month "duplicate": two statements whose periods genuinely cover the
+    # same days (the uploaded copies).
     def overlapping_statements?(statements)
       statements.combination(2).any? do |a, b|
-        a.period_start_on <= b.period_end_on &&
-          b.period_start_on <= a.period_end_on
+        a.period_start_on < b.period_end_on &&
+          b.period_start_on < a.period_end_on
       end
     end
 

@@ -31,6 +31,7 @@ class AccountStatement::Search
     @scope = @family.account_statements
       .where(account_id: nil)
       .or(@family.account_statements.where(account_id: @user.accessible_accounts.select(:id)))
+      .excluding_tombstones
       .includes(:account, :suggested_account, :archived_document_link)
     @scope = @scope.where(extraction_state: extraction_filters) if extraction_filters.any?
     @scope = @scope.where(review_status: review_filters) if review_filters.any?

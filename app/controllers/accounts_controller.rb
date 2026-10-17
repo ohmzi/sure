@@ -481,7 +481,22 @@ class AccountsController < ApplicationController
       return unless statement_tab_active?
 
       @statement_coverage = AccountStatement::Coverage.for_year(@account, params[:statement_year])
-      @account_statements = @account.account_statements.with_attached_original_file.ordered.to_a
+      @statement_month = params[:statement_month].to_s
+      statement_scope = @account.account_statements
+                                .excluding_tombstones
+                                .with_attached_original_file
+      if @statement_month.match?(/\A\d{4}-\d{2}\z/)
+        # A coverage month names the statement whose period ENDS in it (the
+        # "June statement" ends on June 12). Using overlap would show the next
+        # statement too, since consecutive cycles share a boundary date.
+        month = Date.strptime("#{@statement_month}-01", "%Y-%m-%d")
+        statement_scope = statement_scope.where(period_end_on: month.beginning_of_month..month.end_of_month)
+        # The chart above the tabs follows the selected month too.
+        @period = Period.custom(start_date: month.beginning_of_month, end_date: month.end_of_month)
+      else
+        @statement_month = nil
+      end
+      @account_statements = statement_scope.ordered.to_a
       @statement_reconciliation_statuses = AccountStatement.reconciliation_statuses_for(@account_statements, account: @account)
       permission = @account.permission_for(Current.user)
       @can_manage_statements = AccountStatement.statement_manager?(Current.user) &&
@@ -501,6 +516,7 @@ class AccountsController < ApplicationController
         account: @account,
         coverage: @statement_coverage,
         statements: @account_statements,
+        statement_month: @statement_month,
         reconciliation_statuses: @statement_reconciliation_statuses,
         can_manage_statements: @can_manage_statements
       }

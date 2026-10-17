@@ -6,9 +6,11 @@ en:
       coverage_description: Historical months backed by uploaded statements and balance checks.
       coverage_range: "%{start} - %{end}"
       empty: No statements linked to this account yet.
-      open_inbox: Inbox
+      open_inbox: Statement vault
       statements_title: Statements
       year_label: Coverage year
+      filtered: Showing %{month} statements
+      show_all: Show all months
     assign_account:
       label: Account
       placeholder: Choose an account
@@ -37,6 +39,7 @@ en:
       failure: Statement could not be deleted.
       success: Statement deleted.
     form:
+      upload_title: Upload a statement
       account_upload: Upload statement
       files_hint: PDF, CSV, or XLSX. %{max_size}MB max per file.
       files_label: Statement files

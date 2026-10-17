@@ -601,11 +601,11 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     # Inbox link escapes frame
     assert_select "a[href='#{account_statements_path}'][data-turbo-frame='_top']"
 
-    # Statement filename link escapes frame
-    assert_select "a[data-turbo-frame='_top']", text: statement.filename
+    # Statement filename opens in the in-app viewer modal
+    assert_select "a[href='#{viewer_account_statement_path(statement)}'][data-turbo-frame='modal']", text: statement.filename
 
-    # Eye/view icon escapes frame and opens in new tab
-    assert_select "a[target='_blank'][data-turbo-frame='_top'][aria-label='#{I18n.t("account_statements.table.view")}']"
+    # Eye/view icon opens the same in-app viewer, not a new tab
+    assert_select "a[href='#{viewer_account_statement_path(statement)}'][data-turbo-frame='modal'][aria-label='#{I18n.t("account_statements.table.view")}']"
 
     # Edit icon escapes frame
     assert_select "a[href='#{account_statement_path(statement)}'][data-turbo-frame='_top'][aria-label='#{I18n.t("account_statements.table.edit")}']"
@@ -674,6 +674,33 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
       assert_select "p", text: "Missing"
       assert_select "p", text: "Not expected"
     end
+  end
+
+  test "statements tab filters the list to the tapped month and clears it" do
+    june = AccountStatement.create_from_upload!(
+      family: @user.family, account: @account,
+      file: uploaded_file(filename: "june.csv", content_type: "text/csv",
+                          content: "date,amount\n2026-06-01,1\n")
+    )
+    june.update!(period_start_on: Date.new(2026, 5, 12), period_end_on: Date.new(2026, 6, 12))
+    july = AccountStatement.create_from_upload!(
+      family: @user.family, account: @account,
+      file: uploaded_file(filename: "july.csv", content_type: "text/csv",
+                          content: "date,amount\n2026-07-01,2\n")
+    )
+    july.update!(period_start_on: Date.new(2026, 6, 12), period_end_on: Date.new(2026, 7, 12))
+
+    get account_url(@account, tab: "statements", statement_month: "2026-06")
+
+    assert_response :success
+    assert_select "a", text: june.filename
+    assert_select "a", text: july.filename, count: 0
+    assert_select "a", text: I18n.t("account_statements.account_tab.show_all")
+
+    get account_url(@account, tab: "statements")
+
+    assert_select "a", text: june.filename
+    assert_select "a", text: july.filename
   end
 
   test "statements tab hides upload for read only account access" do

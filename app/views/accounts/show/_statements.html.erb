@@ -1,14 +1,25 @@
-<%# locals: (account:, coverage:, statements:, reconciliation_statuses:, can_manage_statements:) %>
+<%# locals: (account:, coverage:, statements:, statement_month:, reconciliation_statuses:, can_manage_statements:) %>
 
-<div class="space-y-4">
-  <div class="rounded-xl bg-container-inset p-1">
+<div class="flex flex-col gap-4">
+  <div class="order-2 rounded-xl bg-container-inset p-1">
     <div class="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-start lg:justify-between">
       <div>
         <p class="text-sm font-medium text-primary"><%= t("account_statements.account_tab.coverage_title") %></p>
         <p class="text-xs text-secondary"><%= t("account_statements.account_tab.coverage_description") %></p>
         <p class="text-xs text-secondary"><%= account_statement_coverage_range(coverage) %></p>
+        <% if statement_month.present? %>
+          <p class="text-xs font-medium text-primary">
+            <%= t("account_statements.account_tab.filtered", month: account_statement_month_label(Date.strptime(statement_month, "%Y-%m"))) %>
+          </p>
+        <% end %>
       </div>
       <div class="flex flex-wrap items-center gap-3">
+        <% if statement_month.present? %>
+          <%= link_to t("account_statements.account_tab.show_all"),
+                account_path(account, tab: "statements", statement_year: coverage.selected_year),
+                data: { turbo_frame: "_top" },
+                class: "text-sm font-medium text-link" %>
+        <% end %>
         <%= form_with url: account_path(account), method: :get, data: { controller: "auto-submit-form" } do |form| %>
           <%= form.hidden_field :tab, value: "statements" %>
           <%= form.select :statement_year,
@@ -27,33 +38,56 @@
       </div>
     </div>
 
+    <%# Tapping a month filters the list below to that month; tapping the
+        active month clears the filter. The grid itself stays whole. %>
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 bg-container rounded-lg shadow-border-xs p-3">
       <% coverage.months.each do |month| %>
-        <div class="rounded-lg ring px-3 py-2 <%= account_statement_coverage_classes(month.status) %>">
+        <% month_param = month.date.strftime("%Y-%m") %>
+        <% active = statement_month == month_param %>
+        <% month_path = if active
+             account_path(account, tab: "statements", statement_year: coverage.selected_year)
+           else
+             account_path(account, tab: "statements", statement_year: coverage.selected_year, statement_month: month_param)
+           end %>
+        <%# Full-page navigation: the chart above the tabs must follow the month. %>
+        <%= link_to month_path,
+              data: { turbo_frame: "_top" },
+              aria: { current: ("date" if active) },
+              class: "block rounded-lg ring px-3 py-2 transition focus-ring #{account_statement_coverage_classes(month.status)} #{active ? "outline outline-2 outline-offset-2 outline-primary" : ""}" do %>
           <p class="text-xs font-medium"><%= account_statement_coverage_label(month) %></p>
           <p class="text-xs capitalize"><%= t("account_statements.coverage.status.#{month.status}") %></p>
-        </div>
+        <% end %>
       <% end %>
     </div>
   </div>
 
   <% if can_manage_statements %>
-    <div class="rounded-xl bg-container-inset p-4">
-      <%= styled_form_with url: account_statements_path, scope: :account_statement, multipart: true, class: "space-y-3" do |form| %>
-        <%= form.hidden_field :account_id, value: account.id %>
-        <div>
-          <%= form.file_field :files,
-                              label: t("account_statements.form.files_label"),
-                              multiple: true,
-                              accept: AccountStatement::ACCEPTED_FILE_EXTENSIONS.join(",") %>
-          <p class="text-xs text-secondary mt-2"><%= t("account_statements.form.files_hint", max_size: AccountStatement::MAX_FILE_SIZE / 1.megabyte) %> <%= t("account_statements.form.period_hint") %></p>
+    <div class="order-1 rounded-xl bg-container-inset p-4">
+      <div class="mb-3 flex items-start gap-3">
+        <div class="rounded-full bg-container p-2 text-secondary"><%= icon("file-up", size: "sm") %></div>
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-primary"><%= t("account_statements.form.upload_title") %></p>
+          <p class="text-xs text-secondary"><%= t("account_statements.form.files_hint", max_size: AccountStatement::MAX_FILE_SIZE / 1.megabyte) %></p>
         </div>
-        <%= form.submit t("account_statements.form.account_upload") %>
+      </div>
+
+      <%= styled_form_with url: account_statements_path, scope: :account_statement, multipart: true, class: "space-y-2" do |form| %>
+        <%= form.hidden_field :account_id, value: account.id %>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div class="min-w-0 grow">
+            <%= form.file_field :files,
+                                label: t("account_statements.form.files_label"),
+                                multiple: true,
+                                accept: AccountStatement::ACCEPTED_FILE_EXTENSIONS.join(",") %>
+          </div>
+          <%= form.submit t("account_statements.form.account_upload") %>
+        </div>
+        <p class="text-xs text-secondary"><%= t("account_statements.form.period_hint") %></p>
       <% end %>
     </div>
   <% end %>
 
-  <div class="rounded-xl bg-container-inset p-1">
+  <div class="order-3 rounded-xl bg-container-inset p-1">
     <div class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-secondary uppercase">
       <p><%= t("account_statements.account_tab.statements_title") %></p>
       <span class="text-subdued">&middot;</span>
@@ -76,9 +110,9 @@
               <tr id="<%= dom_id(statement) %>" class="border-b border-subdued hover:bg-surface-hover">
                 <td class="px-3 py-3">
                   <% file_attached = statement.original_file.attached? %>
-                  <%= link_to file_attached ? rails_blob_path(statement.original_file, disposition: "inline") : account_statement_path(statement),
-                      target: (file_attached ? "_blank" : nil),
-                      data: { turbo_frame: "_top" },
+                  <%# Open inside the app's modal viewer, not a new tab. %>
+                  <%= link_to viewer_account_statement_path(statement),
+                      data: { turbo_frame: "modal" },
                       class: "flex items-center gap-2 min-w-0 text-sm font-medium text-primary hover:underline" do %>
                     <%= icon(account_statement_file_icon(statement), size: "sm") %>
                     <span class="truncate"><%= statement.filename %></span>
@@ -98,14 +132,11 @@
                 </td>
                 <td class="px-3 py-3">
                   <div class="flex items-center justify-end gap-3">
-                    <%# View: open the actual file inline (PDF) or download (CSV/XLSX) %>
-                    <% if file_attached %>
-                      <%= link_to rails_blob_path(statement.original_file, disposition: "inline"),
-                                  target: "_blank",
-                                  data: { turbo_frame: "_top" },
-                                  aria: { label: t("account_statements.table.view") } do %>
-                        <%= icon("eye", class: "w-5 h-5 text-primary") %>
-                      <% end %>
+                    <%# View: open the statement in the in-app viewer. %>
+                    <%= link_to viewer_account_statement_path(statement),
+                                data: { turbo_frame: "modal" },
+                                aria: { label: t("account_statements.table.view") } do %>
+                      <%= icon("eye", class: "w-5 h-5 text-primary") %>
                     <% end %>
 
                     <%# Edit: go to statement details/edit page %>

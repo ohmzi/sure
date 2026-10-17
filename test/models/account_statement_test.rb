@@ -6,6 +6,29 @@ class AccountStatementTest < ActiveSupport::TestCase
     @account = accounts(:depository)
   end
 
+  test "excluding_tombstones drops a statement whose only document was deleted" do
+    content = file_fixture("imports/sample_bank_statement.pdf").binread
+    statement = AccountStatement.new(
+      family: @family, account: @account,
+      filename: "statement.pdf", content_type: "application/pdf",
+      checksum: SecureRandom.hex, content_sha256: SecureRandom.hex(32), byte_size: content.bytesize,
+      period_start_on: Date.new(2026, 6, 1), period_end_on: Date.new(2026, 6, 30)
+    )
+    statement.original_file.attach(io: StringIO.new(content), filename: "statement.pdf",
+                                   content_type: "application/pdf")
+    statement.save!
+
+    link = DocumentLink.create!(family: @family, source: "statement", status: "unlinked",
+                                original_filename: "statement.pdf", content_type: "application/pdf",
+                                account_statement: statement)
+
+    assert_includes AccountStatement.excluding_tombstones, statement
+
+    link.soft_delete!
+
+    assert_not_includes AccountStatement.excluding_tombstones, statement
+  end
+
   OversizedDeclaredUpload = Struct.new(:original_filename, keyword_init: true) do
     def size
       AccountStatement::MAX_FILE_SIZE + 1
