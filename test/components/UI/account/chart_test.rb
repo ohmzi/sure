@@ -1,6 +1,8 @@
 require "test_helper"
 
 class UI::Account::ChartTest < ViewComponent::TestCase
+  include EntriesTestHelper
+
   setup do
     @account = accounts(:investment)
     @account.holdings.destroy_all
@@ -303,6 +305,57 @@ class UI::Account::ChartTest < ViewComponent::TestCase
 
     assert_equal "all_time", component.period.key
     assert_equal family_oldest, component.period.start_date
+  end
+
+  test "a bank account reports external income and spending for the selected period" do
+    account = families(:dylan_family).accounts.create!(
+      name: "Chart Bank", balance: 0, currency: "USD", accountable: Depository.new
+    )
+
+    create_transaction(account: account, date: Date.current, amount: -100, name: "Payroll", kind: "standard")
+    create_transaction(account: account, date: Date.current, amount: 40, name: "Groceries", kind: "standard")
+    create_transaction(account: account, date: Date.current, amount: 500, name: "Transfer out", kind: "funds_movement")
+    create_transaction(account: account, date: Date.current, amount: -500, name: "Transfer in", kind: "funds_movement")
+
+    component = UI::Account::Chart.new(account: account, period: Period.last_30_days)
+
+    assert_equal Money.new(100, "USD"), component.period_income_money
+    assert_equal Money.new(40, "USD"), component.period_spending_money
+    assert_equal [ "Income", "Spending" ], component.period_total_labels
+  end
+
+  test "a credit card reports gross charges and payments for the selected period" do
+    account = families(:dylan_family).accounts.create!(
+      name: "Chart Card", balance: 0, currency: "USD", accountable: CreditCard.new
+    )
+
+    create_transaction(account: account, date: Date.current, amount: 75, name: "Purchase", kind: "standard")
+    create_transaction(account: account, date: Date.current, amount: -50, name: "CTFS.COM/PAYMENTS OAKVILLE ON",
+                       kind: "funds_movement")
+    create_transaction(account: account, date: Date.current, amount: -25, name: "CTFS.COM/PAYMENTS OAKVILLE ON",
+                       kind: "standard")
+    create_transaction(account: account, date: Date.current, amount: -10, name: "AMZN Mktp CA", kind: "standard")
+
+    component = UI::Account::Chart.new(account: account, period: Period.last_30_days)
+
+    assert_equal Money.new(75, "USD"), component.period_charges_money
+    assert_equal Money.new(75, "USD"), component.period_payments_money
+    assert_equal [ "Charges", "Payments" ], component.period_total_labels
+  end
+
+  test "the chart renders the period totals for a bank account" do
+    account = families(:dylan_family).accounts.create!(
+      name: "Rendered Bank", balance: 0, currency: "USD", accountable: Depository.new
+    )
+    create_transaction(account: account, date: Date.current, amount: -100, name: "Payroll", kind: "standard")
+    create_transaction(account: account, date: Date.current, amount: 40, name: "Groceries", kind: "standard")
+
+    render_inline(UI::Account::Chart.new(account: account, period: Period.last_30_days))
+
+    assert_text "Income"
+    assert_text "Spending"
+    assert_text "$100.00"
+    assert_text "$40.00"
   end
 
   private
