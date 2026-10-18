@@ -18,7 +18,7 @@ class DocumentProvenanceTest < ApplicationSystemTestCase
 
     assert_text I18n.t("entries.provenance.document")
     assert_selector "[data-provenance]", text: I18n.t("entries.provenance.document")
-    assert_selector "[data-provenance] a[href='#{viewer_document_path(link)}']"
+    assert_selector "[data-provenance] a[href='#{viewer_document_path(link, entry_id: entry.id)}']"
   end
 
   # The LIST row, not the drawer (the owner's report): the row named its source
@@ -41,7 +41,7 @@ class DocumentProvenanceTest < ApplicationSystemTestCase
     visit transactions_path
 
     within "##{dom_id(entry.reload)}" do
-      assert_selector "a[href='#{viewer_document_path(import.document_link)}']"
+      assert_selector "a[href='#{viewer_document_path(import.document_link, entry_id: entry.id)}']"
       assert_no_selector "[data-provenance]", text: I18n.t("entries.provenance.document")
       assert_no_text I18n.t("entries.provenance.document")
     end

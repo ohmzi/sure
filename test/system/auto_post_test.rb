@@ -82,7 +82,7 @@ class AutoPostSurfaceTest < ApplicationSystemTestCase
     visit transaction_path(entry)
     within "[data-auto-post]" do
       assert_text I18n.t("entries.auto_post.badge")
-      assert_selector "a[href='#{viewer_document_path(link)}']"
+      assert_selector "a[href='#{viewer_document_path(link, entry_id: entry.id)}']"
     end
 
     # The audit filter narrows the ledger to exactly the rows the app wrote.
