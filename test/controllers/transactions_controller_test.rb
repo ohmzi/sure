@@ -32,6 +32,21 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href*='types%5D%5B%5D=income']", text: I18n.t("transactions.index.quick_filters.income")
   end
 
+  # The Activity tab opens a fresh list every time (the owner, 2026-10-18): the
+  # filters left on from last time are not brought back by the tab.
+  test "the activity tab opens with the filters reset" do
+    get transactions_url(q: { search: "coffee" })
+    get root_url
+
+    assert_select "a[href='#{transactions_path(clear_filters: true)}']", minimum: 1
+
+    get transactions_url(clear_filters: true)
+
+    assert_response :success
+    assert_select "a[aria-current='page']", text: I18n.t("transactions.index.quick_filters.all")
+    assert_equal({}, @user.sessions.order(:updated_at).last.prev_transaction_page_params["q"].to_h)
+  end
+
   test "shows a clear filters quick action when a filter is active" do
     get transactions_url(q: { search: "coffee" })
 

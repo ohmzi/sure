@@ -13,7 +13,9 @@ else
     # reports and goals; More gathers documents, bills, the assistant and
     # settings.
     { name: t(".nav.home"), path: root_path, icon: "pie-chart", icon_custom: false, active: page_active?(root_path) },
-    { name: t(".nav.activity"), path: transactions_path, icon: "credit-card", icon_custom: false, active: page_active?(transactions_path) },
+    # The tab opens a fresh list every time (the owner, 2026-10-18); a bare
+    # /transactions would bring back the filters left on last time.
+    { name: t(".nav.activity"), path: transactions_path(clear_filters: true), icon: "credit-card", icon_custom: false, active: page_active?(transactions_path) },
     { name: t(".nav.accounts"), path: accounts_path, icon: "wallet", icon_custom: false, active: page_active?(accounts_path) },
     plan_tab_item,
     more_tab_item
