@@ -781,6 +781,77 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     assert_equal "funds_movement", inflow_entry.entryable.kind
   end
 
+  test "does not auto-match a card purchase to a bank deposit" do
+    create_transaction(date: Date.current, account: @depository, amount: -50, name: "e-Transfer - Autodeposit Someone")
+    create_transaction(date: Date.current, account: @credit_card, amount: 50, name: "AMZN Mktp CA")
+
+    assert_no_difference -> { Transfer.count } do
+      @family.auto_match_transfers!
+    end
+  end
+
+  test "does not auto-match a card payment whose bank leg names another card" do
+    card = @family.accounts.create!(name: "Canadian Tire Mastercard", balance: 0, currency: "USD",
+                                    accountable: CreditCard.new, last4: "1512")
+    create_transaction(date: Date.current, account: @depository, amount: 500,
+                       name: "Online Banking payment - 4476 VISA HOME TRUST")
+    create_transaction(date: Date.current, account: card, amount: -500, name: "CTFS.COM/PAYMENTS")
+
+    assert_no_difference -> { Transfer.count } do
+      @family.auto_match_transfers!
+    end
+  end
+
+  test "auto-matches a card payment and stores its amount" do
+    card = @family.accounts.create!(name: "Canadian Tire Mastercard", balance: 0, currency: "USD",
+                                    accountable: CreditCard.new, last4: "1512")
+    outflow = create_transaction(date: Date.current, account: @depository, amount: 500,
+                                 name: "Online Banking payment - 3388 TRIANGLE MC")
+    inflow = create_transaction(date: Date.current, account: card, amount: -500, name: "RB TELEPAYMENTS/ROYALE DIRECT")
+
+    assert_difference -> { Transfer.count } => 1 do
+      @family.auto_match_transfers!
+    end
+
+    transfer = Transfer.find_by!(inflow_transaction_id: inflow.entryable_id, outflow_transaction_id: outflow.entryable_id)
+    assert_equal 500, transfer.amount
+  end
+
+  test "does not auto-match bank transfers whose reference numbers differ" do
+    savings = @family.accounts.create!(name: "Test Savings", balance: 0, currency: "USD", accountable: Depository.new)
+    create_transaction(date: Date.current, account: savings, amount: 1_000, name: "Online Transfer to Deposit Account-1263")
+    create_transaction(date: Date.current, account: @depository, amount: -1_000, name: "Online Banking transfer - 3583")
+
+    assert_no_difference -> { Transfer.count } do
+      @family.auto_match_transfers!
+    end
+  end
+
+  test "auto-matches bank transfers whose reference numbers match" do
+    savings = @family.accounts.create!(name: "Test Savings", balance: 0, currency: "USD", accountable: Depository.new)
+    outflow = create_transaction(date: Date.current, account: savings, amount: 1_000,
+                                 name: "Online Transfer to Deposit Account-1263")
+    inflow = create_transaction(date: Date.current, account: @depository, amount: -1_000, name: "Online Banking transfer - 1263")
+
+    assert_difference -> { Transfer.count } => 1 do
+      @family.auto_match_transfers!
+    end
+
+    transfer = Transfer.find_by!(inflow_transaction_id: inflow.entryable_id, outflow_transaction_id: outflow.entryable_id)
+    assert_equal 1_000, transfer.amount
+  end
+
+  test "does not auto-match a card payment description to a bank transfer" do
+    savings = @family.accounts.create!(name: "Test Savings", balance: 0, currency: "USD", accountable: Depository.new)
+    create_transaction(date: Date.current, account: savings, amount: 500,
+                       name: "e-Transfer Request Fulfilled Canadian Tire Bank JVS532")
+    create_transaction(date: Date.current, account: @depository, amount: -500, name: "Online Banking transfer - 5112")
+
+    assert_no_difference -> { Transfer.count } do
+      @family.auto_match_transfers!
+    end
+  end
+
   private
     def auto_match_and_confirm_transfers!
       @family.auto_match_transfers!
