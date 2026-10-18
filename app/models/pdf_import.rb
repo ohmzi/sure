@@ -600,11 +600,20 @@ class PdfImport < Import
     def reconcile_entries!(entries, at: Time.current)
       return if entries.blank?
 
-      Entry.where(id: entries.map(&:id)).update_all(
+      # A transaction printed on two consecutive statements belongs to the
+      # statement that already claimed it. Re-pointing it here would steal the
+      # adjacent statement's evidence and make that statement's movement look
+      # short. Keep the unclaimed entry with its statement; this statement's
+      # movement check accounts for the boundary duplicate.
+      claimed = Entry.where(id: entries.map(&:id))
+                     .where(reconciled_by_statement_id: [ nil, account_statement&.id ])
+      claimed.update_all(
         reconciled_at: at,
         reconciled_by_statement_id: account_statement&.id,
         updated_at: at
       )
+      entries = claimed.to_a
+      return if entries.blank?
 
       statement_link = account_statement&.archived_document_link
       entries.each { |entry| claim!(entry, statement_link) }

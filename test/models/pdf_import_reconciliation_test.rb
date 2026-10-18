@@ -466,6 +466,26 @@ class PdfImportReconciliationTest < ActiveSupport::TestCase
                "the two provenance signals must agree that the statement is gone"
   end
 
+  test "a row already reconciled to another statement keeps that statement" do
+    other = AccountStatement.create_from_upload!(
+      family: @family, account: @account,
+      file: uploaded_file(
+        filename: "other_2026-01-01_2026-01-31.pdf",
+        content_type: "application/pdf",
+        content: "%PDF-1.4 other"
+      )
+    )
+    existing = create_transaction(account: @account, date: @date, amount: 50, name: "Coffee")
+    existing.mark_reconciled!(statement: other)
+
+    @import.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: -50, name: "COFFEE") ] })
+    @import.generate_rows_from_extracted_data
+
+    assert_equal 0, @import.reload.rows_count, "the row is already recorded"
+    assert_equal other, existing.reload.reconciled_by_statement,
+                 "a second statement must not steal the first statement's evidence"
+  end
+
   private
 
     def create_statement
