@@ -9,6 +9,24 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     @entry = entries(:transaction)
   end
 
+  test "the date filter groups start and end with today and clear actions" do
+    get transactions_url
+
+    assert_response :success
+    assert_select "[data-controller='date-range']"
+    assert_select "input[data-date-range-target='start'][data-action*='date-range#startChanged']"
+    assert_select "input[data-date-range-target='end']"
+    assert_select "button[data-action='date-range#today']", text: I18n.t("transactions.searches.filters.date_filter.today")
+    assert_select "button[data-action='date-range#clear']", text: /#{I18n.t("transactions.searches.filters.date_filter.clear_dates")}/
+  end
+
+  test "shows a clear filters quick action when a filter is active" do
+    get transactions_url(q: { search: "coffee" })
+
+    assert_response :success
+    assert_select "a[href='#{transactions_path(clear_filters: true)}']", text: /#{I18n.t("transactions.index.quick_filters.clear")}/
+  end
+
   # Bills has always linked out to transactions. Until now nothing linked back,
   # so a transaction that settled a bill was a dead end. The link-back is part
   # of the preview-gated bills surface, so the viewer needs the flag.

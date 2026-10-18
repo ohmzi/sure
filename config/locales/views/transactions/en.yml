@@ -227,6 +227,7 @@ en:
         uncategorized: "Uncategorized · %{count}"
         needs_confirmation: "Needs confirmation · %{count}"
         this_month: This month
+        clear: Clear filters
       transaction: transaction
       transactions: transactions
       import: Import
@@ -345,6 +346,8 @@ en:
         date_filter:
           start_date: "Start date"
           end_date: "End date"
+          today: "Today"
+          clear_dates: "Clear dates"
         merchant_filter:
           filter_merchants: Filter merchants
         tag_filter:

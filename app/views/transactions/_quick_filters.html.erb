@@ -19,6 +19,15 @@
 <% end %>
 <nav aria-label="<%= t("transactions.index.quick_filters.label") %>">
   <ul class="flex flex-wrap gap-2">
+    <% if current_q.present? %>
+      <li>
+        <%= link_to transactions_path(clear_filters: true),
+              class: "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-sm font-semibold whitespace-nowrap active:scale-95 transition focus-ring border border-secondary bg-container text-secondary hover:bg-container-hover hover:text-primary" do %>
+          <%= icon("x", size: "sm") %>
+          <%= t("transactions.index.quick_filters.clear") %>
+        <% end %>
+      </li>
+    <% end %>
     <% chips.each do |label, path, active| %>
       <li>
         <%= link_to label, path, aria: { current: ("page" if active) },

@@ -1,11 +1,35 @@
 <%# locals: (form:) %>
-<div class="p-3">
-  <%= form.date_field :start_date,
-                      placeholder: t(".start_date"),
-                      value: @q[:start_date],
-                      class: "block w-full border border-secondary rounded-md bg-container py-2 pl-3 pr-3 text-base sm:text-sm focus-visible:ring-2 focus-visible:ring-alpha-black-300" %>
-  <%= form.date_field :end_date,
-                      placeholder: t(".end_date"),
-                      value: @q[:end_date],
-                      class: "block w-full border border-secondary rounded-md bg-container py-2 pl-3 pr-3 text-base sm:text-sm mt-2 focus-visible:ring-2 focus-visible:ring-alpha-black-300" %>
+<div class="p-3 space-y-3" data-controller="date-range">
+  <div class="space-y-1.5">
+    <%= form.label :start_date, t(".start_date"), class: "block text-xs font-medium text-secondary" %>
+    <%= form.date_field :start_date,
+                        placeholder: t(".start_date"),
+                        value: @q[:start_date],
+                        class: "block w-full border border-secondary rounded-lg bg-container py-2 px-3 text-sm text-primary focus-visible:ring-2 focus-visible:ring-alpha-black-300",
+                        data: { date_range_target: "start", action: "change->date-range#startChanged" } %>
+  </div>
+
+  <div class="space-y-1.5">
+    <%= form.label :end_date, t(".end_date"), class: "block text-xs font-medium text-secondary" %>
+    <%= form.date_field :end_date,
+                        placeholder: t(".end_date"),
+                        value: @q[:end_date],
+                        class: "block w-full border border-secondary rounded-lg bg-container py-2 px-3 text-sm text-primary focus-visible:ring-2 focus-visible:ring-alpha-black-300",
+                        data: { date_range_target: "end" } %>
+  </div>
+
+  <div class="flex items-center justify-between gap-2 pt-1">
+    <button type="button"
+            data-action="date-range#today"
+            class="text-sm font-medium text-link hover:underline focus-ring rounded-md">
+      <%= t(".today") %>
+    </button>
+
+    <button type="button"
+            data-action="date-range#clear"
+            class="inline-flex items-center gap-1.5 text-sm font-medium text-secondary hover:text-primary focus-ring rounded-md">
+      <%= icon("x", size: "sm") %>
+      <%= t(".clear_dates") %>
+    </button>
+  </div>
 </div>

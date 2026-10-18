@@ -29,10 +29,11 @@
         <div>
           <% if @q.present? %>
             <%= render DS::Link.new(
-            text: t(".clear_filters"),
-            variant: "ghost",
-            href: transactions_path(clear_filters: true),
-          ) %>
+              text: t(".clear_filters"),
+              variant: "outline",
+              icon: "x",
+              href: transactions_path(clear_filters: true)
+            ) %>
           <% end %>
         </div>
 
