@@ -14,6 +14,41 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "dashboard includes the merchants-by-category widget" do
+    get root_path
+
+    assert_response :ok
+    assert_select "section[data-section-key='merchant_breakdown']"
+  end
+
+  test "merchant breakdown renders the selected category's merchants" do
+    shopping = @family.categories.find_or_create_by!(name: "Shopping")
+    amazon = @family.merchants.find_or_create_by!(name: "Amazon") { |merchant| merchant.type = "FamilyMerchant" }
+    create_transaction(account: accounts(:depository), amount: 100, name: "Amazon order",
+                       category: shopping, merchant: amazon, date: Date.current)
+
+    get dashboard_merchant_breakdown_path(start_date: Date.current.beginning_of_month, end_date: Date.current)
+
+    assert_response :ok
+    assert_select "select[name='category_id'] option[selected][value='#{shopping.id}']"
+    assert_includes response.body, "Amazon"
+  end
+
+  test "merchant breakdown follows an explicit category" do
+    create_transaction(account: accounts(:depository), amount: 40, name: "Netflix",
+                       category: categories(:food_and_drink), merchant: merchants(:netflix), date: Date.current)
+
+    get dashboard_merchant_breakdown_path(
+      category_id: categories(:food_and_drink).id,
+      start_date: Date.current.beginning_of_month,
+      end_date: Date.current
+    )
+
+    assert_response :ok
+    assert_select "select[name='category_id'] option[selected][value='#{categories(:food_and_drink).id}']"
+    assert_includes response.body, "Netflix"
+  end
+
   test "dashboard renders the net worth chart as drag-selectable, opting it out of card drag-and-drop" do
     get root_path
 
@@ -922,6 +957,37 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
       assert_select "section", text: /#{Regexp.escape(I18n.t("pages.dashboard.today.net_worth"))}/
       assert_select "a[href='#{transactions_categorize_path}']"
     end
+  end
+
+  test "the outflows donut shows only credit card charges" do
+    card_category = @family.categories.create!(name: "Donut Card Category", color: "#123456")
+    bank_category = @family.categories.create!(name: "Donut Bank Category", color: "#654321")
+    create_transaction(account: accounts(:credit_card), category: card_category, amount: 50, date: Date.current)
+    create_transaction(account: accounts(:depository), category: bank_category, amount: 70, date: Date.current)
+
+    get root_path
+
+    assert_response :ok
+    assert_select "#outflows-donut-section", text: /Donut Card Category/
+    assert_select "#outflows-donut-section", text: /Donut Bank Category/, count: 0
+  end
+
+  test "the outflows donut switches between credit cards" do
+    first_card = accounts(:credit_card)
+    second_card = @family.accounts.create!(name: "Second Card", currency: "USD", balance: 0, accountable: CreditCard.new)
+    first_category = @family.categories.create!(name: "Donut First Card", color: "#123456")
+    second_category = @family.categories.create!(name: "Donut Second Card", color: "#654321")
+    create_transaction(account: first_card, category: first_category, amount: 50, date: Date.current)
+    create_transaction(account: second_card, category: second_category, amount: 70, date: Date.current)
+
+    get root_path
+    assert_select "#outflows-donut-section select[name='card_account_id'] option", text: first_card.name
+    assert_select "#outflows-donut-section select[name='card_account_id'] option", text: second_card.name
+    assert_select "#outflows-donut-section", text: /Donut First Card/
+
+    get root_path(card_account_id: second_card.id)
+    assert_select "#outflows-donut-section", text: /Donut Second Card/
+    assert_select "#outflows-donut-section", text: /Donut First Card/, count: 0
   end
 
   private

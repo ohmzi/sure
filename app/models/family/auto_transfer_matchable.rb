@@ -91,6 +91,7 @@ module Family::AutoTransferMatchable
       candidates_scope.each do |match|
         next if used_transaction_ids.include?(match.inflow_transaction_id) ||
                used_transaction_ids.include?(match.outflow_transaction_id)
+        next unless plausible_auto_match?(match)
 
         # Skip this candidate when the transfer for this exact pair was not created
         # (a concurrent sync claimed one of the transactions for a different pairing).
@@ -119,6 +120,7 @@ module Family::AutoTransferMatchable
         Transfer.find_or_create_by!(
           inflow_transaction_id: match.inflow_transaction_id,
           outflow_transaction_id: match.outflow_transaction_id,
+          amount: match.inflow_amount.to_d.abs
         )
       end
     rescue ActiveRecord::RecordNotUnique
@@ -137,11 +139,128 @@ module Family::AutoTransferMatchable
     end
 
     # The committed transfer for this exact candidate pair, or nil if none exists.
+    # A legacy row (created before the matcher stored the amount) is repaired
+    # rather than left at zero.
     def existing_transfer(match)
-      Transfer.find_by(
+      transfer = Transfer.find_by(
         inflow_transaction_id: match.inflow_transaction_id,
         outflow_transaction_id: match.outflow_transaction_id,
       )
+      transfer.update!(amount: match.inflow_amount.to_d.abs) if transfer && transfer.amount.zero?
+      transfer
+    end
+
+    # A card charge is never a transfer leg. Loans still have legitimate
+    # outflows (a disbursement into cash), so only cards are excluded here.
+    CARD_OUTFLOW_ACCOUNT_TYPES = %w[CreditCard].freeze
+
+    # Tokens that say nothing about which account a description belongs to.
+    GENERIC_IDENTITY_TOKENS = %w[
+      account bank card credit debit chequing checking savings
+      payment transfer online banking mc
+    ].to_set.freeze
+
+    CARD_NETWORK_TOKENS = {
+      "mastercard" => %w[mastercard mc],
+      "visa" => %w[visa],
+      "amex" => %w[amex americanexpress],
+      "discover" => %w[discover]
+    }.freeze
+
+    # The automatic match is a suggestion, but a nonsensical suggestion is
+    # noise. Skip a candidate when:
+    # * money is leaving a credit card (a purchase is never a transfer leg;
+    #   loans still have legitimate disbursement outflows);
+    # * a card inflow's bank leg names a different card network, or does not
+    #   share any identity token with the card account;
+    # * a depository-to-depository pair carries two different reference
+    #   numbers, or one side is a card-payment description.
+    # The user can still match any of these by hand.
+    def plausible_auto_match?(match)
+      outflow_type = match.outflow_account_type.to_s
+      inflow_type = match.inflow_account_type.to_s
+
+      return false if CARD_OUTFLOW_ACCOUNT_TYPES.include?(outflow_type)
+
+      if inflow_type == "CreditCard"
+        return false unless outflow_type == "Depository"
+        return false if names_foreign_card?(match)
+        return false unless card_payment_description?(match)
+      elsif outflow_type == "Depository" && inflow_type == "Depository"
+        return false if card_payment_description_against_family_cards?(match)
+        return false if disjoint_references?(match)
+      end
+
+      true
+    end
+
+    def names_foreign_card?(match)
+      card_network = inferred_card_network(match.inflow_account_name, match.inflow_account_network)
+      return false if card_network.nil?
+
+      (CARD_NETWORK_TOKENS.keys - [ card_network ]).any? do |network|
+        (raw_tokens(match.outflow_name) & CARD_NETWORK_TOKENS.fetch(network)).any?
+      end
+    end
+
+    def card_payment_description?(match)
+      card_tokens = (identity_tokens(match.inflow_account_name) +
+                     card_network_tokens(match.inflow_account_name, match.inflow_account_network) +
+                     [ match.inflow_account_last4.to_s ]).reject(&:blank?)
+      # A generic name ("Credit Card") has no identity to check against; keep
+      # the historical amount/date match for it.
+      return true if card_tokens.empty?
+
+      outflow_tokens = raw_tokens(match.outflow_name)
+      (outflow_tokens & card_tokens).any? ||
+        (match.inflow_account_last4.present? && outflow_tokens.include?(match.inflow_account_last4))
+    end
+
+    def card_payment_description_against_family_cards?(match)
+      # Raw tokens here, not identity tokens: a bank leg such as "… TRIANGLE MC"
+      # identifies the card by its network abbreviation, which the generic-token
+      # filter would otherwise discard.
+      tokens = raw_tokens(match.outflow_name) + raw_tokens(match.inflow_name)
+      (tokens & family_liability_identity_tokens).any?
+    end
+
+    def family_liability_identity_tokens
+      @family_liability_identity_tokens ||= accounts.liabilities.flat_map do |account|
+        identity_tokens(account.name) + card_network_tokens(account.name, account.account_network)
+      end.uniq
+    end
+
+    def disjoint_references?(match)
+      outflow_refs = reference_tokens(match.outflow_name)
+      inflow_refs = reference_tokens(match.inflow_name)
+      outflow_refs.any? && inflow_refs.any? && (outflow_refs & inflow_refs).empty?
+    end
+
+    def raw_tokens(value)
+      value.to_s.downcase.scan(/[a-z0-9]+/).to_set
+    end
+
+    def identity_tokens(value)
+      raw_tokens(value) - GENERIC_IDENTITY_TOKENS
+    end
+
+    # A bank transfer's reference (5112, 1263, JVS532, AF668031). Requiring at
+    # least one digit keeps ordinary words out.
+    def reference_tokens(value)
+      value.to_s.scan(/\b[A-Za-z0-9]{4,}\b/).map(&:downcase).select { |token| token.match?(/\d/) }.to_set
+    end
+
+    def inferred_card_network(name, network)
+      return network if CARD_NETWORK_TOKENS.key?(network)
+
+      text = name.to_s.downcase
+      CARD_NETWORK_TOKENS.keys.find { |candidate| text.include?(candidate) } ||
+        (text.include?("amex") ? "amex" : nil)
+    end
+
+    def card_network_tokens(name, network)
+      inferred = inferred_card_network(name, network)
+      inferred ? CARD_NETWORK_TOKENS.fetch(inferred) : []
     end
 
     def coerce_transfer_match_date_window!(value)
@@ -243,7 +362,21 @@ module Family::AutoTransferMatchable
             outflow_candidates.entryable_id AS outflow_transaction_id,
             ABS(inflow_candidates.date - outflow_candidates.date) AS date_diff,
             0 AS match_rank,
-            rejected_transfers.id AS rejected_transfer_id
+            rejected_transfers.id AS rejected_transfer_id,
+            inflow_candidates.amount AS inflow_amount,
+            inflow_candidates.name AS inflow_name,
+            inflow_candidates.account_id AS inflow_account_id,
+            inflow_accounts.accountable_type AS inflow_account_type,
+            inflow_accounts.name AS inflow_account_name,
+            inflow_accounts.account_network AS inflow_account_network,
+            inflow_accounts.last4 AS inflow_account_last4,
+            outflow_candidates.amount AS outflow_amount,
+            outflow_candidates.name AS outflow_name,
+            outflow_candidates.account_id AS outflow_account_id,
+            outflow_accounts.accountable_type AS outflow_account_type,
+            outflow_accounts.name AS outflow_account_name,
+            outflow_accounts.account_network AS outflow_account_network,
+            outflow_accounts.last4 AS outflow_account_last4
           FROM entries inflow_candidates
           JOIN accounts inflow_accounts ON inflow_accounts.id = inflow_candidates.account_id
           JOIN entries outflow_candidates ON (
@@ -284,7 +417,21 @@ module Family::AutoTransferMatchable
             outflow_candidates.entryable_id AS outflow_transaction_id,
             ABS(inflow_candidates.date - outflow_candidates.date) AS date_diff,
             1 AS match_rank,
-            rejected_transfers.id AS rejected_transfer_id
+            rejected_transfers.id AS rejected_transfer_id,
+            inflow_candidates.amount AS inflow_amount,
+            inflow_candidates.name AS inflow_name,
+            inflow_candidates.account_id AS inflow_account_id,
+            inflow_accounts.accountable_type AS inflow_account_type,
+            inflow_accounts.name AS inflow_account_name,
+            inflow_accounts.account_network AS inflow_account_network,
+            inflow_accounts.last4 AS inflow_account_last4,
+            outflow_candidates.amount AS outflow_amount,
+            outflow_candidates.name AS outflow_name,
+            outflow_candidates.account_id AS outflow_account_id,
+            outflow_accounts.accountable_type AS outflow_account_type,
+            outflow_accounts.name AS outflow_account_name,
+            outflow_accounts.account_network AS outflow_account_network,
+            outflow_accounts.last4 AS outflow_account_last4
           FROM entries inflow_candidates
           JOIN accounts inflow_accounts ON inflow_accounts.id = inflow_candidates.account_id
           JOIN entries outflow_candidates ON (

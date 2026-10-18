@@ -2,7 +2,8 @@
 
 <%= turbo_frame_tag id do %>
   <%= tag.div class: "space-y-4 pb-5 lg:pb-32" do %>
-    <%= render "accounts/show/header", account: account, title: title, subtitle: subtitle %>
+    <%= render "accounts/show/header", account: account, title: title, subtitle: subtitle,
+               switchable_accounts: switchable_accounts %>
 
     <%= render UI::Account::Chart.new(account: account, period: chart_period, view: chart_view, loan_chart: loan_chart) %>
 
@@ -34,5 +35,32 @@
         <%= tab_content_for(tabs.first) %>
       <% end %>
     </div>
+
+    <% if can_manage_statements %>
+      <%# The statement upload is a floating action instead of a card in the
+          statements tab: one tap opens the file picker, and the chosen files
+          submit immediately to the same endpoint the card used. %>
+      <div class="fixed bottom-[calc(5rem_+_env(safe-area-inset-bottom))] right-4 z-40 md:bottom-6 md:right-6">
+        <%= form_with url: account_statements_path, scope: :account_statement, multipart: true,
+                      class: "contents", data: { controller: "auto-submit-form" } do |form| %>
+          <%= form.hidden_field :account_id, value: account.id %>
+          <%= form.file_field :files,
+                              multiple: true,
+                              accept: AccountStatement::ACCEPTED_FILE_EXTENSIONS.join(","),
+                              class: "sr-only",
+                              id: "account-statement-fab-#{account.id}",
+                              data: {
+                                "auto-submit-form-target": "auto",
+                                "autosubmit-trigger-event": "change",
+                                "autosubmit-debounce-timeout": "0"
+                              } %>
+          <label for="account-statement-fab-<%= account.id %>"
+                 aria-label="<%= t("account_statements.form.upload_fab") %>"
+                 class="flex h-14 w-14 cursor-pointer items-center justify-center rounded-full bg-inverse text-inverse shadow-lg transition hover:bg-inverse-hover focus-ring">
+            <%= helpers.icon("plus", size: "lg", color: "white") %>
+          </label>
+        <% end %>
+      </div>
+    <% end %>
   <% end %>
 <% end %>

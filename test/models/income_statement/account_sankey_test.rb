@@ -13,7 +13,7 @@ class IncomeStatement::AccountSankeyTest < ActiveSupport::TestCase
     @groceries = @family.categories.create!(name: "Groceries", parent: @shopping)
   end
 
-  test "flows run from income categories through each account to expense categories" do
+  test "flows run from income categories through each account to its own expense categories" do
     transaction(@checking, -1000, @salary)
     transaction(@checking, 300, @shopping)
     transaction(@card, 200, @groceries)
@@ -25,47 +25,106 @@ class IncomeStatement::AccountSankeyTest < ActiveSupport::TestCase
     assert_equal "500.0", result[:net_savings]
     assert_nil node(result, "cash_flow_node")
     assert_equal "account", node(result, "account_#{@checking.id}")[:kind]
-    assert_link result, "income_#{@salary.id}", "account_#{@checking.id}", "1000.0"
-    assert_link result, "account_#{@checking.id}", "expense_#{@shopping.id}", "300.0"
-    assert_link result, "account_#{@card.id}", "expense_#{@shopping.id}", "200.0"
-    assert_equal "500.0", node(result, "expense_#{@shopping.id}")[:value], "one category node across accounts"
-    assert_link result, "expense_#{@shopping.id}", "expense_sub_#{@groceries.id}", "200.0"
-    assert_equal @groceries.filter_value, node(result, "expense_sub_#{@groceries.id}")[:filter_value]
+
+    assert_link result, "income_#{@checking.id}_#{@salary.id}", "account_#{@checking.id}", "1000.0"
+    assert_link result, "account_#{@checking.id}", "expense_#{@checking.id}_#{@shopping.id}", "300.0"
+    assert_link result, "account_#{@card.id}", "expense_#{@card.id}_#{@shopping.id}", "200.0"
+    assert_link result, "expense_#{@card.id}_#{@shopping.id}", "expense_sub_#{@card.id}_#{@groceries.id}", "200.0"
+    assert_equal "200.0", node(result, "expense_#{@card.id}_#{@shopping.id}")[:value]
+    assert_equal @groceries.filter_value, node(result, "expense_sub_#{@card.id}_#{@groceries.id}")[:filter_value]
+
+    # Each account keeps its own category nodes, so the card's groceries and the
+    # checking account's shopping are not merged.
+    assert_not_equal "expense_#{@checking.id}_#{@shopping.id}", "expense_#{@card.id}_#{@shopping.id}"
     assert_balanced result
   end
 
-  test "an account taking in more than it spends feeds Surplus, one spending more is fed by Deficit" do
+  test "confirmed transfers flow between accounts and fund the card without a deficit" do
     transaction(@checking, -1000, @salary)
-    transaction(@checking, 100, @shopping)
-    transaction(@card, 250, @shopping)
+    transaction(@card, 200, @groceries)
+    transfer_from_checking_to_card(200)
     result = graph
 
-    assert_link result, "account_#{@checking.id}", "surplus_node", "900.0"
-    assert_link result, "deficit_node", "account_#{@card.id}", "250.0"
-    assert_equal "900.0", node(result, "surplus_node")[:value]
-    assert_equal "250.0", node(result, "deficit_node")[:value]
+    assert_link result, "account_#{@checking.id}", "account_#{@card.id}", "200.0"
+    assert_nil node(result, "deficit_node")
+    assert_nil node(result, "balance_from_#{@card.id}")
+    assert_link result, "account_#{@checking.id}", "balance_to_#{@checking.id}", "800.0"
     assert_balanced result
   end
 
-  test "accounts without income or spending are left out, and an empty period is empty" do
+  test "a card drawing more than its payments shows a savings-balance source, not a deficit" do
+    transaction(@checking, -1000, @salary)
+    transaction(@card, 300, @groceries)
+    transfer_from_checking_to_card(200)
+    result = graph
+
+    assert_link result, "balance_from_#{@card.id}", "account_#{@card.id}", "100.0"
+    assert_equal "From savings balance", node(result, "balance_from_#{@card.id}")[:name]
+    assert_nil node(result, "deficit_node")
+    assert_balanced result
+  end
+
+  test "a depository account drawing more than it takes in shows its own balance source" do
+    transaction(@checking, -100, @salary)
+    transaction(@checking, 300, @shopping)
+    result = graph
+
+    assert_link result, "balance_from_#{@checking.id}", "account_#{@checking.id}", "200.0"
+    assert_equal "From Checking balance", node(result, "balance_from_#{@checking.id}")[:name]
+    assert_balanced result
+  end
+
+  test "a card's refunds and credits feed the card instead of leaving it" do
+    transaction(@checking, -1000, @salary)
+    transaction(@card, -100, @salary)
+    transaction(@card, 300, @groceries)
+    transfer_from_checking_to_card(300)
+    result = graph
+
+    assert_equal "1000.0", result[:income]
+    assert_link result, "credits_#{@card.id}", "account_#{@card.id}", "100.0"
+    assert_equal "Refunds & credits", node(result, "credits_#{@card.id}")[:name]
+    assert_nil node(result, "income_#{@card.id}_#{@salary.id}")
+
+    # Payments (300) plus the refund (100) exceed the purchases (300), so the
+    # card reduces its debt instead of drawing from a balance.
+    assert_link result, "account_#{@card.id}", "balance_to_#{@card.id}", "100.0"
+    assert_nil node(result, "balance_from_#{@card.id}")
+    assert_balanced result
+  end
+
+  test "accounts without income, spending or transfers are left out, and an empty period is empty" do
     transaction(@checking, 50, @shopping)
     assert_nil node(graph, "account_#{@card.id}")
     assert_equal({ nodes: [], links: [] }, graph(Date.new(2023, 1, 1)).slice(:nodes, :links))
   end
 
-  test "a category's per-account netting matches the category view" do
+  test "a category's per-account values add up to the category view" do
     transaction(@checking, 120, @shopping)
     transaction(@checking, -20, @shopping)
+    transaction(@card, 50, @shopping)
     result = graph
     by_category = IncomeStatement::Sankey.new(IncomeStatement.new(@family), period: period).as_json
 
     assert_equal by_category[:spending], result[:spending]
-    assert_equal node(by_category, "expense_#{@shopping.id}")[:value], node(result, "expense_#{@shopping.id}")[:value]
+    assert_equal by_category[:spending].to_d,
+                 node(result, "expense_#{@checking.id}_#{@shopping.id}")[:value].to_d +
+                 node(result, "expense_#{@card.id}_#{@shopping.id}")[:value].to_d
   end
 
   private
     def transaction(account, amount, category)
       create_transaction(account: account, amount: amount, category: category, date: @month)
+    end
+
+    def transfer_from_checking_to_card(amount)
+      outflow = create_transaction(account: @checking, amount: amount, date: @month)
+      inflow = create_transaction(account: @card, amount: -amount, date: @month)
+      Transfer.create!(
+        outflow_transaction: outflow.entryable,
+        inflow_transaction: inflow.entryable,
+        amount: amount
+      ).confirm!
     end
 
     def period(month = @month)
@@ -87,9 +146,10 @@ class IncomeStatement::AccountSankeyTest < ActiveSupport::TestCase
       assert_equal value, link[:value]
     end
 
-    # Every account balances, and every node's value is its larger side.
+    # Every account balances; every node's value is its larger side.
     def assert_balanced(graph)
-      graph[:nodes].each_with_index do |node, index|
+      graph[:nodes].each do |node|
+        index = graph[:nodes].index(node)
         incoming, outgoing = %i[target source].map do |end_point|
           graph[:links].select { |link| link[end_point] == index }.sum { |link| link[:value].to_d }
         end

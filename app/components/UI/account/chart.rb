@@ -211,7 +211,81 @@ class UI::Account::Chart < ApplicationComponent
     end
   end
 
+  # Two figures for the selected month/timeline, shown under the trend. A bank
+  # account reports money in and out from outside the household (its own
+  # transfers are excluded); a credit card reports gross charges and payments
+  # made into the card. Other account types keep the card they always had.
+  def period_totals?
+    account.depository? || account.credit_card?
+  end
+
+  def period_total_labels
+    if account.credit_card?
+      [ I18n.t("UI.account.chart.period_totals.charges"), I18n.t("UI.account.chart.period_totals.payments") ]
+    else
+      [ I18n.t("UI.account.chart.period_totals.income"), I18n.t("UI.account.chart.period_totals.spending") ]
+    end
+  end
+
+  def period_total_money
+    if account.credit_card?
+      [ period_charges_money, period_payments_money ]
+    else
+      [ period_income_money, period_spending_money ]
+    end
+  end
+
+  def period_income_money
+    period_money(-period_external_entries.where("entries.amount < 0").sum(:amount))
+  end
+
+  def period_spending_money
+    period_money(period_external_entries.where("entries.amount > 0").sum(:amount))
+  end
+
+  # Gross charges: every positive transaction in the period, including a
+  # purchase that was later refunded (the refund is its own negative row).
+  def period_charges_money
+    period_money(period_transaction_entries.where("entries.amount > 0").sum(:amount))
+  end
+
+  # Payments into the card: the matched transfer legs plus payment-looking
+  # rows that no bank leg could be matched to (e.g. a card payment made from
+  # an account outside this family). Refunds stay out of both figures.
+  def period_payments_money
+    transfer_ids = Transaction.where(kind: Transaction::TRANSFER_KINDS).select(:id)
+    matched = period_transaction_entries.where(entryable_id: transfer_ids)
+                                        .where("entries.amount < 0").sum(:amount)
+    unmatched = period_transaction_entries.where.not(entryable_id: transfer_ids)
+                                          .where("entries.amount < 0")
+                                          .where("entries.name ILIKE ?", "%payment%").sum(:amount)
+    period_money(-(matched + unmatched))
+  end
+
   private
+    def period_transaction_entries
+      @period_transaction_entries ||= account.entries
+                                             .excluding_split_parents
+                                             .where(date: period.start_date..period.end_date)
+                                             .where(entryable_type: "Transaction")
+    end
+
+    # A bank account's Income/Spending leaves out the household's own transfer
+    # legs (bank-to-bank moves and card payments) so moving money between your
+    # accounts does not read as earning and spending it.
+    def period_external_entries
+      transfer_ids = Transaction.where(kind: Transaction::TRANSFER_KINDS).select(:id)
+      # A pending auto-match has no transfer kind yet, but it is still a move
+      # between the household's own accounts.
+      linked_ids = Transfer.pluck(:inflow_transaction_id, :outflow_transaction_id).flatten
+      period_transaction_entries.where.not(entryable_id: transfer_ids)
+                                .where.not(entryable_id: linked_ids)
+    end
+
+    def period_money(amount)
+      Money.new(amount.to_d, account.currency)
+    end
+
     # Prefixes positive gains with "+"; other views keep plain Money formatting.
     def signed_format(money)
       return money.format unless view == "gains" && money.amount.positive?

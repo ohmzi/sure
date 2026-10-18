@@ -86,6 +86,37 @@ test("rejects malformed, unsafe, and cyclic graphs", () => {
   }
 });
 
+test("accepts the neutral balance node kind", () => {
+  const graph = cashFlowChartData({
+    currency: "USD",
+    sankey: {
+      basis: "net_by_account",
+      nodes: [
+        {
+          id: "account_card",
+          name: "Card",
+          kind: "account",
+          value: "100",
+          percentage: "100",
+          color: "#737373",
+        },
+        {
+          id: "balance_from_card",
+          name: "From savings balance",
+          kind: "balance",
+          value: "100",
+          percentage: "100",
+        },
+      ],
+      links: [
+        { source: 1, target: 0, value: "100", percentage: "100" },
+      ],
+    },
+  });
+
+  assert.equal(graph.nodes[1].color, "var(--color-secondary)");
+});
+
 test("formats zero-decimal currencies and Sure currencies outside Intl", () => {
   assert.equal(formatCashFlowCurrency(1234, "JPY", "en-US"), "¥1,234");
   assert.equal(formatCashFlowCurrency(1.234, "BHD", "en-US"), "BHD\u00a01.234");

@@ -780,7 +780,7 @@ class UserTest < ActiveSupport::TestCase
       "Should return false when collapsed_sections key is missing"
 
     # dashboard_section_order should return default order when key is missing
-    assert_equal %w[insights_feed cashflow_sankey outflows_donut net_worth_chart balance_sheet],
+    assert_equal %w[insights_feed cashflow_sankey outflows_donut merchant_breakdown net_worth_chart balance_sheet],
       @user.dashboard_section_order,
       "Should return default order when section_order key is missing"
 
@@ -1378,5 +1378,20 @@ class UserTest < ActiveSupport::TestCase
     assert api_key.reload.revoked?
     assert token.reload.revoked_at.present?
     assert grant.reload.revoked_at.present?
+  end
+
+  test "dashboard category resolves the saved preference, then Shopping, then the first root" do
+    user = users(:new_email)
+    family = user.family
+    shopping = family.categories.create!(name: "Shopping")
+    clothes = family.categories.create!(name: "Clothes")
+
+    assert_equal shopping, user.resolved_dashboard_category
+
+    user.update!(preferences: (user.preferences || {}).merge("dashboard_category_id" => clothes.id))
+    assert_equal clothes, user.reload.resolved_dashboard_category
+
+    user.update!(preferences: (user.preferences || {}).merge("dashboard_category_id" => "missing"))
+    assert_equal shopping, user.reload.resolved_dashboard_category
   end
 end

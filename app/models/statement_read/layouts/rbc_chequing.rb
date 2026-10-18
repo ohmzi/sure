@@ -2,8 +2,11 @@
 
 class StatementRead
   module Layouts
-    # RBC personal chequing / savings ("Your RBC personal banking account
-    # statement"). Read entirely from the text layer:
+    # RBC personal chequing and savings ("Your RBC personal banking account
+    # statement" / "Your RBC personal savings account statement"). Both print
+    # the same table — date, description, withdrawals, deposits, balance — and
+    # the same opening/deposits/withdrawals/closing summary. Read entirely from
+    # the text layer:
     #
     #   * identity — "Your account number: 02941-5386719" (transit-account; the
     #     account's last four identify it), the period "From <date> to <date>";
@@ -13,8 +16,12 @@ class StatementRead
     #     description is the foreign original (a note, not a column); a balance
     #     printed "- 29.95" is negative;
     #   * direction — from the running balance alone (BalanceWalk); a group the
-    #     balance cannot orient on its own leaves the read unverified. The
-    #     printed columns only tell which number on a line is the balance.
+    #     balance cannot orient on its own is settled ONLY when exactly one
+    #     candidate assignment also reproduces the printed deposit and
+    #     withdrawal totals. When every candidate leaves those totals identical,
+    #     the printed column may choose between them as a display tiebreak: the
+    #     group's net, and therefore every printed total, is unchanged. A column
+    #     is never proof of the money (review I1).
     #
     # Proven only when every group orients, and the rows' deposits, withdrawals
     # and opening-to-closing movement all equal the printed totals to the cent.
@@ -25,10 +32,12 @@ class StatementRead
       MONTHS = %w[Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec].freeze
       ROW_DATE = /\A(\d{1,2}) (#{MONTHS.join('|')})\b\s*/
       FX_NOTE = /\$\s*(\d[\d,]*\.\d{2})(?=[A-Za-z])/
-      NOISE = /\A(?:RBPDA|Date\s+Description|Details of your account activity|Your RBC personal banking|From [A-Z]|\d+ of \d+\z|\d{5}\z)/
+      NOISE = /\A(?:RBPDA|Date\s+Description|Details of your account activity|Your RBC personal (?:banking|savings)|From [A-Z]|\d+ of \d+\z|\d{5}\z)/
 
       def self.matches?(text)
-        text.include?(INSTITUTION) && text.match?(/Your RBC personal banking/) && text.include?("Opening Balance")
+        text.include?(INSTITUTION) &&
+          text.match?(/Your RBC personal (?:banking|savings)/) &&
+          text.include?("Opening Balance")
       end
 
       def self.call(text) = new(text).call
@@ -40,6 +49,7 @@ class StatementRead
       def call
         totals = stated_totals
         walk = BalanceWalk.call(opening: totals["opening"], closing: totals["closing"], rows: parsed_rows)
+        walk = resolve_against_totals(walk, totals)
         rows = walk.rows.map { |row| emit(row) }
         checks, figures = checks_for(walk, totals)
         verdict = verdict_for(walk, checks, rows)
@@ -54,6 +64,93 @@ class StatementRead
       end
 
       private
+        # The balance walk leaves a group unverified when two sign assignments
+        # move the balance the same way (a +45 rebate beside a -45 fee). The
+        # printed deposits and withdrawals totals are independent evidence: if
+        # exactly ONE combination of the candidates reproduces both, the group
+        # is proven without guessing. No match stays unverified (drift or
+        # unreconcilable); several matches fall through to the display tiebreak
+        # below, which may only choose when the totals are identical.
+        MAX_RESOLUTIONS = 64
+
+        def resolve_against_totals(walk, totals)
+          return walk if walk.ambiguities.empty?
+          return walk unless totals["deposits"] && totals["withdrawals"]
+          return walk if totals["deposits"].to_d.zero? && totals["withdrawals"].to_d.zero?
+
+          candidates = walk.ambiguities.map { |ambiguity| ambiguity[:candidates] }
+          return walk if candidates.reduce(1) { |product, list| product * list.size } > MAX_RESOLUTIONS
+
+          combinations = candidates.shift.product(*candidates)
+          matches = combinations.select do |combination|
+            rows = resolved_rows(walk.rows, walk.ambiguities, combination)
+            deposits, withdrawals = side_totals(rows)
+            deposits == totals["deposits"] && withdrawals == totals["withdrawals"]
+          end
+          return build_resolved(walk, matches.first) if matches.one?
+
+          # Two equal amounts with opposite signs (a +45 rebate beside a -45
+          # fee) give every candidate the SAME deposit and withdrawal totals,
+          # so the totals cannot choose between them and the row directions are
+          # the only difference. The printed column is then a display tiebreak,
+          # never a financial one: the group's net and every printed total stay
+          # exactly as the candidates already proved them. Without a column for
+          # every ambiguous row, refuse to guess (review I1).
+          return walk unless invariant_totals?(combinations, walk)
+
+          orient_by_columns(walk, totals) || walk
+        end
+
+        def build_resolved(walk, combination)
+          BalanceWalk::Result.new(
+            rows: resolved_rows(walk.rows, walk.ambiguities, combination),
+            verified: true, ambiguous_groups: 0, ambiguities: []
+          )
+        end
+
+        # Every candidate assignment produces the same deposit and withdrawal
+        # totals, so choosing between them cannot change the statement's money.
+        def invariant_totals?(combinations, walk)
+          combinations.map do |combination|
+            side_totals(resolved_rows(walk.rows, walk.ambiguities, combination))
+          end.uniq.one?
+        end
+
+        def orient_by_columns(walk, totals)
+          return nil unless walk.ambiguities.all? do |ambiguity|
+            ambiguity[:group].all? { |row| row["column"].in?(%i[deposit withdrawal]) }
+          end
+
+          signs = walk.ambiguities.map do |ambiguity|
+            ambiguity[:group].map { |row| row["column"] == :deposit ? 1 : -1 }
+          end
+          rows = resolved_rows(walk.rows, walk.ambiguities, signs)
+          deposits, withdrawals = side_totals(rows)
+          return nil unless deposits == totals["deposits"] && withdrawals == totals["withdrawals"]
+          return nil unless totals["opening"].nil? ||
+                            totals["opening"] + deposits - withdrawals == totals["closing"]
+
+          BalanceWalk::Result.new(rows: rows, verified: true, ambiguous_groups: 0, ambiguities: [])
+        end
+
+        def resolved_rows(rows, ambiguities, combination)
+          resolved = rows.dup
+          ambiguities.each_with_index do |ambiguity, index|
+            signs = combination[index]
+            ambiguity[:group].each_with_index do |row, offset|
+              resolved[ambiguity[:start] + offset] = row.merge("signed" => signs[offset] * row["amount"])
+            end
+          end
+          resolved
+        end
+
+        def side_totals(rows)
+          signed = rows.map { |row| row["signed"] }.compact
+          deposits = signed.select(&:positive?).sum(BigDecimal(0))
+          withdrawals = -signed.select(&:negative?).sum(BigDecimal(0))
+          [ deposits, withdrawals ]
+        end
+
         def identity
           account = @text.match(/Your account number:\s*\d+-(\d+)/)
           start_on, end_on = period
@@ -128,10 +225,14 @@ class StatementRead
             pending = []
             amounts.each do |text_amount, right_edge|
               value = to_money(text_amount)
-              case column_at(columns, right_edge)
-              when :balance then row["balance"] = value
+              side = column_at(columns, right_edge)
+              if side == :balance
+                row["balance"] = value
               else
                 row["amount"] = value.abs
+                # The rightmost non-balance amount is the real column amount; a
+                # "$45.00" inside a description scans first and is overwritten.
+                row["column"] = side
               end
             end
             rows << row if row["amount"]

@@ -80,6 +80,11 @@ en:
           legend: Chart series
           since_start: since the loan started
         no_data_available: "No data available"
+        period_totals:
+          charges: Charges
+          income: Income
+          payments: Payments
+          spending: Spending
         title:
           balance: Balance
           cash_value: Cash value

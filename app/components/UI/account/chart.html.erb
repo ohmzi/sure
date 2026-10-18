@@ -43,6 +43,14 @@
       <%= render partial: "shared/trend_change", locals: { trend: trend, comparison_label: comparison_label } %>
     </div>
 
+    <% if period_totals? %>
+      <div class="px-4 mb-2 grid grid-cols-2 gap-2">
+        <% period_total_labels.zip(period_total_money).each do |label, money| %>
+          <%= render "accounts/summary_card", title: label, content: money.format %>
+        <% end %>
+      </div>
+    <% end %>
+
     <% if loan_chart? %>
       <%# The loan balance chart: recorded balance, original schedule and
           projection on one axis, with the figures the projection produces beside

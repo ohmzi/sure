@@ -58,6 +58,31 @@ class Settings::PreferencesControllerTest < ActionDispatch::IntegrationTest
     assert_equal accounts(:depository), users(:family_admin).reload.default_account_for_bills
   end
 
+  test "renders the dashboard category select" do
+    get settings_preferences_url
+
+    assert_response :success
+    assert_select "select[name='user[dashboard_category_id]']"
+  end
+
+  test "saves the dashboard category default" do
+    category = categories(:food_and_drink)
+
+    patch settings_preferences_path, params: { user: { dashboard_category_id: category.id } }
+
+    assert_redirected_to settings_preferences_path
+    assert_equal category, users(:family_admin).reload.dashboard_category
+  end
+
+  test "refuses a dashboard category from another family" do
+    other = families(:empty).categories.create!(name: "Elsewhere")
+
+    patch settings_preferences_path, params: { user: { dashboard_category_id: other.id } }
+
+    assert_redirected_to settings_preferences_path
+    assert_nil users(:family_admin).reload.dashboard_category
+  end
+
   test "refuses an ineligible default account" do
     patch settings_preferences_path, params: { user: { default_account_id: accounts(:investment).id } }
 

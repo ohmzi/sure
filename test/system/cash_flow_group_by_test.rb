@@ -12,22 +12,22 @@ class CashFlowGroupByTest < ApplicationSystemTestCase
     create_transaction(account: account, category: category, amount: 100, date: @month)
   end
 
-  test "switching the preview Sankey to flows by account redraws it and is remembered" do
+  test "the account flow is the default and switching back to categories is remembered" do
     sign_in @user
     visit root_path(start_date: @month.iso8601, end_date: Date.current.iso8601)
     chart = find("#cashflow-preview [data-preview-sankey-chart-target='chart']", match: :first)
     assert_selector "#cashflow-preview svg .sankey-link"
-    assert_no_selector "#cashflow-preview svg text", text: "Group By Checking"
+    assert_selector "#cashflow-preview svg text", text: "Group By Checking"
+    assert_nil find("#cashflow-preview")["data-sankey-comparison"].presence, "the account view is not compared with the legacy category chart"
 
-    within("#cashflow-preview") { click_button "Account" }
+    within("#cashflow-preview") { click_button "Category" }
 
-    chart.assert_selector "svg text", text: "Group By Checking"
-    assert_selector "#cashflow-preview button[aria-pressed='true']", text: "Account"
-    assert_nil find("#cashflow-preview")["data-sankey-comparison"].presence, "only the category view is compared with the legacy chart"
+    chart.assert_no_selector "svg text", text: "Group By Checking"
+    assert_selector "#cashflow-preview button[aria-pressed='true']", text: "Category"
 
     visit root_path(start_date: @month.iso8601, end_date: Date.current.iso8601)
     find("#cashflow-preview [data-preview-sankey-chart-target='chart']", match: :first)
-      .assert_selector "svg text", text: "Group By Checking"
-    assert_equal "account", @user.reload.cashflow_sankey_group_by
+      .assert_no_selector "svg text", text: "Group By Checking"
+    assert_equal "category", @user.reload.cashflow_sankey_group_by
   end
 end

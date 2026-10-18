@@ -6,7 +6,7 @@ class CashFlowTest < ApplicationSystemTestCase
   setup do
     @user = users(:family_admin)
     @month = Date.current.beginning_of_month
-    @user.update!(preferences: @user.preferences.merge("preview_features_enabled" => true))
+    @user.update!(preferences: @user.preferences.merge("preview_features_enabled" => true, "cashflow_sankey_group_by" => "category"))
     parent = @user.family.categories.create!(name: "Sankey Shopping", color: "#123456")
     child = @user.family.categories.create!(name: "Sankey Groceries", parent: parent)
     account = @user.family.accounts.create!(name: "Sankey checking", currency: "USD", balance: 0, accountable: Depository.new)
@@ -102,7 +102,7 @@ class CashFlowTest < ApplicationSystemTestCase
     sign_in @user
     visit root_path(start_date: date.iso8601, end_date: date.iso8601)
     chart = find("#cashflow-preview [data-preview-sankey-chart-target='chart']", match: :first)
-    [ "Deficit", "Cash Flow", "Sankey Shopping" ].each do |name|
+    [ "From account balances", "Cash Flow", "Sankey Shopping" ].each do |name|
       assert_selector "#cashflow-preview g[aria-label='#{name}, $160.00']"
     end
     links = chart.all(".sankey-link").map do |link|

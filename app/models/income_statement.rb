@@ -49,6 +49,25 @@ class IncomeStatement
     @income_totals_by_period[key] = build_period_total(classification: "income", period: period)
   end
 
+  # Merchant-level totals within one category, scoped and converted exactly
+  # like the category totals above. A parent category includes its
+  # subcategories; a subcategory stands alone.
+  def merchant_totals(category:, period:)
+    category_ids = if category.subcategory?
+      [ category.id ]
+    else
+      [ category.id, *category.subcategories.ids ]
+    end
+
+    MerchantTotals.new(
+      family,
+      transactions_scope: family.transactions.visible.excluding_pending.in_period(period),
+      date_range: period.date_range,
+      category_ids: category_ids,
+      included_account_ids: included_account_ids
+    ).call
+  end
+
   def net_category_totals(period: Period.current_month)
     key = period_cache_key(period)
     @net_category_totals_by_period ||= {}

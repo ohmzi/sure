@@ -51,6 +51,7 @@ en:
       files_hint: PDF, CSV, or XLSX. %{max_size}MB max per file.
       files_label: Statement files
       period_hint: "Sure reads the period from the PDF when it states one, or from a date in the filename (e.g. 2026-04). You can also set it on the statement."
+      upload_fab: Upload a document
     index:
       account_label: Account
       confidence: "%{confidence} match"

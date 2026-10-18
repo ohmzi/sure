@@ -257,6 +257,11 @@ en:
           label: Default account
           hint: New transactions start here, and photographed receipts and bills confirm here by default. Cash and credit-card accounts only.
           none: No default
+        dashboard_category:
+          label: Dashboard category
+          hint: The category whose merchants appear in the dashboard pie chart. Changing it on the dashboard is temporary.
+          none: Shopping (default)
+          invalid: That category is not in this household.
     budget_shares:
       update:
         success: Budget sharing settings updated
