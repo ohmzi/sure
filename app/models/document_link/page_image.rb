@@ -23,7 +23,9 @@ class DocumentLink::PageImage < DocumentLink::Thumbnail
     source = DocumentLink::Staging.resolve!(link.stored_path) if link.stored_path.present?
     return 0 unless source&.file?
 
-    pages = DocumentLink::RequestCache.fetch([ link.id, source.to_s, fingerprint(link, source) ]) do
+    # Its own key: the text layer memoizes an HTML String for the same document
+    # in the same request, and the two must never be read as one another.
+    pages = DocumentLink::RequestCache.fetch([ :page_count, link.id, source.to_s, fingerprint(link, source) ]) do
       output, status = Open3.capture2("pdfinfo", source.to_s)
       next 0 unless status.success?
 

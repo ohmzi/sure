@@ -16,7 +16,7 @@ class DocumentLink::TextLayer
   # The bbox HTML for `link`, from the request cache, the stored cache, or a
   # fresh pdftotext run.
   def self.fetch(link, source)
-    DocumentLink::RequestCache.fetch([ link.id, source.to_s, fingerprint(link, source) ]) do
+    DocumentLink::RequestCache.fetch([ :text_layer, link.id, source.to_s, fingerprint(link, source) ]) do
       read(link) || extract_and_write(link, source)
     end
   end
@@ -26,7 +26,7 @@ class DocumentLink::TextLayer
   def self.path_for(link)
     return if link.content_sha256.blank?
 
-    DocumentLink::Staging.root.join("text", "#{link.id}-#{link.content_sha256}.html")
+    DocumentLink::Staging.resolve!("text/#{link.id}-#{link.content_sha256}.html")
   end
 
   def self.read(link)
@@ -40,7 +40,8 @@ class DocumentLink::TextLayer
     return if link.id.blank?
 
     path = DocumentLink::Staging.root.join("text")
-    Dir.glob(path.join("#{link.id}-*.html").to_s).each { |cached| FileUtils.rm_f(cached) }
+    # `*.html*` also catches the `.partial` files an interrupted write leaves.
+    Dir.glob(path.join("#{link.id}-*.html*").to_s).each { |cached| FileUtils.rm_f(cached) }
   end
 
   def self.extract_and_write(link, source)

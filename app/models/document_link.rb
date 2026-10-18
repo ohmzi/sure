@@ -545,9 +545,16 @@ class DocumentLink < ApplicationRecord
   def stage!(io:, filename:, content_type:)
     path = DocumentLink::Staging.write(io: io, id: id)
     digest = Digest::SHA256.file(path).hexdigest
-    transition!(from: %w[queued processing failed], to: "queued",
-                stored_path: path, content_sha256: digest,
-                original_filename: filename, content_type: content_type)
+    # Restaging replaces the bytes at the same path. The page count and the
+    # durable text layer were read from the old bytes, so they leave with them
+    # (the text layer is named for the digest, but the old file must not linger);
+    # an identical digest still describes the same bytes and stays cached.
+    replaced = content_sha256 != digest
+    DocumentLink::TextLayer.delete(self) if replaced
+    attributes = { stored_path: path, content_sha256: digest,
+                   original_filename: filename, content_type: content_type }
+    attributes[:page_count] = nil if replaced
+    transition!(from: %w[queued processing failed], to: "queued", **attributes)
   end
 
   def stored_io(&block)

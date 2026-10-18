@@ -233,6 +233,44 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_select "details[data-document-about]"
   end
 
+  # A cold viewer open derives both facts in one request: the line locator runs
+  # pdftotext's text layer, and the pages gallery runs pdfinfo. The request cache
+  # memoizes both, so their keys must not collide — an HTML String and a page
+  # Integer under one key blanks the gallery or 500s the trace (P1.12 fix round).
+  test "a cold viewer open reads the text layer and the page count without colliding" do
+    import = statement_import_reading("Customer Transfer to 254724***228 - WANJUHI NJOROGE", "-3700.00")
+    link = import.document_link
+    link.update_columns(page_count: nil)
+    entry = create_statement_entry(import, name: "Customer Transfer to 254724***228 - WANJUHI NJOROGE", amount: 3700)
+
+    original = Open3.method(:capture2)
+    pdfinfo_calls = 0
+    counting = lambda do |*args|
+      pdfinfo_calls += 1 if args.first == "pdfinfo"
+      original.call(*args)
+    end
+
+    Open3.stub(:capture2, counting) do
+      get viewer_document_path(link, entry_id: entry.id)
+    end
+
+    assert_response :success
+    assert_select "[data-document-pages='3'] img[src*='kind=page']", { count: 3 },
+                  "the cold page count must not be poisoned by the text layer"
+    assert_select "[data-page='1'] [data-document-mark]", { minimum: 1 },
+                  "the text layer still locates the line"
+    assert_equal 3, link.reload.page_count, "pdfinfo's count is recorded on the row"
+    assert_equal 1, pdfinfo_calls
+
+    DocumentLink::RequestCache.reset # a later request
+    Open3.stub(:capture2, counting) do
+      get viewer_document_path(link, entry_id: entry.id)
+    end
+
+    assert_response :success
+    assert_equal 1, pdfinfo_calls, "the recorded count means pdfinfo is not run again"
+  end
+
   test "the viewer ignores a transaction the document has nothing to do with" do
     import = statement_import_reading("Customer Transfer to 254724***228 - WANJUHI NJOROGE", "-3700.00")
 

@@ -102,6 +102,25 @@ class AccountStatement::SearchTest < ActiveSupport::TestCase
     assert_equal [ nil, nil ], search.neighbours(outside)
   end
 
+  # A regression to the old full-id walk would load every matching id per open;
+  # the walk must stay three bounded (LIMIT 1) keyset queries.
+  test "the walk costs bounded keyset queries, never a full id load" do
+    base = Time.zone.parse("2026-09-01 12:00")
+    walk_statement("guard_newest.csv", at: base + 2.hours)
+    middle = walk_statement("guard_middle.csv", at: base + 1.hour)
+    search = AccountStatement::Search.new(user: users(:family_admin), family: @family, filters: { search: "guard_" })
+
+    queries = capture_sql_queries { search.neighbours(middle) }
+    statement_queries = queries.select { |sql| sql.include?('FROM "account_statements"') }
+
+    walked = statement_queries.select { |sql| sql.include?("ORDER BY account_statements.") }
+    assert_equal 2, walked.size, "one query per direction: #{statement_queries.inspect}"
+    assert walked.all? { |sql| sql.match?(/\bLIMIT\s+\$?\d+\z/) },
+           "each neighbour query is bounded: #{walked.inspect}"
+    assert_empty statement_queries.grep(/\ASELECT "account_statements"\."id" FROM/),
+                 "the walk must not pluck every matching id"
+  end
+
   private
     def walk_statement(filename, at:)
       @walk_count = (@walk_count || 0) + 1

@@ -46,9 +46,12 @@ class DocumentLink::Search
   SQL
 
   # The name sort's expression, shared by the ORDER BY and the viewer's walk.
-  # COALESCE keeps a row with no title and no filename sortable ('' first)
-  # instead of NULL, so the keyset's equality/inequality predicates are total.
-  NAME_SQL = "LOWER(COALESCE(NULLIF(document_links.title, ''), document_links.original_filename, ''))"
+  # The archive's name order has always placed a row with no title and no
+  # filename LAST (NULLS LAST); the rank key keeps that order, while the
+  # coalesced sort key keeps the keyset's predicates total instead of NULL.
+  NAME_SQL = "LOWER(COALESCE(NULLIF(document_links.title, ''), document_links.original_filename))"
+  NAME_RANK_SQL = "(#{NAME_SQL} IS NULL)"
+  NAME_SORT_SQL = "COALESCE(#{NAME_SQL}, '')"
 
   def initialize(family:, filters: {}, sources: nil)
     @family = family
@@ -91,7 +94,8 @@ class DocumentLink::Search
       ]
     when "name"
       [
-        { sql: NAME_SQL, direction: :asc },
+        { sql: NAME_RANK_SQL, direction: :asc },
+        { sql: NAME_SORT_SQL, direction: :asc },
         { sql: "document_links.created_at", direction: :desc },
         { sql: "document_links.id", direction: :desc }
       ]

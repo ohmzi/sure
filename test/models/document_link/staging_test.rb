@@ -46,6 +46,30 @@ class DocumentLink::StagingTest < ActiveSupport::TestCase
     end
   end
 
+  # Derived facts belong to the bytes they were read from. Restaging replaces
+  # those bytes at the same path, so the old page count (pdfinfo) and the old
+  # durable text layer (pdftotext) are no longer answers about this document.
+  test "restaging bytes clears the page count and the durable text layer" do
+    with_env_overrides(@env) do
+      @link.stage!(io: StringIO.new("first bytes"), filename: "a.pdf", content_type: "application/pdf")
+      @link.reload
+      @link.update_columns(page_count: 7)
+
+      old_text = DocumentLink::TextLayer.path_for(@link)
+      old_text.dirname.mkpath
+      File.binwrite(old_text, "<html/>")
+      partial = Pathname.new("#{old_text}.#{SecureRandom.hex(4)}.partial")
+      File.binwrite(partial, "half-written")
+
+      @link.stage!(io: StringIO.new("second, different bytes"), filename: "b.pdf", content_type: "application/pdf")
+
+      @link.reload
+      assert_nil @link.page_count, "a count belongs to the bytes it was read from"
+      assert_not old_text.exist?, "a text layer belongs to the bytes it was extracted from"
+      assert_not partial.exist?, "a leftover partial is removed with the cache"
+    end
+  end
+
   test "delete_stored! removes the file and clears stored_path" do
     with_env_overrides(@env) do
       @link.stage!(io: StringIO.new("x"), filename: "a.pdf", content_type: "application/pdf")

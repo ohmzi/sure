@@ -260,6 +260,46 @@ class DocumentLink::SearchTest < ActiveSupport::TestCase
     assert_equal [ upper, nil ], search.neighbours(lower)
   end
 
+  # A row with neither a title nor a filename sorts by NULL, which the archive's
+  # name order has always placed LAST. The walk's keyset needs a total predicate,
+  # so it ranks the NULLs instead of coalescing them into a leading ''.
+  test "the name sort keeps unnamed documents last and the walk crosses them" do
+    at = Time.zone.parse("2026-09-01 12:00")
+    named = neighbour_link("Aaa Named", created_at: at)
+    unnamed = DocumentLink.create!(family: @family, source: "other", status: "unlinked",
+                                   title: nil, original_filename: nil, content_type: "image/png",
+                                   created_at: at + 1.hour)
+    tags = %w[name-sort-null]
+    named.update_columns(tags: tags)
+    unnamed.update_columns(tags: tags)
+    search = DocumentLink::Search.new(family: @family, filters: { tags: tags, sort: "name" })
+
+    assert_equal [ named.id, unnamed.id ], search.relation.pluck(:id),
+                 "a row with no name sorts after every named row (NULLS LAST)"
+    assert_equal [ nil, unnamed ], search.neighbours(named)
+    assert_equal [ named, nil ], search.neighbours(unnamed)
+  end
+
+  # A regression to the old full-id walk would load every matching id per open;
+  # the walk must stay three bounded (LIMIT 1) keyset queries.
+  test "the walk costs bounded keyset queries, never a full id load" do
+    at = Time.zone.parse("2026-09-01 12:00")
+    neighbour_link("Guard A", created_at: at + 2.hours)
+    middle = neighbour_link("Guard B", created_at: at + 1.hour)
+    neighbour_link("Guard C", created_at: at)
+    search = DocumentLink::Search.new(family: @family, filters: { search: "Guard" })
+
+    queries = capture_sql_queries { search.neighbours(middle) }
+    document_queries = queries.select { |sql| sql.include?('FROM "document_links"') }
+
+    walked = document_queries.select { |sql| sql.include?("ORDER BY document_links.") }
+    assert_equal 2, walked.size, "one query per direction: #{document_queries.inspect}"
+    assert walked.all? { |sql| sql.match?(/\bLIMIT\s+\$?\d+\z/) },
+           "each neighbour query is bounded: #{walked.inspect}"
+    assert_empty document_queries.grep(/\ASELECT "document_links"\."id" FROM/),
+                 "the walk must not pluck every matching id"
+  end
+
   private
     def neighbour_link(title, created_at:, id: nil)
       attributes = { family: @family, source: "other", status: "unlinked", title: title,
