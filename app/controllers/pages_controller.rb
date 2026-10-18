@@ -190,14 +190,16 @@ class PagesController < ApplicationController
           }
         },
         "outflows_donut" => -> {
-          outflows_data = build_outflows_donut_data(dashboard_net_totals)
+          selected_card = dashboard_card_account
+          outflows_data = build_outflows_donut_data(dashboard_donut_net_totals)
           {
             key: "outflows_donut",
-            title: "pages.dashboard.outflows_donut.title",
+            title: selected_card ? "pages.dashboard.outflows_donut.card_title" : "pages.dashboard.outflows_donut.title",
             partial: "pages/dashboard/outflows_donut",
             layout: section_layout("outflows_donut"),
-            locals: { outflows_data: outflows_data, period: @period },
-            visible: @accounts.any? && outflows_data[:categories].present?,
+            locals: { outflows_data: outflows_data, period: @period,
+                      card_accounts: dashboard_card_accounts, selected_card: selected_card },
+            visible: selected_card.present?,
             collapsible: true
           }
         },
@@ -265,6 +267,32 @@ class PagesController < ApplicationController
 
     def dashboard_net_totals
       @dashboard_net_totals ||= dashboard_income_statement.net_category_totals(period: @period)
+    end
+
+    # The outflow donut is a card-charges chart: scope it to the selected credit
+    # card (or the only one) and let the widget switch cards.
+    def dashboard_card_accounts
+      @dashboard_card_accounts ||= dashboard_income_statement.eligible_accounts
+        .where(accountable_type: "CreditCard").order(:name)
+    end
+
+    def dashboard_card_account
+      return @dashboard_card_account if defined?(@dashboard_card_account)
+
+      @dashboard_card_account = dashboard_card_accounts.find_by(id: params[:card_account_id]) ||
+                                dashboard_card_accounts.first
+    end
+
+    def dashboard_donut_net_totals
+      @dashboard_donut_net_totals ||= begin
+        card = dashboard_card_account
+        if card
+          Current.family.income_statement(accounts: Account.where(id: card.id))
+                 .net_category_totals(period: @period)
+        else
+          dashboard_net_totals
+        end
+      end
     end
 
     def cashflow_sankey_data

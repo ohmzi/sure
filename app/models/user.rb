@@ -658,10 +658,11 @@ class User < ApplicationRecord
 
   CASHFLOW_SANKEY_GROUPINGS = IncomeStatement::CashFlowGraph::GROUPINGS.keys.freeze
 
-  # Preview cash-flow Sankey: flows by category (default) or through each account.
+  # Preview cash-flow Sankey: money moving through each account (default) or
+  # a category-level summary.
   def cashflow_sankey_group_by
     group_by = preferences&.dig("cashflow_sankey_group_by")
-    CASHFLOW_SANKEY_GROUPINGS.include?(group_by) ? group_by : "category"
+    CASHFLOW_SANKEY_GROUPINGS.include?(group_by) ? group_by : "account"
   end
 
   # Per-widget column-span override ("single" | "full"); nil = use default.

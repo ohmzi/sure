@@ -117,8 +117,8 @@ en:
       cashflow_preview:
         node_labels:
           cash_flow: "Cash Flow"
-          surplus: "Surplus"
-          deficit: "Deficit"
+          surplus: "Remaining balances"
+          deficit: "From account balances"
         title: "New Sankey chart"
         preview: "Preview"
         preview_tooltip: "This will replace the above visualization as it uses a new shared API with the mobile Swift client."
@@ -153,7 +153,11 @@ en:
         add_account: "Add account"
       outflows_donut:
         title: "Outflows"
+        card_title: "Card charges"
+        card_label: "Credit card"
+        total_charges: "Total charges"
         total_outflows: "Total Outflows"
+        empty: "No card charges in this period."
         categories: "Categories"
         value: "Value"
         weight: "Weight"

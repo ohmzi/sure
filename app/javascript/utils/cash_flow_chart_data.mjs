@@ -33,6 +33,7 @@ export function cashFlowChartData(body) {
         "account",
         "surplus",
         "deficit",
+        "balance",
       ].includes(node.kind)
     ) {
       throw new Error("Invalid cash flow node");
@@ -42,7 +43,9 @@ export function cashFlowChartData(body) {
       ? node.color
       : ["expense", "deficit"].includes(node.kind)
         ? "var(--color-destructive)"
-        : "var(--color-success)";
+        : node.kind === "balance"
+          ? "var(--color-secondary)"
+          : "var(--color-success)";
     const value = number(node.value),
       percentage = number(node.percentage);
     if (value <= 0 || percentage > 100)

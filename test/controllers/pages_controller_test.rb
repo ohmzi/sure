@@ -924,6 +924,37 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "the outflows donut shows only credit card charges" do
+    card_category = @family.categories.create!(name: "Donut Card Category", color: "#123456")
+    bank_category = @family.categories.create!(name: "Donut Bank Category", color: "#654321")
+    create_transaction(account: accounts(:credit_card), category: card_category, amount: 50, date: Date.current)
+    create_transaction(account: accounts(:depository), category: bank_category, amount: 70, date: Date.current)
+
+    get root_path
+
+    assert_response :ok
+    assert_select "#outflows-donut-section", text: /Donut Card Category/
+    assert_select "#outflows-donut-section", text: /Donut Bank Category/, count: 0
+  end
+
+  test "the outflows donut switches between credit cards" do
+    first_card = accounts(:credit_card)
+    second_card = @family.accounts.create!(name: "Second Card", currency: "USD", balance: 0, accountable: CreditCard.new)
+    first_category = @family.categories.create!(name: "Donut First Card", color: "#123456")
+    second_category = @family.categories.create!(name: "Donut Second Card", color: "#654321")
+    create_transaction(account: first_card, category: first_category, amount: 50, date: Date.current)
+    create_transaction(account: second_card, category: second_category, amount: 70, date: Date.current)
+
+    get root_path
+    assert_select "#outflows-donut-section select[name='card_account_id'] option", text: first_card.name
+    assert_select "#outflows-donut-section select[name='card_account_id'] option", text: second_card.name
+    assert_select "#outflows-donut-section", text: /Donut First Card/
+
+    get root_path(card_account_id: second_card.id)
+    assert_select "#outflows-donut-section", text: /Donut Second Card/
+    assert_select "#outflows-donut-section", text: /Donut First Card/, count: 0
+  end
+
   private
     def money_flow_bars
       JSON.parse(css_select("[data-controller='bar-chart']").first["data-bar-chart-data-value"])

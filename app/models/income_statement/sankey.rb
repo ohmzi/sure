@@ -20,7 +20,9 @@ class IncomeStatement::Sankey
       net = income - spending
       unless net.zero?
         kind = net.positive? ? :surplus : :deficit
-        index = add_node("#{kind}_node", kind.to_s.capitalize, kind, net.abs, percentage(net.abs, capacity))
+        # A draw from account balances funds spending; it is not income.
+        name = net.positive? ? "Remaining balances" : "From account balances"
+        index = add_node("#{kind}_node", name, kind, net.abs, percentage(net.abs, capacity))
         source, target = net.positive? ? [ center, index ] : [ index, center ]
         add_link(source, target, net.abs, percentage(net.abs, capacity))
       end
