@@ -1,4 +1,6 @@
 require "test_helper"
+require "tmpdir"
+require "fileutils"
 
 class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
   include ActiveJob::TestHelper
@@ -893,6 +895,39 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to account_url(@account, tab: "statements")
     assert_equal I18n.t("account_statements.destroy.failure"), flash[:alert]
+  end
+
+  test "a delete that fails after the blocker check preserves the document bytes" do
+    store = Pathname.new(Dir.mktmpdir("statement-delete"))
+    with_env_overrides("SURE_DOCUMENT_STORE_DIR" => store.to_s) do
+      statement = AccountStatement.create_from_upload!(
+        family: @account.family, account: @account,
+        file: Rack::Test::UploadedFile.new(file_fixture("imports/sample_bank_statement.pdf"), "application/pdf")
+      )
+      link = statement.archive_document_link!.reload
+      path = link.stored_path
+      digest = link.content_sha256
+      assert File.exist?(path)
+
+      # A PdfImport lands between the controller's first blocker read and the
+      # destroy. `restrict_with_error` refuses the delete; the document must
+      # still hold its bytes so a re-upload is not a byte-less duplicate.
+      PdfImport.create_from_statement!(statement: statement.reload)
+      AccountStatement.any_instance.stubs(:deletion_blocker).returns(nil)
+
+      assert_no_difference "AccountStatement.count" do
+        delete account_statement_url(statement)
+      end
+
+      link.reload
+      assert File.exist?(path), "a failed delete must never give up the document bytes"
+      assert_equal path, link.stored_path
+      assert_equal digest, link.content_sha256
+      assert_nil link.deleted_at
+      assert AccountStatement.exists?(statement.id)
+    end
+  ensure
+    FileUtils.remove_entry(store) if store&.exist?
   end
 
   # -- search (M8 Task 5; the moved M7 Task 10 fence) --------------------------

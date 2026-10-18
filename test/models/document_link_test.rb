@@ -456,7 +456,7 @@ class DocumentLinkTest < ActiveSupport::TestCase
     link = document_links(:linked_receipt)
     link.entry.update!(reconciled_at: nil)
 
-    assert_raises(RuntimeError) { link.soft_delete! }
+    assert_not link.soft_delete!, "a refused delete is a return value, never an exception the caller must rescue"
     assert_nil link.reload.deleted_at, "a refused delete writes nothing"
   end
 

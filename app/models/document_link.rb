@@ -597,8 +597,13 @@ class DocumentLink < ApplicationRecord
   # The bytes go, the row stays. Guarded by `deletable?` so a soft delete can
   # never cascade over an unreconciled entry: the row is hidden from the archive
   # but keeps answering "where did this entry come from" forever.
+  #
+  # Returns false (writing nothing, including no bytes) when a derived entry is
+  # still unreconciled. A refusal is a callers' branch, not an exception: the
+  # statement delete path rolls its own transaction back and reports the
+  # blocker, and an unhandled raise there was a 500.
   def soft_delete!
-    raise "document has unreconciled derived entries" unless deletable?
+    return false unless deletable?
 
     transaction do
       delete_stored!
@@ -611,6 +616,7 @@ class DocumentLink < ApplicationRecord
       self.class.where(id: id).update_all(deleted_at: Time.current, content_sha256: nil,
                                           updated_at: Time.current)
     end
+    true
   end
 
   def deleted? = deleted_at.present?

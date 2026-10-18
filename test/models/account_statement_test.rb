@@ -1218,6 +1218,16 @@ class AccountStatementTest < ActiveSupport::TestCase
     # never its start. Using start_balance reported a false mismatch.
     test "a statement without rows checks its opening against the end of the boundary day" do
       account = accounts(:depository)
+      # The premise is a preceding statement ending ON the boundary day. Without
+      # it the balance record's start-of-day figure is the only available anchor.
+      previous = create_statement_with_period(
+        account: account,
+        period_start_on: Date.new(2026, 4, 12),
+        period_end_on: Date.new(2026, 5, 12),
+        content: "boundary-prev"
+      )
+      previous.update!(opening_balance: 94.22, closing_balance: 81.27)
+
       statement = AccountStatement.create_from_upload!(
         family: @family, account: account,
         file: uploaded_file(
@@ -1244,6 +1254,75 @@ class AccountStatementTest < ActiveSupport::TestCase
       checks = statuses(statement)
       assert_equal "matched", checks["opening_balance"]
       assert_equal "matched", checks["period_movement"]
+    end
+
+    # The other layout: April 13 – May 12, then May 13 – June 12. The second
+    # statement opens at the START of May 13, which equals the previous
+    # statement's close, not the end of May 13 (that day's activity belongs to
+    # the new statement).
+    test "a statement opening the day after the previous one ended chains to its closing" do
+      account = families(:dylan_family).accounts.create!(
+        name: "Day-before chequing", balance: 0, currency: "USD", accountable: Depository.new
+      )
+      previous = create_statement_with_period(
+        account: account,
+        period_start_on: Date.new(2026, 4, 13),
+        period_end_on: Date.new(2026, 5, 12),
+        content: "day-before-prev"
+      )
+      previous.update!(opening_balance: 50, closing_balance: 81.27)
+
+      statement = create_statement_with_period(
+        account: account,
+        period_start_on: Date.new(2026, 5, 13),
+        period_end_on: Date.new(2026, 6, 12),
+        content: "day-before-next"
+      )
+      statement.update!(opening_balance: 81.27, closing_balance: 100)
+      account.balances.create!(
+        date: Date.new(2026, 5, 13), balance: 60, currency: account.currency,
+        start_cash_balance: 81.27, cash_outflows: 21.27
+      )
+      account.balances.create!(
+        date: Date.new(2026, 6, 12), balance: 100, currency: account.currency,
+        start_cash_balance: 81.27, cash_inflows: 18.73
+      )
+
+      checks = statuses(statement)
+      assert_equal "matched", checks["opening_balance"],
+                   "the opening is the previous statement's close, not the end of the new statement's first day"
+      assert_equal "matched", checks["period_movement"]
+    end
+
+    test "a genuinely wrong opening still mismatches in the day-before layout" do
+      account = families(:dylan_family).accounts.create!(
+        name: "Wrong opening chequing", balance: 0, currency: "USD", accountable: Depository.new
+      )
+      previous = create_statement_with_period(
+        account: account,
+        period_start_on: Date.new(2026, 4, 13),
+        period_end_on: Date.new(2026, 5, 12),
+        content: "wrong-opening-prev"
+      )
+      previous.update!(opening_balance: 50, closing_balance: 81.27)
+
+      statement = create_statement_with_period(
+        account: account,
+        period_start_on: Date.new(2026, 5, 13),
+        period_end_on: Date.new(2026, 6, 12),
+        content: "wrong-opening-next"
+      )
+      statement.update!(opening_balance: 79, closing_balance: 100)
+      account.balances.create!(
+        date: Date.new(2026, 5, 13), balance: 60, currency: account.currency,
+        start_cash_balance: 81.27, cash_outflows: 21.27
+      )
+      account.balances.create!(
+        date: Date.new(2026, 6, 12), balance: 100, currency: account.currency,
+        start_cash_balance: 81.27, cash_inflows: 18.73
+      )
+
+      assert_equal "mismatched", statuses(statement)["opening_balance"]
     end
 
     # Re-downloading a statement changes its PDF metadata, so the same statement
