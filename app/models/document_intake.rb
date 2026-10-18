@@ -23,8 +23,12 @@ class DocumentIntake
   SNIFF_BYTES = 8.kilobytes
   OFX_HEADER = /\AOFXHEADER|\A[^\n]*<OFX>/i
 
-  def self.call(family:, uploader:, file:, title: nil, currency: nil)
-    new(family:, uploader:, file:, title:, currency:).call
+  # `documents_only:` is the API surface's contract: it runs the same content
+  # detection, but refuses bank exports BEFORE either import route creates a
+  # row. Without it a CSV would open a TransactionImport the caller never asked
+  # for and then be answered as an error.
+  def self.call(family:, uploader:, file:, title: nil, currency: nil, documents_only: false)
+    new(family:, uploader:, file:, title:, currency:, documents_only:).call
   end
 
   # The currency chosen at upload, only when it is a real ISO code; anything
@@ -36,16 +40,22 @@ class DocumentIntake
     nil
   end
 
-  def initialize(family:, uploader:, file:, title:, currency: nil)
+  def initialize(family:, uploader:, file:, title:, currency: nil, documents_only: false)
     @family = family
     @uploader = uploader
     @file = file
     @title = title
     @currency = currency
+    @documents_only = documents_only
   end
 
   def call
-    case classify
+    kind = classify
+    # A bank export is not a document upload: refuse it before the CSV/OFX
+    # branches create an import row, and point the caller at the imports API.
+    return rejected(I18n.t("document_intake.documents_only")) if @documents_only && %i[csv ofx].include?(kind)
+
+    case kind
     when :ofx then route_ofx
     when :csv then route_csv
     when :document then route_document

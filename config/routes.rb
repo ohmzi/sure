@@ -847,6 +847,7 @@ Rails.application.routes.draw do
       resources :family_exports, only: [ :index, :show, :create ] do
         get :download, on: :member
       end
+      resources :documents, only: [ :create ]
       resources :imports, only: [ :index, :show, :create ] do
         post :preflight, on: :collection
         get :rows, on: :member

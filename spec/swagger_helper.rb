@@ -157,6 +157,26 @@ RSpec.configure do |config|
               meta: { '$ref' => '#/components/schemas/Pagination' }
             }
           },
+          DocumentUpload: {
+            type: :object,
+            required: %w[id status source original_filename content_type created_at],
+            properties: {
+              id: { type: :string, format: :uuid },
+              status: { type: :string, enum: %w[queued processing] },
+              source: { type: :string, enum: DocumentLink::SOURCES },
+              original_filename: { type: :string, nullable: true },
+              content_type: { type: :string, nullable: true },
+              currency: { type: :string, nullable: true },
+              created_at: { type: :string, format: :'date-time' }
+            }
+          },
+          DocumentUploadResponse: {
+            type: :object,
+            required: %w[document],
+            properties: {
+              document: { '$ref' => '#/components/schemas/DocumentUpload' }
+            }
+          },
           ErrorResponse: {
             type: :object,
             required: %w[error],

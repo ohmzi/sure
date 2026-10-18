@@ -196,6 +196,50 @@ components:
             "$ref": "#/components/schemas/FamilyExport"
         meta:
           "$ref": "#/components/schemas/Pagination"
+    DocumentUpload:
+      type: object
+      required:
+      - id
+      - status
+      - source
+      - original_filename
+      - content_type
+      - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+          - queued
+          - processing
+        source:
+          type: string
+          enum:
+          - receipt
+          - bill
+          - statement
+          - other
+        original_filename:
+          type: string
+          nullable: true
+        content_type:
+          type: string
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    DocumentUploadResponse:
+      type: object
+      required:
+      - document
+      properties:
+        document:
+          "$ref": "#/components/schemas/DocumentUpload"
     ErrorResponse:
       type: object
       required:
@@ -2347,7 +2391,9 @@ components:
           - RuleImport
           - MerchantImport
           - PdfImport
+          - ReceiptImport
           - QifImport
+          - OfxImport
           - SureImport
         valid:
           type: boolean
@@ -2439,7 +2485,9 @@ components:
           - RuleImport
           - MerchantImport
           - PdfImport
+          - ReceiptImport
           - QifImport
+          - OfxImport
           - SureImport
         status:
           type: string
@@ -2496,7 +2544,9 @@ components:
           - RuleImport
           - MerchantImport
           - PdfImport
+          - ReceiptImport
           - QifImport
+          - OfxImport
           - SureImport
         status:
           type: string
@@ -6058,6 +6108,67 @@ paths:
             application/json:
               schema:
                 "$ref": "#/components/schemas/ErrorResponse"
+  "/api/v1/documents":
+    post:
+      summary: Upload a document
+      description: Archive a photo or PDF through the same intake pipeline as the
+        web dropzone. The document is queued for reading and the response returns
+        its id and status. Bank exports (CSV/OFX) are refused here; use the imports
+        API. Maximum size is 25MB.
+      tags:
+      - Documents
+      security:
+      - apiKeyAuth: []
+      parameters: []
+      responses:
+        '202':
+          description: document accepted for reading
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/DocumentUploadResponse"
+        '401':
+          description: unauthorized
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '403':
+          description: insufficient scope or guest user
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '422':
+          description: missing or unrecognised file
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+        '413':
+          description: file larger than the 25MB cap
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                currency:
+                  type: string
+                  description: Optional ISO 4217 currency for a receipt or bill. Ignored
+                    when not a real code.
+        required: true
+        description: Photo or PDF (PNG, JPEG, WebP, HEIC/HEIF, or any file whose bytes
+          start with %PDF-). Maximum 25MB.
   "/api/v1/envelopes":
     get:
       summary: List envelopes
@@ -7684,7 +7795,9 @@ paths:
           - RuleImport
           - MerchantImport
           - PdfImport
+          - ReceiptImport
           - QifImport
+          - OfxImport
           - SureImport
       responses:
         '200':
@@ -7747,7 +7860,9 @@ paths:
                   - RuleImport
                   - MerchantImport
                   - PdfImport
+                  - ReceiptImport
                   - QifImport
+                  - OfxImport
                   - SureImport
                   description: Import type (defaults to TransactionImport)
                 account_id:
@@ -7858,7 +7973,9 @@ paths:
                   - RuleImport
                   - MerchantImport
                   - PdfImport
+                  - ReceiptImport
                   - QifImport
+                  - OfxImport
                   - SureImport
                   description: Import type (defaults to TransactionImport)
                 account_id:
@@ -8100,7 +8217,9 @@ paths:
                   - RuleImport
                   - MerchantImport
                   - PdfImport
+                  - ReceiptImport
                   - QifImport
+                  - OfxImport
                   - SureImport
                   description: Import type to validate (defaults to TransactionImport)
                 account_id:
@@ -8215,7 +8334,9 @@ paths:
                   - RuleImport
                   - MerchantImport
                   - PdfImport
+                  - ReceiptImport
                   - QifImport
+                  - OfxImport
                   - SureImport
                   description: Import type to validate (defaults to TransactionImport)
                 account_id:

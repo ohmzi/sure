@@ -78,6 +78,31 @@ class DocumentIntakeTest < ActiveSupport::TestCase
     end
   end
 
+  test "documents_only refuses a bank export before it starts an import" do
+    body = "Date,Description,Amount\n2026-10-01,Cafe,-4.50\n"
+
+    assert_no_difference -> { Import.count } do
+      result = DocumentIntake.call(
+        family: @family, uploader: @user, documents_only: true,
+        file: uploaded(body, filename: "bank.csv", content_type: "text/csv")
+      )
+
+      assert_equal :rejected, result.kind
+      assert_equal I18n.t("document_intake.documents_only"), result.message
+    end
+  end
+
+  test "documents_only still routes an image to the native pipeline" do
+    assert_enqueued_with(job: DocumentUnderstandingJob) do
+      result = DocumentIntake.call(
+        family: @family, uploader: @user, documents_only: true,
+        file: uploaded("PNGDATA", filename: "shot.png", content_type: "image/png")
+      )
+
+      assert_equal :document, result.kind
+    end
+  end
+
   test "an unrecognised binary is rejected with a message and changes nothing" do
     assert_no_difference -> { DocumentLink.count } do
       result = DocumentIntake.call(family: @family, uploader: @user,

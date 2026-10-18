@@ -216,5 +216,6 @@ en:
     local: the local model (%{model})
   document_intake:
     rejected: We could not tell what this file is. Drop a photo, a PDF, or a bank export.
+    documents_only: Only photos and PDFs can be uploaded here. Use the imports API for CSV or OFX files.
   document_links:
     retry_exhausted: "%{reason} We stopped retrying after %{count} attempts; use Retry from the archive."
