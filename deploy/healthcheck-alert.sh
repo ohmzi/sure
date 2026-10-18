@@ -80,9 +80,22 @@ elif [ "$exhausted" -gt 0 ]; then
   fail=1; reasons="$reasons documents_exhausted=$exhausted"
 fi
 
+# Sidekiq keeps its queues and the reaper heartbeat in a non-default Redis
+# database (compose.yml uses /1). redis-cli defaults to db 0, which would read
+# an empty queue and miss the heartbeat entirely. REDIS_DB wins when set;
+# otherwise a REDIS_URL in the environment supplies its index.
+REDIS_DB="${REDIS_DB:-1}"
+if [ -n "${REDIS_URL:-}" ]; then
+  _url_db="${REDIS_URL##*/}"
+  case "$_url_db" in
+    ''|*[!0-9]*) ;;
+    *) REDIS_DB="$_url_db" ;;
+  esac
+fi
+
 # Sidekiq names each queue's list queue:<name>; DocumentUnderstandingJob runs
 # on the heavy lane (config/sidekiq.yml).
-heavy="$("$DC" exec -T redis redis-cli LLEN queue:heavy 2>/dev/null | tr -d '[:space:]')"
+heavy="$("$DC" exec -T redis redis-cli -n "$REDIS_DB" LLEN queue:heavy 2>/dev/null | tr -d '[:space:]')"
 if [ -z "$heavy" ]; then
   fail=1; reasons="$reasons redis_unreadable"
 elif [ "$heavy" -gt "$HEAVY_QUEUE_MAX" ]; then
@@ -90,7 +103,7 @@ elif [ "$heavy" -gt "$HEAVY_QUEUE_MAX" ]; then
 fi
 
 # DocumentReaperJob writes this key after every sweep (every five minutes).
-last_run="$("$DC" exec -T redis redis-cli GET sure:document_reaper:last_run 2>/dev/null | tr -d '[:space:]')"
+last_run="$("$DC" exec -T redis redis-cli -n "$REDIS_DB" GET sure:document_reaper:last_run 2>/dev/null | tr -d '[:space:]')"
 if [ -z "$last_run" ]; then
   fail=1; reasons="$reasons reaper_never_ran"
 elif [ "$last_run" -lt "$(( $(date +%s) - REAPER_MAX_AGE_MINUTES * 60 ))" ]; then
