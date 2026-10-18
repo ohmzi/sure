@@ -12,6 +12,9 @@
 # An account that pays out more than it takes in draws the difference from its
 # balance: "From savings balance" for a card, "From <account> balance" for a
 # bank. One that takes in more keeps the remainder, or reduces card/loan debt.
+# A card's non-transfer credits (refunds and other negative charges) are money
+# coming BACK to the card, so they enter it from "Refunds & credits" — never an
+# outgoing "Card credits" flow, which read as if the card were paying them out.
 # There is no Deficit/Surplus node: money moving between your own accounts is
 # never income.
 class IncomeStatement::AccountSankey
@@ -144,8 +147,8 @@ class IncomeStatement::AccountSankey
         stats[edge[:to_id]][:transfer_in] += edge[:amount]
       end
       stats.each_value do |stat|
-        stat[:inflow] = stat[:flow][:income] + stat[:transfer_in]
-        stat[:outflow] = stat[:flow][:spending] + stat[:flow][:credits].to_d + stat[:transfer_out]
+        stat[:inflow] = stat[:flow][:income] + stat[:flow][:credits].to_d + stat[:transfer_in]
+        stat[:outflow] = stat[:flow][:spending] + stat[:transfer_out]
       end
       stats
     end
@@ -196,16 +199,20 @@ class IncomeStatement::AccountSankey
         end
       end
 
-      add_credits_sink(account_index, flow, capacity) if flow[:credits].positive?
+      add_credits_source(account_index, flow, capacity) if flow[:credits].positive?
     end
 
-    def add_credits_sink(account_index, flow, capacity)
+    # A card/loan's non-transfer credits are money returning to the account
+    # (refunds, reversals). They feed the account from the left, beside income
+    # and transfers; drawing them as an outgoing sink made the card look like it
+    # was paying them out.
+    def add_credits_source(account_index, flow, capacity)
       account = flow[:account]
-      label = account.credit_card? ? "Card credits" : "Loan credits"
+      label = account.credit_card? ? "Refunds & credits" : "Loan credits"
       credits = node("credits_#{account.id}", label, :balance)
       credits[:value] += flow[:credits]
       credits[:percentage] = percentage(flow[:credits], capacity)
-      add_link(account_index, credits[:index], flow[:credits], percentage(flow[:credits], capacity))
+      add_link(credits[:index], account_index, flow[:credits], percentage(flow[:credits], capacity))
     end
 
     def add_balance_bridge(account_index, stat, capacity)

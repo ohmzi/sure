@@ -74,7 +74,7 @@ class IncomeStatement::AccountSankeyTest < ActiveSupport::TestCase
     assert_balanced result
   end
 
-  test "a card's credits are a sink, not income" do
+  test "a card's refunds and credits feed the card instead of leaving it" do
     transaction(@checking, -1000, @salary)
     transaction(@card, -100, @salary)
     transaction(@card, 300, @groceries)
@@ -82,9 +82,14 @@ class IncomeStatement::AccountSankeyTest < ActiveSupport::TestCase
     result = graph
 
     assert_equal "1000.0", result[:income]
-    assert_link result, "account_#{@card.id}", "credits_#{@card.id}", "100.0"
-    assert_equal "Card credits", node(result, "credits_#{@card.id}")[:name]
+    assert_link result, "credits_#{@card.id}", "account_#{@card.id}", "100.0"
+    assert_equal "Refunds & credits", node(result, "credits_#{@card.id}")[:name]
     assert_nil node(result, "income_#{@card.id}_#{@salary.id}")
+
+    # Payments (300) plus the refund (100) exceed the purchases (300), so the
+    # card reduces its debt instead of drawing from a balance.
+    assert_link result, "account_#{@card.id}", "balance_to_#{@card.id}", "100.0"
+    assert_nil node(result, "balance_from_#{@card.id}")
     assert_balanced result
   end
 

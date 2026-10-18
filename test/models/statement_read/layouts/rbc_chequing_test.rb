@@ -14,6 +14,13 @@ class StatementRead::Layouts::RbcChequingTest < ActiveSupport::TestCase
     assert_nil StatementRead::Layout.detect(file_fixture("statements/synthetic_statement.txt").read)
   end
 
+  test "recognises an RBC personal savings statement" do
+    savings = text.sub("Your RBC personal banking", "Your RBC personal savings")
+
+    assert_equal StatementRead::Layouts::RbcChequing, StatementRead::Layout.detect(savings)
+    assert_equal :trusted, read(savings).verdict
+  end
+
   test "reads the account, institution and period from the page" do
     identity = read.identity
 
@@ -66,6 +73,17 @@ class StatementRead::Layouts::RbcChequingTest < ActiveSupport::TestCase
     assert_equal :drift, result.verdict
   end
 
+  test "equal-amount credit and debit are settled by the printed totals, not guessed" do
+    result = read(equal_amount_text)
+
+    assert_equal :trusted, result.verdict, result.checks.inspect
+    rebate = result.rows.find { |row| row["name"].include?("Annual NSF Fee Rebate") }
+    fee = result.rows.find { |row| row["name"].include?("NSF item fee") }
+
+    assert_equal "45.00", rebate["amount"]
+    assert_equal "-45.00", fee["amount"]
+  end
+
   test "rows emit exactly the five keys the import expects" do
     assert_equal %w[amount date name notes source_page], read.rows.first.keys.sort
   end
@@ -80,4 +98,45 @@ class StatementRead::Layouts::RbcChequingTest < ActiveSupport::TestCase
     assert names.none? { |name| name.include?("Station A") || name.include?("Montreal") }, names.inspect
     assert_equal 18, read(with_header).row_count
   end
+
+  private
+    HEADER = "Date        Description                                   Withdrawals ($)         Deposits ($)                    Balance ($)"
+
+    def edges
+      {
+        withdrawal: HEADER.index("Withdrawals ($)") + "Withdrawals ($)".length,
+        deposit: HEADER.index("Deposits ($)") + "Deposits ($)".length,
+        balance: HEADER.index("Balance ($)") + "Balance ($)".length
+      }
+    end
+
+    def positioned(description, withdrawal: nil, deposit: nil, balance: nil)
+      line = description.dup
+      line = line.ljust(edges[:withdrawal] - withdrawal.length) + withdrawal if withdrawal
+      line = line.ljust(edges[:deposit] - deposit.length) + deposit if deposit
+      line = line.ljust(edges[:balance] - balance.length) + balance if balance
+      line
+    end
+
+    # A +45 rebate beside a -45 fee: both sign assignments move the running
+    # balance by zero, so only the printed deposit/withdrawal totals can prove
+    # which is which.
+    def equal_amount_text
+      <<~TEXT
+        Royal Bank of Canada
+        Your RBC personal banking account statement
+        From January 1, 2025 to January 31, 2025
+        Your account number: 01234-5550001
+        Opening Balance
+        #{HEADER}
+        #{positioned("1 Jan      Online Banking transfer - 1", deposit: "10.00", balance: "110.00")}
+        #{positioned("2 Jan      Annual NSF Fee Rebate", deposit: "45.00")}
+        #{positioned("           NSF item fee 1 @ $45.00", withdrawal: "45.00", balance: "110.00")}
+        Closing Balance
+        Your opening balance on January 1, 2025                          $100.00
+        Total deposits into your account                             + 55.00
+        Total withdrawals from your account                            - 45.00
+        Your closing balance on January 31, 2025                      = $110.00
+      TEXT
+    end
 end

@@ -15,7 +15,11 @@ class StatementRead
   class BalanceWalk
     MAX_GROUP = 16
 
-    Result = Data.define(:rows, :verified, :ambiguous_groups)
+    # `ambiguities` carries each group the balance alone could not orient: its
+    # rows, the index of the first one in `rows`, and every candidate sign
+    # assignment. The layout may settle one against the statement's printed
+    # totals — the balance cannot, but the totals can (RbcChequing does).
+    Result = Data.define(:rows, :verified, :ambiguous_groups, :ambiguities)
 
     def self.call(opening:, closing:, rows:) = new(opening:, closing:, rows:).call
 
@@ -30,6 +34,7 @@ class StatementRead
       ambiguous = 0
       unfit = false
       group = []
+      ambiguities = []
 
       close_group = lambda do |target|
         signs = assignments(group, target - @balance)
@@ -37,7 +42,9 @@ class StatementRead
           group.zip(signs.first).each { |row, sign| signed << row.merge("signed" => sign * row["amount"]) }
         else
           signs.empty? ? unfit = true : ambiguous += 1
+          start = signed.length
           group.each { |row| signed << row.merge("signed" => nil) }
+          ambiguities << { start: start, group: group.dup, candidates: signs } if signs.size > 1
         end
         @balance = target
         group = []
@@ -50,7 +57,7 @@ class StatementRead
       close_group.call(@closing) if group.any? && @closing
 
       Result.new(rows: signed, verified: !unfit && ambiguous.zero? && signed.all? { |row| row["signed"] },
-                 ambiguous_groups: ambiguous)
+                 ambiguous_groups: ambiguous, ambiguities: ambiguities)
     end
 
     private
