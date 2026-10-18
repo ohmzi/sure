@@ -17,9 +17,10 @@
         <% end %>
       </div>
 
-      <% if breakdown.nil? || breakdown.rows.empty? %>
+      <% if breakdown.nil? || (breakdown.rows.empty? && breakdown.refunds.empty?) %>
         <p class="py-8 text-center text-sm text-secondary"><%= t(".empty") %></p>
       <% else %>
+        <% if breakdown.rows.any? %>
         <% segments = breakdown.rows.map { |row| { id: row.id, amount: row.amount.to_f, color: row.color } } %>
         <div class="flex flex-col @2xl:flex-row gap-8 items-center"
           data-controller="donut-chart"
@@ -37,11 +38,11 @@
               <div data-donut-chart-target="contentContainer" class="flex justify-center items-center h-full">
                 <div data-donut-chart-target="defaultContent" class="flex flex-col items-center">
                   <div class="text-secondary text-sm mb-2">
-                    <span><%= t(".total_#{breakdown.direction}") %></span>
+                    <span><%= t(".net_#{breakdown.direction}") %></span>
                   </div>
 
                   <div data-donut-chart-target="amount" class="text-3xl font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
-                    <%= format_money Money.new(breakdown.total, breakdown.currency) %>
+                    <%= format_money Money.new(breakdown.net_total, breakdown.currency) %>
                   </div>
                 </div>
 
@@ -130,6 +131,63 @@
             </div>
           </div>
         </div>
+        <% end %>
+
+        <% if breakdown.refunds.any? %>
+          <div class="mt-4 rounded-xl bg-container-inset p-1">
+            <div class="px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs font-medium uppercase text-secondary">
+              <p><%= t(".refunds") %><span class="text-subdued mx-1">&middot;</span><%= breakdown.refunds.count %></p>
+              <p><%= t(".net_after_refunds") %>: <span class="text-primary privacy-sensitive"><%= format_money Money.new(breakdown.net_total, breakdown.currency) %></span></p>
+            </div>
+
+            <div class="py-3 shadow-border-xs rounded-lg bg-container font-medium text-sm max-w-full">
+              <% breakdown.refunds.each_with_index do |row, idx| %>
+                <% row_content = capture do %>
+                  <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <div class="h-7 w-7 flex-shrink-0 rounded-full flex justify-center items-center"
+                      style="background-color: color-mix(in oklab, <%= row.color %> 10%, transparent); color: <%= row.color %>;">
+                      <% if row.logo_url.present? %>
+                        <%= image_tag Setting.transform_brand_fetch_url(row.logo_url),
+                                      class: "h-5 w-5 rounded-full", loading: "lazy", alt: "" %>
+                      <% else %>
+                        <%= render DS::FilledIcon.new(
+                          variant: :text,
+                          hex_color: row.color,
+                          text: row.name,
+                          size: "sm",
+                          rounded: true
+                        ) %>
+                      <% end %>
+                    </div>
+                    <span class="text-sm font-medium text-primary truncate"><%= row.name %></span>
+                  </div>
+                  <div class="flex items-center gap-4 flex-shrink-0 text-right">
+                    <span class="text-sm font-medium text-primary whitespace-nowrap privacy-sensitive"><%= format_money Money.new(-row.amount, breakdown.currency) %></span>
+                    <span class="text-sm text-secondary whitespace-nowrap w-10 @2xl:w-15 privacy-sensitive"><%= row.percentage %>%</span>
+                  </div>
+                <% end %>
+
+                <% query = { categories: [ selected_category.filter_value ],
+                             start_date: period.date_range.first,
+                             end_date: period.date_range.last } %>
+                <% if row.merchant_id.present? %>
+                  <% query[:merchants] = [ row.merchant_name ] %>
+                <% else %>
+                  <% query[:search] = row.name %>
+                <% end %>
+                <%= link_to transactions_path(q: query),
+                    class: "flex items-center justify-between mx-3 p-3 rounded-lg cursor-pointer group gap-3",
+                    data: { turbo_frame: "_top", turbo_prefetch: false } do %>
+                  <%= row_content %>
+                <% end %>
+
+                <% if idx < breakdown.refunds.size - 1 %>
+                  <%= render "shared/ruler", classes: "mx-3 @2xl:mx-4" %>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
       <% end %>
     </div>
   </div>

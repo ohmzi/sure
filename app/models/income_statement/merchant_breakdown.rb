@@ -6,8 +6,8 @@ class IncomeStatement::MerchantBreakdown
   require "digest/md5"
   require "zlib"
 
-  Row = Data.define(:id, :name, :merchant_id, :merchant_name, :logo_url, :color, :amount, :percentage)
-  Result = Data.define(:rows, :total, :currency, :currency_symbol, :direction, :category)
+  Row = Data.define(:id, :name, :merchant_id, :merchant_name, :logo_url, :color, :amount, :percentage, :negative)
+  Result = Data.define(:rows, :refunds, :total, :net_total, :currency, :currency_symbol, :direction, :category)
 
   def initialize(statement, category:, period:)
     @statement = statement
@@ -17,30 +17,45 @@ class IncomeStatement::MerchantBreakdown
 
   def call
     totals = @statement.merchant_totals(category: @category, period: @period)
-    direction = totals.sum { |total| total.spending.to_d } >= totals.sum { |total| total.income.to_d } ? :spending : :income
 
     # The SQL groups by the raw merchant/entry name; the normalizer folds the
     # variants (AMZN Mktp, Amazon.ca, Amazon.ae) into one canonical merchant.
-    # Use gross spending/income per merchant, so a refund cannot hide a
-    # merchant's purchases from the pie.
+    # Each merchant's value is its net after refunds.
     groups = totals.group_by { |total| Merchant::NameNormalizer.canonical_name(total.name) }
-    included = groups.filter_map do |canonical_name, group|
-      amount = group.sum { |total| direction == :spending ? total.spending.to_d : total.income.to_d }
-      next if amount.zero?
+    nets = groups.filter_map do |canonical_name, group|
+      net = group.sum { |total| total.total.to_d }
+      next if net.zero?
 
-      { name: canonical_name, amount: amount, rows: group }
+      { name: canonical_name, net: net, rows: group }
     end
-    amount_total = included.sum { |group| group[:amount] }
-    return empty_result if amount_total.zero?
+    return empty_result if nets.empty?
+
+    positive = nets.select { |group| group[:net].positive? }.sum { |group| group[:net] }
+    negative = nets.select { |group| group[:net].negative? }.sum { |group| group[:net].abs }
+    direction = positive >= negative ? :spending : :income
+    sided, refunds = if direction == :spending
+      [ nets.select { |group| group[:net].positive? }, nets.select { |group| group[:net].negative? } ]
+    else
+      [ nets.select { |group| group[:net].negative? }, nets.select { |group| group[:net].positive? } ]
+    end
+
+    pie_total = sided.sum { |group| group[:net].abs }
+    refund_total = refunds.sum { |group| group[:net].abs }
+    net_total = pie_total - refund_total
 
     merchants = canonical_merchants
-    rows = included.map do |group|
-      build_row(group, merchants[group[:name]], amount_total)
+    rows = sided.map do |group|
+      build_row(group, merchants[group[:name]], pie_total, negative: false)
+    end.sort_by { |row| -row.amount }
+    refund_rows = refunds.map do |group|
+      build_row(group, merchants[group[:name]], pie_total, negative: true)
     end.sort_by { |row| -row.amount }
 
     Result.new(
       rows: rows,
-      total: amount_total,
+      refunds: refund_rows,
+      total: pie_total,
+      net_total: net_total,
       currency: @statement.family.currency,
       currency_symbol: Money::Currency.new(@statement.family.currency).symbol,
       direction: direction,
@@ -51,7 +66,7 @@ class IncomeStatement::MerchantBreakdown
   private
     def empty_result
       Result.new(
-        rows: [], total: 0.to_d, currency: @statement.family.currency,
+        rows: [], refunds: [], total: 0.to_d, net_total: 0.to_d, currency: @statement.family.currency,
         currency_symbol: Money::Currency.new(@statement.family.currency).symbol,
         direction: :spending, category: @category
       )
@@ -65,8 +80,8 @@ class IncomeStatement::MerchantBreakdown
                  .index_by(&:name)
     end
 
-    def build_row(group, merchant, amount_total)
-      amount = group[:amount]
+    def build_row(group, merchant, denominator, negative:)
+      amount = group[:net].abs
       source = group[:rows].find { |row| row.logo_url.present? } || group[:rows].first
 
       Row.new(
@@ -77,7 +92,8 @@ class IncomeStatement::MerchantBreakdown
         logo_url: merchant&.logo_url.presence || source&.logo_url,
         color: merchant&.color.presence || source&.color.presence || color_for(group[:name]),
         amount: amount,
-        percentage: (amount / amount_total * 100).round(1)
+        percentage: denominator.zero? ? 0 : (amount / denominator * 100).round(1),
+        negative: negative
       )
     end
 

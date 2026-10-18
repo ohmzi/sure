@@ -169,6 +169,10 @@ en:
         weight: "Weight"
         total_spending: "Total spending"
         total_income: "Total income"
+        net_spending: "Net spending"
+        net_income: "Net income"
+        refunds: "Refunds & credits"
+        net_after_refunds: "Net after refunds"
         empty: "No merchant activity in this category for this period."
       investment_summary:
         title: "Investments"
