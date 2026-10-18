@@ -1,0 +1,49 @@
+---
+en:
+  audit_logs:
+    activity:
+      by: "by %{actor}"
+      change: "%{field} changed from %{from} to %{to}"
+      document: "Document: %{filename}"
+      empty: No recorded activity yet.
+      none: None
+      rows:
+        one: "1 row"
+        other: "%{count} rows"
+      system: System
+      transfer_paired: Paired transfer
+    fields:
+      account_id: Account
+      amount: Amount
+      category_id: Category
+      closing_balance: Closing balance
+      currency: Currency
+      date: Date
+      kind: Type
+      merchant_id: Merchant
+      opening_balance: Opening balance
+      period_end_on: Period end
+      period_start_on: Period start
+      transfer_id: Transfer
+    activities:
+      account_statement:
+        deleted: Statement deleted
+        reviewed: Statement reviewed
+        updated: Statement edited
+      document:
+        deleted: Document deleted
+      family_export:
+        created: Export created
+      import:
+        deleted: Import deleted
+        published: Import published
+        reverted: Import reverted
+      transaction:
+        updated: Transaction edited
+    kinds:
+      cc_payment: Credit card payment
+      funds_movement: Funds movement
+      investment_contribution: Investment contribution
+      loan_payment: Loan payment
+      one_time: One-time
+      standard: Standard

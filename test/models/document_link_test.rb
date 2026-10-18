@@ -466,6 +466,24 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert_empty link.deletion_blockers
   end
 
+  test "a hard delete removes the staged bytes" do
+    Dir.mktmpdir("document-link-destroy") do |dir|
+      previous = ENV["SURE_DOCUMENT_STORE_DIR"]
+      ENV["SURE_DOCUMENT_STORE_DIR"] = dir
+
+      link = DocumentLink.create!(family: @family, source: "receipt", status: "queued")
+      link.stage!(io: StringIO.new("receipt bytes"), filename: "receipt.png", content_type: "image/png")
+      path = DocumentLink::Staging.resolve!(link.reload.stored_path)
+      assert path.file?
+
+      link.destroy!
+
+      refute path.file?, "a hard delete must not leave the family's document bytes behind"
+    ensure
+      ENV["SURE_DOCUMENT_STORE_DIR"] = previous
+    end
+  end
+
   test "soft_delete! refuses while a derived entry is unreconciled" do
     link = document_links(:linked_receipt)
     link.entry.update!(reconciled_at: nil)

@@ -59,6 +59,11 @@ class AccountStatementsController < ApplicationController
     @imported_rows_count = Entry.reconciled_by(@statement).count
     @statement_imports_count = @statement.pdf_imports.count
     @delete_blocked_message = deletion_blocker_message(@statement)
+    @audit_logs = AuditLog.for_family(Current.family)
+                          .for_auditable(@statement)
+                          .includes(:actor)
+                          .recent_first
+                          .limit(50)
     @breadcrumbs = [
       [ t("breadcrumbs.home"), root_path ],
       [ t("account_statements.index.title"), account_statements_path ],
@@ -129,6 +134,11 @@ class AccountStatementsController < ApplicationController
       @imported_rows_count = Entry.reconciled_by(@statement).count
       @statement_imports_count = @statement.pdf_imports.count
       @delete_blocked_message = deletion_blocker_message(@statement)
+      @audit_logs = AuditLog.for_family(Current.family)
+                            .for_auditable(@statement)
+                            .includes(:actor)
+                            .recent_first
+                            .limit(50)
       flash.now[:alert] = @statement.errors.full_messages.to_sentence
       render :show, status: :unprocessable_entity
     end
@@ -184,6 +194,12 @@ class AccountStatementsController < ApplicationController
     return if @statement.account && !require_account_permission!(@statement.account)
 
     @statement.update!(reviewed_at: Time.current, reviewed_by: Current.user)
+    AuditLog.record!(
+      auditable: @statement,
+      action: "account_statement.reviewed",
+      after: { "reviewed_at" => @statement.reviewed_at.iso8601 },
+      metadata: { "reviewed_by_id" => Current.user&.id }
+    )
     redirect_back_or_to account_statement_path(@statement), notice: t("account_statements.review.success")
   end
 
@@ -234,6 +250,17 @@ class AccountStatementsController < ApplicationController
     end
 
     if destroyed
+      AuditLog.record!(
+        auditable: @statement,
+        family: @statement.family,
+        action: "account_statement.deleted",
+        before: {
+          "filename" => @statement.filename,
+          "account_id" => @statement.account_id,
+          "period_start_on" => @statement.period_start_on&.iso8601,
+          "period_end_on" => @statement.period_end_on&.iso8601
+        }
+      )
       redirect_to redirect_path, notice: t("account_statements.destroy.success")
     else
       redirect_back_or_to redirect_path, alert: refusal || t("account_statements.destroy.failure")

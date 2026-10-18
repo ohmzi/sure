@@ -522,6 +522,7 @@ en:
       invalid_ndjson_file_type: Invalid file type or format. Please upload a valid .ndjson or .json export file.
       document_provider_not_configured: No vector store is configured for document uploads.
     show:
+      activity: Activity
       finalize_upload: Please finalize your file upload.
       finalize_mappings: Please finalize your mappings before proceeding.
     ready:

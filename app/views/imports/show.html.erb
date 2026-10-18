@@ -19,3 +19,7 @@
 <% else %>
   <%= render "imports/ready", import: @import %>
 <% end %>
+
+<%= settings_section title: t(".activity") do %>
+  <%= render "audit_logs/activity", audit_logs: @audit_logs %>
+<% end %>

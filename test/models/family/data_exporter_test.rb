@@ -55,7 +55,7 @@ class Family::DataExporterTest < ActiveSupport::TestCase
     assert zip_data.is_a?(StringIO)
 
     # Check that the zip contains all expected files
-    expected_files = [ "version.txt", "accounts.csv", "transactions.csv", "trades.csv", "categories.csv", "merchants.csv", "rules.csv", "attachments.json", "all.ndjson" ]
+    expected_files = [ "version.txt", "accounts.csv", "transactions.csv", "trades.csv", "categories.csv", "merchants.csv", "rules.csv", "attachments.json", "documents.json", "all.ndjson" ]
 
     Zip::File.open_buffer(zip_data) do |zip|
       actual_files = zip.entries.map(&:name)
@@ -165,6 +165,49 @@ class Family::DataExporterTest < ActiveSupport::TestCase
       assert_equal @account.id, attachment["account_id"]
     end
   end
+
+  test "exports document bytes and derived document records" do
+    Dir.mktmpdir("export-documents") do |dir|
+      previous = ENV["SURE_DOCUMENT_STORE_DIR"]
+      ENV["SURE_DOCUMENT_STORE_DIR"] = dir
+
+      statement = AccountStatement.create_from_upload!(
+        family: @family,
+        account: @account,
+        file: uploaded_file(
+          filename: "exported-statement.csv",
+          content_type: "text/csv",
+          content: "date,amount\n2026-01-01,1\n"
+        )
+      )
+      link = @family.document_links.create!(source: "receipt", status: "queued")
+      link.stage!(io: StringIO.new("receipt bytes"), filename: "receipt.png", content_type: "image/png")
+      DocumentExtraction.create!(
+        family: @family, document_link: link, status: "succeeded",
+        provider: "test", model: "test-model", ocr_text: "read text"
+      )
+
+      Zip::File.open_buffer(@exporter.generate_export) do |zip|
+        manifest = JSON.parse(zip.read("documents.json"))
+
+        statement_item = manifest["account_statements"].find { |item| item["id"] == statement.id }
+        assert statement_item["binary_included"]
+        assert_equal "date,amount\n2026-01-01,1\n", zip.read(statement_item["export_path"])
+
+        link_item = manifest["document_links"].find { |item| item["id"] == link.id }
+        assert link_item["binary_included"]
+        assert_equal "receipt bytes", zip.read(link_item["export_path"])
+
+        extraction = manifest["document_extractions"].find { |item| item["document_link_id"] == link.id }
+        assert_equal "read text", extraction["ocr_text"]
+        assert_equal "test-model", extraction["model"]
+        refute extraction.key?("raw_response"), "provider payloads stay out of the export manifest"
+      end
+    ensure
+      ENV["SURE_DOCUMENT_STORE_DIR"] = previous
+    end
+  end
+
 
   test "generates valid CSV files" do
     zip_data = @exporter.generate_export

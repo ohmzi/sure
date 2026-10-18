@@ -1,7 +1,7 @@
 class FamilyDocument < ApplicationRecord
   belongs_to :family
 
-  has_one_attached :file
+  has_one_attached :file, dependent: :purge_later
 
   SUPPORTED_EXTENSIONS = VectorStore::Base::SUPPORTED_EXTENSIONS
 

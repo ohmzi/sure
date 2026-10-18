@@ -74,6 +74,8 @@ module Authentication
     def set_request_details
       Current.user_agent = request.user_agent
       Current.ip_address = request.ip
+      Current.request_id = request.request_id
+      Current.audit_source = "web"
     end
 
     def set_sentry_user

@@ -252,7 +252,21 @@ class DocumentLinksController < ApplicationController
                                 alert: t("documents.destroy.blocked", entries: @link.deletion_blockers.to_sentence)
     end
 
-    @link.soft_delete!
+    deleted_now = @link.soft_delete!
+
+    if deleted_now
+      AuditLog.record!(
+        auditable: @link,
+        action: "document.deleted",
+        before: {
+          "filename" => @link.original_filename,
+          "source" => @link.source,
+          "entry_id" => @link.entry_id,
+          "account_statement_id" => @link.account_statement_id
+        },
+        metadata: { "filename" => @link.original_filename }
+      )
+    end
 
     # A delete made from the duplicate review should land back on that review
     # (refreshed, with the now-singleton group gone), not on the deleted

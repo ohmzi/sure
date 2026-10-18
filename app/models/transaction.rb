@@ -1,5 +1,7 @@
 class Transaction < ApplicationRecord
-  include Entryable, Transferable, Ruleable, Splittable
+  include Entryable, Transferable, Ruleable, Splittable, Auditable
+
+  audit_financial_attributes :category_id, :merchant_id, :kind
 
   belongs_to :category, optional: true
   belongs_to :merchant, optional: true
@@ -11,7 +13,7 @@ class Transaction < ApplicationRecord
   # File attachments (receipts, invoices, etc.) using Active Storage
   # Supports images (JPEG, PNG, GIF, WebP) and PDFs up to 10MB each
   # Maximum 10 attachments per transaction, family-scoped access
-  has_many_attached :attachments do |attachable|
+  has_many_attached :attachments, dependent: :purge_later do |attachable|
     attachable.variant :thumbnail, resize_to_limit: [ 150, 150 ]
   end
 

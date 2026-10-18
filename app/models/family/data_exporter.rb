@@ -43,6 +43,14 @@ class Family::DataExporter
       zipfile.put_next_entry("attachments.json")
       zipfile.write generate_attachments_manifest
 
+      # The document vault's own records and bytes. Transaction attachments and
+      # legacy FamilyDocuments are covered by the manifest above; statements and
+      # document links live outside ActiveStorage (or in a separate attachment)
+      # and would otherwise leave the export without the user's documents.
+      zipfile.put_next_entry("documents.json")
+      zipfile.write generate_documents_manifest
+      write_document_bytes(zipfile)
+
       # Add all.ndjson
       zipfile.put_next_entry("all.ndjson")
       zipfile.write generate_ndjson
@@ -239,6 +247,175 @@ class Family::DataExporter
         binary_included: false,
         created_at: attachment.created_at
       }.merge(extra)
+    end
+
+    # The document vault's records and bytes. `documents.json` is the manifest;
+    # every `export_path` it names is a real entry in the zip. Internal storage
+    # paths and provider raw responses are deliberately not exported — the file
+    # itself, its metadata and the derived reads are.
+    def generate_documents_manifest
+      {
+        version: 1,
+        binary_included: true,
+        account_statements: account_statement_documents,
+        document_links: document_link_documents,
+        family_documents: family_document_documents,
+        document_extractions: document_extraction_documents,
+        imports: document_import_documents
+      }.to_json
+    end
+
+    def account_statement_documents
+      @family.account_statements.with_attached_original_file.order(:created_at).map do |statement|
+        included = statement.original_file.attached?
+        {
+          id: statement.id,
+          filename: statement.filename,
+          content_type: statement.content_type,
+          byte_size: statement.byte_size,
+          account_id: statement.account_id,
+          period_start_on: statement.period_start_on,
+          period_end_on: statement.period_end_on,
+          opening_balance: statement.opening_balance,
+          closing_balance: statement.closing_balance,
+          currency: statement.currency,
+          review_status: statement.review_status,
+          reviewed_at: statement.reviewed_at,
+          created_at: statement.created_at,
+          updated_at: statement.updated_at,
+          binary_included: included,
+          export_path: included ? account_statement_export_path(statement) : nil
+        }
+      end
+    end
+
+    def document_link_documents
+      @family.document_links.order(:created_at).map do |link|
+        included = document_link_bytes_available?(link)
+        {
+          id: link.id,
+          source: link.source,
+          status: link.status,
+          title: link.title,
+          original_filename: link.original_filename,
+          content_type: link.content_type,
+          entry_id: link.entry_id,
+          account_statement_id: link.account_statement_id,
+          created_by_id: link.created_by_id,
+          deleted_at: link.deleted_at,
+          created_at: link.created_at,
+          updated_at: link.updated_at,
+          binary_included: included,
+          export_path: included ? document_link_export_path(link) : nil
+        }
+      end
+    end
+
+    def family_document_documents
+      @family.family_documents.with_attached_file.order(:created_at).map do |document|
+        included = document.file.attached?
+        {
+          id: document.id,
+          filename: document.filename,
+          status: document.status,
+          created_at: document.created_at,
+          updated_at: document.updated_at,
+          binary_included: included,
+          export_path: included ? family_document_export_path(document) : nil
+        }
+      end
+    end
+
+    def document_extraction_documents
+      @family.document_extractions.order(:created_at).map do |extraction|
+        {
+          id: extraction.id,
+          document_link_id: extraction.document_link_id,
+          status: extraction.status,
+          provider: extraction.provider,
+          model: extraction.model,
+          ocr_engine: extraction.ocr_engine,
+          page_count: extraction.page_count,
+          field_confidence: extraction.field_confidence,
+          validations: extraction.validations,
+          verdict: extraction.verdict,
+          ocr_text: extraction.ocr_text,
+          error: extraction.error,
+          created_at: extraction.created_at,
+          updated_at: extraction.updated_at
+        }
+      end
+    end
+
+    def document_import_documents
+      @family.imports
+             .where("document_link_id IS NOT NULL OR account_statement_id IS NOT NULL OR document_extraction_id IS NOT NULL")
+             .order(:created_at)
+             .map do |import|
+        {
+          id: import.id,
+          type: import.type,
+          status: import.status,
+          account_id: import.account_id,
+          account_statement_id: import.account_statement_id,
+          document_link_id: import.document_link_id,
+          document_extraction_id: import.document_extraction_id,
+          rows_count: import.rows_count,
+          error: import.error,
+          created_at: import.created_at,
+          updated_at: import.updated_at
+        }
+      end
+    end
+
+    def write_document_bytes(zipfile)
+      @family.account_statements.with_attached_original_file.find_each do |statement|
+        next unless statement.original_file.attached?
+
+        zipfile.put_next_entry(account_statement_export_path(statement))
+        statement.original_file.blob.open { |io| copy_document_bytes(io, zipfile) }
+      end
+
+      @family.document_links.find_each do |link|
+        next unless document_link_bytes_available?(link)
+
+        zipfile.put_next_entry(document_link_export_path(link))
+        link.stored_io { |io| copy_document_bytes(io, zipfile) }
+      end
+
+      @family.family_documents.with_attached_file.find_each do |document|
+        next unless document.file.attached?
+
+        zipfile.put_next_entry(family_document_export_path(document))
+        document.file.blob.open { |io| copy_document_bytes(io, zipfile) }
+      end
+    end
+
+    def copy_document_bytes(io, zipfile)
+      while (chunk = io.read(64.kilobytes))
+        zipfile.write(chunk)
+      end
+    end
+
+    def document_link_bytes_available?(link)
+      link.stored_path.present? && DocumentLink::Staging.exists?(link.stored_path)
+    end
+
+    def account_statement_export_path(statement)
+      "documents/statements/#{statement.id}/#{safe_export_filename(statement.filename, "statement")}"
+    end
+
+    def document_link_export_path(link)
+      "documents/links/#{link.id}/#{safe_export_filename(link.original_filename, "document")}"
+    end
+
+    def family_document_export_path(document)
+      "documents/family_documents/#{document.id}/#{safe_export_filename(document.filename, "document")}"
+    end
+
+    def safe_export_filename(filename, fallback)
+      name = File.basename(filename.to_s).presence || fallback
+      name.gsub(/[^\w.\- ]/, "_")
     end
 
     def generate_ndjson

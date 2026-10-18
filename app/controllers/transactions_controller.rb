@@ -10,6 +10,11 @@ class TransactionsController < ApplicationController
   def show
     super
     assign_mark_recurring_state
+    @audit_logs = AuditLog.for_family(Current.family)
+                          .for_auditable(@entry.transaction)
+                          .includes(:actor)
+                          .recent_first
+                          .limit(50)
   end
 
   def new
@@ -257,6 +262,11 @@ class TransactionsController < ApplicationController
       end
     else
       assign_mark_recurring_state
+      @audit_logs = AuditLog.for_family(Current.family)
+                            .for_auditable(@entry.transaction)
+                            .includes(:actor)
+                            .recent_first
+                            .limit(50)
       render :show, status: :unprocessable_entity
     end
   end

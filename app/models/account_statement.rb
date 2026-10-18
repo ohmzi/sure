@@ -5,7 +5,13 @@ require "digest/sha2"
 require "stringio"
 
 class AccountStatement < ApplicationRecord
-  include Monetizable
+  include Monetizable, Auditable
+
+  # Financial identity and reconciliation figures. Hints, filenames and the
+  # review acknowledgement are not money edits and are recorded explicitly by
+  # the controller that changes them.
+  audit_financial_attributes :account_id, :period_start_on, :period_end_on,
+                             :opening_balance, :closing_balance, :currency
 
   DuplicateUploadError = Class.new(StandardError) do
     attr_reader :statement
@@ -616,6 +622,10 @@ class AccountStatement < ApplicationRecord
   def deletable? = deletion_blocker.nil?
 
   private
+
+    def audit_currency
+      statement_currency
+    end
 
     # Balances a statement actually prints. A missing balance is not evidence
     # of a mismatch, and a cent of rounding is not a disagreement.

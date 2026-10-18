@@ -1,0 +1,31 @@
+<% logs = Array(local_assigns[:audit_logs]) %>
+<% if logs.any? %>
+  <ol class="space-y-3">
+    <% logs.each do |log| %>
+      <li class="rounded-lg bg-container-inset p-3">
+        <div class="flex items-start justify-between gap-3">
+          <p class="text-sm font-medium text-primary"><%= audit_action_label(log) %></p>
+          <time class="shrink-0 text-xs text-secondary" datetime="<%= log.created_at.iso8601 %>">
+            <%= concise_time_ago(log.created_at) %>
+          </time>
+        </div>
+        <p class="mt-1 text-xs text-secondary">
+          <%= t("audit_logs.activity.by", actor: audit_actor_name(log)) %>
+        </p>
+        <% if (detail = audit_event_detail(log)) %>
+          <p class="mt-1 text-xs text-secondary"><%= detail %></p>
+        <% end %>
+        <% descriptions = audit_change_descriptions(log) %>
+        <% if descriptions.any? %>
+          <ul class="mt-2 space-y-1 text-xs text-secondary">
+            <% descriptions.each do |description| %>
+              <li class="privacy-sensitive"><%= description %></li>
+            <% end %>
+          </ul>
+        <% end %>
+      </li>
+    <% end %>
+  </ol>
+<% else %>
+  <p class="text-sm text-secondary"><%= t("audit_logs.activity.empty") %></p>
+<% end %>

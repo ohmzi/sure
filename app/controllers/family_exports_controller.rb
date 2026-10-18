@@ -12,6 +12,12 @@ class FamilyExportsController < ApplicationController
     @export = Current.family.family_exports.create!
     FamilyDataExportJob.perform_later(@export)
 
+    AuditLog.record!(
+      auditable: @export,
+      action: "family_export.created",
+      metadata: { "export_id" => @export.id }
+    )
+
     respond_to do |format|
       format.html { redirect_to family_exports_path, notice: t("family_exports.create.success") }
       format.turbo_stream {

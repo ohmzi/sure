@@ -64,6 +64,7 @@ en:
     transaction_category:
       set_on_outflow: "The category belongs to the outgoing side of this transfer and can only be changed there"
     show:
+      activity: Activity
       category_set_on_hidden_outflow: "This is the incoming side of a transfer. Its category belongs to the outgoing side, on an account you cannot access, and can only be changed there."
       category_set_on_outflow: "This is the incoming side of a transfer. Its category belongs to the outgoing side and can only be changed there, so budgets count it once."
       keep_both: No, keep both

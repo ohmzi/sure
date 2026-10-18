@@ -43,6 +43,13 @@ class DocumentLink < ApplicationRecord
   belongs_to :account_statement, optional: true
   belongs_to :created_by, class_name: "User", optional: true
 
+  # A hard delete (a family's dependent destroy) must take the staged bytes and
+  # their derived previews with it. Soft deletes already do this themselves;
+  # this is the last line that keeps deleted households from leaving documents
+  # on the volume forever.
+  after_destroy :delete_stored!
+  before_destroy :remember_stored_path_for_delete!
+
   # Receipt/bill drafts created by the M7 wizard. Nullified (never destroyed)
   # when a link is removed: the draft's history outlives the bytes.
   has_many :receipt_imports, class_name: "ReceiptImport", foreign_key: :document_link_id, dependent: :nullify
@@ -560,6 +567,13 @@ class DocumentLink < ApplicationRecord
   def stored_io(&block)
     return nil if stored_path.blank?
     DocumentLink::Staging.open(stored_path, &block)
+  end
+
+  # A programmatic `stage!` uses a guarded update_all and leaves the in-memory
+  # row stale. Re-read the path before the row is gone so the after_destroy
+  # cleanup still finds the bytes.
+  def remember_stored_path_for_delete!
+    self.stored_path ||= self.class.where(id: id).pick(:stored_path)
   end
 
   # Ruling M3 (M1), 2026-10-10 close-out: clearing the staged bytes must NOT

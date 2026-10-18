@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_220000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_18_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -257,6 +257,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_220000) do
     t.datetime "updated_at", null: false
     t.index ["download_token_digest"], name: "index_archived_exports_on_download_token_digest", unique: true
     t.index ["expires_at"], name: "index_archived_exports_on_expires_at"
+  end
+
+  create_table "audit_logs", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.string "action", null: false
+    t.uuid "actor_id"
+    t.jsonb "after", default: {}, null: false
+    t.uuid "auditable_id", null: false
+    t.string "auditable_type", null: false
+    t.jsonb "before", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.uuid "family_id", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.string "request_id"
+    t.datetime "updated_at", null: false
+    t.index ["actor_id"], name: "index_audit_logs_on_actor_id"
+    t.index ["family_id", "auditable_type", "auditable_id", "created_at"], name: "index_audit_logs_on_family_and_auditable_and_created_at"
+    t.index ["family_id", "created_at"], name: "index_audit_logs_on_family_id_and_created_at"
+    t.index ["family_id"], name: "index_audit_logs_on_family_id"
   end
 
   create_table "balances", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
@@ -3092,6 +3110,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_220000) do
   add_foreign_key "akahu_accounts", "akahu_items"
   add_foreign_key "akahu_items", "families"
   add_foreign_key "api_keys", "users"
+  add_foreign_key "audit_logs", "families", on_delete: :cascade
+  add_foreign_key "audit_logs", "users", column: "actor_id", on_delete: :nullify
   add_foreign_key "balances", "accounts", on_delete: :cascade
   add_foreign_key "binance_accounts", "binance_items"
   add_foreign_key "binance_items", "families"

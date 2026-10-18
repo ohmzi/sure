@@ -46,6 +46,12 @@ class ImportsController < ApplicationController
   def publish
     @import.publish_later
 
+    AuditLog.record!(
+      auditable: @import,
+      action: "import.published",
+      metadata: { "import_type" => @import.type, "rows_count" => @import.rows_count }
+    )
+
     redirect_to import_path(@import), notice: t(".started")
   rescue Import::MaxRowCountExceededError
     redirect_back_or_to import_path(@import), alert: t(".max_rows_exceeded", max: @import.max_row_count)
@@ -148,6 +154,12 @@ class ImportsController < ApplicationController
   end
 
   def show
+    @audit_logs = AuditLog.for_family(Current.family)
+                          .for_auditable(@import)
+                          .includes(:actor)
+                          .recent_first
+                          .limit(50)
+
     unless @import.requires_csv_workflow?
       redirect_to import_upload_path(@import), alert: t("imports.show.finalize_upload") unless @import.uploaded?
       return
@@ -163,6 +175,13 @@ class ImportsController < ApplicationController
 
   def revert
     @import.revert_later
+
+    AuditLog.record!(
+      auditable: @import,
+      action: "import.reverted",
+      metadata: { "import_type" => @import.type, "rows_count" => @import.rows_count }
+    )
+
     redirect_to imports_path, notice: t(".started")
   end
 
@@ -176,7 +195,20 @@ class ImportsController < ApplicationController
   end
 
   def destroy
+    deleted = {
+      "import_type" => @import.type,
+      "rows_count" => @import.rows_count,
+      "status" => @import.status
+    }
     @import.destroy
+
+    if @import.destroyed?
+      AuditLog.record!(
+        auditable: @import,
+        action: "import.deleted",
+        metadata: deleted
+      )
+    end
 
     redirect_to imports_path, notice: t(".deleted")
   end

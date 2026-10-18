@@ -176,6 +176,10 @@
       <%= render DocumentLinkPanelComponent.new(entry: @entry) %>
     <% end %>
 
+    <% dialog.with_section(title: t(".activity"), open: false) do %>
+      <%= render "audit_logs/activity", audit_logs: @audit_logs %>
+    <% end %>
+
     <% if (details = build_transaction_extra_details(@entry)) %>
       <% dialog.with_section(title: t(".additional_details"), open: false) do %>
         <div class="px-3 py-2 space-y-3">

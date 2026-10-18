@@ -1,6 +1,12 @@
 class Current < ActiveSupport::CurrentAttributes
   attribute :user_agent, :ip_address
 
+  # Audit context for financial edits. `user` is the actor (nil in background
+  # work), `request_id` ties a group of writes to one HTTP request, and
+  # `audit_source` distinguishes a person's action ("web") from a job's
+  # ("system", or the job class name when a caller sets it explicitly).
+  attribute :request_id, :audit_source
+
   attribute :session
   attribute :latest_sync_by_syncable, :latest_completed_sync_by_syncable, :syncing_by_syncable
 
