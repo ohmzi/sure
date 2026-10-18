@@ -19,6 +19,7 @@ class Category::MerchantCategorizerTest < ActiveSupport::TestCase
     transaction(30, "TIM HORTONS #0000 SAMPLE ON")
     transaction(40, "THE HOME DEPOT #0000 SAMPLE ON")
     transaction(15, "Amazon Channels SAMPLE ON", category: @subscriptions)
+    transaction(5, "NETFLIX SAMPLE ON", category: @subscriptions)
     transaction(45, "NSF item fee 1 @ $45.00")
     transaction(50, "Online Transfer to Deposit Account-0000")
     transaction(20, "KOODO MOBILE SAMPLE ON")
@@ -41,7 +42,7 @@ class Category::MerchantCategorizerTest < ActiveSupport::TestCase
   test "never overwrites a category that already exists" do
     Category::MerchantCategorizer.new(@family).call
 
-    assert_equal @subscriptions.id, category_for("Amazon Channels SAMPLE ON")
+    assert_equal @subscriptions.id, category_for("NETFLIX SAMPLE ON")
   end
 
   test "short patterns do not match inside other words" do
@@ -53,10 +54,11 @@ class Category::MerchantCategorizerTest < ActiveSupport::TestCase
     assert_equal @fees.id, category_for("NSF item fee 1 @ $45.00")
   end
 
-  test "Amazon Prime is a subscription and the card bank is not a store" do
+  test "Amazon is always Shopping, even Prime and Channels" do
     Category::MerchantCategorizer.new(@family).call
 
-    assert_equal @subscriptions.id, category_for("Amazon.ca Prime Member SAMPLE ON")
+    assert_equal @shopping.id, category_for("Amazon.ca Prime Member SAMPLE ON")
+    assert_equal @shopping.id, category_for("Amazon Channels SAMPLE ON")
     assert_nil category_for("e-Transfer Request Fulfilled Canadian Tire Bank SAMPLE")
   end
 
