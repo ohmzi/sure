@@ -196,18 +196,47 @@ class AccountStatementsController < ApplicationController
       return
     end
 
-    # The statement and its archived document are one artifact. Soft-delete the
-    # document in the same transaction so neither is left orphaned, and roll
-    # the document back if the statement itself cannot go.
+    # The statement and its archived document are one artifact, but their
+    # deletion cannot be one rollback: clearing the document's bytes is
+    # filesystem work that a DB rollback cannot undo. So the statement's own
+    # delete (under its row lock, with the `restrict_with_error` guards) is
+    # guaranteed FIRST, and only then may the document give up its bytes. If a
+    # PdfImport lands after the blocker read, the destroy fails and rolls back
+    # with the bytes still on disk — the old order deleted them and left a
+    # byte-less duplicate on re-upload.
+    refusal = nil
     destroyed = @statement.transaction do
-      @statement.archived_document_link&.soft_delete!
-      @statement.destroy || raise(ActiveRecord::Rollback)
+      @statement.lock!
+
+      if (message = deletion_blocker_message(@statement))
+        refusal = message
+        raise ActiveRecord::Rollback
+      end
+
+      document_link = @statement.archived_document_link
+      unless @statement.destroy
+        # A concurrent writer (a PdfImport, say) can land between the blocker
+        # read and the delete; the restrict guard is the authoritative refusal.
+        refusal = deletion_blocker_message(@statement) || t("account_statements.destroy.failure")
+        raise ActiveRecord::Rollback
+      end
+
+      # The statement delete is now guaranteed. A refusal here (an unreconciled
+      # entry appeared in the meantime) rolls the statement back and keeps the
+      # bytes; `soft_delete!` returns false instead of raising.
+      unless document_link.nil? || document_link.soft_delete!
+        refusal = t("account_statements.destroy.document_blocked",
+                    entries: document_link.deletion_blockers.to_sentence)
+        raise ActiveRecord::Rollback
+      end
+
+      true
     end
 
     if destroyed
       redirect_to redirect_path, notice: t("account_statements.destroy.success")
     else
-      redirect_back_or_to redirect_path, alert: t("account_statements.destroy.failure")
+      redirect_back_or_to redirect_path, alert: refusal || t("account_statements.destroy.failure")
     end
   end
 

@@ -526,16 +526,27 @@ class AccountStatement < ApplicationRecord
     opening_balance_record = balance_record_for(period_start_on, statement_currency, balance_lookup)
     closing_balance_record = balance_record_for(period_end_on, statement_currency, balance_lookup)
 
-    if opening_balance.present? && opening_balance_record.present?
-      # A statement opens at the CLOSE of its first day, not the start: the
-      # boundary day's transactions belong to the previous statement (the two
-      # share that date). `start_balance` is the balance before those
-      # transactions and reported a false mismatch on every boundary day that
-      # had activity.
+    # Where the period opens depends on the layout of the statements around it.
+    # When a preceding statement ended on (or before) this period's first day,
+    # the printed opening is its closing balance: on a shared boundary day that
+    # is the END of the day (the day's activity belongs to the previous
+    # statement); the day after, it is the same figure as the start of this
+    # period's first day. Only with no preceding statement does the day's
+    # opening anchor/start balance have to stand in.
+    #
+    # Comparing with end_balance unconditionally was wrong for the day-before
+    # layout (Apr 13–May 12, then May 13–Jun 12): the balance record's end of
+    # May 13 already includes the new statement's own first-day activity.
+    previous = neighbour(before: true)
+    opening_ledger = previous&.closing_balance
+    opening_ledger ||= account.opening_anchor_balance if account.has_opening_anchor?
+    opening_ledger ||= opening_balance_record&.start_balance
+
+    if opening_balance.present? && opening_ledger.present?
       checks << reconciliation_check(
         key: "opening_balance",
         statement_amount: opening_balance,
-        ledger_amount: opening_balance_record.end_balance
+        ledger_amount: opening_ledger
       )
     end
 
@@ -547,11 +558,11 @@ class AccountStatement < ApplicationRecord
       )
     end
 
-    if opening_balance.present? && closing_balance.present? && opening_balance_record.present? && closing_balance_record.present?
+    if opening_balance.present? && closing_balance.present? && opening_ledger.present? && closing_balance_record.present?
       checks << reconciliation_check(
         key: "period_movement",
         statement_amount: closing_balance - opening_balance,
-        ledger_amount: closing_balance_record.end_balance - opening_balance_record.end_balance
+        ledger_amount: closing_balance_record.end_balance - opening_ledger
       )
     end
 

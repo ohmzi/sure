@@ -141,10 +141,6 @@ class PdfImport < Import
   def import!
     raise "Account required for PDF import" unless account.present?
 
-    if (error = extraction_reconciliation_error)
-      raise ArithmeticMismatchError, error
-    end
-
     # (Ruling M2-C10, 2026-10-11: the M7-L8 atomic-guard pattern, deferred by
     # M7's close-out review and closed here) The committed check and the entry
     # write share the import's row lock, so two CONCURRENT publishes of one
@@ -155,9 +151,17 @@ class PdfImport < Import
     # double-posting the statement (the class Ruling M7-L8 closed for
     # ReceiptImport).
     with_lock do
+      # The replay guard comes FIRST: a redelivered publish must answer "already
+      # committed" even if the reviewed rows no longer add up (they may have been
+      # edited or cleaned up since). Re-judging them here would flip a completed
+      # import to failed.
       if data_committed?
         Rails.logger.info("PdfImport #{id}: publish replayed; the statement's entries already exist - nothing written")
         return
+      end
+
+      if (error = extraction_reconciliation_error)
+        raise ArithmeticMismatchError, error
       end
 
       transaction do
@@ -358,18 +362,26 @@ class PdfImport < Import
     extracted_data&.dig("transactions") || []
   end
 
-  # nil when the read agrees with the statement's printed movement (or when the
-  # statement carries no balances to check against); otherwise a human-readable
-  # explanation of the mismatch. The signed total is computed through the same
-  # Import::Row#signed_amount the publisher uses, so the check cannot drift from
-  # the money the import would write.
+  # nil when the rows the publish will write agree with the statement's printed
+  # movement (or when the statement carries no balances to check against);
+  # otherwise a human-readable explanation of the mismatch. The sum is computed
+  # from the editable `rows`, not extracted_data: the review screen edits rows
+  # (Import::Row#update_and_sync never writes back to the extraction), so a
+  # corrected amount must be judged as corrected, and an edit that breaks the
+  # total must be refused. Lines the extraction matched to entries the account
+  # already held are not rows, but they remain part of the statement's
+  # movement; generate_rows_from_extracted_data records their signed total
+  # (including the boundary duplicate claimed by an adjacent statement) beside
+  # the extraction, and publish adds it back. Every row amount goes through the
+  # same Import::Row#signed_amount the publisher uses, so the check cannot
+  # drift from the money the import would write.
   def extraction_reconciliation_error
     return nil unless account.present? && statement_with_transactions?
     return nil unless account_statement&.opening_balance.present? && account_statement&.closing_balance.present?
     return nil unless has_extracted_transactions?
 
     expected = expected_signed_total
-    actual = extracted_signed_total
+    actual = rows_signed_total + matched_signed_total
     return nil if (actual - expected).abs <= 0.01.to_d
 
     I18n.t(
@@ -388,12 +400,16 @@ class PdfImport < Import
     account.classification == "liability" ? delta : -delta
   end
 
-  def extracted_signed_total
-    extracted_transactions.sum(0.to_d) do |transaction|
-      next 0.to_d if transaction["amount"].blank?
+  # The signed total of the rows this publish would write, through the same
+  # signage convention import! applies to the entries it creates.
+  def rows_signed_total
+    rows.to_a.sum(0.to_d) { |row| row.signed_amount }
+  end
 
-      Import::Row.new(import: self, amount: transaction["amount"]).signed_amount
-    end
+  # The extraction lines that never became rows because the account already
+  # held them. Recorded at generation; a row edit cannot change them.
+  def matched_signed_total
+    extracted_data&.fetch("matched_signed_total", 0).to_d
   end
 
   def generate_rows_from_extracted_data
@@ -432,6 +448,7 @@ class PdfImport < Import
       unmatched, matched_entries = partition_already_recorded(candidates)
 
       reconcile_entries!(matched_entries)
+      record_matched_signed_total!(matched_entries)
 
       mapped_rows = unmatched.map.with_index(1) do |row, index|
         {
@@ -585,6 +602,16 @@ class PdfImport < Import
     # a provider recorded for the same transaction, so matching allows a small
     # window rather than demanding an exact date.
     RECONCILIATION_DATE_WINDOW = 3
+
+    # The signed total of the extraction lines that matched entries the account
+    # already held. Those lines never become rows, but they are part of the
+    # statement's printed movement, so the publish-time arithmetic guard adds
+    # this back (PdfImport#matched_signed_total). Recomputed on every
+    # generation, so re-targeting or a reprocess cannot leave it stale.
+    def record_matched_signed_total!(matched_entries)
+      total = matched_entries.sum(0.to_d) { |entry| entry.amount }
+      update_column(:extracted_data, (extracted_data || {}).merge("matched_signed_total" => total.to_s))
+    end
 
     # Splits candidate rows into those that are genuinely new and the existing
     # entries the rest already correspond to. Matching is per-account, so with no

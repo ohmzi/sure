@@ -510,6 +510,74 @@ class PdfImportReconciliationTest < ActiveSupport::TestCase
     end
   end
 
+  # The review screen edits Import::Row, never extracted_data. The guard must
+  # judge the rows the publish will actually write, or a corrected amount still
+  # raises against the stale read.
+  test "a corrected row amount publishes even though the extraction disagreed" do
+    @statement.update!(opening_balance: 100, closing_balance: 130)
+
+    @import.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: -30, name: "Deposit") ] })
+    @import.generate_rows_from_extracted_data
+
+    @import.rows.sole.update_and_sync(amount: "30")
+
+    assert_difference -> { @account.transactions.count }, 1 do
+      @import.import!
+    end
+  end
+
+  # Lines matched to entries the account already held never become rows, but
+  # they are still part of the statement's printed movement. Dropping them from
+  # the arithmetic would falsely fail every provider-synced statement.
+  test "lines already recorded still count toward the printed movement" do
+    create_transaction(account: @account, date: @date, amount: -10, name: "Interest")
+    @statement.update!(opening_balance: 100, closing_balance: 130)
+
+    @import.update!(extracted_data: { "transactions" => [
+      extracted(date: @date, amount: 10, name: "Interest"),
+      extracted(date: @date, amount: 20, name: "Withdrawal")
+    ] })
+    @import.generate_rows_from_extracted_data
+
+    assert_equal 1, @import.reload.rows_count
+    assert_difference -> { @account.transactions.count }, 1 do
+      @import.import!
+    end
+  end
+
+  # The mirror: an edit that breaks the printed movement must be refused even
+  # though the original read added up.
+  test "an edit that breaks the printed movement blocks publication" do
+    @statement.update!(opening_balance: 100, closing_balance: 130)
+
+    @import.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: 30, name: "Withdrawal") ] })
+    @import.generate_rows_from_extracted_data
+    @import.rows.sole.update_and_sync(amount: "50")
+
+    error = assert_raises(PdfImport::ArithmeticMismatchError) { @import.import! }
+    assert_match(/do not match the statement/, error.message)
+    assert_empty @account.entries.where(name: "Withdrawal")
+  end
+
+  # A redelivered publish must answer "already committed" before judging any
+  # rows: the rows may have been cleaned up or moved since the commit, and
+  # re-checking them would flip a completed import to failed.
+  test "a replay after a committed publish returns before the arithmetic guard" do
+    @statement.update!(opening_balance: 100, closing_balance: 130)
+
+    @import.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: 30, name: "Withdrawal") ] })
+    @import.generate_rows_from_extracted_data
+    @import.import!
+    # Break both sources after the commit: whichever one the guard reads, a
+    # replay that re-judged them would flip the completed import to failed.
+    @import.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: -50, name: "Withdrawal") ] })
+    @import.rows.sole.update_and_sync(amount: "50")
+
+    assert_no_difference -> { Entry.count } do
+      assert_nothing_raised { @import.import! }
+    end
+  end
+
   test "publish records the arithmetic mismatch instead of importing it" do
     @statement.update!(opening_balance: 100, closing_balance: 130)
 
