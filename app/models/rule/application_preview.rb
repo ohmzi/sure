@@ -18,6 +18,7 @@
 class Rule::ApplicationPreview
   Group = Struct.new(:from, :to, :count, keyword_init: true)
   Change = Struct.new(:rule, :action, :action_type, :total, :groups, :undoable, keyword_init: true)
+  TransferSimulation = Struct.new(:candidate_ids, :aborted, keyword_init: true)
 
   ASYNC_ACTIONS = %w[auto_categorize auto_detect_merchants].freeze
 
@@ -27,8 +28,13 @@ class Rule::ApplicationPreview
     @merchant_names = family.merchants.pluck(:id, :name).to_h { |id, name| [ id, name ] }
     @tag_names = family.tags.pluck(:id, :name).to_h { |id, name| [ id, name ] }
     @accounts_by_id = family.accounts.index_by(&:id)
-    @investment_contributions_category_id = existing_category(Category.all_investment_contributions_names)
-    @credit_card_payment_category_id = existing_credit_card_payment_category
+    @virtual_category_ids = {}
+    # Transfer#confirm! creates these categories when missing. The preview is
+    # read-only, so it simulates the would-be category with a synthetic id.
+    @investment_contributions_category_id = existing_category(Category.all_investment_contributions_names) ||
+      virtual_category_id(:investment_contributions, I18n.with_locale(family.locale) { Category.investment_contributions_name })
+    @credit_card_payment_category_id = existing_credit_card_payment_category ||
+      virtual_category_id(:credit_card_payment, I18n.with_locale(family.locale) { Category.credit_card_payment_name })
     @transactions_by_id = {}
     @states = {}
     @overridden_ids = Set.new
@@ -52,7 +58,9 @@ class Rule::ApplicationPreview
 
         change = build_change(rule, action, action_ids)
         result << change if change
-        apply_action_effect(action, action_ids)
+        # A failed transfer aborts Rule#apply, so the rule's later actions never
+        # run. Claims below still record every action, as Runner's ensure does.
+        break if apply_action_effect(action, action_ids)
       end
 
       rule.actions.each { |action| Rule::ActionClaims.record(action, matched_ids, claimed_ids) }
@@ -70,23 +78,36 @@ class Rule::ApplicationPreview
     # not touch. Rows whose mutable state changed (and synthetic transfer legs)
     # are the only ones re-evaluated in Ruby.
     def matching_ids(rule, stopped_ids)
-      sql_ids = rule.matching_scope.pluck(:id).to_set
-      ensure_loaded(sql_ids | overridden_ids | synthetic_ids)
+      sql_ids = rule_match_ids(rule)
+      ensure_loaded(sql_ids.to_set | overridden_ids | synthetic_ids)
 
       matched = sql_ids.dup
+      seen = sql_ids.to_set
       (overridden_ids | synthetic_ids).each do |transaction_id|
         transaction = transactions_by_id[transaction_id]
         next unless transaction
 
         if in_effective_window?(transaction, rule) &&
            rule.conditions.all? { |condition| condition_matches?(transaction, condition) }
-          matched << transaction_id
+          matched << transaction_id if seen.add?(transaction_id)
         else
           matched.delete(transaction_id)
+          seen.delete(transaction_id)
         end
       end
 
       matched.reject { |transaction_id| stopped_ids.include?(transaction_id) }
+    end
+
+    # A legacy condition whose SQL cannot run fails the real rule too. Return no
+    # matches instead of turning the confirmation page into a 500.
+    def rule_match_ids(rule)
+      rule.matching_scope.pluck(:id)
+    rescue => e
+      Rails.logger.warn(
+        "Rule::ApplicationPreview could not query rule #{rule.id}: #{e.class}: #{e.message}"
+      )
+      []
     end
 
     # Loads only the ids a rule matched (or a previous rule changed), never the
@@ -97,7 +118,7 @@ class Rule::ApplicationPreview
 
       family.transactions
             .where("transactions.id = ANY(?::uuid[])", PG::TextEncoder::Array.new.encode(missing))
-            .includes(:entry, :tags)
+            .includes(:entry, :tags, :data_enrichments)
             .find_each do |transaction|
               transactions_by_id[transaction.id] = transaction
               states[transaction.id] = initial_state(transaction)
@@ -112,8 +133,21 @@ class Rule::ApplicationPreview
         tag_ids: transaction.tags.map(&:id),
         excluded: transaction.entry.excluded,
         investment_activity_label: transaction.investment_activity_label,
-        kind: transaction.kind
+        kind: transaction.kind,
+        category_assigned_automatically: category_assigned_automatically?(transaction)
       }
+    end
+
+    # Mirrors Transaction#category_assigned_automatically? against the preloaded
+    # rows so the preview does not issue a query per transaction.
+    def category_assigned_automatically?(transaction)
+      return false if transaction.category_id.blank?
+
+      transaction.data_enrichments.any? do |enrichment|
+        enrichment.attribute_name == "category_id" &&
+          Transaction::AUTO_CATEGORY_SOURCES.include?(enrichment.source) &&
+          enrichment.value.to_s == transaction.category_id.to_s
+      end
     end
 
     def in_effective_window?(transaction, rule)
@@ -426,7 +460,7 @@ class Rule::ApplicationPreview
     end
 
     def transfer_change(rule, action, ids)
-      count = transfer_candidates(action, ids).size
+      count = transfer_simulation(action, ids).candidate_ids.size
       return if count.zero?
 
       Change.new(rule: rule, action: action, action_type: action.action_type, total: count, groups: [], undoable: false)
@@ -443,16 +477,28 @@ class Rule::ApplicationPreview
       Change.new(rule: rule, action: action, action_type: action.action_type, total: count, groups: [], undoable: false)
     end
 
-    def transfer_candidates(action, ids)
+    # Mirrors SetAsTransferOrPayment#execute in order: rows already transfers are
+    # skipped, and the first row on the target account raises
+    # different_accounts. Runner rescues that and skips the rest of the rule.
+    # Only the candidates processed before that row are reported and applied.
+    def transfer_simulation(action, ids)
       target_account = accounts_by_id[action.value]
-      return [] if target_account.nil?
+      return TransferSimulation.new(candidate_ids: [], aborted: false) if target_account.nil?
 
-      ids.select do |transaction_id|
+      candidate_ids = []
+      ids.each do |transaction_id|
         state = states.fetch(transaction_id)
-        next false if Transaction::TRANSFER_KINDS.include?(state[:kind])
+        next if Transaction::TRANSFER_KINDS.include?(state[:kind])
 
-        transactions_by_id.fetch(transaction_id).entry.account != target_account
+        entry = transactions_by_id.fetch(transaction_id).entry
+        if entry.account_id == target_account.id
+          return TransferSimulation.new(candidate_ids: candidate_ids, aborted: true)
+        end
+
+        candidate_ids << transaction_id
       end
+
+      TransferSimulation.new(candidate_ids: candidate_ids, aborted: false)
     end
 
     def build_undoable_change(rule, action, groups)
@@ -472,12 +518,13 @@ class Rule::ApplicationPreview
 
     # Applies the rule's synchronous attribute writes to the simulated state so
     # lower rules see the same values they would read from the database.
+    # Returns true when the action aborts the rule (a failed transfer).
     def apply_action_effect(action, ids)
       case action.action_type
       when "set_transaction_category"
-        return unless category_names.key?(action.value)
+        return false unless category_names.key?(action.value)
 
-        ids.each { |transaction_id| set_state(transaction_id, :category_id, action.value) }
+        ids.each { |transaction_id| set_category(transaction_id, action.value) }
       when "set_transaction_merchant"
         return unless merchant_names.key?(action.value)
 
@@ -500,10 +547,11 @@ class Rule::ApplicationPreview
 
         ids.each { |transaction_id| set_state(transaction_id, :investment_activity_label, action.value) }
       when "set_as_transfer_or_payment"
-        apply_transfer_effect(action, ids)
+        return apply_transfer_effect(action, ids)
       end
       # Async and notification actions do not change a matching attribute
       # synchronously.
+      false
     end
 
     def set_state(transaction_id, attribute, value)
@@ -514,20 +562,31 @@ class Rule::ApplicationPreview
       overridden_ids << transaction_id
     end
 
+    # A rule-assigned category is no longer one an automatic categorizer wrote.
+    def set_category(transaction_id, category_id)
+      state = states.fetch(transaction_id)
+      return if state[:category_id].to_s == category_id.to_s
+
+      state[:category_id] = category_id
+      state[:category_assigned_automatically] = false
+      overridden_ids << transaction_id
+    end
+
     # Mirrors SetAsTransferOrPayment: the matched transaction becomes one leg of
     # a confirmed transfer (its kind changes, and transfer validation can assign
     # a category), and a counter-leg is created on the target account. The
-    # counter-leg is simulated in memory so lower rules can match it.
+    # counter-leg is simulated in memory so lower rules can match it. Returns
+    # true when the real action would abort on a same-account candidate.
     def apply_transfer_effect(action, ids)
+      simulation = transfer_simulation(action, ids)
       target_account = accounts_by_id[action.value]
-      return if target_account.nil?
-
-      transfer_candidates(action, ids).each { |transaction_id| apply_transfer_to(transaction_id, target_account) }
+      simulation.candidate_ids.each { |transaction_id| apply_transfer_to(transaction_id, target_account) }
+      simulation.aborted
     end
 
     def apply_transfer_to(transaction_id, target_account)
       transaction = transactions_by_id.fetch(transaction_id)
-      source_account = transaction.entry.account
+      source_account = accounts_by_id.fetch(transaction.entry.account_id)
       amount = transaction.entry.amount
       original_is_outflow = amount.positive?
 
@@ -536,13 +595,14 @@ class Rule::ApplicationPreview
       outflow_kind = Transfer.kind_for_account(to_account, from_account: from_account)
 
       counter_state = {
-        name: counter_transfer_name(transaction.entry, target_account),
+        name: counter_transfer_name(transaction.entry, target_account, source_account),
         category_id: nil,
         merchant_id: nil,
         tag_ids: [],
         excluded: false,
         investment_activity_label: nil,
-        kind: original_is_outflow ? "funds_movement" : outflow_kind
+        kind: original_is_outflow ? "funds_movement" : outflow_kind,
+        category_assigned_automatically: false
       }
       outflow_state = original_is_outflow ? states.fetch(transaction_id) : counter_state
       inflow_state = original_is_outflow ? counter_state : states.fetch(transaction_id)
@@ -550,9 +610,7 @@ class Rule::ApplicationPreview
 
       set_state(transaction_id, :kind, original_is_outflow ? outflow_kind : "funds_movement")
 
-      counter_id = SecureRandom.uuid
       counter_transaction = Transaction.new(
-        id: counter_id,
         kind: counter_state[:kind],
         category_id: counter_state[:category_id],
         merchant_id: nil,
@@ -570,32 +628,47 @@ class Rule::ApplicationPreview
         excluded: false,
         user_modified: true
       )
+      # Link both directions while the owner has no id: assigning the has_one
+      # after an id exists makes Rails look the association up in the database.
       counter_entry.entryable = counter_transaction
       counter_transaction.entry = counter_entry
+      counter_id = SecureRandom.uuid
+      counter_transaction.id = counter_id
 
       transactions_by_id[counter_id] = counter_transaction
       states[counter_id] = counter_state
       synthetic_ids << counter_id if target_account.status.in?(Account::VISIBLE_STATUSES)
     end
 
-    def counter_transfer_name(entry, target_account)
+    def counter_transfer_name(entry, target_account, source_account)
       prefix = target_account.liability? ? "Payment" : "Transfer"
-      "#{prefix} #{entry.amount.negative? ? "to #{target_account.name}" : "from #{entry.account.name}"}"
+      "#{prefix} #{entry.amount.negative? ? "to #{target_account.name}" : "from #{source_account.name}"}"
     end
 
-    # Transfer#confirm! only assigns a category when it already exists; the
-    # preview must not create one, so a first-ever transfer of this kind leaves
-    # the simulated category blank.
+    # Mirrors Transfer#confirm!: an investment contribution fills a blank
+    # outflow category, while a card payment fills a blank or automatically
+    # guessed category on both legs and leaves a person's choice alone. Both
+    # family helpers create the category when missing, so the simulated category
+    # is present even when no row exists yet.
     def apply_transfer_categories(outflow_kind, to_account, outflow_state, inflow_state)
       if outflow_kind == "investment_contribution" && outflow_state[:category_id].blank?
-        outflow_state[:category_id] = investment_contributions_category_id if investment_contributions_category_id.present?
+        assign_category(outflow_state, investment_contributions_category_id)
       elsif outflow_kind == "cc_payment" && to_account.credit_card?
         category_id = credit_card_payment_category_id
-        return if category_id.blank?
+        [ outflow_state, inflow_state ].each do |state|
+          next unless state[:category_id].blank? || state[:category_assigned_automatically]
 
-        outflow_state[:category_id] ||= category_id
-        inflow_state[:category_id] ||= category_id
+          assign_category(state, category_id)
+        end
       end
+    end
+
+    def assign_category(state, category_id)
+      return if category_id.blank?
+      return if state[:category_id].to_s == category_id.to_s
+
+      state[:category_id] = category_id
+      state[:category_assigned_automatically] = false
     end
 
     def investment_contributions_category_id
@@ -604,6 +677,17 @@ class Rule::ApplicationPreview
 
     def credit_card_payment_category_id
       @credit_card_payment_category_id
+    end
+
+    # A stand-in for a category Transfer#confirm! would create. It never reaches
+    # the database; the id only has to differ from every real category so
+    # is_null/is_not_null and != conditions match the real run.
+    def virtual_category_id(key, name)
+      @virtual_category_ids[key] ||= begin
+        id = SecureRandom.uuid
+        category_names[id] = name
+        id
+      end
     end
 
     def existing_category(names)

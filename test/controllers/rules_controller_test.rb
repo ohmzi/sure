@@ -538,6 +538,16 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-testid='apply-all-preview']"
   end
 
+  test "confirm_all still renders when a legacy condition cannot be queried" do
+    rule = create_category_rule(name: "Coffee Shop", category: categories(:food_and_drink))
+    rule.conditions.sole.update_columns(operator: "contains")
+    create_transaction(account: accounts(:depository), name: "Coffee Shop", amount: 10)
+
+    get confirm_all_rules_url
+
+    assert_response :success
+  end
+
   test "confirm_all labels actions that will not be undone" do
     @user.family.rules.create!(
       name: "Move to savings",

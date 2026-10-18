@@ -130,10 +130,18 @@ class Rule < ApplicationRecord
   def self.total_affected_resource_count(rules)
     return 0 if rules.empty?
 
-    # Collect all unique transaction IDs matched by any rule
+    # Collect all unique transaction IDs matched by any rule. A legacy condition
+    # whose SQL raises fails that rule's run; count it as matching nothing so
+    # the confirmation page still renders.
     transaction_ids = Set.new
     rules.each do |rule|
-      transaction_ids.merge(rule.matching_scope.pluck(:id))
+      begin
+        transaction_ids.merge(rule.matching_scope.pluck(:id))
+      rescue => e
+        Rails.logger.warn(
+          "Rule.total_affected_resource_count could not query rule #{rule.id}: #{e.class}: #{e.message}"
+        )
+      end
     end
 
     transaction_ids.size

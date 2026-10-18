@@ -312,6 +312,133 @@ class Rule::ApplicationPreviewTest < ActiveSupport::TestCase
     assert_equal 2, change.total
   end
 
+  test "a transfer that would create the investment contributions category is previewed as categorised" do
+    brokerage = @family.accounts.create!(
+      name: "Brokerage", balance: 0, currency: "USD", accountable: Investment.new(subtype: "brokerage")
+    )
+    create_rule(
+      name: "Move to brokerage",
+      match: "Whole Foods",
+      actions: [ [ "set_as_transfer_or_payment", brokerage.id.to_s ] ]
+    )
+    categorised_rule = category_condition_rule(
+      name: "Categorised after the transfer",
+      operator: "is_not_null",
+      actions: [ [ "set_transaction_merchant", @merchant.id.to_s ] ]
+    )
+    uncategorised_rule = category_condition_rule(
+      name: "Still uncategorised",
+      operator: "is_null",
+      actions: [ [ "set_transaction_name", "Should not run" ] ]
+    )
+    create_transaction(account: @account, name: "Whole Foods", amount: 10)
+
+    changes = Rule::ApplicationPreview.new(@family).changes
+
+    assert changes.any? { |change| change.rule == categorised_rule },
+      "the real run assigns the category it creates, so the leg is no longer empty"
+    assert_nil changes.find { |change| change.rule == uncategorised_rule }
+    assert_equal 0, @family.categories.where(name: Category.all_investment_contributions_names).count,
+      "the preview must not create the category"
+  end
+
+  test "a cc payment that would create the payment category is previewed as categorised" do
+    card = @family.accounts.create!(
+      name: "Credit Card", balance: 0, currency: "USD", accountable: CreditCard.new
+    )
+    create_rule(
+      name: "Pay the card",
+      match: "Whole Foods",
+      actions: [ [ "set_as_transfer_or_payment", card.id.to_s ] ]
+    )
+    categorised_rule = category_condition_rule(
+      name: "Categorised after the payment",
+      operator: "is_not_null",
+      actions: [ [ "set_transaction_merchant", @merchant.id.to_s ] ]
+    )
+    create_transaction(account: @account, name: "Whole Foods", amount: 10)
+
+    changes = Rule::ApplicationPreview.new(@family).changes
+
+    assert changes.any? { |change| change.rule == categorised_rule },
+      "confirm! creates and assigns the payment category, so the leg is no longer empty"
+    assert_equal 0, @family.categories.where(name: payment_category_names).count,
+      "the preview must not create the category"
+  end
+
+  test "a cc payment overwrites a category the automatic categorizer assigned" do
+    card = @family.accounts.create!(
+      name: "Credit Card", balance: 0, currency: "USD", accountable: CreditCard.new
+    )
+    payment_category = @family.credit_card_payment_category
+    create_rule(
+      name: "Pay the card",
+      match: "Whole Foods",
+      actions: [ [ "set_as_transfer_or_payment", card.id.to_s ] ]
+    )
+    overwritten_rule = @family.rules.create!(
+      name: "Now labelled as a payment",
+      resource_type: "transaction",
+      active: true,
+      conditions: [
+        Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "Whole Foods"),
+        Rule::Condition.new(
+          condition_type: "transaction_category", operator: "=", value: payment_category.id.to_s
+        )
+      ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_name", value: "Card payment") ]
+    )
+
+    guessed = create_transaction(account: @account, name: "Whole Foods", amount: 10).transaction
+    guessed.update!(category: @dining)
+    guessed.data_enrichments.create!(
+      attribute_name: "category_id", source: "ai", value: @dining.id.to_s
+    )
+    manual = create_transaction(account: @account, name: "Whole Foods", amount: 20).transaction
+    manual.update!(category: @groceries)
+
+    change = Rule::ApplicationPreview.new(@family).changes.find { |candidate| candidate.rule == overwritten_rule }
+
+    assert change, "the automatically assigned category is replaced by the payment category"
+    assert_equal 1, change.total, "a category a person chose is left alone"
+  end
+
+  test "a transfer to the matched transaction's own account aborts the rest of its rule" do
+    create_rule(
+      name: "Same-account transfer",
+      match: "Whole Foods",
+      actions: [
+        [ "set_as_transfer_or_payment", @account.id.to_s ],
+        [ "set_transaction_category", @groceries.id.to_s ]
+      ]
+    )
+    create_transaction(account: @account, name: "Whole Foods", amount: 10)
+
+    changes = Rule::ApplicationPreview.new(@family).changes
+
+    assert_empty changes, "the real run fails the transfer and skips the rule's later action"
+  end
+
+  test "the transfer preview does not issue per-candidate queries" do
+    target_account = @family.accounts.create!(
+      name: "Savings", balance: 0, currency: "USD", accountable: Depository.new
+    )
+    create_rule(
+      name: "Move to savings",
+      match: "Whole Foods",
+      actions: [ [ "set_as_transfer_or_payment", target_account.id.to_s ] ]
+    )
+    3.times { |index| create_transaction(account: @account, name: "Whole Foods #{index}", amount: 10) }
+
+    small = capture_sql_queries { Rule::ApplicationPreview.new(@family).changes }
+
+    10.times { |index| create_transaction(account: @account, name: "Whole Foods extra #{index}", amount: 10) }
+    large = capture_sql_queries { Rule::ApplicationPreview.new(@family).changes }
+
+    assert_operator large.size, :<=, small.size + 1,
+      "transfer preview queries grew with candidate count: #{small.size} -> #{large.size}"
+  end
+
   private
     def create_rule(name:, match:, actions:)
       @family.rules.create!(
@@ -321,5 +448,24 @@ class Rule::ApplicationPreviewTest < ActiveSupport::TestCase
         conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: match) ],
         actions: actions.map { |action_type, value| Rule::Action.new(action_type: action_type, value: value) }
       )
+    end
+
+    def category_condition_rule(name:, operator:, actions:)
+      @family.rules.create!(
+        name: name,
+        resource_type: "transaction",
+        active: true,
+        conditions: [
+          Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "Whole Foods"),
+          Rule::Condition.new(condition_type: "transaction_category", operator: operator)
+        ],
+        actions: actions.map { |action_type, value| Rule::Action.new(action_type: action_type, value: value) }
+      )
+    end
+
+    def payment_category_names
+      LanguagesHelper::SUPPORTED_LOCALES.filter_map do |locale|
+        I18n.t(Category::CREDIT_CARD_PAYMENT_NAME_KEY, locale: locale, default: nil).presence
+      end.uniq
     end
 end
