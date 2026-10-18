@@ -1373,6 +1373,56 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal orphan.id, @link.account_statement_id
   end
 
+  # P0.5 failure injection, end to end: the first read landed and then its
+  # worker died, leaving the row `processing` with a dead owner and a stale
+  # lease. The reaper must resume it and the re-read must adopt the statement,
+  # import and rows the first attempt produced — not mint a second set.
+  #
+  # DocumentExtraction is deliberately one row per read, so the resumed read
+  # appends exactly one more; the assertion that matters is that it is exactly
+  # one run of the reaper and one resumed read, not a duplicate extraction of
+  # the statement's data.
+  test "a reaped mid-read resumes without duplicating the statement, import or rows" do
+    stage_pdf(@link, "synthetic_statement.pdf")
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+    @link.reload
+
+    statement = statement_for(@link)
+    import = PdfImport.find_by!(account_statement: statement)
+    rows_before = import.rows.count
+    assert_operator rows_before, :>, 0
+    assert_equal 1, AccountStatement.where(family: @family).count
+    assert_equal 1, @link.document_extractions.count
+
+    # The kill: the process that owned the read is gone, the lease is stale,
+    # and there is no live job to finish it.
+    dead_owner = "#{Socket.gethostname}:999999"
+    @link.update_columns(status: "processing", failure_message: nil, failure_code: nil,
+                         next_attempt_at: nil, attempts_count: 1,
+                         processing_owner: dead_owner, updated_at: 2.hours.ago)
+    Sidekiq::ProcessSet.stubs(:new).returns([])
+
+    assert_enqueued_with(job: DocumentUnderstandingJob, args: [ @link.id ]) do
+      DocumentReaperJob.perform_now
+    end
+    assert_enqueued_jobs 1, only: DocumentUnderstandingJob
+    assert_equal "queued", @link.reload.status, "the reaper resumes the orphaned read"
+
+    perform_enqueued_jobs only: DocumentUnderstandingJob
+    @link.reload
+
+    assert_equal "unlinked", @link.status
+    assert_equal statement.id, @link.account_statement_id, "the re-read adopts the statement it already made"
+    assert_equal 1, AccountStatement.where(family: @family).count, "no second statement"
+    assert_equal 1, PdfImport.where(account_statement: statement).count, "no second import"
+    assert_equal rows_before, import.reload.rows.count, "the rows are regenerated, not appended twice"
+    assert_equal @link.extraction.id, import.document_extraction_id, "the import traces to the resumed read"
+    assert_equal 2, @link.document_extractions.count, "one read record for the original read and one for the resume"
+  end
+
   # The owner's rule end to end: a proven statement whose printed number the
   # account knows posts itself during the read.
   test "a proven statement for a known account posts itself" do

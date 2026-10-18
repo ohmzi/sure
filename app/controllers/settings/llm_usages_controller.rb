@@ -25,6 +25,10 @@ class Settings::LlmUsagesController < ApplicationController
 
     # Get statistics
     @statistics = LlmUsage.statistics_for_family(@family, start_date: @start_date.beginning_of_day, end_date: @end_date.end_of_day)
+
+    # The latest completed categorization evaluation and the household's own
+    # correction signal. Read-only: the eval suite is run from lib/tasks/evals.rake.
+    @categorization_quality = Eval::CategorizationQuality.new(family: @family)
   end
 
   private

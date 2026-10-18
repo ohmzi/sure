@@ -66,6 +66,81 @@
     </div>
   </div>
 
+  <!-- Categorization Quality -->
+  <div class="mb-6">
+    <% if @categorization_quality.present? %>
+      <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+        <h2 class="text-lg font-semibold text-primary"><%= t(".categorization_quality") %></h2>
+        <p class="text-xs text-secondary">
+          <%= t(".categorization_quality_source",
+                model: @categorization_quality.run.model,
+                completed_at: @categorization_quality.run.completed_at&.strftime("%b %d, %Y %I:%M %p")) %>
+        </p>
+      </div>
+      <div class="bg-container-inset rounded-lg p-4">
+        <%
+          quality_stats = [
+            {
+              icon: "check-circle",
+              label: t(".categorization_accuracy"),
+              value: number_to_percentage(@categorization_quality.accuracy, precision: 1),
+              description: t(".categorization_accuracy_description", count: @categorization_quality.samples_processed)
+            },
+            {
+              icon: "circle-x",
+              label: t(".categorization_abstention"),
+              value: number_to_percentage(@categorization_quality.abstention_rate, precision: 1),
+              description: t(".categorization_abstention_description")
+            }
+          ]
+          if (correction_rate = @categorization_quality.correction_rate)
+            quality_stats << {
+              icon: "pencil",
+              label: t(".categorization_correction"),
+              value: number_to_percentage(correction_rate, precision: 1),
+              description: t(".categorization_correction_description")
+            }
+          end
+        %>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <% quality_stats.each do |stat| %>
+            <div>
+              <div class="flex items-center gap-2 mb-2">
+                <%= icon stat[:icon], class: "w-5 h-5 text-secondary" %>
+                <p class="text-xs font-medium text-secondary uppercase"><%= stat[:label] %></p>
+              </div>
+              <p class="text-2xl font-semibold text-primary"><%= stat[:value] %></p>
+              <p class="text-xs text-secondary mt-1"><%= stat[:description] %></p>
+            </div>
+          <% end %>
+        </div>
+
+        <% if @categorization_quality.per_category.any? %>
+          <div class="mt-4 border-t border-primary pt-4">
+            <h3 class="text-sm font-medium text-primary mb-2"><%= t(".categorization_by_category") %></h3>
+            <div class="space-y-2">
+              <% @categorization_quality.per_category.each do |category| %>
+                <div class="flex items-center justify-between gap-3">
+                  <span class="text-sm text-primary">
+                    <%= category.name == "null" ? t(".categorization_category_null") : category.name %>
+                  </span>
+                  <span class="text-xs text-secondary"><%= t(".categorization_category_detail", correct: category.correct, total: category.total) %></span>
+                  <span class="text-sm font-medium text-primary"><%= number_to_percentage(category.accuracy, precision: 1) %></span>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% else %>
+      <%= render DS::EmptyState.new(
+        icon: "chart-line",
+        title: t(".categorization_quality_empty_title"),
+        description: t(".categorization_quality_empty_description")
+      ) %>
+    <% end %>
+  </div>
+
   <!-- Cost by Operation -->
   <% if @statistics[:by_operation].any? %>
     <div class="mb-6">
