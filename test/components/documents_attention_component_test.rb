@@ -55,6 +55,34 @@ class DocumentsAttentionComponentTest < ActiveSupport::TestCase
                  "the identity ask must not repeat the period ask"
   end
 
+  # A statement whose only document link was soft-deleted has left the archive:
+  # both the vault list and the documents filter hide it. The strip must not
+  # count an ask nobody can open, so every reason's count must equal its list.
+  test "a tombstoned-only statement is counted under no reason" do
+    before = counts_for_family
+    tombstoned = {
+      "held_or_failed" => tombstoned_statement("component_tombstone_held.csv", held: true),
+      "unmatched" => tombstoned_statement("component_tombstone_unmatched.csv", account: nil),
+      "missing_period" => tombstoned_statement("component_tombstone_period.csv", period: false),
+      "missing_identity" => tombstoned_statement("component_tombstone_identity.csv", identity: false)
+    }
+    after = counts_for_family
+
+    tombstoned.each do |reason, (statement, link)|
+      list = AccountStatement::Search.new(user: @user, family: @family,
+                                          filters: { attention: reason }).relation
+
+      assert_equal before[reason], after[reason],
+                   "the #{reason} count must not include a tombstoned statement"
+      assert_equal list.count, after[reason], "the #{reason} count must equal its list"
+      assert_not_includes list, statement
+      assert_not_includes DocumentLink.needs_attention(@family), link
+      assert_not_includes DocumentLink::Search.new(
+        family: @family, filters: { attention: 1 }
+      ).relation, link
+    end
+  end
+
   private
     def counts_for_family
       component = DocumentsAttentionComponent.new(family: @family, user: @user)
@@ -80,5 +108,19 @@ class DocumentsAttentionComponentTest < ActiveSupport::TestCase
         sanitized_parser_output: {}
       )
       statement
+    end
+
+    # A statement whose ONLY document link was soft-deleted: the tombstone case
+    # the lists drop and the strip used to keep counting.
+    def tombstoned_statement(filename, account: @account, period: true, identity: true, held: false)
+      statement = attention_statement(filename, account: account, period: period, identity: identity)
+      link = DocumentLink.create!(
+        family: @family, source: "statement", status: (held ? "failed" : "unlinked"),
+        account_statement: statement, original_filename: statement.filename,
+        content_type: statement.content_type,
+        failure_message: (held ? "the reader could not open this document" : nil)
+      )
+      assert link.soft_delete!, "the fixture link must be soft-deletable"
+      [ statement, link ]
     end
 end

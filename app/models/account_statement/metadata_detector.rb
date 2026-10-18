@@ -12,8 +12,11 @@ class AccountStatement::MetadataDetector
   DATE_TOKEN = Regexp.union(*DATE_PATTERNS)
   # The words (and bare separators) that turn two dates into a period range.
   # "statement 2026-05-09 downloaded 2026-10-18" is two unrelated facts, not a
-  # range: only an explicit connector may join the boundaries.
-  RANGE_GAP = /\A(?:[\s_-]*(?:to|through|until|thru|and|bis|au|al)[\s_-]*|[\s_-]*-[\s_-]*|[\s_-]*[–—][\s_-]*)\z/i.freeze
+  # range: only an explicit connector may join the boundaries. A bare gap of
+  # whitespace/underscores also connects two dates, but it is weak evidence and
+  # only trusted when those are the ONLY two dates in the name (WEAK_RANGE_GAP).
+  WEAK_RANGE_GAP = /\A[\s_]+\z/.freeze
+  RANGE_GAP = /\A(?:[\s_-]*(?:to|through|until|thru|and|bis|au|al)[\s_-]*|[\s_-]*-[\s_-]*|[\s_-]*[–—][\s_-]*|[\s_]+)\z/i.freeze
 
   MONTH_PATTERN = /
     (?<![a-z0-9])
@@ -316,9 +319,14 @@ class AccountStatement::MetadataDetector
       end
 
       def explicit_range(basename, date_format)
-        date_matches(basename).each_cons(2) do |first, second|
+        matches = date_matches(basename)
+        matches.each_cons(2) do |first, second|
           gap = basename[first.end(0)...second.begin(0)].to_s
           next unless gap.match?(RANGE_GAP)
+          # A bare whitespace/underscore gap names a range only when those are
+          # the filename's only two dates; with a third date, which adjacent
+          # pair is the period would be a guess.
+          next if matches.size > 2 && gap.match?(WEAK_RANGE_GAP)
 
           start_on = parse_date(first[0], date_format: date_format)
           end_on = parse_date(second[0], date_format: date_format)

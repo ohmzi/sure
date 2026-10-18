@@ -34,6 +34,29 @@ class AccountStatement::PeriodCheckTest < ActiveSupport::TestCase
     assert_includes statement.period_warning_message, "printed"
   end
 
+  # Only the PDF text layer is a "printed" witness. A period the native read
+  # extracted (an image, or an OCR body with no text layer) is "recorded";
+  # calling it printed would claim evidence the statement never printed.
+  test "labels a period read by the native reader as recorded, not printed" do
+    statement = statement_with(
+      "statement.pdf",
+      period_start_on: Date.new(2026, 4, 2),
+      period_end_on: Date.new(2026, 5, 1),
+      detected_period: {
+        "start_on" => "2026-04-01",
+        "end_on" => "2026-04-30",
+        "source" => "statement_read"
+      }
+    )
+
+    assert statement.period_looks_wrong?
+    warning = statement.period_warning
+    assert_equal :recorded, warning.source
+    assert_equal Date.new(2026, 4, 1), warning.expected_start_on
+    assert_includes statement.period_warning_message, "recorded period"
+    assert_not_includes statement.period_warning_message, "printed period"
+  end
+
   test "does not warn when the filename has no usable date and no printed period was recorded" do
     statement = statement_with(
       "statement.pdf",

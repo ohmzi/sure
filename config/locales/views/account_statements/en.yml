@@ -76,6 +76,7 @@ en:
       title: Period looks wrong
       sources:
         printed: printed
+        recorded: recorded
         filename: filename
       message: "The stored period (%{actual}) does not match the %{source} period (%{expected}). Check the statement's dates."
     reconciliation:

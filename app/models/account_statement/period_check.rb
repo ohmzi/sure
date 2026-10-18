@@ -37,12 +37,12 @@ class AccountStatement::PeriodCheck
   def warning = warnings.first
   def warning? = warnings.any?
 
-  # The printed period is the stronger witness, so it is reported first when
+  # The detected period is the stronger witness, so it is reported first when
   # both disagree with what was stored.
   def warnings
     return [] unless stored_period?
 
-    [ printed_warning, filename_warning ].compact
+    [ detected_warning, filename_warning ].compact
   end
 
   private
@@ -54,12 +54,13 @@ class AccountStatement::PeriodCheck
       [ statement.period_start_on, statement.period_end_on ]
     end
 
-    def printed_warning
-      expected = printed_period
-      return nil unless expected
+    def detected_warning
+      witness = detected_period
+      return nil unless witness
+      expected, source = witness
       return nil if expected == stored_period
 
-      warning_for(:printed, expected)
+      warning_for(source, expected)
     end
 
     def filename_warning
@@ -94,7 +95,10 @@ class AccountStatement::PeriodCheck
       period.kind == :date ? [ period.anchor_on, period.anchor_on ] : [ period.start_on, period.end_on ]
     end
 
-    def printed_period
+    # The stored source decides the honest label: only the PDF text layer is
+    # "printed"; a period the native read extracted (an image, or an OCR body
+    # with no text layer) was "recorded".
+    def detected_period
       output = statement.sanitized_parser_output.to_h
       detected = output["detected_period"]
       return nil unless detected.is_a?(Hash)
@@ -103,7 +107,8 @@ class AccountStatement::PeriodCheck
       end_on = parse_iso8601(detected["end_on"])
       return nil if start_on.nil? || end_on.nil?
 
-      [ start_on, end_on ]
+      source = detected["source"].to_s == "pdf_text" ? :printed : :recorded
+      [ [ start_on, end_on ], source ]
     end
 
     def parse_iso8601(value)

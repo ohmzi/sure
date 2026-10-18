@@ -1263,6 +1263,17 @@ class AccountStatementTest < ActiveSupport::TestCase
     end
   end
 
+  test "held_or_failed excludes a rejected statement even with a live failed link" do
+    rejected = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "attention-rejected-held")
+    rejected.update_columns(account_id: nil, review_status: "rejected")
+    DocumentLink.create!(family: @family, source: "statement", status: "failed",
+                         account_statement: rejected, original_filename: rejected.filename,
+                         failure_message: "the reader could not open this document")
+
+    assert_not_includes AccountStatement.attention_scope("held_or_failed", family: @family), rejected,
+                        "a rejected statement is not waiting on a read"
+  end
+
   test "attention scopes stay inside the family" do
     foreign_family = families(:empty)
     foreign = AccountStatement.create_from_upload!(

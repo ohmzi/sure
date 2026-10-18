@@ -225,7 +225,7 @@ class AccountStatement < ApplicationRecord
     # Returns nil for an unknown reason (the filter then applies nothing).
     def attention_scope(reason, family:)
       case normalize_attention_reason(reason)
-      when "held_or_failed" then family.account_statements.where(id: attention_held_link_ids(family))
+      when "held_or_failed" then attention_actionable(family).where(id: attention_held_link_ids(family))
       when "unmatched" then attention_unmatched_scope(family)
       when "missing_period" then attention_missing_period_scope(family)
       when "missing_identity" then attention_missing_identity_scope(family)
@@ -462,8 +462,12 @@ class AccountStatement < ApplicationRecord
         value if ATTENTION_REASONS.include?(value)
       end
 
+      # The statements list and the documents filter both drop a tombstoned row
+      # (whose only document link was soft-deleted). The attention authority
+      # composes the same exclusion, so a count can never include a row its
+      # list hides. A rejected statement is not waiting on anyone.
       def attention_actionable(family)
-        family.account_statements.where.not(review_status: "rejected")
+        family.account_statements.excluding_tombstones.where.not(review_status: "rejected")
       end
 
       # A live document whose read stopped with a reason. The link's family is
