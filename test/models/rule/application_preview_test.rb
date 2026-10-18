@@ -87,6 +87,145 @@ class Rule::ApplicationPreviewTest < ActiveSupport::TestCase
     assert_equal @groceries.name, changes.sole.groups.sole.to
   end
 
+  test "a lower rule is matched by a rename a higher rule makes during the run" do
+    create_rule(
+      name: "Rename",
+      match: "Whole Foods",
+      actions: [ [ "set_transaction_name", "Supermarket" ] ]
+    )
+    create_rule(
+      name: "Categorize the new name",
+      match: "Supermarket",
+      actions: [ [ "set_transaction_category", @groceries.id.to_s ] ]
+    )
+    create_transaction(account: @account, name: "Whole Foods Market", amount: 10).transaction
+
+    changes = Rule::ApplicationPreview.new(@family).changes
+
+    assert_equal [ "Rename", "Categorize the new name" ], changes.map { |change| change.rule.name }
+    assert_equal @groceries.name, changes.last.groups.sole.to
+  end
+
+  test "a second rule adding an already-added tag is previewed as a no-op" do
+    create_rule(
+      name: "First tagger",
+      match: "Whole Foods",
+      actions: [ [ "set_transaction_tags", @tag.id.to_s ] ]
+    )
+    create_rule(
+      name: "Second tagger",
+      match: "Whole Foods",
+      actions: [ [ "set_transaction_tags", @tag.id.to_s ] ]
+    )
+    create_transaction(account: @account, name: "Whole Foods", amount: 10).transaction
+
+    changes = Rule::ApplicationPreview.new(@family).changes
+
+    assert_equal [ "First tagger" ], changes.map { |change| change.rule.name }
+    assert_equal @tag.name, changes.sole.groups.sole.to
+  end
+
+  test "stop processing keeps lower rules out of the preview" do
+    @family.rules.create!(
+      name: "Stop here",
+      resource_type: "transaction",
+      active: true,
+      stop_processing: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "Whole Foods") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: @groceries.id.to_s) ]
+    )
+    create_rule(
+      name: "Never runs",
+      match: "Whole Foods",
+      actions: [ [ "set_transaction_category", @dining.id.to_s ] ]
+    )
+    create_transaction(account: @account, name: "Whole Foods", amount: 10).transaction
+
+    changes = Rule::ApplicationPreview.new(@family).changes
+
+    assert_equal [ "Stop here" ], changes.map { |change| change.rule.name }
+  end
+
+  test "a transaction already holding the target value is not previewed as a change" do
+    transaction = create_transaction(account: @account, name: "Whole Foods", amount: 10).transaction
+    transaction.update!(category: @groceries)
+    create_rule(
+      name: "Groceries",
+      match: "Whole Foods",
+      actions: [ [ "set_transaction_category", @groceries.id.to_s ] ]
+    )
+
+    assert_empty Rule::ApplicationPreview.new(@family).changes
+  end
+
+  test "an AI action does not count transactions a higher rule already claimed" do
+    create_rule(
+      name: "Categories first",
+      match: "Whole Foods",
+      actions: [ [ "set_transaction_category", @groceries.id.to_s ] ]
+    )
+    @family.rules.create!(
+      name: "AI",
+      resource_type: "transaction",
+      active: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "Whole Foods") ],
+      actions: [ Rule::Action.new(action_type: "auto_categorize") ]
+    )
+    create_transaction(account: @account, name: "Whole Foods", amount: 10).transaction
+
+    changes = Rule::ApplicationPreview.new(@family).changes
+
+    assert_nil changes.find { |change| change.action_type == "auto_categorize" }
+  end
+
+  test "a transfer action is previewed with a count that will not be undone" do
+    target_account = @family.accounts.create!(name: "Savings", balance: 0, currency: "USD", accountable: Depository.new)
+    create_rule(
+      name: "Move to savings",
+      match: "Whole Foods",
+      actions: [ [ "set_as_transfer_or_payment", target_account.id.to_s ] ]
+    )
+    create_transaction(account: @account, name: "Whole Foods", amount: 10).transaction
+
+    change = Rule::ApplicationPreview.new(@family).changes.sole
+
+    assert_equal "set_as_transfer_or_payment", change.action_type
+    assert_equal 1, change.total
+    assert_equal false, change.undoable
+  end
+
+  test "a notification action is previewed with a count that will not be undone" do
+    create_rule(
+      name: "Notify",
+      match: "Whole Foods",
+      actions: [ [ "send_email_notification", nil ] ]
+    )
+    create_transaction(account: @account, name: "Whole Foods", amount: 10).transaction
+
+    change = Rule::ApplicationPreview.new(@family).changes.sole
+
+    assert_equal "send_email_notification", change.action_type
+    assert_equal 1, change.total
+    assert_equal false, change.undoable
+  end
+
+  test "the preview does not issue per-transaction queries" do
+    create_rule(
+      name: "Groceries",
+      match: "Whole Foods",
+      actions: [ [ "set_transaction_category", @groceries.id.to_s ] ]
+    )
+    3.times { |index| create_transaction(account: @account, name: "Whole Foods #{index}", amount: 10) }
+
+    small = capture_sql_queries { Rule::ApplicationPreview.new(@family).changes }
+
+    10.times { |index| create_transaction(account: @account, name: "Whole Foods extra #{index}", amount: 10) }
+    large = capture_sql_queries { Rule::ApplicationPreview.new(@family).changes }
+
+    assert_operator large.size, :<=, small.size + 1,
+      "preview queries grew with transaction count: #{small.size} -> #{large.size}"
+  end
+
   private
     def create_rule(name:, match:, actions:)
       @family.rules.create!(

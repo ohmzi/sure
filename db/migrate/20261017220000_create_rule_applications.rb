@@ -25,7 +25,7 @@ class CreateRuleApplications < ActiveRecord::Migration[8.1]
 
     add_index :rule_applications, [ :family_id, :batch_id ]
     add_index :rule_applications, [ :rule_id, :applied_at ]
-    add_index :rule_applications, :batch_id
     add_index :rule_applications, :undone_by_id
+    add_foreign_key :rule_applications, :users, column: :undone_by_id, on_delete: :nullify
   end
 end

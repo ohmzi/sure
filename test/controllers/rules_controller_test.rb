@@ -538,6 +538,22 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-testid='apply-all-preview']"
   end
 
+  test "confirm_all labels actions that will not be undone" do
+    @user.family.rules.create!(
+      name: "Move to savings",
+      resource_type: "transaction",
+      active: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "Coffee Shop") ],
+      actions: [ Rule::Action.new(action_type: "set_as_transfer_or_payment", value: accounts(:other_asset).id.to_s) ]
+    )
+    create_transaction(account: accounts(:depository), name: "Coffee Shop", amount: 10)
+
+    get confirm_all_rules_url
+
+    assert_response :success
+    assert_includes response.body, I18n.t("rules.apply_all.preview.not_undoable")
+  end
+
   test "rule page links to the last apply that can still be undone" do
     rule = rules(:one)
     application = RuleApplication.create!(

@@ -149,7 +149,7 @@ class Rule < ApplicationRecord
     has_async = false
 
     actions.each do |action|
-      excluded_ids = action.claimed_attributes.flat_map { |attribute| claimed_ids.fetch(attribute, []).to_a }.uniq
+      excluded_ids = Rule::ActionClaims.excluded_ids(action, claimed_ids)
       action_scope = Rule.excluding_transaction_ids(scope, excluded_ids)
       result = action.apply(action_scope, ignore_attribute_locks: ignore_attribute_locks, rule_run: rule_run)
 

@@ -92,7 +92,8 @@ en:
         uncategorized: Uncategorized
         included: Included
         excluded: Excluded
-        async_hint: The category will be chosen by AI
+        not_undoable: Will not be undone
+        async_hint: The category or merchant will be chosen by AI
       ai_cost_title: AI Cost Estimation
       ai_cost_message: This will use AI to categorize up to %{transactions} transactions.
       estimated_cost: "Estimated cost: ~$%{cost}"

@@ -5,6 +5,14 @@
 # attributes that actually changed after claimed ids, locks and no-ops are
 # taken into account. Queries are batched and preload the entry and tags, so a
 # rule matching many transactions does not produce an N+1 of its own.
+#
+# Attribution limit: the "to" value is read after the rule's writes. A different
+# writer that changes the same attribute in that window would be recorded as
+# this rule's value. Undo still re-checks the current value under a row lock, so
+# it never overwrites that writer's later edit, but it cannot tell that the
+# recorded "to" was not written by the rule. Apply-all and nightly runs are
+# serialized per family, so this needs an interleaving edit landing inside one
+# rule's own write/read window.
 class Rule::ApplicationRecorder
   ATTRIBUTES_BY_ACTION = {
     "set_transaction_category" => %w[category_id],

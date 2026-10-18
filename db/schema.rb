@@ -2365,7 +2365,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_220000) do
     t.uuid "undone_by_id"
     t.datetime "updated_at", null: false
     t.uuid "user_id"
-    t.index ["batch_id"], name: "index_rule_applications_on_batch_id"
     t.index ["family_id", "batch_id"], name: "index_rule_applications_on_family_id_and_batch_id"
     t.index ["family_id"], name: "index_rule_applications_on_family_id"
     t.index ["rule_id", "applied_at"], name: "index_rule_applications_on_rule_id_and_applied_at"
@@ -3239,6 +3238,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_220000) do
   add_foreign_key "rule_applications", "families", on_delete: :cascade
   add_foreign_key "rule_applications", "rule_runs", on_delete: :nullify
   add_foreign_key "rule_applications", "rules", on_delete: :cascade
+  add_foreign_key "rule_applications", "users", column: "undone_by_id", on_delete: :nullify
   add_foreign_key "rule_applications", "users", on_delete: :nullify
   add_foreign_key "rule_conditions", "rule_conditions", column: "parent_id"
   add_foreign_key "rule_conditions", "rules"

@@ -72,22 +72,8 @@ class Rule::Runner
     end
 
     def record_claims(rule, matched_ids)
-      rule.actions.each do |action|
-        reserved_attributes(action).each { |attribute| claimed_ids[attribute].merge(matched_ids) }
-      end
-
+      rule.actions.each { |action| Rule::ActionClaims.record(action, matched_ids, claimed_ids) }
       stopped_ids.merge(matched_ids) if rule.stop_processing?
-    end
-
-    # An action that cannot be resolved (e.g. an unknown action_type from an
-    # import) sets nothing, so it claims nothing and must not abort the run.
-    def reserved_attributes(action)
-      return [] unless action.reserves_claimed_attributes?
-
-      action.claimed_attributes
-    rescue => e
-      Rails.logger.error("Rule::Runner could not read claims of action #{action.id}: #{e.class}: #{e.message}")
-      []
     end
 
     def execute(rule, ignore_attribute_locks:)

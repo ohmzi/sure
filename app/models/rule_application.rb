@@ -35,17 +35,36 @@ class RuleApplication < ApplicationRecord
   # Undoes every rule application recorded in the batch, newest first so
   # additive changes (tags) unwind in the order they were applied.
   #
-  # Raises AlreadyUndone when the batch has nothing left to undo, which is what
-  # makes a second undo request a refusal rather than a silent no-op.
+  # The same family advisory key Rule::Runner uses is held for the whole batch,
+  # so an undo cannot interleave with an apply-all or nightly run. Raises
+  # AlreadyUndone when the batch has nothing left to undo, which is what makes a
+  # second undo request a refusal rather than a silent no-op.
   def self.undo_batch!(family:, batch_id:, actor: nil)
     applications = family.rule_applications.where(batch_id: batch_id).order(:created_at, :id).to_a
     raise ActiveRecord::RecordNotFound if applications.empty?
     raise AlreadyUndone if applications.all? { |application| application.undone_at.present? }
 
     transaction do
+      lock_family_rules(family)
+
       applications.reverse_each { |application| application.undo!(actor: actor) }
     end
   end
+
+  # Transaction-scoped form of the lock the runner takes, so it is released with
+  # the undo transaction even if the process dies mid-restore.
+  def self.lock_family_rules(family)
+    connection = ActiveRecord::Base.lease_connection
+    # execute rather than select_value: pg_advisory_xact_lock returns void, and
+    # asking AR to type-cast it logs an unknown-OID warning.
+    connection.execute(
+      ActiveRecord::Base.sanitize_sql_array([
+        "SELECT pg_advisory_xact_lock(?)",
+        Rule::Runner.advisory_lock_key(family.id)
+      ])
+    )
+  end
+  private_class_method :lock_family_rules
 
   # Restores the recorded prior values for this rule application. Returns false
   # when it was already undone.
@@ -55,13 +74,7 @@ class RuleApplication < ApplicationRecord
 
       skipped = []
       attribute_changes.each do |transaction_id, attributes|
-        transaction = family.transactions.includes(:entry, :tags).find_by(id: transaction_id)
-        if transaction.nil? || transaction.entry.nil? || edited_after_apply?(transaction, attributes)
-          skipped << transaction_id
-          next
-        end
-
-        restore!(transaction, attributes)
+        skipped << transaction_id unless restore_if_unchanged(transaction_id, attributes)
       end
 
       update!(
@@ -75,6 +88,26 @@ class RuleApplication < ApplicationRecord
   end
 
   private
+    # Locks the row before re-reading it. The check and the write are then one
+    # critical section: a user edit that lands in between either completes
+    # before the lock (and is seen by the check) or waits for the restore.
+    def restore_if_unchanged(transaction_id, attributes)
+      restored = false
+
+      self.class.transaction do
+        transaction = family.transactions.lock.includes(:entry).find_by(id: transaction_id)
+        next if transaction.nil? || transaction.entry.nil?
+
+        transaction.entry.lock!
+
+        unless edited_after_apply?(transaction, attributes)
+          restore!(transaction, attributes)
+          restored = true
+        end
+      end
+
+      restored
+    end
     # A row counts as edited when any attribute the rule changed no longer
     # holds the value the rule wrote. We skip the whole row rather than
     # restoring only the untouched attributes, so a partial undo never leaves a

@@ -109,4 +109,76 @@ class RuleApplicationTest < ActiveSupport::TestCase
     assert_equal "partially_undone", @application.status
     assert @application.undone_at.present?
   end
+
+  test "undo locks the transaction and entry rows before restoring" do
+    queries = capture_sql_queries do
+      RuleApplication.undo_batch!(family: @family, batch_id: @batch_id, actor: @user)
+    end
+
+    assert queries.any? { |sql| sql.match?(/SELECT .* FROM "transactions".*FOR UPDATE/i) },
+      "expected the transaction row to be locked"
+    assert queries.any? { |sql| sql.match?(/SELECT .* FROM "entries".*FOR UPDATE/i) },
+      "expected the entry row to be locked"
+  end
+
+  test "undoing one batch leaves another batch applied" do
+    other_entry = create_transaction(account: @account, name: "Corner Shop", amount: 20)
+    other_rule = @family.rules.create!(
+      name: "Dining",
+      resource_type: "transaction",
+      active: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "Corner Shop") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: @dining.id.to_s) ]
+    )
+    other_batch = SecureRandom.uuid
+    Rule::Runner.new(
+      @family,
+      rules: [ other_rule ],
+      execution_type: "manual",
+      application_batch_id: other_batch,
+      actor: @user
+    ).run
+
+    RuleApplication.undo_batch!(family: @family, batch_id: @batch_id, actor: @user)
+
+    assert_nil @transaction.reload.category_id
+    assert_equal @dining, other_entry.transaction.reload.category
+    other_application = RuleApplication.find_by!(batch_id: other_batch, rule: other_rule)
+    assert_nil other_application.undone_at
+  end
+
+  test "undo unwinds overlapping additive tags in reverse order" do
+    tag_a = @family.tags.create!(name: "Trips")
+    tag_b = @family.tags.create!(name: "Business")
+    entry = create_transaction(account: @account, name: "Tag Shop", amount: 5)
+    @family.rules.create!(
+      name: "Tag A",
+      resource_type: "transaction",
+      active: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "Tag Shop") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_tags", value: tag_a.id.to_s) ]
+    )
+    @family.rules.create!(
+      name: "Tag B",
+      resource_type: "transaction",
+      active: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "Tag Shop") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_tags", value: tag_b.id.to_s) ]
+    )
+    batch_id = SecureRandom.uuid
+
+    Rule::Runner.new(
+      @family,
+      rules: @family.rules,
+      execution_type: "manual",
+      application_batch_id: batch_id,
+      actor: @user
+    ).run
+
+    assert_equal [ tag_a.id, tag_b.id ].sort, entry.transaction.reload.tag_ids.sort
+
+    RuleApplication.undo_batch!(family: @family, batch_id: batch_id, actor: @user)
+
+    assert_empty entry.transaction.reload.tag_ids
+  end
 end
