@@ -19,22 +19,22 @@ class IncomeStatement::MerchantBreakdown
     totals = @statement.merchant_totals(category: @category, period: @period)
     direction = totals.sum { |total| total.total.to_d } >= 0 ? :spending : :income
     sign = direction == :spending ? 1 : -1
-    included = totals.select { |total| total.total.to_d * sign > 0 }
-    amount_total = included.sum { |total| total.total.to_d.abs }
+
+    # The SQL groups by the raw merchant/entry name; the normalizer folds the
+    # variants (AMZN Mktp, Amazon.ca, Amazon.ae) into one canonical merchant.
+    groups = totals.group_by { |total| Merchant::NameNormalizer.canonical_name(total.name) }
+    included = groups.filter_map do |canonical_name, group|
+      amount = group.sum { |total| total.total.to_d }
+      next if amount * sign <= 0
+
+      { name: canonical_name, amount: amount.abs, rows: group }
+    end
+    amount_total = included.sum { |group| group[:amount] }
     return empty_result if amount_total.zero?
 
-    rows = included.map do |total|
-      amount = total.total.to_d.abs
-      Row.new(
-        id: segment_id(total),
-        name: total.name,
-        merchant_id: total.merchant_id,
-        merchant_name: total.name,
-        logo_url: total.logo_url,
-        color: color_for(total),
-        amount: amount,
-        percentage: (amount / amount_total * 100).round(1)
-      )
+    merchants = canonical_merchants
+    rows = included.map do |group|
+      build_row(group, merchants[group[:name]], amount_total)
     end.sort_by { |row| -row.amount }
 
     Result.new(
@@ -56,16 +56,36 @@ class IncomeStatement::MerchantBreakdown
       )
     end
 
+    # FamilyMerchant wins over a provider merchant with the same name, so a
+    # canonicalized group uses the curated logo/colour.
+    def canonical_merchants
+      @statement.family.merchants.to_a
+                 .sort_by { |merchant| merchant.is_a?(FamilyMerchant) ? 1 : 0 }
+                 .index_by(&:name)
+    end
+
+    def build_row(group, merchant, amount_total)
+      amount = group[:amount]
+      source = group[:rows].find { |row| row.logo_url.present? } || group[:rows].first
+
+      Row.new(
+        id: segment_id(group[:name]),
+        name: group[:name],
+        merchant_id: merchant&.id,
+        merchant_name: group[:name],
+        logo_url: merchant&.logo_url.presence || source&.logo_url,
+        color: merchant&.color.presence || source&.color.presence || color_for(group[:name]),
+        amount: amount,
+        percentage: (amount / amount_total * 100).round(1)
+      )
+    end
+
     # A stable, DOM-safe id: the donut controller looks up `#segment_<id>`.
-    def segment_id(total)
-      "merchant-#{Digest::MD5.hexdigest(group_key(total))[0, 12]}"
+    def segment_id(name)
+      "merchant-#{Digest::MD5.hexdigest(name)[0, 12]}"
     end
 
-    def group_key(total)
-      total.merchant_id.presence || total.name
-    end
-
-    def color_for(total)
-      total.color.presence || FamilyMerchant::COLORS[Zlib.crc32(group_key(total)) % FamilyMerchant::COLORS.size]
+    def color_for(name)
+      FamilyMerchant::COLORS[Zlib.crc32(name) % FamilyMerchant::COLORS.size]
     end
 end

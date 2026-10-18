@@ -42,6 +42,18 @@ class IncomeStatement::MerchantBreakdownTest < ActiveSupport::TestCase
     assert_equal 100.0, result.rows.first.percentage
   end
 
+  test "merges similar merchant names into one canonical slice" do
+    transaction(amount: 100, name: "AMZN Mktp CA SAMPLE ON")
+    transaction(amount: 50, name: "Amazon.ca SAMPLE ON")
+    transaction(amount: 25, name: "THE HOME DEPOT #0000 SAMPLE ON")
+
+    result = breakdown
+
+    assert_equal [ "Amazon", "Home Depot" ], result.rows.map(&:name)
+    assert_equal [ 150.0, 25.0 ], result.rows.map { |row| row.amount.to_f }
+    assert_equal [ 85.7, 14.3 ], result.rows.map(&:percentage)
+  end
+
   test "a category with no merchant activity is empty" do
     result = breakdown
 
