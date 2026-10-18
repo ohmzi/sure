@@ -2,14 +2,17 @@
 fr:
   account_statements:
     account_tab:
-      coverage_description: Mois historiques soutenus par des relevés téléchargés
-        et des vérifications de solde.
+      coverage_description: Mois historiques soutenus par des relevés téléchargés et des vérifications de solde.
       coverage_range: "%{start} - %{end}"
       coverage_title: Couverture du relevé
       empty: Aucun relevé lié à ce compte pour l'instant.
-      open_inbox: Boîte de réception
       statements_title: Déclarations
       year_label: Année de couverture
+      filtered: Extraits de %{month} affichés
+      show_all: Afficher tous les mois
+      months_label: Couverture des relevés par mois
+      month_link: "%{month} : %{status}"
+      open_vault: Coffre-fort de relevés
     balance:
       unknown: Inconnu
     coverage:
@@ -24,8 +27,7 @@ fr:
       duplicates:
         one: 1 instruction en double a été ignorée.
         other: "%{count} instructions en double ont été ignorées."
-      invalid_file_type: Téléchargez une déclaration PDF, CSV ou XLSX en respectant
-        la taille limite.
+      invalid_file_type: Téléchargez une déclaration PDF, CSV ou XLSX en respectant la taille limite.
       no_files: Sélectionnez au moins un fichier de relevé.
       success:
         one: 1 déclaration téléchargée.
@@ -33,29 +35,37 @@ fr:
     destroy:
       failure: La déclaration n'a pas pu être supprimée.
       success: Déclaration supprimée.
+      document_blocked: Le document de ce relevé soutient encore des opérations non rapprochées (%{entries}). Rapprochez-les ou supprimez-les d'abord.
+      imported_rows:
+        one: Ce relevé a 1 ligne importée. Le supprimer orphelinerait l'import qui possède la ligne ; annulez ou supprimez d'abord l'import.
+        other: Ce relevé a %{count} lignes importées. Le supprimer orphelinerait l'import qui les possède ; annulez ou supprimez d'abord l'import.
+      pending_import: Ce relevé a un import. Supprimez ou annulez l'import avant de supprimer le relevé.
     form:
       account_upload: Télécharger la déclaration
       files_hint: PDF, CSV ou XLSX. %{max_size}Mo maximum par fichier.
       files_label: Fichiers de relevés
-      inbox_upload: Télécharger
-      period_hint: "Sure lit la période dans le PDF lorsqu’il l’indique, ou à partir d’une date dans le nom du fichier (p. ex. 2026-04). Vous pouvez aussi la saisir sur le relevé."
+      period_hint: Sure lit la période dans le PDF lorsqu’il l’indique, ou à partir d’une date dans le nom du fichier (p. ex. 2026-04). Vous pouvez aussi la saisir sur le relevé.
+      upload_title: Importer un relevé
     index:
       account_label: Compte
       confidence: "%{confidence} correspond"
       empty_linked: Aucune déclaration liée pour l'instant.
-      empty_unmatched: La boîte de réception des déclarations est vide.
+      empty_unmatched: Le coffre-fort de relevés est vide.
       leave_unmatched: Laisser non lié
       linked_title: Déclarations liées
       no_suggestion: Aucune suggestion
       storage_used: Stockage utilisé
       title: Coffre-fort de relevés
-      unmatched_title: Boîte de réception non liée
-      upload_description: Téléchargez des relevés dans la boîte de réception ou choisissez
-        un compte à associer immédiatement.
+      unmatched_title: Relevés non associés
+      upload_description: Importez des relevés dans le coffre-fort ou choisissez un compte pour les lier immédiatement.
       upload_title: Télécharger des relevés
     link:
       no_account: Choisissez un compte avant de lier ce relevé.
       success: Instruction liée à %{account}.
+      account_locked: Ce relevé ne peut plus être réaffecté ici.
+      imported:
+        one: Lié à %{account}. Sa transaction correspondait aux totaux du relevé, elle est donc ajoutée maintenant.
+        other: Lié à %{account}. Ses %{count} transactions correspondaient aux totaux du relevé, elles sont donc ajoutées maintenant.
     period:
       unknown: Période inconnue
     reconciliation:
@@ -67,6 +77,12 @@ fr:
       matched: Correspondant
       mismatched: Incompatibilité
       unavailable: Non vérifié
+      explanations:
+        closing_balance: Le relevé se termine à %{statement}, mais le grand livre de Sure se termine à %{ledger} (écart %{difference}).
+        opening_balance: Le relevé commence à %{statement}, mais le grand livre de Sure commence à %{ledger} (écart %{difference}).
+        period_movement: Le mouvement du relevé est de %{statement}, mais le grand livre de Sure a bougé de %{ledger} (écart %{difference}).
+        default: Le relevé indique %{statement}, mais le grand livre de Sure indique %{ledger} (écart %{difference}).
+      reviewed: Vérifié
     reject:
       success: Correspondance de déclaration rejetée.
     show:
@@ -89,9 +105,7 @@ fr:
       period_end_on: Fin de période
       period_start_on: Début de période
       reconciliation_title: Réconciliation
-      reconciliation_unavailable: Ajoutez une période de relevé et un solde d’ouverture
-        ou de clôture, puis assurez-vous que Sure dispose d’un historique de solde
-        pour ces dates.
+      reconciliation_unavailable: Ajoutez une période de relevé et un solde d’ouverture ou de clôture, puis assurez-vous que Sure dispose d’un historique de solde pour ces dates.
       reject: Rejeter
       save: Enregistrer l'instruction
       statement_amount: Déclaration
@@ -99,7 +113,19 @@ fr:
       title: Déclaration
       unknown_value: Inconnu
       unlink: Dissocier
-      unmatched_account: Compte non lié
+      unmatched_account: Aucun compte
+      activity: Activité
+      document_linked: Document archivé
+      imported_state:
+        one: 1 ligne importée
+        other: "%{count} lignes importées"
+      import_pending: Import en attente
+      overlap_message: Ce relevé chevauche %{statements} au-delà du jour limite partagé et les soldes imprimés diffèrent. Vérifiez les périodes et les soldes ; une copie est peut-être erronée.
+      overlap_title: Relevés qui se chevauchent avec des soldes différents
+      period_warning_title: La période semble incorrecte
+      mark_reviewed: Marquer comme vérifié
+      reviewed: Vérifié le %{date}
+      no_suggestion_description: Choisissez un compte ci-dessous, ou laissez le relevé non associé jusqu'à savoir auquel il appartient.
     status:
       linked: Lié
       rejected: Rejeté
@@ -118,6 +144,22 @@ fr:
       unlink: Dissocier
       view: Voir
     unlink:
-      success: La déclaration a été renvoyée dans la boîte de réception non liée.
+      success: Relevé renvoyé aux relevés non associés.
     update:
       success: Déclaration mise à jour.
+    assign_account:
+      label: Compte
+      placeholder: Choisir un compte
+      submit: Lier le compte
+      no_accounts: Aucun compte disponible pour le moment.
+    period_check:
+      title: La période semble incorrecte
+      sources:
+        printed: imprimée
+        recorded: enregistrée
+        filename: nom du fichier
+      message: La période enregistrée (%{actual}) ne correspond pas à la période %{source} (%{expected}). Vérifiez les dates du relevé.
+    review:
+      success: Relevé marqué comme vérifié.
+    type:
+      statement: Relevé

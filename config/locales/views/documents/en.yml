@@ -181,6 +181,7 @@ en:
         current: This document
         duplicate_copy: Duplicate copy
         open: Open
+        open_document: "Open %{title}"
         fix: Fix details
         delete: Delete
       # The unread state's two ways forward: let the app read it, or key it in

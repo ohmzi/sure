@@ -17,6 +17,9 @@ it:
       action_label_to: "%{label} a %{value}"
       all_past_and_future: Tutti i %{resource} passati e futuri
       on_or_after: "%{resource} dal %{date} in poi"
+      review: Esamina transazioni
+      stop_processing: Interrompi
+      stop_processing_hint: Le regole successive non modificano le transazioni corrispondenti a questa regola.
     form:
       rule_name_label: Nome regola (opzionale)
       rule_name_placeholder: Inserisci un nome per questa regola
@@ -26,6 +29,8 @@ it:
       all_past_and_future: Tutti i %{resource} passati e futuri
       starting_from: A partire da
       then: ALLORA
+      stop_processing_label: Interrompi l'elaborazione delle regole successive
+      stop_processing_description: Le regole successive nell'elenco non modificano le transazioni corrispondenti a questa regola.
     index:
       page_title: Regole
       delete_all_rules: Elimina tutte le regole
@@ -34,20 +39,26 @@ it:
       rules_heading: Regole
       no_rules_title: Nessuna regola ancora
       no_rules_description: Configura regole per eseguire azioni sulle tue transazioni e altri dati ad ogni sincronizzazione del conto.
+      order_hint: Le regole vengono eseguite dall'alto verso il basso. Quando una regola imposta un campo di una transazione, le regole successive non modificano quel campo. I tag vengono aggiunti da ogni regola corrispondente. Trascina le regole per cambiarne l'ordine.
+      reorder_rule: Sposta la regola %{name}. Premi Invio o Spazio per afferrarla, poi usa le frecce per spostarla.
     confirm:
       title: Conferma modifiche
-      title_with_name: "Conferma modifiche a \"%{name}\""
-      apply_notice_html: "Stai per applicare questa regola a <span class=\"text-primary font-medium\">%{count} %{resource}</span> che soddisfano i criteri specificati. Conferma se desideri procedere con questa modifica."
+      title_with_name: Conferma modifiche a "%{name}"
+      apply_notice_html: Stai per applicare questa regola a <span class="text-primary font-medium">%{count} %{resource}</span> che soddisfano i criteri specificati. Conferma se desideri procedere con questa modifica.
       ai_cost_title: Stima costo AI
-      ai_cost_with_estimate_html: "Verrà usata l'AI per categorizzare %{count} transazione/i. Costo stimato: <span class=\"font-semibold\">~$%{cost}</span>"
-      ai_cost_no_estimate_html: "Verrà usata l'AI per categorizzare %{count} transazione/i."
-      cost_unavailable_model: "Stima costo non disponibile per il modello \"%{model}\"."
+      ai_cost_with_estimate_html: 'Verrà usata l''AI per categorizzare %{count} transazione/i. Costo stimato: <span class="font-semibold">~$%{cost}</span>'
+      ai_cost_no_estimate_html: Verrà usata l'AI per categorizzare %{count} transazione/i.
+      cost_unavailable_model: Stima costo non disponibile per il modello "%{model}".
       cost_unavailable_no_provider: Stima costo non disponibile (nessun provider LLM configurato).
       cost_warning: Potrebbero verificarsi dei costi, consulta il provider del modello per i prezzi più aggiornati.
       view_usage_history: Vedi cronologia utilizzo
       confirm_changes: Conferma modifiche
+      rules_above_notice:
+        one: La regola attiva sopra viene eseguita per prima, quindi il risultato è lo stesso dell'esecuzione completa.
+        other: Le %{count} regole attive sopra vengono eseguite per prime, quindi il risultato è lo stesso dell'esecuzione completa.
     actions:
       value_placeholder: Inserisci un valore
+      to_label: a
     update:
       success: Regola aggiornata
     destroy:
@@ -62,11 +73,23 @@ it:
       success: Tutte le regole sono state messe in coda per l'esecuzione
       ai_cost_title: Stima costo AI
       ai_cost_message: Verrà usata l'AI per categorizzare fino a %{transactions} transazioni.
-      estimated_cost: "Costo stimato: ~$%{cost}"
+      estimated_cost: 'Costo stimato: ~$%{cost}'
       cost_unavailable_model: Stima costo non disponibile per il modello "%{model}".
       cost_unavailable_no_provider: Stima costo non disponibile (nessun provider LLM configurato).
       cost_warning: Potrebbero verificarsi dei costi, consulta il provider del modello per i prezzi più aggiornati.
       view_usage: Vedi cronologia utilizzo
+      preview:
+        title: Cosa cambierà
+        description: Vengono contate solo le transazioni i cui valori cambiano davvero.
+        transactions:
+          one: "%{count} transazione"
+          other: "%{count} transazioni"
+        none: Nessuna
+        uncategorized: Non categorizzate
+        included: Incluse
+        excluded: Escluse
+        not_undoable: Non verrà annullato
+        async_hint: La categoria o l'esercente sarà scelto dall'IA
     recent_runs:
       title: Esecuzioni recenti
       description: Visualizza la cronologia di esecuzione delle tue regole incluso lo stato di successo/errore e i conteggi delle transazioni.
@@ -100,6 +123,59 @@ it:
         expense: Spesa
         transfer: Bonifico
         equal_to: Uguale a
+      operators:
+        matches_regex: Corrisponde (regex)
+        does_not_match_regex: Non corrisponde (regex)
+    category_rule_cta:
+      close: Chiudi
+      create_rule: Crea regola
+      apply_to_similar:
+        one: Applica a 1 transazione simile
+        other: Applica a %{count} transazioni simili
+      description: Applicala ora alle transazioni non categorizzate simili oppure crea una regola per quelle future
+      dont_show_again: Non mostrare più
+      hide_for_today: Nascondi per oggi
+      hide_for_today_hint: "«Nascondi per oggi» sospende questi suggerimenti per 24 ore."
+      message: Aggiornato a %{category_name}
+    applications:
+      title: Applicazioni recenti
+      description: Esecuzioni di «Applica tutto» che puoi ancora annullare. Annulla ripristina i valori che ogni transazione aveva prima dell'esecuzione.
+      summary:
+        one: "%{time} · %{count} transazione"
+        other: "%{time} · %{count} transazioni"
+      undo: Annulla
+      undo_success: L'esecuzione della regola è stata annullata
+      already_undone: Questa esecuzione della regola è già stata annullata
+      undo_confirm_title: Annullare questa esecuzione della regola?
+      undo_confirm_body: Questo ripristina i valori che le transazioni interessate avevano prima dell'esecuzione. Le transazioni modificate da allora restano invariate.
+      undo_confirm_button: Annulla esecuzione
+    show:
+      conditions: Condizioni
+      matched:
+        one: 1 transazione corrispondente
+        other: "%{count} transazioni corrispondenti"
+      conflict_warning: 'Le regole sopra vengono eseguite per prime e possono rivendicare alcune corrispondenze: %{names}.'
+      edit: Modifica regola
+      apply: Applica
+      rule_category: Categoria assegnata da questa regola
+      apply_now: Aggiorna ora anche le transazioni corrispondenti
+      update_rule: Aggiorna regola
+      transactions: Transazioni corrispondenti
+      select_hint: Deseleziona le righe che non vuoi modificare.
+      uncategorized: Non categorizzate
+      new_category: Nuova categoria per la selezione
+      also_update_rule: Rendila anche la categoria della regola
+      update_selected: Aggiorna selezione
+      no_transactions: Al momento questa regola non corrisponde a nessuna transazione.
+      undo_available_title: Questa regola è stata applicata
+      undo_available_body: Annulla l'ultima esecuzione per ripristinare i valori che le sue transazioni avevano prima. Le transazioni modificate da allora restano invariate.
+      undo_last_run: Annulla ultima esecuzione
+    update_category:
+      success: Categoria della regola aggiornata
+    update_transactions:
+      updated:
+        one: 1 transazione categorizzata
+        other: "%{count} transazioni categorizzate"
   rule:
     conditions:
       condition_group:

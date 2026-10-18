@@ -58,6 +58,19 @@ zh-CN:
         based_on_requests: 基于 %{with_cost} / %{total} 个带费用数据的请求
         cost_by_operation: 按操作统计费用
         cost_by_model: 按模型统计费用
+        categorization_quality: "分类质量"
+        categorization_quality_source: "此家庭的最新评估：%{model} · %{completed_at}"
+        categorization_accuracy: "准确率"
+        categorization_accuracy_description: "最新评估中有 %{count} 个样本"
+        categorization_accuracy_errored: "%{total} 个样本中有 %{errored} 个出错；未测量准确率"
+        categorization_not_reported: "未报告"
+        categorization_abstention: "弃权率"
+        categorization_abstention_description: "可用但未返回类别的回答"
+        categorization_by_category: "按类别统计的准确率"
+        categorization_category_null: "无类别"
+        categorization_category_detail: "%{total} 个中正确 %{correct} 个"
+        categorization_quality_empty_title: "尚无分类评估"
+        categorization_quality_empty_description: "管理员从命令行对此家庭导出的交易历史运行分类评估。"
         recent_usage: 最近用量
         col_date: 日期
         col_operation: 操作

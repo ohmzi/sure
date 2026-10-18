@@ -2,14 +2,17 @@
 tr:
   account_statements:
     account_tab:
-      coverage_description: Yüklenen ekstreler ve bakiye kontrolleriyle desteklenen
-        geçmiş aylar.
+      coverage_description: Yüklenen ekstreler ve bakiye kontrolleriyle desteklenen geçmiş aylar.
       coverage_range: "%{start} - %{end}"
       coverage_title: Ekstre kapsamı
       empty: Bu hesaba henüz bağlı ekstre yok.
-      open_inbox: Gelen kutusu
       statements_title: Ekstreler
       year_label: Kapsam yılı
+      filtered: "%{month} ekstreleri gösteriliyor"
+      show_all: Tüm ayları göster
+      months_label: Aylara göre ekstre kapsamı
+      month_link: "%{month}: %{status}"
+      open_vault: Ekstre kasası
     balance:
       unknown: Bilinmiyor
     coverage:
@@ -32,29 +35,37 @@ tr:
     destroy:
       failure: Ekstre silinemedi.
       success: Ekstre silindi.
+      document_blocked: Bu ekstrenin belgesi hâlâ mutabakatı yapılmamış işlemleri (%{entries}) destekliyor. Önce onları mutabık kılın veya silin.
+      imported_rows:
+        one: Bu ekstrede 1 içe aktarılmış satır var. Ekstreyi silerseniz satırın ait olduğu içe aktarma sahipsiz kalır; önce içe aktarmayı geri alın veya silin.
+        other: Bu ekstrede %{count} içe aktarılmış satır var. Ekstreyi silerseniz satırların ait olduğu içe aktarma sahipsiz kalır; önce içe aktarmayı geri alın veya silin.
+      pending_import: Bu ekstrede bir içe aktarma var. Ekstreyi silmeden önce içe aktarmayı silin veya geri alın.
     form:
       account_upload: Ekstre yükle
       files_hint: PDF, CSV veya XLSX. Dosya başına en fazla %{max_size}MB.
       files_label: Ekstre dosyaları
-      inbox_upload: Yükle
-      period_hint: "Sure dönemi, belirtilmişse PDF’ten veya dosya adındaki bir tarihten (ör. 2026-04) okur. Dönemi ekstre üzerinde de ayarlayabilirsiniz."
+      period_hint: Sure dönemi, belirtilmişse PDF’ten veya dosya adındaki bir tarihten (ör. 2026-04) okur. Dönemi ekstre üzerinde de ayarlayabilirsiniz.
+      upload_title: Ekstre yükle
     index:
       account_label: Hesap
       confidence: "%{confidence} eşleşme"
       empty_linked: Henüz bağlı ekstre yok.
-      empty_unmatched: Ekstre gelen kutusu temiz.
+      empty_unmatched: Ekstre kasası boş.
       leave_unmatched: Eşleşmemiş bırak
       linked_title: Bağlı ekstreler
       no_suggestion: Öneri yok
       storage_used: Kullanılan depolama
       title: Ekstre Kasası
-      unmatched_title: Eşleşmemiş gelen kutusu
-      upload_description: Ekstreleri gelen kutusuna yükleyin veya hemen bağlamak için
-        bir hesap seçin.
+      unmatched_title: Eşleşmemiş ekstreler
+      upload_description: Ekstreleri kasaya yükleyin veya hemen bağlamak için bir hesap seçin.
       upload_title: Ekstreleri yükle
     link:
       no_account: Bu ekstreyi bağlamadan önce bir hesap seçin.
       success: Ekstre %{account} hesabına bağlandı.
+      account_locked: Bu ekstre artık burada yeniden atanamaz.
+      imported:
+        one: "%{account} hesabına bağlandı. İşlemi ekstre toplamlarıyla eşleştiği için şimdi ekleniyor."
+        other: "%{account} hesabına bağlandı. %{count} işlemi ekstre toplamlarıyla eşleştiği için şimdi ekleniyor."
     period:
       unknown: Dönem bilinmiyor
     reconciliation:
@@ -66,6 +77,12 @@ tr:
       matched: Eşleşti
       mismatched: Uyuşmuyor
       unavailable: Kontrol edilmedi
+      explanations:
+        closing_balance: Ekstre %{statement} değerinde kapanıyor, ancak Sure defteri %{ledger} değerinde kapanıyor (fark %{difference}).
+        opening_balance: Ekstre %{statement} değerinde açılıyor, ancak Sure defteri %{ledger} değerinde açılıyor (fark %{difference}).
+        period_movement: Ekstrenin hareketi %{statement}, ancak Sure defteri %{ledger} kadar hareket etti (fark %{difference}).
+        default: Ekstre %{statement} diyor, ancak Sure defteri %{ledger} diyor (fark %{difference}).
+      reviewed: İncelendi
     reject:
       success: Ekstre eşleşmesi reddedildi.
     show:
@@ -88,9 +105,7 @@ tr:
       period_end_on: Dönem bitişi
       period_start_on: Dönem başlangıcı
       reconciliation_title: Mutabakat
-      reconciliation_unavailable: Bir ekstre dönemi ile açılış veya kapanış bakiyesi
-        ekleyin, ardından Sure'un bu tarihler için bakiye geçmişine sahip olduğundan
-        emin olun.
+      reconciliation_unavailable: Bir ekstre dönemi ile açılış veya kapanış bakiyesi ekleyin, ardından Sure'un bu tarihler için bakiye geçmişine sahip olduğundan emin olun.
       reject: Reddet
       save: Ekstreyi kaydet
       statement_amount: Ekstre
@@ -98,7 +113,19 @@ tr:
       title: Ekstre
       unknown_value: Bilinmiyor
       unlink: Bağlantıyı kaldır
-      unmatched_account: Eşleşmemiş gelen kutusu
+      unmatched_account: Hesap yok
+      activity: Etkinlik
+      document_linked: Arşivlenmiş belge
+      imported_state:
+        one: 1 içe aktarılmış satır
+        other: "%{count} içe aktarılmış satır"
+      import_pending: İçe aktarma bekliyor
+      overlap_message: Bu ekstre %{statements} ile paylaşılan sınır gününden fazla çakışıyor ve basılı bakiyeler uyuşmuyor. Dönemleri ve bakiyeleri kontrol edin; bir kopya yanlış olabilir.
+      overlap_title: Farklı bakiyelerle çakışan ekstre
+      period_warning_title: Dönem yanlış görünüyor
+      mark_reviewed: İncelendi olarak işaretle
+      reviewed: "%{date} tarihinde incelendi"
+      no_suggestion_description: Aşağıdan bir hesap seçin veya hangisine ait olduğunu öğrenene kadar ekstreyi atanmamış bırakın.
     status:
       linked: Bağlı
       rejected: Reddedildi
@@ -117,6 +144,22 @@ tr:
       unlink: Bağlantıyı kaldır
       view: Görüntüle
     unlink:
-      success: Ekstre eşleşmemiş gelen kutusuna geri taşındı.
+      success: Ekstre eşleşmemiş ekstrelere geri taşındı.
     update:
       success: Ekstre güncellendi.
+    assign_account:
+      label: Hesap
+      placeholder: Bir hesap seçin
+      submit: Hesabı bağla
+      no_accounts: Henüz bağlanacak hesap yok.
+    period_check:
+      title: Dönem yanlış görünüyor
+      sources:
+        printed: basılı
+        recorded: kayıtlı
+        filename: dosya adı
+      message: Kayıtlı dönem (%{actual}) %{source} dönemiyle (%{expected}) eşleşmiyor. Ekstrenin tarihlerini kontrol edin.
+    review:
+      success: Ekstre incelendi olarak işaretlendi.
+    type:
+      statement: Ekstre

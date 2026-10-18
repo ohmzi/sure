@@ -36,6 +36,13 @@ class DocumentBrowserComponent < ApplicationComponent
     filters.values.any?(&:present?)
   end
 
+  # The duplicate review is a review that empties itself: once every group is
+  # reduced to one document, the filtered page has no rows and should say so
+  # rather than showing the generic "nothing matches" state.
+  def duplicates_filter?
+    filters[:duplicates].present?
+  end
+
   # The chips and the badge count (the Documents redesign). Amounts read in the
   # family's own currency.
   def active_filter_chips

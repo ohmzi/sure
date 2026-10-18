@@ -2,14 +2,17 @@
 pl:
   account_statements:
     account_tab:
-      coverage_description: Historyczne miesiące poparte przesłanymi wyciągami i uzgodnieniami
-        sald.
+      coverage_description: Historyczne miesiące poparte przesłanymi wyciągami i uzgodnieniami sald.
       coverage_range: "%{start} - %{end}"
       coverage_title: Pokrycie wyciągami
       empty: Brak wyciągów powiązanych z tym kontem.
-      open_inbox: Skrzynka odbiorcza
       statements_title: Wyciągi
       year_label: Rok pokrycia
+      filtered: Wyświetlanie wyciągów za %{month}
+      show_all: Pokaż wszystkie miesiące
+      months_label: Pokrycie wyciągów według miesiąca
+      month_link: "%{month}: %{status}"
+      open_vault: Magazyn wyciągów
     balance:
       unknown: Nieznane
     coverage:
@@ -26,8 +29,7 @@ pl:
         many: Pominięto %{count} duplikatów wyciągów.
         one: Pominięto 1 duplikat wyciągu.
         other: Pominięto %{count} duplikatów wyciągów.
-      invalid_file_type: Prześlij wyciąg w formacie PDF, CSV lub XLSX poniżej limitu
-        rozmiaru.
+      invalid_file_type: Prześlij wyciąg w formacie PDF, CSV lub XLSX poniżej limitu rozmiaru.
       no_files: Wybierz co najmniej jeden plik wyciągu.
       success:
         few: Przesłano %{count} wyciągi.
@@ -37,29 +39,37 @@ pl:
     destroy:
       failure: Nie można usunąć wyciągu.
       success: Wyciąg usunięty.
+      document_blocked: Dokument tego wyciągu nadal potwierdza nieuzgodnione operacje (%{entries}). Najpierw je uzgodnij lub usuń.
+      imported_rows:
+        one: Ten wyciąg ma 1 zaimportowany wiersz. Usunięcie go osieroci import, do którego należy wiersz; najpierw cofnij lub usuń import.
+        other: Ten wyciąg ma %{count} zaimportowanych wierszy. Usunięcie go osieroci import, do którego należą; najpierw cofnij lub usuń import.
+      pending_import: Ten wyciąg ma import. Usuń lub cofnij import, zanim usuniesz wyciąg.
     form:
       account_upload: Prześlij wyciąg
       files_hint: PDF, CSV lub XLSX. Maks. %{max_size} MB na plik.
       files_label: Pliki wyciągów
-      inbox_upload: Prześlij
-      period_hint: "Sure odczytuje okres z pliku PDF, jeśli jest w nim podany, lub z daty w nazwie pliku (np. 2026-04). Możesz go też ustawić na wyciągu."
+      period_hint: Sure odczytuje okres z pliku PDF, jeśli jest w nim podany, lub z daty w nazwie pliku (np. 2026-04). Możesz go też ustawić na wyciągu.
+      upload_title: Prześlij wyciąg
     index:
       account_label: Konto
       confidence: Zgodność %{confidence}
       empty_linked: Brak powiązanych wyciągów.
-      empty_unmatched: Skrzynka odbiorcza wyciągów jest pusta.
+      empty_unmatched: Magazyn wyciągów jest pusty.
       leave_unmatched: Pozostaw niedopasowane
       linked_title: Powiązane wyciągi
       no_suggestion: Brak sugestii
       storage_used: Użyte miejsce
       title: Magazyn wyciągów
-      unmatched_title: Niedopasowane
-      upload_description: Prześlij wyciągi do skrzynki odbiorczej lub wybierz konto,
-        aby natychmiast powiązać.
+      unmatched_title: Nieprzypisane wyciągi
+      upload_description: Prześlij wyciągi do magazynu lub wybierz konto, aby powiązać je od razu.
       upload_title: Prześlij wyciągi
     link:
       no_account: Wybierz konto przed powiązaniem tego wyciągu.
       success: Powiązano wyciąg z %{account}.
+      account_locked: Tego wyciągu nie można już tutaj przypisać ponownie.
+      imported:
+        one: Powiązano z %{account}. Jej transakcja zgadzała się z sumami wyciągu, więc jest teraz dodawana.
+        other: Powiązano z %{account}. Jej %{count} transakcji zgadzało się z sumami wyciągu, więc są teraz dodawane.
     period:
       unknown: Nieznany okres
     reconciliation:
@@ -71,6 +81,12 @@ pl:
       matched: Zgodne
       mismatched: Niezgodne
       unavailable: Niesprawdzone
+      explanations:
+        closing_balance: Wyciąg kończy się na %{statement}, ale księga Sure kończy się na %{ledger} (różnica %{difference}).
+        opening_balance: Wyciąg zaczyna się na %{statement}, ale księga Sure zaczyna się na %{ledger} (różnica %{difference}).
+        period_movement: Obrót wyciągu wynosi %{statement}, ale księga Sure zmieniła się o %{ledger} (różnica %{difference}).
+        default: Wyciąg podaje %{statement}, ale księga Sure podaje %{ledger} (różnica %{difference}).
+      reviewed: Sprawdzono
     reject:
       success: Odrzucono dopasowanie wyciągu.
     show:
@@ -93,8 +109,7 @@ pl:
       period_end_on: Koniec okresu
       period_start_on: Początek okresu
       reconciliation_title: Uzgodnienie
-      reconciliation_unavailable: Dodaj okres wyciągu oraz saldo początkowe lub końcowe,
-        a następnie upewnij się, że Sure ma historię sald dla tych dat.
+      reconciliation_unavailable: Dodaj okres wyciągu oraz saldo początkowe lub końcowe, a następnie upewnij się, że Sure ma historię sald dla tych dat.
       reject: Odrzuć
       save: Zapisz wyciąg
       statement_amount: Wyciąg
@@ -102,7 +117,19 @@ pl:
       title: Wyciąg
       unknown_value: Nieznane
       unlink: Odłącz
-      unmatched_account: Niedopasowane
+      unmatched_account: Brak konta
+      activity: Aktywność
+      document_linked: Zarchiwizowany dokument
+      imported_state:
+        one: 1 zaimportowany wiersz
+        other: "%{count} zaimportowanych wierszy"
+      import_pending: Import oczekuje
+      overlap_message: Ten wyciąg nakłada się na %{statements} bardziej niż na wspólny dzień graniczny, a wydrukowane salda się różnią. Sprawdź okresy i salda; jedna kopia może być błędna.
+      overlap_title: Nakładające się wyciągi z różnymi saldami
+      period_warning_title: Okres wygląda na błędny
+      mark_reviewed: Oznacz jako sprawdzony
+      reviewed: Sprawdzono %{date}
+      no_suggestion_description: Wybierz konto poniżej lub pozostaw wyciąg nieprzypisany, dopóki nie dowiesz się, do którego należy.
     status:
       linked: Powiązany
       rejected: Odrzucony
@@ -121,6 +148,22 @@ pl:
       unlink: Odłącz
       view: Podgląd
     unlink:
-      success: Wyciąg przeniesiono z powrotem do skrzynki odbiorczej.
+      success: Wyciąg przeniesiony z powrotem do nieprzypisanych.
     update:
       success: Wyciąg zaktualizowany.
+    assign_account:
+      label: Konto
+      placeholder: Wybierz konto
+      submit: Powiąż konto
+      no_accounts: Brak kont dostępnych do powiązania.
+    period_check:
+      title: Okres wygląda na błędny
+      sources:
+        printed: wydrukowanym
+        recorded: zapisanym
+        filename: nazwie pliku
+      message: Zapisany okres (%{actual}) nie zgadza się z okresem z %{source} (%{expected}). Sprawdź daty wyciągu.
+    review:
+      success: Wyciąg oznaczono jako sprawdzony.
+    type:
+      statement: Wyciąg

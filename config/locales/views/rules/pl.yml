@@ -16,27 +16,33 @@ pl:
       to_label: na
       value_placeholder: Wprowadź wartość
     apply_all:
-      ai_cost_message: 'Maksymalna liczba transakcji do skategoryzowania przez AI:
-        %{transactions}.'
+      ai_cost_message: 'Maksymalna liczba transakcji do skategoryzowania przez AI: %{transactions}.'
       ai_cost_title: Szacowanie kosztu AI
       button: Zastosuj wszystkie
       confirm_button: Potwierdź i zastosuj wszystkie
-      confirm_message: 'Liczba reguł do zastosowania: %{count}. Liczba unikalnych
-        transakcji, na które wpłyną: %{transactions}. Potwierdź, jeśli chcesz kontynuować.'
+      confirm_message: 'Liczba reguł do zastosowania: %{count}. Liczba unikalnych transakcji, na które wpłyną: %{transactions}. Potwierdź, jeśli chcesz kontynuować.'
       confirm_title: Zastosować wszystkie reguły
       cost_unavailable_model: Szacowanie kosztu niedostępne dla modelu "%{model}".
-      cost_unavailable_no_provider: Szacowanie kosztu niedostępne (brak skonfigurowanego
-        dostawcy LLM).
-      cost_warning: Mogą zostać naliczone koszty, sprawdź u dostawcy modelu aktualny
-        cennik.
+      cost_unavailable_no_provider: Szacowanie kosztu niedostępne (brak skonfigurowanego dostawcy LLM).
+      cost_warning: Mogą zostać naliczone koszty, sprawdź u dostawcy modelu aktualny cennik.
       estimated_cost: 'Szacowany koszt: ~$%{cost}'
       success: Wszystkie reguły zostały dodane do kolejki wykonania
       view_usage: Zobacz historię użycia
+      preview:
+        title: Co się zmieni
+        description: Liczone są tylko transakcje, których wartości rzeczywiście się zmieniają.
+        transactions:
+          one: "%{count} transakcja"
+          other: "%{count} transakcji"
+        none: Brak
+        uncategorized: Nieskategoryzowane
+        included: Uwzględnione
+        excluded: Wykluczone
+        not_undoable: Nie zostanie cofnięte
+        async_hint: Kategorię lub sprzedawcę wybierze AI
     clear_ai_cache:
       button: Zresetuj cache AI
-      confirm_body: Czy na pewno chcesz zresetować cache AI? Umożliwi to regułom AI
-        ponowne przetworzenie wszystkich transakcji. Może to wygenerować dodatkowe
-        koszty API.
+      confirm_body: Czy na pewno chcesz zresetować cache AI? Umożliwi to regułom AI ponowne przetworzenie wszystkich transakcji. Może to wygenerować dodatkowe koszty API.
       confirm_button: Zresetuj cache
       confirm_title: Zresetować cache AI?
       success: Trwa czyszczenie cache AI. To może potrwać chwilę.
@@ -53,6 +59,8 @@ pl:
         less_than: Mniejsze niż
         less_than_or_equal_to: Mniejsze lub równe
         not_equal_to: Różne od
+        matches_regex: Pasuje (regex)
+        does_not_match_regex: Nie pasuje (regex)
       transaction_type:
         equal_to: Równe
         expense: Wydatek
@@ -61,19 +69,18 @@ pl:
     confirm:
       ai_cost_no_estimate_html: 'Liczba transakcji do skategoryzowania przez AI: %{count}.'
       ai_cost_title: Szacowany koszt AI
-      ai_cost_with_estimate_html: 'Liczba transakcji do skategoryzowania przez AI:
-        %{count}. Szacowany koszt: <span class="font-semibold">~$%{cost}</span>'
-      apply_notice_html: Zaraz zastosujesz tę regułę do <span class="text-primary
-        font-medium">%{count} %{resource}</span> spełniających podane kryteria reguły.
-        Potwierdź, jeśli chcesz kontynuować tę zmianę.
+      ai_cost_with_estimate_html: 'Liczba transakcji do skategoryzowania przez AI: %{count}. Szacowany koszt: <span class="font-semibold">~$%{cost}</span>'
+      apply_notice_html: Zaraz zastosujesz tę regułę do <span class="text-primary font-medium">%{count} %{resource}</span> spełniających podane kryteria reguły. Potwierdź, jeśli chcesz kontynuować tę zmianę.
       confirm_changes: Potwierdź zmiany
       cost_unavailable_model: Szacowanie kosztu niedostępne dla modelu "%{model}".
-      cost_unavailable_no_provider: Szacowanie kosztu niedostępne (nie skonfigurowano
-        dostawcy LLM).
+      cost_unavailable_no_provider: Szacowanie kosztu niedostępne (nie skonfigurowano dostawcy LLM).
       cost_warning: Mogą wystąpić koszty. Sprawdź aktualny cennik u dostawcy modelu.
       title: Potwierdź zmiany
       title_with_name: Potwierdź zmiany w "%{name}"
       view_usage_history: Zobacz historię użycia
+      rules_above_notice:
+        one: Aktywna reguła powyżej działa pierwsza, więc wynik jest taki sam jak w pełnym uruchomieniu.
+        other: Aktywne reguły powyżej (%{count}) działają pierwsze, więc wynik jest taki sam jak w pełnym uruchomieniu.
     destroy:
       success: Reguła usunięta
     destroy_all:
@@ -87,16 +94,18 @@ pl:
       rule_name_placeholder: Wpisz nazwę tej reguły
       starting_from: Od
       then: WTEDY
+      stop_processing_label: Zatrzymaj przetwarzanie kolejnych reguł
+      stop_processing_description: Reguły poniżej na liście nie zmieniają transakcji pasujących do tej reguły.
     index:
-      ai_cost_warning: Akcje reguł z AI generują koszty. Filtruj jak najwęziej, żeby
-        uniknąć zbędnych wydatków.
+      ai_cost_warning: Akcje reguł z AI generują koszty. Filtruj jak najwęziej, żeby uniknąć zbędnych wydatków.
       delete_all_rules: Usuń wszystkie reguły
       new_rule: Nowa reguła
-      no_rules_description: Skonfiguruj reguły, żeby automatycznie wykonywać akcje
-        na transakcjach i innych danych przy każdej synchronizacji konta.
+      no_rules_description: Skonfiguruj reguły, żeby automatycznie wykonywać akcje na transakcjach i innych danych przy każdej synchronizacji konta.
       no_rules_title: Brak reguł
       page_title: Reguły
       rules_heading: Reguły
+      order_hint: Reguły działają z góry na dół. Gdy reguła ustawi pole transakcji, reguły poniżej nie zmieniają tego pola. Tagi dodaje każda pasująca reguła. Przeciągaj reguły, aby zmienić kolejność.
+      reorder_rule: Przenieś regułę %{name}. Naciśnij Enter lub Spację, aby ją uchwycić, a następnie użyj strzałek, aby ją przenieść.
     no_action: Brak akcji
     no_condition: Brak warunku
     recent_runs:
@@ -110,8 +119,7 @@ pl:
           modified: Zmodyfikowane
           processed: Przetworzone
           queued: W kolejce
-      description: Zobacz historię wykonania reguł, w tym status powodzenia/niepowodzenia
-        oraz liczbę transakcji.
+      description: Zobacz historię wykonania reguł, w tym status powodzenia/niepowodzenia oraz liczbę transakcji.
       execution_types:
         manual: Ręczne
         scheduled: Zaplanowane
@@ -139,5 +147,58 @@ pl:
       on_or_after: "%{resource} w dniu %{date} lub później"
       re_apply_rule: Zastosuj regułę ponownie
       then: WTEDY
+      review: Przejrzyj transakcje
+      stop_processing: Zatrzymaj
+      stop_processing_hint: Reguły poniżej nie zmieniają transakcji pasujących do tej reguły.
     update:
       success: Reguła zaktualizowana
+    category_rule_cta:
+      close: Zamknij
+      create_rule: Utwórz regułę
+      apply_to_similar:
+        one: Zastosuj do 1 podobnej transakcji
+        other: Zastosuj do %{count} podobnych transakcji
+      description: Zastosuj ją teraz do podobnych nieskategoryzowanych transakcji lub utwórz regułę na przyszłość
+      dont_show_again: Nie pokazuj ponownie
+      hide_for_today: Ukryj na dziś
+      hide_for_today_hint: "„Ukryj na dziś” wstrzymuje te sugestie na 24 godziny."
+      message: Zaktualizowano na %{category_name}
+    applications:
+      title: Ostatnie zastosowania
+      description: Uruchomienia „Zastosuj wszystko”, które nadal możesz cofnąć. Cofnięcie przywraca wartości, jakie każda transakcja miała przed uruchomieniem.
+      summary:
+        one: "%{time} · %{count} transakcja"
+        other: "%{time} · %{count} transakcji"
+      undo: Cofnij
+      undo_success: Uruchomienie reguły zostało cofnięte
+      already_undone: To uruchomienie reguły zostało już cofnięte
+      undo_confirm_title: Cofnąć to uruchomienie reguły?
+      undo_confirm_body: Spowoduje to przywrócenie wartości, jakie miały objęte transakcje przed uruchomieniem. Transakcje edytowane od tego czasu pozostaną bez zmian.
+      undo_confirm_button: Cofnij uruchomienie
+    show:
+      conditions: Warunki
+      matched:
+        one: 1 pasująca transakcja
+        other: "%{count} pasujących transakcji"
+      conflict_warning: 'Reguły powyżej działają pierwsze i mogą przejąć niektóre dopasowania: %{names}.'
+      edit: Edytuj regułę
+      apply: Zastosuj
+      rule_category: Kategoria przypisywana przez tę regułę
+      apply_now: Zaktualizuj też teraz pasujące transakcje
+      update_rule: Zaktualizuj regułę
+      transactions: Pasujące transakcje
+      select_hint: Odznacz wiersze, których nie chcesz zmieniać.
+      uncategorized: Nieskategoryzowane
+      new_category: Nowa kategoria dla zaznaczenia
+      also_update_rule: Ustaw to także jako kategorię reguły
+      update_selected: Zaktualizuj zaznaczenie
+      no_transactions: Ta reguła nie pasuje teraz do żadnej transakcji.
+      undo_available_title: Ta reguła została zastosowana
+      undo_available_body: Cofnij ostatnie uruchomienie, aby przywrócić wartości, jakie miały jego transakcje wcześniej. Transakcje edytowane od tego czasu pozostaną bez zmian.
+      undo_last_run: Cofnij ostatnie uruchomienie
+    update_category:
+      success: Kategoria reguły zaktualizowana
+    update_transactions:
+      updated:
+        one: 1 transakcja skategoryzowana
+        other: "%{count} transakcji skategoryzowanych"

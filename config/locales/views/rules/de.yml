@@ -5,6 +5,7 @@ de:
     no_condition: Keine Bedingung
     actions:
       value_placeholder: Wert eingeben
+      to_label: zu
     apply_all:
       button: Alle anwenden
       confirm_title: Alle Regeln anwenden
@@ -13,11 +14,23 @@ de:
       success: Alle Regeln wurden zur Ausführung in die Warteschlange gestellt
       ai_cost_title: KI-Kostenschätzung
       ai_cost_message: Dies verwendet KI, um bis zu %{transactions} Transaktionen zu kategorisieren.
-      estimated_cost: "Geschätzte Kosten: ca. %{cost} $"
+      estimated_cost: 'Geschätzte Kosten: ca. %{cost} $'
       cost_unavailable_model: Kostenschätzung für Modell „%{model}“ nicht verfügbar.
       cost_unavailable_no_provider: Kostenschätzung nicht verfügbar (kein LLM-Anbieter konfiguriert).
       cost_warning: Es können Kosten entstehen. Bitte informiere dich beim Modellanbieter über die aktuellen Preise.
       view_usage: Nutzungshistorie anzeigen
+      preview:
+        title: Was sich ändert
+        description: Nur Transaktionen, deren Werte sich tatsächlich ändern, werden gezählt.
+        transactions:
+          one: "%{count} Transaktion"
+          other: "%{count} Transaktionen"
+        none: Keine
+        uncategorized: Nicht kategorisiert
+        included: Enthalten
+        excluded: Ausgeschlossen
+        not_undoable: Wird nicht rückgängig gemacht
+        async_hint: Kategorie oder Händler wird von der KI gewählt
     recent_runs:
       title: Letzte Ausführungen
       description: Zeige die Ausführungsgeschichte deiner Regeln einschließlich Erfolgs-/Fehlerstatus und Transaktionsanzahlen.
@@ -51,6 +64,9 @@ de:
         expense: Ausgabe
         transfer: Überweisung
         equal_to: Gleich
+      operators:
+        matches_regex: Entspricht (Regex)
+        does_not_match_regex: Entspricht nicht (Regex)
     confirm:
       ai_cost_no_estimate_html: Damit kategorisiert die KI %{count} Transaktion(en).
       ai_cost_title: Geschätzte KI-Kosten
@@ -89,7 +105,7 @@ de:
       no_rules_title: Noch keine Regeln
       order_hint: Regeln laufen von oben nach unten. Setzt eine Regel ein Feld einer Transaktion, ändern weiter unten stehende Regeln dieses Feld nicht mehr. Tags ergänzt jede passende Regel. Ziehe Regeln, um die Reihenfolge zu ändern.
       page_title: Regeln
-      reorder_rule: "Regel %{name} verschieben. Mit Enter oder Leertaste greifen, dann mit den Pfeiltasten verschieben."
+      reorder_rule: Regel %{name} verschieben. Mit Enter oder Leertaste greifen, dann mit den Pfeiltasten verschieben.
       rules_heading: Regeln
     rule:
       action_label_to: "%{label} auf %{value}"
@@ -107,8 +123,59 @@ de:
       stop_processing: Stopp
       stop_processing_hint: Weiter unten stehende Regeln ändern die Transaktionen nicht mehr, die diese Regel trifft.
       then: DANN
+      review: Transaktionen prüfen
     update:
       success: Regel aktualisiert
+    category_rule_cta:
+      close: Schließen
+      create_rule: Regel erstellen
+      apply_to_similar:
+        one: Auf 1 ähnliche Transaktion anwenden
+        other: Auf %{count} ähnliche Transaktionen anwenden
+      description: Wende sie jetzt auf ähnliche nicht kategorisierte Transaktionen an oder erstelle eine Regel für künftige.
+      dont_show_again: Nicht mehr anzeigen
+      hide_for_today: Für heute ausblenden
+      hide_for_today_hint: "„Für heute ausblenden“ pausiert diese Vorschläge für 24 Stunden."
+      message: Auf %{category_name} aktualisiert
+    applications:
+      title: Letzte Anwendungen
+      description: Apply-All-Läufe, die du noch rückgängig machen kannst. Rückgängig stellt die Werte jeder Transaktion vor dem Lauf wieder her.
+      summary:
+        one: "%{time} · %{count} Transaktion"
+        other: "%{time} · %{count} Transaktionen"
+      undo: Rückgängig
+      undo_success: Der Regellauf wurde rückgängig gemacht
+      already_undone: Dieser Regellauf wurde bereits rückgängig gemacht
+      undo_confirm_title: Diesen Regellauf rückgängig machen?
+      undo_confirm_body: Dadurch werden die Werte der betroffenen Transaktionen auf den Stand vor dem Lauf zurückgesetzt. Seitdem bearbeitete Transaktionen bleiben unverändert.
+      undo_confirm_button: Lauf rückgängig machen
+    show:
+      conditions: Bedingungen
+      matched:
+        one: 1 passende Transaktion
+        other: "%{count} passende Transaktionen"
+      conflict_warning: 'Regeln darüber laufen zuerst und können einige Treffer beanspruchen: %{names}.'
+      edit: Regel bearbeiten
+      apply: Anwenden
+      rule_category: Kategorie, die diese Regel zuweist
+      apply_now: Auch die passenden Transaktionen jetzt aktualisieren
+      update_rule: Regel aktualisieren
+      transactions: Passende Transaktionen
+      select_hint: Heb die Auswahl für Zeilen auf, die du nicht ändern möchtest.
+      uncategorized: Nicht kategorisiert
+      new_category: Neue Kategorie für Auswahl
+      also_update_rule: Auch als Kategorie der Regel festlegen
+      update_selected: Auswahl aktualisieren
+      no_transactions: Diese Regel trifft derzeit auf keine Transaktionen zu.
+      undo_available_title: Diese Regel wurde angewendet
+      undo_available_body: Mach den letzten Lauf rückgängig, um die Werte der Transaktionen auf den Stand davor zurückzusetzen. Seitdem bearbeitete Transaktionen bleiben unverändert.
+      undo_last_run: Letzten Lauf rückgängig machen
+    update_category:
+      success: Regelkategorie aktualisiert
+    update_transactions:
+      updated:
+        one: 1 Transaktion kategorisiert
+        other: "%{count} Transaktionen kategorisiert"
   rule:
     conditions:
       condition:

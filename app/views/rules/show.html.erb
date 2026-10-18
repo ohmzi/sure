@@ -44,14 +44,14 @@
     </div>
 
     <% if @category_action %>
-      <%= form_with url: update_category_rule_path(@rule), method: :patch, class: "space-y-3" do |form| %>
+      <%= form_with url: update_category_rule_path(@rule), method: :patch, namespace: "rule_category", class: "space-y-3" do |form| %>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
           <div class="min-w-0">
             <%= form.label :category_id, t(".rule_category"), class: "text-sm font-medium text-secondary" %>
             <%= form.select :category_id,
                   Category::Group.select_options(@categories),
                   { selected: @category_action.value },
-                  class: "mt-1 w-full rounded-lg border border-primary bg-container px-3 py-2 text-sm text-primary" %>
+                  class: "mt-1 w-full rounded-lg border border-primary bg-container px-3 py-2 text-sm text-primary focus-ring" %>
           </div>
           <div class="flex flex-wrap items-center gap-3">
             <label class="flex items-center gap-2 text-sm text-primary">
@@ -67,16 +67,18 @@
 
   <div class="rounded-xl bg-container p-4 shadow-border-xs space-y-3">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="text-primary font-medium"><%= t(".transactions") %></h2>
+      <h2 id="rule-matched-transactions" class="text-primary font-medium"><%= t(".transactions") %></h2>
       <p class="text-xs text-secondary"><%= t(".select_hint") %></p>
     </div>
 
     <% if @matched_entries.any? %>
-      <%= form_with url: update_transactions_rule_path(@rule), method: :patch, class: "space-y-3" do |form| %>
-        <div class="divide-y divide-subdued rounded-xl bg-container-inset">
+      <%= form_with url: update_transactions_rule_path(@rule), method: :patch, namespace: "rule_selection", class: "space-y-3" do |form| %>
+        <div class="divide-y divide-subdued rounded-xl bg-container-inset"
+             role="group"
+             aria-labelledby="rule-matched-transactions">
           <% @matched_entries.each do |entry| %>
-            <label class="flex cursor-pointer items-start gap-3 px-3 py-3 text-sm">
-              <%= check_box_tag "entry_ids[]", entry.id, true, class: "checkbox checkbox--light mt-0.5 shrink-0 pointer-coarse:size-5" %>
+            <label class="flex cursor-pointer items-start gap-3 px-3 py-3 text-sm transition-colors focus-within:bg-container-hover">
+              <%= check_box_tag "entry_ids[]", entry.id, true, id: "entry_ids_#{entry.id}", class: "checkbox checkbox--light mt-0.5 shrink-0 pointer-coarse:size-5" %>
               <span class="min-w-0 grow space-y-0.5">
                 <span class="flex flex-wrap items-baseline justify-between gap-2">
                   <span class="min-w-0 truncate font-medium text-primary"><%= entry.name %></span>
@@ -102,7 +104,7 @@
             <%= form.select :category_id,
                   Category::Group.select_options(@categories),
                   {},
-                  class: "mt-1 w-full rounded-lg border border-primary bg-container px-3 py-2 text-sm text-primary" %>
+                  class: "mt-1 w-full rounded-lg border border-primary bg-container px-3 py-2 text-sm text-primary focus-ring" %>
             <% if @category_action %>
               <label class="mt-2 flex items-center gap-2 text-xs text-primary">
                 <%= check_box_tag :update_rule, "1", false, class: "checkbox checkbox--light pointer-coarse:size-4" %>

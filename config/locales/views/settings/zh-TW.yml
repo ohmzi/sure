@@ -101,6 +101,19 @@ zh-TW:
         based_on_requests: 根據 %{total} 次請求中有費用資料的 %{with_cost} 次計算
         cost_by_operation: 各作業費用
         cost_by_model: 各模型費用
+        categorization_quality: "分類品質"
+        categorization_quality_source: "此家庭的最新評估：%{model} · %{completed_at}"
+        categorization_accuracy: "準確率"
+        categorization_accuracy_description: "最新評估中有 %{count} 個樣本"
+        categorization_accuracy_errored: "%{total} 個樣本中有 %{errored} 個發生錯誤；未測量準確率"
+        categorization_not_reported: "未回報"
+        categorization_abstention: "棄權率"
+        categorization_abstention_description: "可用但未回傳類別的回答"
+        categorization_by_category: "依類別統計的準確率"
+        categorization_category_null: "無類別"
+        categorization_category_detail: "%{total} 個中正確 %{correct} 個"
+        categorization_quality_empty_title: "尚無分類評估"
+        categorization_quality_empty_description: "管理員從命令列對此家庭匯出的交易歷史執行分類評估。"
         recent_usage: 近期使用量
         col_date: 日期
         col_operation: 作業

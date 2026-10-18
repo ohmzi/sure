@@ -6,9 +6,13 @@ hu:
       coverage_description: Feltöltött kimutatásokkal és egyenlegellenőrzésekkel lefedett korábbi hónapok.
       coverage_range: "%{start} - %{end}"
       empty: Még nincs ehhez a számlához kapcsolt kimutatás.
-      open_inbox: Beérkező
       statements_title: Kimutatások
       year_label: Lefedési év
+      filtered: "%{month} kimutatásainak megjelenítése"
+      show_all: Minden hónap megjelenítése
+      months_label: Kimutatás-lefedettség havonta
+      month_link: "%{month}: %{status}"
+      open_vault: Kimutatástár
     balance:
       unknown: Ismeretlen
     coverage:
@@ -31,28 +35,37 @@ hu:
     destroy:
       failure: A kimutatást nem sikerült törölni.
       success: Kimutatás törölve.
+      document_blocked: Ennek a kimutatásnak a dokumentuma még nem egyeztetett tranzakciókat támogat (%{entries}). Előbb egyeztesd vagy töröld őket.
+      imported_rows:
+        one: Ennek a kimutatásnak 1 importált sora van. Ha törlöd, a sort birtokló import árva lesz; előbb állítsd vissza vagy töröld az importot.
+        other: Ennek a kimutatásnak %{count} importált sora van. Ha törlöd, a sorokat birtokló import árva lesz; előbb állítsd vissza vagy töröld az importot.
+      pending_import: Ennek a kimutatásnak van egy importja. Töröld vagy állítsd vissza az importot, mielőtt törlöd a kimutatást.
     form:
       account_upload: Kimutatás feltöltése
       files_hint: PDF, CSV vagy XLSX. Maximum %{max_size} MB fájlonként.
       files_label: Kimutatásfájlok
-      inbox_upload: Feltöltés
-      period_hint: "A Sure az időszakot a PDF-ből olvassa ki, ha szerepel benne, vagy a fájlnévben lévő dátumból (pl. 2026-04). A kivonaton kézzel is megadhatod."
+      period_hint: A Sure az időszakot a PDF-ből olvassa ki, ha szerepel benne, vagy a fájlnévben lévő dátumból (pl. 2026-04). A kivonaton kézzel is megadhatod.
+      upload_title: Kimutatás feltöltése
     index:
       account_label: Számla
       confidence: "%{confidence} egyezés"
       empty_linked: Még nincs kapcsolt kimutatás.
-      empty_unmatched: A kimutatás beérkező üres.
+      empty_unmatched: A kimutatástár üres.
       leave_unmatched: Hagyja párosítatlanul
       linked_title: Kapcsolt kimutatások
       no_suggestion: Nincs javaslat
       storage_used: Felhasznált tárhely
       title: Kimutatástár
-      unmatched_title: Párosítatlan beérkező
-      upload_description: Töltsd fel a kimutatásokat a beérkezőbe, vagy válassz számlát az azonnali összekapcsoláshoz.
+      unmatched_title: Hozzá nem rendelt kimutatások
+      upload_description: Tölts fel kimutatásokat a tárba, vagy válassz számlát az azonnali összekapcsoláshoz.
       upload_title: Kimutatások feltöltése
     link:
       no_account: Válassz számlát, mielőtt összekapcsolod ezt a kimutatást.
-      success: "Kimutatás összekapcsolva ezzel a számlával: %{account}."
+      success: 'Kimutatás összekapcsolva ezzel a számlával: %{account}.'
+      account_locked: Ez a kimutatás itt már nem rendelhető újra.
+      imported:
+        one: "%{account} számlához kapcsolva. A tranzakciója megegyezett a kimutatás összegeivel, ezért most hozzáadódik."
+        other: "%{account} számlához kapcsolva. A %{count} tranzakciója megegyezett a kimutatás összegeivel, ezért most hozzáadódnak."
     period:
       unknown: Az időszak ismeretlen
     reconciliation:
@@ -64,6 +77,12 @@ hu:
       matched: Egyezik
       mismatched: Eltérő
       unavailable: Nem ellenőrzött
+      explanations:
+        closing_balance: 'A kimutatás %{statement} értéken zárul, de a Sure főkönyve %{ledger} értéken zárul (különbség: %{difference}).'
+        opening_balance: 'A kimutatás %{statement} értéken nyílik, de a Sure főkönyve %{ledger} értéken nyílik (különbség: %{difference}).'
+        period_movement: 'A kimutatás mozgása %{statement}, de a Sure főkönyve %{ledger} értékkel mozdult (különbség: %{difference}).'
+        default: 'A kimutatás szerint %{statement}, a Sure főkönyve szerint azonban %{ledger} (különbség: %{difference}).'
+      reviewed: Átnézve
     reject:
       success: Kimutatás-egyezési javaslat elutasítva.
     show:
@@ -77,7 +96,7 @@ hu:
       download: Letöltés
       institution_name_hint: Intézménynév-tipp
       ledger_amount: Sure főkönyv
-      linked_to: "Összekapcsolva ezzel a számlával: %{account}."
+      linked_to: 'Összekapcsolva ezzel a számlával: %{account}.'
       linking_title: Számlakapcsolat
       link_suggestion: Kapcsolati javaslat
       metadata_title: Kimutatás metaadatok
@@ -93,8 +112,20 @@ hu:
       suggested_account: A javasolt számla %{account} (%{confidence} bizonyossággal).
       title: Kimutatás
       unlink: Szétkapcsolás
-      unmatched_account: Párosítatlan beérkező
+      unmatched_account: Nincs számla
       unknown_value: Ismeretlen
+      activity: Tevékenység
+      document_linked: Archivált dokumentum
+      imported_state:
+        one: 1 importált sor
+        other: "%{count} importált sor"
+      import_pending: Import folyamatban
+      overlap_message: Ez a kimutatás a közös határnapon túl átfed %{statements} kimutatással, és a nyomtatott egyenlegek nem egyeznek. Ellenőrizd az időszakokat és egyenlegeket; lehet, hogy az egyik példány hibás.
+      overlap_title: Eltérő egyenlegű, átfedő kimutatás
+      period_warning_title: Az időszak hibásnak tűnik
+      mark_reviewed: Megjelölés átnézettként
+      reviewed: 'Átnézve: %{date}'
+      no_suggestion_description: Válassz számlát lent, vagy hagyd a kimutatást hozzárendelés nélkül, amíg nem tudod, melyikhez tartozik.
     status:
       linked: Összekapcsolt
       rejected: Elutasított
@@ -113,6 +144,22 @@ hu:
       unlink: Szétkapcsolás
       view: Megtekintés
     unlink:
-      success: Kimutatás visszahelyezve a párosítatlan beérkezőbe.
+      success: A kimutatás visszakerült a hozzá nem rendelt kimutatásokhoz.
     update:
       success: Kimutatás frissítve.
+    assign_account:
+      label: Számla
+      placeholder: Válassz számlát
+      submit: Számla összekapcsolása
+      no_accounts: Még nincs összekapcsolható számla.
+    period_check:
+      title: Az időszak hibásnak tűnik
+      sources:
+        printed: nyomtatott
+        recorded: rögzített
+        filename: fájlnév
+      message: A mentett időszak (%{actual}) nem egyezik a(z) %{source} időszakkal (%{expected}). Ellenőrizd a kimutatás dátumait.
+    review:
+      success: A kimutatás átnézettként megjelölve.
+    type:
+      statement: Kimutatás

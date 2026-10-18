@@ -1,3 +1,4 @@
+---
 uk:
   rules:
     no_action: Немає дії
@@ -20,6 +21,9 @@ uk:
       action_label_to: "%{label} до %{value}"
       all_past_and_future: Усі минулі та майбутні %{resource}
       on_or_after: "%{resource} на або після %{date}"
+      review: Переглянути операції
+      stop_processing: Зупинити
+      stop_processing_hint: Правила нижче не змінюють операції, що відповідають цьому правилу.
     form:
       rule_name_label: Назва правила (необов'язково)
       rule_name_placeholder: Введіть назву для цього правила
@@ -29,6 +33,8 @@ uk:
       all_past_and_future: Усі минулі та майбутні %{resource}
       starting_from: Починаючи з
       then: ТОДІ
+      stop_processing_label: Не обробляти наступні правила
+      stop_processing_description: Правила нижче у списку не змінюють операції, що відповідають цьому правилу.
     index:
       page_title: Правила
       delete_all_rules: Видалити всі правила
@@ -37,18 +43,23 @@ uk:
       rules_heading: Правила
       no_rules_title: Правил ще немає
       no_rules_description: Налаштуйте правила для виконання дій з вашими транзакціями та іншими даними під час кожної синхронізації рахунку.
+      order_hint: Правила виконуються згори донизу. Щойно правило встановлює поле операції, правила нижче це поле не змінюють. Теги додаються кожним відповідним правилом. Перетягуйте правила, щоб змінити порядок.
+      reorder_rule: Перемістити правило %{name}. Натисніть Enter або пробіл, щоб узяти його, потім використовуйте стрілки.
     confirm:
       title: Підтвердити зміни
-      title_with_name: "Підтвердити зміни до \"%{name}\""
-      apply_notice_html: "Ви збираєтеся застосувати це правило до <span class=\"text-primary font-medium\">%{count} %{resource}</span>, які відповідають зазначеним критеріям правила. Будь ласка, підтвердьте, якщо ви хочете продовжити цю зміну."
+      title_with_name: Підтвердити зміни до "%{name}"
+      apply_notice_html: Ви збираєтеся застосувати це правило до <span class="text-primary font-medium">%{count} %{resource}</span>, які відповідають зазначеним критеріям правила. Будь ласка, підтвердьте, якщо ви хочете продовжити цю зміну.
       ai_cost_title: Оцінка вартості ШІ
-      ai_cost_with_estimate_html: "Це використовуватиме ШІ для категоризації %{count} транзакції(й). Орієнтовна вартість: <span class=\"font-semibold\">~$%{cost}</span>"
-      ai_cost_no_estimate_html: "Це використовуватиме ШІ для категоризації %{count} транзакції(й)."
-      cost_unavailable_model: "Оцінка вартості недоступна для моделі \"%{model}\"."
+      ai_cost_with_estimate_html: 'Це використовуватиме ШІ для категоризації %{count} транзакції(й). Орієнтовна вартість: <span class="font-semibold">~$%{cost}</span>'
+      ai_cost_no_estimate_html: Це використовуватиме ШІ для категоризації %{count} транзакції(й).
+      cost_unavailable_model: Оцінка вартості недоступна для моделі "%{model}".
       cost_unavailable_no_provider: Оцінка вартості недоступна (не налаштовано постачальника LLM).
       cost_warning: Ви можете понести витрати, будь ласка, перевірте у постачальника моделі найактуальніші ціни.
       view_usage_history: Переглянути історію використання
       confirm_changes: Підтвердити зміни
+      rules_above_notice:
+        one: Активне правило вище виконується першим, тому результат той самий, що й у повному запуску.
+        other: Активні правила вище (%{count}) виконуються першими, тому результат той самий, що й у повному запуску.
     actions:
       value_placeholder: Введіть значення
       to_label: на
@@ -66,11 +77,23 @@ uk:
       success: Усі правила поставлено в чергу на виконання
       ai_cost_title: Оцінка вартості ШІ
       ai_cost_message: Це використовуватиме ШІ для категоризації до %{transactions} транзакцій.
-      estimated_cost: "Орієнтовна вартість: ~$%{cost}"
+      estimated_cost: 'Орієнтовна вартість: ~$%{cost}'
       cost_unavailable_model: Оцінка вартості недоступна для моделі "%{model}".
       cost_unavailable_no_provider: Оцінка вартості недоступна (не налаштовано постачальника LLM).
       cost_warning: Ви можете понести витрати, будь ласка, перевірте у постачальника моделі найактуальніші ціни.
       view_usage: Переглянути використання
+      preview:
+        title: Що зміниться
+        description: Зараховуються лише операції, значення яких справді змінюються.
+        transactions:
+          one: "%{count} операція"
+          other: "%{count} операцій"
+        none: Немає
+        uncategorized: Без категорії
+        included: Включено
+        excluded: Виключено
+        not_undoable: Не буде скасовано
+        async_hint: Категорію або продавця вибере ШІ
     recent_runs:
       title: Нещодавні запуски
       description: Переглядайте історію виконання ваших правил, включаючи статус успіху/невдачі та кількість транзакцій.
@@ -116,6 +139,58 @@ uk:
         greater_or_equal_to: Більше або дорівнює
         less_than: Менше ніж
         less_than_or_equal_to: Менше або дорівнює
+        matches_regex: Збігається (regex)
+        does_not_match_regex: Не збігається (regex)
+    category_rule_cta:
+      close: Закрити
+      create_rule: Створити правило
+      apply_to_similar:
+        one: Застосувати до 1 схожої операції
+        other: Застосувати до %{count} схожих операцій
+      description: Застосуйте зараз до схожих некатегоризованих операцій або створіть правило для майбутніх
+      dont_show_again: Більше не показувати
+      hide_for_today: Приховати на сьогодні
+      hide_for_today_hint: "«Приховати на сьогодні» призупиняє ці підказки на 24 години."
+      message: Оновлено на %{category_name}
+    applications:
+      title: Недавні застосування
+      description: Запуски «Застосувати все», які ще можна скасувати. Скасування відновлює значення кожної операції до запуску.
+      summary:
+        one: "%{time} · %{count} операція"
+        other: "%{time} · %{count} операцій"
+      undo: Скасувати
+      undo_success: Запуск правила скасовано
+      already_undone: Цей запуск правила вже скасовано
+      undo_confirm_title: Скасувати цей запуск правила?
+      undo_confirm_body: Це відновить значення постраждалих операцій до запуску. Операції, змінені після нього, залишаться без змін.
+      undo_confirm_button: Скасувати запуск
+    show:
+      conditions: Умови
+      matched:
+        one: 1 відповідна операція
+        other: "%{count} відповідних операцій"
+      conflict_warning: 'Правила вище виконуються першими й можуть забрати деякі збіги: %{names}.'
+      edit: Змінити правило
+      apply: Застосувати
+      rule_category: Категорія, яку призначає це правило
+      apply_now: Також оновити відповідні операції зараз
+      update_rule: Оновити правило
+      transactions: Відповідні операції
+      select_hint: Зніміть позначки з рядків, які не хочете змінювати.
+      uncategorized: Без категорії
+      new_category: Нова категорія для вибраного
+      also_update_rule: Також зробити це категорією правила
+      update_selected: Оновити вибране
+      no_transactions: Зараз це правило не відповідає жодній операції.
+      undo_available_title: Це правило було застосовано
+      undo_available_body: Скасуйте останній запуск, щоб відновити значення операцій до нього. Операції, змінені після, залишаться без змін.
+      undo_last_run: Скасувати останній запуск
+    update_category:
+      success: Категорію правила оновлено
+    update_transactions:
+      updated:
+        one: 1 операцію категоризовано
+        other: "%{count} операцій категоризовано"
   rule:
     conditions:
       condition_group:

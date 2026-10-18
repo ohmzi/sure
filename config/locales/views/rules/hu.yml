@@ -17,6 +17,9 @@ hu:
       action_label_to: "%{label} erre: %{value}"
       all_past_and_future: Összes korábbi és jövőbeli %{resource}
       on_or_after: "%{resource} %{date} napon vagy azt követően"
+      review: Tranzakciók áttekintése
+      stop_processing: Leállítás
+      stop_processing_hint: A lentebbi szabályok nem módosítják az ezzel a szabállyal egyező tranzakciókat.
     form:
       rule_name_label: Szabály neve (nem kötelező)
       rule_name_placeholder: Add meg a szabály nevét
@@ -26,6 +29,8 @@ hu:
       all_past_and_future: Összes korábbi és jövőbeli %{resource}
       starting_from: Kezdve
       then: AKKOR
+      stop_processing_label: További szabályok feldolgozásának leállítása
+      stop_processing_description: A listában lentebbi szabályok nem módosítják az ezzel a szabállyal egyező tranzakciókat.
     index:
       page_title: Szabályok
       delete_all_rules: Összes szabály törlése
@@ -34,20 +39,26 @@ hu:
       rules_heading: Szabályok
       no_rules_title: Még nincsenek szabályok
       no_rules_description: Állíts be szabályokat, amelyek minden fiókszinkronizáláskor automatikusan elvégzik a megadott műveleteket a tranzakciókon és egyéb adatokon.
+      order_hint: A szabályok fentről lefelé futnak. Ha egy szabály beállít egy mezőt egy tranzakción, a lentebbi szabályok már nem módosítják azt. A címkéket minden egyező szabály hozzáadja. Húzd a szabályokat a sorrend módosításához.
+      reorder_rule: A(z) %{name} szabály mozgatása. Nyomj Entert vagy Szóközt a megragadáshoz, majd a nyílbillentyűkkel mozgasd.
     confirm:
       title: Változtatások megerősítése
-      title_with_name: "Változtatások megerősítése: \"%{name}\""
-      apply_notice_html: "Ezzel a szabályt <span class=\"text-primary font-medium\">%{count} %{resource}</span> elemre alkalmazod, amelyek megfelelnek a feltételeknek. Kérjük, erősítsd meg, ha folytatni szeretnéd."
+      title_with_name: 'Változtatások megerősítése: "%{name}"'
+      apply_notice_html: Ezzel a szabályt <span class="text-primary font-medium">%{count} %{resource}</span> elemre alkalmazod, amelyek megfelelnek a feltételeknek. Kérjük, erősítsd meg, ha folytatni szeretnéd.
       ai_cost_title: AI-költség becslése
-      ai_cost_with_estimate_html: "Ez AI segítségével kategorizál %{count} tranzakciót. Becsült költség: <span class=\"font-semibold\">~$%{cost}</span>"
-      ai_cost_no_estimate_html: "Ez AI segítségével kategorizál %{count} tranzakciót."
-      cost_unavailable_model: "A(z) \"%{model}\" modellhez nem érhető el költségbecslés."
+      ai_cost_with_estimate_html: 'Ez AI segítségével kategorizál %{count} tranzakciót. Becsült költség: <span class="font-semibold">~$%{cost}</span>'
+      ai_cost_no_estimate_html: Ez AI segítségével kategorizál %{count} tranzakciót.
+      cost_unavailable_model: A(z) "%{model}" modellhez nem érhető el költségbecslés.
       cost_unavailable_no_provider: A költségbecslés nem érhető el (nincs LLM-szolgáltató beállítva).
       cost_warning: Költségek merülhetnek fel – a legfrissebb árakért ellenőrizd a modellszolgáltatónál.
       view_usage_history: Felhasználási előzmények megtekintése
       confirm_changes: Változtatások megerősítése
+      rules_above_notice:
+        one: A felette lévő aktív szabály fut először, így az eredmény ugyanaz, mint a teljes futásnál.
+        other: A felette lévő %{count} aktív szabály fut először, így az eredmény ugyanaz, mint a teljes futásnál.
     actions:
       value_placeholder: Adj meg egy értéket
+      to_label: erre
     apply_all:
       button: Összes alkalmazása
       confirm_title: Összes szabály alkalmazása
@@ -56,11 +67,23 @@ hu:
       success: Minden szabály végrehajtásra van ütemezve
       ai_cost_title: AI-költség becslése
       ai_cost_message: Ez AI segítségével kategorizál legfeljebb %{transactions} tranzakciót.
-      estimated_cost: "Becsült költség: ~$%{cost}"
+      estimated_cost: 'Becsült költség: ~$%{cost}'
       cost_unavailable_model: A(z) „%{model}" modellhez nem érhető el költségbecslés.
       cost_unavailable_no_provider: A költségbecslés nem érhető el (nincs LLM-szolgáltató beállítva).
       cost_warning: Költségek merülhetnek fel – a legfrissebb árakért ellenőrizd a modellszolgáltatónál.
       view_usage: Felhasználási előzmények megtekintése
+      preview:
+        title: Mi fog változni
+        description: Csak azok a tranzakciók számítanak, amelyek értékei ténylegesen változnak.
+        transactions:
+          one: "%{count} tranzakció"
+          other: "%{count} tranzakció"
+        none: Nincs
+        uncategorized: Kategorizálatlan
+        included: Tartalmazva
+        excluded: Kizárva
+        not_undoable: Nem lesz visszavonva
+        async_hint: A kategóriát vagy a kereskedőt az AI választja ki
     update:
       success: Szabály frissítve
     destroy:
@@ -100,6 +123,59 @@ hu:
         expense: Kiadás
         transfer: Átutalás
         equal_to: Egyenlő
+      operators:
+        matches_regex: Egyezik (regex)
+        does_not_match_regex: Nem egyezik (regex)
+    category_rule_cta:
+      close: Bezárás
+      create_rule: Szabály létrehozása
+      apply_to_similar:
+        one: Alkalmazás 1 hasonló tranzakcióra
+        other: Alkalmazás %{count} hasonló tranzakcióra
+      description: Alkalmazd most a hasonló kategorizálatlan tranzakciókra, vagy hozz létre szabályt a jövőbeliekhez
+      dont_show_again: Ne jelenjen meg többet
+      hide_for_today: Elrejtés mára
+      hide_for_today_hint: Az „Elrejtés mára” 24 órára szünetelteti ezeket a javaslatokat.
+      message: 'Frissítve erre: %{category_name}'
+    applications:
+      title: Legutóbbi alkalmazások
+      description: Még visszavonható „Összes alkalmazása” futások. A visszavonás visszaállítja az egyes tranzakciók futás előtti értékeit.
+      summary:
+        one: "%{time} · %{count} tranzakció"
+        other: "%{time} · %{count} tranzakció"
+      undo: Visszavonás
+      undo_success: A szabályfutás visszavonva
+      already_undone: Ezt a szabályfutást már visszavonták
+      undo_confirm_title: Visszavonod ezt a szabályfutást?
+      undo_confirm_body: Ez visszaállítja az érintett tranzakciók futás előtti értékeit. Az azóta szerkesztett tranzakciók változatlanok maradnak.
+      undo_confirm_button: Futás visszavonása
+    show:
+      conditions: Feltételek
+      matched:
+        one: 1 egyező tranzakció
+        other: "%{count} egyező tranzakció"
+      conflict_warning: 'A felette lévő szabályok futnak először, és elragadhatnak néhány egyezést: %{names}.'
+      edit: Szabály szerkesztése
+      apply: Alkalmazás
+      rule_category: A szabály által hozzárendelt kategória
+      apply_now: Az egyező tranzakciók frissítése most
+      update_rule: Szabály frissítése
+      transactions: Egyező tranzakciók
+      select_hint: Töröld a pipát azoknál a soroknál, amelyeket nem szeretnél módosítani.
+      uncategorized: Kategorizálatlan
+      new_category: Új kategória a kijelöléshez
+      also_update_rule: Ez legyen a szabály kategóriája is
+      update_selected: Kijelölés frissítése
+      no_transactions: Ez a szabály jelenleg egyetlen tranzakcióval sem egyezik.
+      undo_available_title: Ezt a szabályt alkalmazták
+      undo_available_body: Vond vissza az utolsó futást, hogy visszaállítsd a tranzakciók előtte lévő értékeit. Az azóta szerkesztett tranzakciók változatlanok maradnak.
+      undo_last_run: Utolsó futás visszavonása
+    update_category:
+      success: Szabálykategória frissítve
+    update_transactions:
+      updated:
+        one: 1 tranzakció kategorizálva
+        other: "%{count} tranzakció kategorizálva"
   rule:
     conditions:
       condition_group:

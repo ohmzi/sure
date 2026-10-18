@@ -23,3 +23,86 @@ ro:
         pending: În Așteptare
         success: Succes
         failed: Eșuat
+    category_rule_cta:
+      close: Închide
+      create_rule: Creează regulă
+      apply_to_similar:
+        one: Aplică la 1 tranzacție similară
+        other: Aplică la %{count} tranzacții similare
+      description: Aplic-o acum tranzacțiilor necategorizate similare sau creează o regulă pentru cele viitoare
+      dont_show_again: Nu mai afișa
+      hide_for_today: Ascunde pentru azi
+      hide_for_today_hint: "„Ascunde pentru azi” suspendă aceste sugestii timp de 24 de ore."
+      message: Actualizat la %{category_name}
+    rule:
+      review: Revizuiește tranzacțiile
+      stop_processing: Oprește
+      stop_processing_hint: Regulile de mai jos nu modifică tranzacțiile potrivite de această regulă.
+    form:
+      stop_processing_label: Oprește procesarea regulilor următoare
+      stop_processing_description: Regulile de mai jos în listă nu modifică tranzacțiile potrivite de această regulă.
+    index:
+      order_hint: Regulile rulează de sus în jos. După ce o regulă setează un câmp pe o tranzacție, regulile de mai jos nu mai modifică acel câmp. Etichetele sunt adăugate de fiecare regulă potrivită. Trage regulile pentru a schimba ordinea.
+      reorder_rule: Mută regula %{name}. Apasă Enter sau Spațiu pentru a o apuca, apoi folosește tastele săgeți pentru a o muta.
+    confirm:
+      rules_above_notice:
+        one: Regula activă de deasupra rulează prima, deci rezultatul este același ca în rularea completă.
+        other: Cele %{count} reguli active de deasupra rulează primele, deci rezultatul este același ca în rularea completă.
+    actions:
+      to_label: în
+    apply_all:
+      preview:
+        title: Ce se va schimba
+        description: Sunt numărate doar tranzacțiile ale căror valori se schimbă efectiv.
+        transactions:
+          one: "%{count} tranzacție"
+          other: "%{count} tranzacții"
+        none: Niciuna
+        uncategorized: Necategorizate
+        included: Incluse
+        excluded: Excluse
+        not_undoable: Nu va fi anulat
+        async_hint: Categoria sau comerciantul va fi ales de AI
+    applications:
+      title: Aplicări recente
+      description: Rulări „Aplică tot” pe care le mai poți anula. Anularea restaurează valorile pe care le avea fiecare tranzacție înainte de rulare.
+      summary:
+        one: "%{time} · %{count} tranzacție"
+        other: "%{time} · %{count} tranzacții"
+      undo: Anulează
+      undo_success: Rularea regulii a fost anulată
+      already_undone: Această rulare a regulii a fost deja anulată
+      undo_confirm_title: Anulezi această rulare a regulii?
+      undo_confirm_body: Aceasta restaurează valorile pe care le aveau tranzacțiile afectate înainte de rulare. Tranzacțiile editate de atunci rămân neschimbate.
+      undo_confirm_button: Anulează rularea
+    condition_filters:
+      operators:
+        matches_regex: Se potrivește (regex)
+        does_not_match_regex: Nu se potrivește (regex)
+    show:
+      conditions: Condiții
+      matched:
+        one: 1 tranzacție potrivită
+        other: "%{count} tranzacții potrivite"
+      conflict_warning: 'Regulile de deasupra rulează primele și pot revendica unele potriviri: %{names}.'
+      edit: Editează regula
+      apply: Aplică
+      rule_category: Categoria atribuită de această regulă
+      apply_now: Actualizează și tranzacțiile potrivite acum
+      update_rule: Actualizează regula
+      transactions: Tranzacții potrivite
+      select_hint: Debifează rândurile pe care nu vrei să le modifici.
+      uncategorized: Necategorizate
+      new_category: Categorie nouă pentru selecție
+      also_update_rule: Fă aceasta și categoria regulii
+      update_selected: Actualizează selecția
+      no_transactions: Această regulă nu se potrivește cu nicio tranzacție acum.
+      undo_available_title: Această regulă a fost aplicată
+      undo_available_body: Anulează ultima rulare pentru a restaura valorile pe care le aveau tranzacțiile înainte. Tranzacțiile editate de atunci rămân neschimbate.
+      undo_last_run: Anulează ultima rulare
+    update_category:
+      success: Categoria regulii a fost actualizată
+    update_transactions:
+      updated:
+        one: 1 tranzacție categorizată
+        other: "%{count} tranzacții categorizate"

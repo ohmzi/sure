@@ -17,6 +17,9 @@ zh-CN:
       action_label_to: 将 %{label} 设置为 %{value}
       all_past_and_future: 所有过去和未来的 %{resource}
       on_or_after: "%{resource} 在 %{date} 当日或之后"
+      review: 查看交易
+      stop_processing: 停止
+      stop_processing_hint: 下方的规则不会更改与此规则匹配的交易。
     form:
       rule_name_label: 规则名称（可选）
       rule_name_placeholder: 为此规则输入名称
@@ -26,6 +29,8 @@ zh-CN:
       all_past_and_future: 所有过去和未来的 %{resource}
       starting_from: 从……开始
       then: 然后
+      stop_processing_label: 停止处理后续规则
+      stop_processing_description: 列表下方的规则不会更改与此规则匹配的交易。
     index:
       page_title: 规则
       delete_all_rules: 删除所有规则
@@ -34,6 +39,8 @@ zh-CN:
       rules_heading: 规则
       no_rules_title: 还没有规则
       no_rules_description: 设置规则后，您每次账户同步时都可以对交易和其他数据执行操作。
+      order_hint: 规则从上到下运行。一旦规则设置了交易的某个字段，下方的规则就不会再更改该字段。每条匹配的规则都会添加标签。拖动规则以更改顺序。
+      reorder_rule: 移动规则 %{name}。按 Enter 或空格抓取，然后使用方向键移动。
     confirm:
       title: 确认更改
       title_with_name: 确认对“%{name}”的更改
@@ -46,8 +53,12 @@ zh-CN:
       cost_warning: 您可能会产生费用，请向模型提供商确认最新价格。
       view_usage_history: 查看用量历史
       confirm_changes: 确认更改
+      rules_above_notice:
+        one: 上方的启用规则先运行，因此结果与完整运行相同。
+        other: 上方的 %{count} 条启用规则先运行，因此结果与完整运行相同。
     actions:
       value_placeholder: 输入值
+      to_label: 改为
     update:
       success: 规则已更新
     destroy:
@@ -67,6 +78,18 @@ zh-CN:
       cost_unavailable_no_provider: 无法估算费用（未配置 LLM 提供商）。
       cost_warning: 您可能会产生费用，请向模型提供商确认最新价格。
       view_usage: 查看用量历史
+      preview:
+        title: 将会发生什么变化
+        description: 只统计值确实发生变化的交易。
+        transactions:
+          one: "%{count} 笔交易"
+          other: "%{count} 笔交易"
+        none: 无
+        uncategorized: 未分类
+        included: 包含
+        excluded: 排除
+        not_undoable: 不会撤销
+        async_hint: 类别或商家将由 AI 选择
     recent_runs:
       title: 最近运行
       description: 查看规则的执行历史，包括成功/失败状态和交易数量。
@@ -100,6 +123,59 @@ zh-CN:
         expense: 支出
         transfer: 转账
         equal_to: 等于
+      operators:
+        matches_regex: 匹配（正则）
+        does_not_match_regex: 不匹配（正则）
+    category_rule_cta:
+      close: 关闭
+      create_rule: 创建规则
+      apply_to_similar:
+        one: 应用到 1 笔相似交易
+        other: 应用到 %{count} 笔相似交易
+      description: 立即将其应用到相似的未分类交易，或为以后的交易创建规则
+      dont_show_again: 不再显示
+      hide_for_today: 今天隐藏
+      hide_for_today_hint: "“今天隐藏”会暂停这些建议 24 小时。"
+      message: 已更新为%{category_name}
+    applications:
+      title: 最近的应用
+      description: 仍可撤销的“全部应用”运行。撤销会恢复每笔交易在运行前的值。
+      summary:
+        one: "%{time} · %{count} 笔交易"
+        other: "%{time} · %{count} 笔交易"
+      undo: 撤销
+      undo_success: 规则运行已撤销
+      already_undone: 此规则运行已被撤销
+      undo_confirm_title: 撤销此规则运行？
+      undo_confirm_body: 这会恢复受影响交易在运行前的值。此后编辑过的交易保持不变。
+      undo_confirm_button: 撤销运行
+    show:
+      conditions: 条件
+      matched:
+        one: 1 笔匹配交易
+        other: "%{count} 笔匹配交易"
+      conflict_warning: 上方的规则先运行，可能会占用部分匹配：%{names}。
+      edit: 编辑规则
+      apply: 应用
+      rule_category: 此规则分配的类别
+      apply_now: 同时立即更新匹配的交易
+      update_rule: 更新规则
+      transactions: 匹配的交易
+      select_hint: 取消勾选你不想更改的行。
+      uncategorized: 未分类
+      new_category: 为所选项目选择新类别
+      also_update_rule: 同时将其设为规则的类别
+      update_selected: 更新所选
+      no_transactions: 此规则目前不匹配任何交易。
+      undo_available_title: 此规则已应用
+      undo_available_body: 撤销上次运行以恢复其交易在运行前的值。此后编辑过的交易保持不变。
+      undo_last_run: 撤销上次运行
+    update_category:
+      success: 规则类别已更新
+    update_transactions:
+      updated:
+        one: 1 笔交易已分类
+        other: "%{count} 笔交易已分类"
   rule:
     conditions:
       condition_group:

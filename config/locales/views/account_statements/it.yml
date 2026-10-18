@@ -6,9 +6,13 @@ it:
       coverage_description: Mesi storici supportati da estratti conto caricati e verifiche del saldo.
       coverage_range: "%{start} - %{end}"
       empty: Nessun estratto conto collegato a questo conto ancora.
-      open_inbox: Posta in arrivo
       statements_title: Estratti conto
       year_label: Anno di copertura
+      filtered: Mostrando estratti di %{month}
+      show_all: Mostra tutti i mesi
+      months_label: Copertura degli estratti per mese
+      month_link: "%{month}: %{status}"
+      open_vault: Archivio estratti conto
     balance:
       unknown: Sconosciuto
     coverage:
@@ -31,28 +35,37 @@ it:
     destroy:
       failure: Impossibile eliminare l'estratto conto.
       success: Estratto conto eliminato.
+      document_blocked: Il documento di questo estratto sostiene ancora movimenti non riconciliati (%{entries}). Riconcili o elimina prima quei movimenti.
+      imported_rows:
+        one: Questo estratto ha 1 riga importata. Eliminandolo, l'importazione che possiede la riga resterebbe orfana; annulla o elimina prima l'importazione.
+        other: Questo estratto ha %{count} righe importate. Eliminandolo, l'importazione che le possiede resterebbe orfana; annulla o elimina prima l'importazione.
+      pending_import: Questo estratto ha un'importazione. Elimina o annulla l'importazione prima di eliminare l'estratto.
     form:
       account_upload: Carica estratto conto
       files_hint: PDF, CSV o XLSX. Max %{max_size}MB per file.
       files_label: File estratti conto
-      inbox_upload: Carica
-      period_hint: "Sure legge il periodo dal PDF, se lo riporta, o da una data nel nome del file (es. 2026-04). Puoi anche impostarlo nell’estratto conto."
+      period_hint: Sure legge il periodo dal PDF, se lo riporta, o da una data nel nome del file (es. 2026-04). Puoi anche impostarlo nell’estratto conto.
+      upload_title: Carica un estratto
     index:
       account_label: Conto
-      confidence: "Corrispondenza %{confidence}"
+      confidence: Corrispondenza %{confidence}
       empty_linked: Nessun estratto conto collegato ancora.
-      empty_unmatched: La posta in arrivo degli estratti conto è vuota.
+      empty_unmatched: L'archivio degli estratti è vuoto.
       leave_unmatched: Lascia non abbinato
       linked_title: Estratti conto collegati
       no_suggestion: Nessun suggerimento
       storage_used: Spazio utilizzato
       title: Archivio estratti conto
-      unmatched_title: Posta in arrivo non abbinata
-      upload_description: Carica estratti conto nella posta in arrivo, oppure scegli un conto per collegarli subito.
+      unmatched_title: Estratti non assegnati
+      upload_description: Carica estratti nell'archivio o scegli un conto per collegarli subito.
       upload_title: Carica estratti conto
     link:
       no_account: Scegli un conto prima di collegare questo estratto conto.
       success: Estratto conto collegato a %{account}.
+      account_locked: Questo estratto non può più essere riassegnato qui.
+      imported:
+        one: Collegato a %{account}. La sua transazione corrispondeva ai totali dell'estratto, quindi viene aggiunta ora.
+        other: Collegato a %{account}. Le sue %{count} transazioni corrispondevano ai totali dell'estratto, quindi vengono aggiunte ora.
     period:
       unknown: Periodo sconosciuto
     reconciliation:
@@ -64,6 +77,12 @@ it:
       matched: Corrispondente
       mismatched: Non corrispondente
       unavailable: Non verificato
+      explanations:
+        closing_balance: L'estratto chiude a %{statement}, ma il libro di Sure chiude a %{ledger} (differenza %{difference}).
+        opening_balance: L'estratto apre a %{statement}, ma il libro di Sure apre a %{ledger} (differenza %{difference}).
+        period_movement: Il movimento dell'estratto è %{statement}, ma il libro di Sure si è mosso di %{ledger} (differenza %{difference}).
+        default: L'estratto dice %{statement}, ma il libro di Sure dice %{ledger} (differenza %{difference}).
+      reviewed: Rivisto
     reject:
       success: Corrispondenza estratto conto rifiutata.
     show:
@@ -93,8 +112,20 @@ it:
       suggested_account: Il conto suggerito è %{account} (confidenza %{confidence}).
       title: Estratto conto
       unlink: Scollega
-      unmatched_account: Posta in arrivo non abbinata
+      unmatched_account: Nessun conto
       unknown_value: Sconosciuto
+      activity: Attività
+      document_linked: Documento archiviato
+      imported_state:
+        one: 1 riga importata
+        other: "%{count} righe importate"
+      import_pending: Importazione in sospeso
+      overlap_message: Questo estratto si sovrappone a %{statements} oltre il giorno limite condiviso e i saldi stampati non coincidono. Controlla periodi e saldi; una copia potrebbe essere errata.
+      overlap_title: Estratto sovrapposto con saldi diversi
+      period_warning_title: Il periodo sembra errato
+      mark_reviewed: Segna come rivisto
+      reviewed: Rivisto il %{date}
+      no_suggestion_description: Scegli un conto qui sotto o lascia l'estratto non assegnato finché non sai a quale appartiene.
     status:
       linked: Collegato
       rejected: Rifiutato
@@ -112,6 +143,22 @@ it:
       unlink: Scollega
       view: Visualizza
     unlink:
-      success: Estratto conto spostato nella posta in arrivo non abbinata.
+      success: Estratto riportato agli estratti non assegnati.
     update:
       success: Estratto conto aggiornato.
+    assign_account:
+      label: Conto
+      placeholder: Scegli un conto
+      submit: Collega conto
+      no_accounts: Nessun conto disponibile da collegare.
+    period_check:
+      title: Il periodo sembra errato
+      sources:
+        printed: stampato
+        recorded: registrato
+        filename: nome del file
+      message: Il periodo salvato (%{actual}) non corrisponde al periodo %{source} (%{expected}). Controlla le date dell'estratto.
+    review:
+      success: Estratto contrassegnato come rivisto.
+    type:
+      statement: Estratto

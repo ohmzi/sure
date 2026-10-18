@@ -133,25 +133,29 @@
     <%# Unread. A read still in flight says so and offers nothing to configure;
         a document that was never read owes the reader the reason and the two
         ways forward. Never an empty panel, never a false "not read". %>
-    <div class="space-y-2">
-      <p class="font-medium text-primary"><%= panel.reading? ? t(".reading") : t(".not_read_yet") %></p>
-      <p class="text-sm text-secondary"><%= panel.empty_reason %></p>
-    </div>
-    <%= render "documents/read_history", panel: panel %>
-    <% unless panel.reading? %>
-      <div class="space-y-2">
-        <div class="flex flex-wrap items-center gap-2">
-          <%# Name the destination: a bare "Set up a provider" button never said
-              where, which is why the owner could not find the key fields
-              (report 2026-10-13). The link targets the AI provider section's
-              `ai-provider` anchor. %>
-          <%= render DS::Link.new(text: t(".unread.set_up_provider"), href: settings_ai_path(anchor: "ai-provider"), variant: "primary", size: "sm") %>
-          <span class="text-sm text-secondary"><%= t(".unread.or") %></span>
-          <%= render DS::Link.new(text: t(".unread.enter_by_hand"), href: new_transaction_path, variant: "outline", size: "sm") %>
-        </div>
-        <p class="text-xs text-secondary"><%= t(".unread.provider_location") %></p>
-      </div>
+    <%= render DS::EmptyState.new(
+          icon: panel.reading? ? "loader" : "file-question",
+          title: panel.reading? ? t(".reading") : t(".not_read_yet"),
+          description: panel.empty_reason
+        ) do |es| %>
+      <% unless panel.reading? %>
+        <% es.with_action do %>
+          <div class="space-y-2">
+            <div class="flex flex-wrap items-center justify-center gap-2">
+              <%# Name the destination: a bare "Set up a provider" button never
+                  said where, which is why the owner could not find the key
+                  fields (report 2026-10-13). The link targets the AI provider
+                  section's `ai-provider` anchor. %>
+              <%= render DS::Link.new(text: t(".unread.set_up_provider"), href: settings_ai_path(anchor: "ai-provider"), variant: "primary", size: "sm") %>
+              <span class="text-sm text-secondary"><%= t(".unread.or") %></span>
+              <%= render DS::Link.new(text: t(".unread.enter_by_hand"), href: new_transaction_path, variant: "outline", size: "sm") %>
+            </div>
+            <p class="text-xs text-secondary"><%= t(".unread.provider_location") %></p>
+          </div>
+        <% end %>
+      <% end %>
     <% end %>
+    <%= render "documents/read_history", panel: panel %>
   <% end %>
 
   <% duplicates = panel.respond_to?(:duplicates) ? panel.duplicates : [] %>
@@ -167,7 +171,7 @@
       <div class="rounded-2xl bg-container-inset divide-y divide-subdued">
         <% duplicates.each do |document| %>
           <% statement = document.account_statement %>
-          <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm">
+          <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm transition-colors focus-within:bg-container-hover">
             <div class="min-w-0 grow">
               <div class="flex flex-wrap items-center gap-2">
                 <span class="truncate text-primary"><%= document.title.presence || document.original_filename %></span>
@@ -185,7 +189,8 @@
               </p>
             </div>
             <div class="flex shrink-0 flex-wrap items-center gap-1.5">
-              <%= render DS::Link.new(text: t(".duplicates.open"), href: viewer_document_path(document), frame: :modal, variant: "outline", size: :sm) %>
+              <%= render DS::Link.new(text: t(".duplicates.open"), href: viewer_document_path(document), frame: :modal, variant: "outline", size: :sm,
+                                      aria: { label: t(".duplicates.open_document", title: document.title.presence || document.original_filename) }) %>
               <% if statement.present? %>
                 <%= render DS::Link.new(text: t(".duplicates.fix"), href: account_statement_path(statement), variant: "outline", size: :sm) %>
               <% end %>

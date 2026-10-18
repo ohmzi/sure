@@ -17,6 +17,9 @@ vi:
       action_label_to: "%{label} thành %{value}"
       all_past_and_future: Tất cả %{resource} trong quá khứ và tương lai
       on_or_after: "%{resource} từ ngày %{date} trở đi"
+      review: Xem lại giao dịch
+      stop_processing: Dừng
+      stop_processing_hint: Các quy tắc bên dưới không thay đổi giao dịch khớp với quy tắc này.
     form:
       rule_name_label: Tên quy tắc (tùy chọn)
       rule_name_placeholder: Nhập tên cho quy tắc này
@@ -26,6 +29,8 @@ vi:
       all_past_and_future: Tất cả %{resource} trong quá khứ và tương lai
       starting_from: Bắt đầu từ
       then: THÌ
+      stop_processing_label: Dừng xử lý các quy tắc tiếp theo
+      stop_processing_description: Các quy tắc bên dưới trong danh sách không thay đổi giao dịch khớp với quy tắc này.
     index:
       page_title: Quy tắc
       delete_all_rules: Xóa tất cả quy tắc
@@ -34,20 +39,26 @@ vi:
       rules_heading: Quy tắc
       no_rules_title: Chưa có quy tắc
       no_rules_description: Thiết lập quy tắc để thực hiện hành động trên giao dịch và dữ liệu khác mỗi lần đồng bộ tài khoản.
+      order_hint: Các quy tắc chạy từ trên xuống dưới. Khi một quy tắc đặt một trường trên giao dịch, các quy tắc bên dưới không thay đổi trường đó. Thẻ được thêm bởi mọi quy tắc khớp. Kéo quy tắc để thay đổi thứ tự.
+      reorder_rule: Di chuyển quy tắc %{name}. Nhấn Enter hoặc Dấu cách để nắm lấy, sau đó dùng phím mũi tên để di chuyển.
     confirm:
       title: Xác nhận thay đổi
-      title_with_name: "Xác nhận thay đổi cho \"%{name}\""
-      apply_notice_html: "Bạn sắp áp dụng quy tắc này cho <span class=\"text-primary font-medium\">%{count} %{resource}</span> đáp ứng tiêu chí quy tắc đã chỉ định. Vui lòng xác nhận nếu muốn tiếp tục."
+      title_with_name: Xác nhận thay đổi cho "%{name}"
+      apply_notice_html: Bạn sắp áp dụng quy tắc này cho <span class="text-primary font-medium">%{count} %{resource}</span> đáp ứng tiêu chí quy tắc đã chỉ định. Vui lòng xác nhận nếu muốn tiếp tục.
       ai_cost_title: Ước tính chi phí AI
-      ai_cost_with_estimate_html: "Sẽ dùng AI để phân loại %{count} giao dịch. Chi phí ước tính: <span class=\"font-semibold\">~$%{cost}</span>"
-      ai_cost_no_estimate_html: "Sẽ dùng AI để phân loại %{count} giao dịch."
-      cost_unavailable_model: "Không thể ước tính chi phí cho mô hình \"%{model}\"."
+      ai_cost_with_estimate_html: 'Sẽ dùng AI để phân loại %{count} giao dịch. Chi phí ước tính: <span class="font-semibold">~$%{cost}</span>'
+      ai_cost_no_estimate_html: Sẽ dùng AI để phân loại %{count} giao dịch.
+      cost_unavailable_model: Không thể ước tính chi phí cho mô hình "%{model}".
       cost_unavailable_no_provider: Không thể ước tính chi phí (chưa cấu hình nhà cung cấp LLM).
       cost_warning: Bạn có thể phát sinh chi phí, hãy kiểm tra với nhà cung cấp mô hình để biết giá mới nhất.
       view_usage_history: Xem lịch sử sử dụng
       confirm_changes: Xác nhận thay đổi
+      rules_above_notice:
+        one: Quy tắc đang hoạt động ở trên chạy trước, nên kết quả giống với lần chạy đầy đủ.
+        other: "%{count} quy tắc đang hoạt động ở trên chạy trước, nên kết quả giống với lần chạy đầy đủ."
     actions:
       value_placeholder: Nhập một giá trị
+      to_label: thành
     update:
       success: Đã cập nhật quy tắc
     destroy:
@@ -62,11 +73,23 @@ vi:
       success: Tất cả quy tắc đã được đưa vào hàng chờ thực thi
       ai_cost_title: Ước tính chi phí AI
       ai_cost_message: Sẽ dùng AI để phân loại tối đa %{transactions} giao dịch.
-      estimated_cost: "Chi phí ước tính: ~$%{cost}"
+      estimated_cost: 'Chi phí ước tính: ~$%{cost}'
       cost_unavailable_model: Không thể ước tính chi phí cho mô hình "%{model}".
       cost_unavailable_no_provider: Không thể ước tính chi phí (chưa cấu hình nhà cung cấp LLM).
       cost_warning: Bạn có thể phát sinh chi phí, hãy kiểm tra với nhà cung cấp mô hình để biết giá mới nhất.
       view_usage: Xem lịch sử sử dụng
+      preview:
+        title: Điều gì sẽ thay đổi
+        description: Chỉ tính các giao dịch có giá trị thực sự thay đổi.
+        transactions:
+          one: "%{count} giao dịch"
+          other: "%{count} giao dịch"
+        none: Không có
+        uncategorized: Chưa phân loại
+        included: Đã bao gồm
+        excluded: Đã loại trừ
+        not_undoable: Sẽ không được hoàn tác
+        async_hint: Danh mục hoặc người bán sẽ do AI chọn
     recent_runs:
       title: Lần chạy gần đây
       description: Xem lịch sử thực thi quy tắc bao gồm trạng thái thành công/thất bại và số lượng giao dịch.
@@ -100,6 +123,59 @@ vi:
         expense: Chi tiêu
         transfer: Chuyển khoản
         equal_to: Bằng
+      operators:
+        matches_regex: Khớp (regex)
+        does_not_match_regex: Không khớp (regex)
+    category_rule_cta:
+      close: Đóng
+      create_rule: Tạo quy tắc
+      apply_to_similar:
+        one: Áp dụng cho 1 giao dịch tương tự
+        other: Áp dụng cho %{count} giao dịch tương tự
+      description: Áp dụng ngay cho các giao dịch chưa phân loại tương tự hoặc tạo quy tắc cho lần sau
+      dont_show_again: Không hiển thị lại
+      hide_for_today: Ẩn trong hôm nay
+      hide_for_today_hint: "«Ẩn trong hôm nay» tạm dừng các gợi ý này trong 24 giờ."
+      message: Đã cập nhật thành %{category_name}
+    applications:
+      title: Các lần áp dụng gần đây
+      description: Các lần chạy «Áp dụng tất cả» mà bạn vẫn có thể hoàn tác. Hoàn tác khôi phục giá trị mà mỗi giao dịch có trước lần chạy.
+      summary:
+        one: "%{time} · %{count} giao dịch"
+        other: "%{time} · %{count} giao dịch"
+      undo: Hoàn tác
+      undo_success: Lần chạy quy tắc đã được hoàn tác
+      already_undone: Lần chạy quy tắc này đã được hoàn tác
+      undo_confirm_title: Hoàn tác lần chạy quy tắc này?
+      undo_confirm_body: Thao tác này khôi phục giá trị mà các giao dịch bị ảnh hưởng có trước lần chạy. Các giao dịch được chỉnh sửa sau đó sẽ không bị thay đổi.
+      undo_confirm_button: Hoàn tác lần chạy
+    show:
+      conditions: Điều kiện
+      matched:
+        one: 1 giao dịch khớp
+        other: "%{count} giao dịch khớp"
+      conflict_warning: 'Các quy tắc ở trên chạy trước và có thể nhận một số kết quả khớp: %{names}.'
+      edit: Sửa quy tắc
+      apply: Áp dụng
+      rule_category: Danh mục mà quy tắc này gán
+      apply_now: Cũng cập nhật các giao dịch khớp ngay bây giờ
+      update_rule: Cập nhật quy tắc
+      transactions: Giao dịch khớp
+      select_hint: Bỏ chọn bất kỳ dòng nào bạn không muốn thay đổi.
+      uncategorized: Chưa phân loại
+      new_category: Danh mục mới cho mục đã chọn
+      also_update_rule: Cũng đặt đây làm danh mục của quy tắc
+      update_selected: Cập nhật mục đã chọn
+      no_transactions: Quy tắc này hiện không khớp với giao dịch nào.
+      undo_available_title: Quy tắc này đã được áp dụng
+      undo_available_body: Hoàn tác lần chạy cuối để khôi phục giá trị mà các giao dịch của nó có trước đó. Các giao dịch được chỉnh sửa sau đó sẽ không bị thay đổi.
+      undo_last_run: Hoàn tác lần chạy cuối
+    update_category:
+      success: Đã cập nhật danh mục quy tắc
+    update_transactions:
+      updated:
+        one: 1 giao dịch đã phân loại
+        other: "%{count} giao dịch đã phân loại"
   rule:
     conditions:
       condition_group:

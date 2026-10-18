@@ -3,10 +3,10 @@
       rows: @rows, pagy: @pagy, filters: @filters, tag_choices: @tag_choices,
       layout: :list
     ) do |browser| %>
-  <%# The vault is an inbox now, not a second upload door (Milestone B, design
-      D1 — the owner's deletions name "the separate Statements page and its own
-      upload form"): the table's upload form is gone, so the Documents dropzone
-      is the only way in. The storage summary it carried stays. %>
+  <%# The vault is a destination now, not a second upload door (Milestone B,
+      design D1 — the owner's deletions name "the separate Statements page and
+      its own upload form"): the table's upload form is gone, so the Documents
+      dropzone is the only way in. The storage summary it carried stays. %>
   <% browser.with_upload do %>
     <%= render DS::Card.new do %>
       <div class="flex items-center justify-between gap-3">

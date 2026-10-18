@@ -6,9 +6,13 @@ nl:
       coverage_description: Historische maanden onderbouwd door geüploade afschriften en saldocontroles.
       coverage_range: "%{start} - %{end}"
       empty: Nog geen afschriften gekoppeld aan dit account.
-      open_inbox: Inbox
       statements_title: Afschriften
       year_label: Dekkingsjaar
+      filtered: Extracten van %{month} worden getoond
+      show_all: Alle maanden tonen
+      months_label: Afschriftdekking per maand
+      month_link: "%{month}: %{status}"
+      open_vault: Afschriftenkluis
     balance:
       unknown: Onbekend
     coverage:
@@ -31,28 +35,37 @@ nl:
     destroy:
       failure: Afschrift kon niet worden verwijderd.
       success: Afschrift verwijderd.
+      document_blocked: Het document van dit afschrift onderbouwt nog niet afgestemde transacties (%{entries}). Stem ze eerst af of verwijder ze.
+      imported_rows:
+        one: Dit afschrift heeft 1 geïmporteerde rij. Als je het verwijdert, raakt de import die de rij bezit verweesd; draai de import eerst terug of verwijder hem.
+        other: Dit afschrift heeft %{count} geïmporteerde rijen. Als je het verwijdert, raakt de import die ze bezit verweesd; draai de import eerst terug of verwijder hem.
+      pending_import: Dit afschrift heeft een import. Verwijder of draai de import terug voordat je het afschrift verwijdert.
     form:
       account_upload: Afschrift uploaden
       files_hint: PDF, CSV of XLSX. Max. %{max_size} MB per bestand.
       files_label: Afschriftbestanden
-      inbox_upload: Uploaden
-      period_hint: "Sure leest de periode uit de pdf als die erin staat, of uit een datum in de bestandsnaam (bijv. 2026-04). Je kunt hem ook bij het afschrift instellen."
+      period_hint: Sure leest de periode uit de pdf als die erin staat, of uit een datum in de bestandsnaam (bijv. 2026-04). Je kunt hem ook bij het afschrift instellen.
+      upload_title: Afschrift uploaden
     index:
       account_label: Account
       confidence: "%{confidence} overeenkomst"
       empty_linked: Nog geen gekoppelde afschriften.
-      empty_unmatched: De afschriften-inbox is leeg.
+      empty_unmatched: De afschriftenkluis is leeg.
       leave_unmatched: Niet-toegewezen laten
       linked_title: Gekoppelde afschriften
       no_suggestion: Geen suggestie
       storage_used: Gebruikte opslag
       title: Afschriftenkluis
-      unmatched_title: Niet-toegewezen inbox
-      upload_description: Upload afschriften naar de inbox of kies een account om ze meteen te koppelen.
+      unmatched_title: Niet-toegewezen afschriften
+      upload_description: Upload afschriften naar de kluis of kies een account om ze meteen te koppelen.
       upload_title: Afschriften uploaden
     link:
       no_account: Kies een account voordat u dit afschrift koppelt.
       success: Afschrift gekoppeld aan %{account}.
+      account_locked: Dit afschrift kan hier niet opnieuw worden toegewezen.
+      imported:
+        one: Gekoppeld aan %{account}. De transactie sloot aan op de totalen van het afschrift en wordt nu toegevoegd.
+        other: Gekoppeld aan %{account}. De %{count} transacties sloten aan op de totalen van het afschrift en worden nu toegevoegd.
     period:
       unknown: Periode onbekend
     reconciliation:
@@ -64,6 +77,12 @@ nl:
       matched: Komt overeen
       mismatched: Komt niet overeen
       unavailable: Niet gecontroleerd
+      explanations:
+        closing_balance: Het afschrift sluit op %{statement}, maar het grootboek van Sure sluit op %{ledger} (verschil %{difference}).
+        opening_balance: Het afschrift opent op %{statement}, maar het grootboek van Sure opent op %{ledger} (verschil %{difference}).
+        period_movement: De beweging van het afschrift is %{statement}, maar het grootboek van Sure bewoog %{ledger} (verschil %{difference}).
+        default: Het afschrift zegt %{statement}, maar het grootboek van Sure zegt %{ledger} (verschil %{difference}).
+      reviewed: Gecontroleerd
     reject:
       success: Afschriftkoppeling afgewezen.
     show:
@@ -93,8 +112,20 @@ nl:
       suggested_account: Voorgesteld account is %{account} (%{confidence} betrouwbaarheid).
       title: Afschrift
       unlink: Ontkoppelen
-      unmatched_account: Niet-toegewezen inbox
+      unmatched_account: Geen account
       unknown_value: Onbekend
+      activity: Activiteit
+      document_linked: Gearchiveerd document
+      imported_state:
+        one: 1 geïmporteerde rij
+        other: "%{count} geïmporteerde rijen"
+      import_pending: Import in behandeling
+      overlap_message: Dit afschrift overlapt %{statements} meer dan de gedeelde grensdag en de gedrukte saldi verschillen. Controleer de periodes en saldi; mogelijk is één kopie onjuist.
+      overlap_title: Overlappend afschrift met verschillende saldi
+      period_warning_title: Periode lijkt onjuist
+      mark_reviewed: Als gecontroleerd markeren
+      reviewed: Gecontroleerd op %{date}
+      no_suggestion_description: Kies hieronder een account of laat het afschrift ongekoppeld tot je weet waarbij het hoort.
     status:
       linked: Gekoppeld
       rejected: Afgewezen
@@ -113,6 +144,22 @@ nl:
       unlink: Ontkoppelen
       view: Bekijken
     unlink:
-      success: Afschrift teruggezet naar de niet-toegewezen inbox.
+      success: Afschrift teruggezet naar de niet-toegewezen afschriften.
     update:
       success: Afschrift bijgewerkt.
+    assign_account:
+      label: Account
+      placeholder: Kies een account
+      submit: Account koppelen
+      no_accounts: Er zijn nog geen accounts om te koppelen.
+    period_check:
+      title: Periode lijkt onjuist
+      sources:
+        printed: gedrukte
+        recorded: geregistreerde
+        filename: bestandsnaam
+      message: De opgeslagen periode (%{actual}) komt niet overeen met de %{source} periode (%{expected}). Controleer de datums van het afschrift.
+    review:
+      success: Afschrift als gecontroleerd gemarkeerd.
+    type:
+      statement: Afschrift

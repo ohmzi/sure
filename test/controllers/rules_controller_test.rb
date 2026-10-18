@@ -28,6 +28,27 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "Unrelated store"
   end
 
+  test "review page associates each label with exactly one control" do
+    rule = create_category_rule(name: "Coffee Shop", category: categories(:food_and_drink))
+    create_transaction(account: accounts(:depository), name: "Coffee Shop", amount: 10)
+
+    get rule_url(rule)
+
+    assert_response :success
+    # Each form namespaces its fields, so the rule-category select and the
+    # "new category for selected" select no longer share the id `category_id`.
+    assert_select "form[action='#{update_category_rule_path(rule)}'] label[for='rule_category_category_id']"
+    assert_select "form[action='#{update_category_rule_path(rule)}'] select#rule_category_category_id"
+    assert_select "form[action='#{update_transactions_rule_path(rule)}'] label[for='rule_selection_category_id']"
+    assert_select "form[action='#{update_transactions_rule_path(rule)}'] select#rule_selection_category_id"
+
+    # Every `for` points at one control, and every row checkbox has its own id.
+    targets = css_select("label[for]").map { |label| label["for"] }
+    assert_equal targets.uniq, targets, "two labels must never point at the same control id"
+    checkbox_ids = css_select("input[type='checkbox'][id]").map { |box| box["id"] }
+    assert_equal checkbox_ids.uniq, checkbox_ids
+  end
+
   test "updating the rule category rewrites its category action and can apply now" do
     rule = create_category_rule(name: "Coffee Shop", category: categories(:food_and_drink))
 

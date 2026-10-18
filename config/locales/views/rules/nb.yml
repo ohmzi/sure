@@ -23,3 +23,86 @@ nb:
         pending: Ventende
         success: Vellykket
         failed: Mislyktes
+    category_rule_cta:
+      close: Lukk
+      create_rule: Opprett regel
+      apply_to_similar:
+        one: Bruk på 1 lignende transaksjon
+        other: Bruk på %{count} lignende transaksjoner
+      description: Bruk den nå på lignende ukategoriserte transaksjoner, eller opprett en regel for fremtidige
+      dont_show_again: Ikke vis dette igjen
+      hide_for_today: Skjul for i dag
+      hide_for_today_hint: "«Skjul for i dag» setter disse forslagene på pause i 24 timer."
+      message: Oppdatert til %{category_name}
+    rule:
+      review: Se gjennom transaksjoner
+      stop_processing: Stopp
+      stop_processing_hint: Regler lenger ned endrer ikke transaksjoner som denne regelen treffer.
+    form:
+      stop_processing_label: Slutt å behandle flere regler
+      stop_processing_description: Regler lenger ned i listen endrer ikke transaksjoner som denne regelen treffer.
+    index:
+      order_hint: Regler kjøres ovenfra og ned. Når en regel setter et felt på en transaksjon, endrer ikke regler lenger ned det feltet. Tagger legges til av hver treffende regel. Dra regler for å endre rekkefølgen.
+      reorder_rule: Flytt regelen %{name}. Trykk Enter eller Mellomrom for å gripe den, og bruk deretter piltastene for å flytte den.
+    confirm:
+      rules_above_notice:
+        one: Den aktive regelen over kjøres først, så resultatet er det samme som i en full kjøring.
+        other: De %{count} aktive reglene over kjøres først, så resultatet er det samme som i en full kjøring.
+    actions:
+      to_label: til
+    apply_all:
+      preview:
+        title: Hva som vil endres
+        description: Bare transaksjoner der verdiene faktisk endres, telles.
+        transactions:
+          one: "%{count} transaksjon"
+          other: "%{count} transaksjoner"
+        none: Ingen
+        uncategorized: Ukategorisert
+        included: Inkludert
+        excluded: Utelatt
+        not_undoable: Vil ikke bli angret
+        async_hint: Kategorien eller forhandleren velges av AI
+    applications:
+      title: Nylige bruk
+      description: Kjøringer av «Bruk alle» som du fortsatt kan angre. Angre gjenoppretter verdiene hver transaksjon hadde før kjøringen.
+      summary:
+        one: "%{time} · %{count} transaksjon"
+        other: "%{time} · %{count} transaksjoner"
+      undo: Angre
+      undo_success: Regelkjøringen ble angret
+      already_undone: Denne regelkjøringen er allerede angret
+      undo_confirm_title: Angre denne regelkjøringen?
+      undo_confirm_body: Dette gjenoppretter verdiene de berørte transaksjonene hadde før kjøringen. Transaksjoner som er redigert siden, forblir uendret.
+      undo_confirm_button: Angre kjøring
+    condition_filters:
+      operators:
+        matches_regex: Samsvarer (regex)
+        does_not_match_regex: Samsvarer ikke (regex)
+    show:
+      conditions: Betingelser
+      matched:
+        one: 1 treffende transaksjon
+        other: "%{count} treffende transaksjoner"
+      conflict_warning: 'Reglene over kjøres først og kan gjøre krav på enkelte treff: %{names}.'
+      edit: Rediger regel
+      apply: Bruk
+      rule_category: Kategorien denne regelen tildeler
+      apply_now: Oppdater også de treffende transaksjonene nå
+      update_rule: Oppdater regel
+      transactions: Treffende transaksjoner
+      select_hint: Fjern avmerkingen på rader du ikke vil endre.
+      uncategorized: Ukategorisert
+      new_category: Ny kategori for utvalget
+      also_update_rule: Gjør dette også til regelenes kategori
+      update_selected: Oppdater utvalget
+      no_transactions: Denne regelen treffer ingen transaksjoner akkurat nå.
+      undo_available_title: Denne regelen ble brukt
+      undo_available_body: Angre den siste kjøringen for å gjenopprette verdiene transaksjonene hadde før. Transaksjoner som er redigert siden, forblir uendret.
+      undo_last_run: Angre siste kjøring
+    update_category:
+      success: Regelkategorien er oppdatert
+    update_transactions:
+      updated:
+        one: 1 transaksjon kategorisert
+        other: "%{count} transaksjoner kategorisert"

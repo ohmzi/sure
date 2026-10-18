@@ -2,14 +2,17 @@
 ca:
   account_statements:
     account_tab:
-      coverage_description: Mesos històrics coberts amb extractes pujats i comprovacions
-        de saldo.
+      coverage_description: Mesos històrics coberts amb extractes pujats i comprovacions de saldo.
       coverage_range: "%{start} - %{end}"
       coverage_title: Cobertura d'extractes
       empty: Encara no hi ha extractes enllaçats a aquest compte.
-      open_inbox: Safata d'entrada
       statements_title: Extractes
       year_label: Any de cobertura
+      filtered: Mostrant extractes de %{month}
+      show_all: Mostra tots els mesos
+      months_label: Cobertura d'extractes per mes
+      month_link: "%{month}: %{status}"
+      open_vault: Arxiu d'extractes
     balance:
       unknown: Desconegut
     coverage:
@@ -27,34 +30,42 @@ ca:
       invalid_file_type: Puja un extracte en PDF, CSV o XLSX dins del límit de mida.
       no_files: Selecciona com a mínim un fitxer d'extracte.
       success:
-        one: '%{count} extracte pujat.'
+        one: "%{count} extracte pujat."
         other: "%{count} extractes pujats."
     destroy:
       failure: No s'ha pogut eliminar l'extracte.
       success: Extracte eliminat.
+      document_blocked: El document d'aquest extracte encara dóna suport a moviments no conciliats (%{entries}). Concilia'ls o elimina'ls primer.
+      imported_rows:
+        one: Aquest extracte té 1 fila importada. Si l'elimines, la importació que posseeix la fila quedarà òrfena; reverteix o elimina primer la importació.
+        other: Aquest extracte té %{count} files importades. Si l'elimines, la importació que les posseeix quedarà òrfena; reverteix o elimina primer la importació.
+      pending_import: Aquest extracte té una importació. Elimina o reverteix la importació abans d'eliminar l'extracte.
     form:
       account_upload: Puja l'extracte
       files_hint: PDF, CSV o XLSX. Màxim %{max_size}MB per fitxer.
       files_label: Fitxers d'extracte
-      inbox_upload: Puja
-      period_hint: "Sure llegeix el període del PDF si l’indica, o d’una data al nom del fitxer (p. ex. 2026-04). També el pots indicar a l’extracte."
+      period_hint: Sure llegeix el període del PDF si l’indica, o d’una data al nom del fitxer (p. ex. 2026-04). També el pots indicar a l’extracte.
+      upload_title: Puja un extracte
     index:
       account_label: Compte
       confidence: Coincidència %{confidence}
       empty_linked: Encara no hi ha extractes enllaçats.
-      empty_unmatched: La safata d'extractes està buida.
+      empty_unmatched: L'arxiu d'extractes està buit.
       leave_unmatched: Deixa sense aparellar
       linked_title: Extractes enllaçats
       no_suggestion: Sense suggeriment
       storage_used: Emmagatzematge utilitzat
       title: Arxiu d'extractes
-      unmatched_title: Safata sense aparellar
-      upload_description: Puja extractes a la safata, o tria un compte per enllaçar-los
-        immediatament.
+      unmatched_title: Extractes sense assignar
+      upload_description: Puja extractes a l'arxiu o tria un compte per enllaçar-los immediatament.
       upload_title: Puja extractes
     link:
       no_account: Tria un compte abans d'enllaçar aquest extracte.
       success: Extracte enllaçat a %{account}.
+      account_locked: Aquest extracte ja no es pot reassignar aquí.
+      imported:
+        one: Enllaçat a %{account}. La seva transacció quadrava amb els totals de l'extracte, així que s'afegeix ara.
+        other: Enllaçat a %{account}. Les seves %{count} transaccions quadraven amb els totals de l'extracte, així que s'afegeixen ara.
     period:
       unknown: Període desconegut
     reconciliation:
@@ -66,6 +77,12 @@ ca:
       matched: Coincideix
       mismatched: No coincideix
       unavailable: No comprovat
+      explanations:
+        closing_balance: L'extracte tanca a %{statement}, però el llibre de Sure tanca a %{ledger} (diferència %{difference}).
+        opening_balance: L'extracte obre a %{statement}, però el llibre de Sure obre a %{ledger} (diferència %{difference}).
+        period_movement: El moviment de l'extracte és %{statement}, però el llibre de Sure es va moure %{ledger} (diferència %{difference}).
+        default: L'extracte diu %{statement}, però el llibre de Sure diu %{ledger} (diferència %{difference}).
+      reviewed: Revisat
     reject:
       success: Coincidència d'extracte rebutjada.
     show:
@@ -88,8 +105,7 @@ ca:
       period_end_on: Final del període
       period_start_on: Inici del període
       reconciliation_title: Conciliació
-      reconciliation_unavailable: Afegeix un període d'extracte i un saldo inicial
-        o final, i comprova que Sure tingui historial de saldos per a aquestes dates.
+      reconciliation_unavailable: Afegeix un període d'extracte i un saldo inicial o final, i comprova que Sure tingui historial de saldos per a aquestes dates.
       reject: Rebutja
       save: Desa l'extracte
       statement_amount: Extracte
@@ -97,7 +113,19 @@ ca:
       title: Extracte
       unknown_value: Desconegut
       unlink: Desenllaça
-      unmatched_account: Safata sense aparellar
+      unmatched_account: Cap compte
+      activity: Activitat
+      document_linked: Document arxivat
+      imported_state:
+        one: 1 fila importada
+        other: "%{count} files importades"
+      import_pending: Importació pendent
+      overlap_message: Aquest extracte se superposa amb %{statements} més enllà del dia límit compartit i els saldos impresos no coincideixen. Revisa els períodes i els saldos; potser una còpia és incorrecta.
+      overlap_title: Extracte superposat amb saldos diferents
+      period_warning_title: El període sembla incorrecte
+      mark_reviewed: Marca com a revisat
+      reviewed: Revisat el %{date}
+      no_suggestion_description: Tria un compte a continuació o deixa l'extracte sense assignar fins que sàpigues a quin pertany.
     status:
       linked: Enllaçat
       rejected: Rebutjat
@@ -116,6 +144,22 @@ ca:
       unlink: Desenllaça
       view: Visualitza
     unlink:
-      success: Extracte mogut de nou a la safata sense aparellar.
+      success: Extracte tornat als extractes sense assignar.
     update:
       success: Extracte actualitzat.
+    assign_account:
+      label: Compte
+      placeholder: Tria un compte
+      submit: Enllaça el compte
+      no_accounts: Encara no hi ha comptes per enllaçar.
+    period_check:
+      title: El període sembla incorrecte
+      sources:
+        printed: imprès
+        recorded: registrat
+        filename: nom del fitxer
+      message: El període desat (%{actual}) no coincideix amb el període %{source} (%{expected}). Revisa les dates de l'extracte.
+    review:
+      success: Extracte marcat com a revisat.
+    type:
+      statement: Extracte

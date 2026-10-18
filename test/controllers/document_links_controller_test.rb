@@ -792,6 +792,15 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
                  "no per-row duplicate COUNT"
   end
 
+  test "the duplicate review says it is clear once every group is reduced to one" do
+    get documents_path(q: { duplicates: 1 })
+
+    assert_response :success
+    assert_includes response.body, I18n.t("document_browser.empty.duplicates_title")
+    assert_includes response.body, I18n.t("document_browser.empty.duplicates_description")
+    assert_not_includes response.body, I18n.t("document_browser.empty.title")
+  end
+
   test "index rows link into the viewer carrying the page's filters" do
     get documents_path(source: "bill")
 

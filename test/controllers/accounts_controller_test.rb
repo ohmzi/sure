@@ -629,6 +629,17 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_select "p", text: I18n.l(Date.current.prev_month.beginning_of_month, format: "%b %Y")
   end
 
+  test "statements coverage grid is a labelled keyboard-navigable group" do
+    get account_url(@account, tab: "statements")
+
+    assert_response :success
+    assert_select "div[role='group'][data-controller='month-grid'][data-action='keydown->month-grid#navigate']"
+    assert_select "div[role='group'][data-controller='month-grid'][aria-label='#{I18n.t("account_statements.account_tab.months_label")}']"
+    assert_select "div[data-controller='month-grid'] a[href][aria-label]" do |links|
+      assert_operator links.size, :>=, 1
+    end
+  end
+
   test "statements tab lazy frame returns matching frame content" do
     frame_id = dom_id(@account, :statements_tab)
 

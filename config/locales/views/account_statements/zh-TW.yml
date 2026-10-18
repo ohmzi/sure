@@ -4,11 +4,15 @@ zh-TW:
     account_tab:
       coverage_title: 對帳單涵蓋範圍
       coverage_description: 這些月份已上傳對帳單，餘額也已核對。
-      coverage_range: '%{start} - %{end}'
+      coverage_range: "%{start} - %{end}"
       empty: 這個帳戶還沒有連結任何對帳單。
-      open_inbox: 收件匣
       statements_title: 對帳單
       year_label: 涵蓋年份
+      filtered: 顯示 %{month} 對帳單
+      show_all: 顯示所有月份
+      months_label: 依月份排列的對帳單涵蓋範圍
+      month_link: "%{month}：%{status}"
+      open_vault: 對帳單管理
     balance:
       unknown: 未知
     coverage:
@@ -31,28 +35,37 @@ zh-TW:
     destroy:
       failure: 對帳單無法刪除。
       success: 對帳單已刪除。
+      document_blocked: 此對帳單的文件仍支撐未對帳的交易（%{entries}）。請先對帳或刪除這些交易。
+      imported_rows:
+        one: 此對帳單有 1 行已匯入。刪除它會使擁有該行的匯入變成孤立狀態；請先還原或刪除該匯入。
+        other: 此對帳單有 %{count} 行已匯入。刪除它會使擁有這些行的匯入變成孤立狀態；請先還原或刪除該匯入。
+      pending_import: 此對帳單有一個匯入。請先刪除或還原該匯入，再刪除對帳單。
     form:
       account_upload: 上傳對帳單
       files_hint: PDF、CSV 或 XLSX，每個檔案最大 %{max_size}MB。
       files_label: 對帳單檔案
-      inbox_upload: 上傳
-      period_hint: "如果 PDF 中載明對帳單期間，Sure 會直接讀取，否則從檔名中的日期（例如 2026-04）讀取。你也可以在對帳單上手動設定。"
+      period_hint: 如果 PDF 中載明對帳單期間，Sure 會直接讀取，否則從檔名中的日期（例如 2026-04）讀取。你也可以在對帳單上手動設定。
+      upload_title: 上傳對帳單
     index:
       account_label: 帳戶
-      confidence: '%{confidence} 相符度'
+      confidence: "%{confidence} 相符度"
       empty_linked: 還沒有已連結的對帳單。
-      empty_unmatched: 對帳單收件匣目前沒有待配對項目。
+      empty_unmatched: 對帳單管理目前沒有待配對項目。
       leave_unmatched: 維持未配對
       linked_title: 已連結的對帳單
       no_suggestion: 沒有建議
       storage_used: 已用儲存空間
       title: 對帳單管理
-      unmatched_title: 未配對收件匣
-      upload_description: 把對帳單上傳到收件匣，或直接選擇一個帳戶立即連結。
+      unmatched_title: 未配對的對帳單
+      upload_description: 把對帳單上傳到管理區，或直接選擇一個帳戶立即連結。
       upload_title: 上傳對帳單
     link:
       no_account: 連結這份對帳單前，請先選擇一個帳戶。
       success: 已將對帳單連結到 %{account}。
+      account_locked: 此對帳單已無法在此重新分配。
+      imported:
+        one: 已連結至%{account}。其交易與對帳單總額相符，因此現在正在加入。
+        other: 已連結至%{account}。其 %{count} 筆交易與對帳單總額相符，因此現在正在加入。
     period:
       unknown: 期間不明
     reconciliation:
@@ -64,6 +77,12 @@ zh-TW:
       matched: 相符
       mismatched: 不相符
       unavailable: 未檢查
+      explanations:
+        closing_balance: 對帳單期末為 %{statement}，但 Sure 帳簿期末為 %{ledger}（差額 %{difference}）。
+        opening_balance: 對帳單期初為 %{statement}，但 Sure 帳簿期初為 %{ledger}（差額 %{difference}）。
+        period_movement: 對帳單的變動為 %{statement}，但 Sure 帳簿變動為 %{ledger}（差額 %{difference}）。
+        default: 對帳單顯示 %{statement}，但 Sure 帳簿顯示 %{ledger}（差額 %{difference}）。
+      reviewed: 已複核
     reject:
       success: 已拒絕此對帳單的配對建議。
     show:
@@ -93,8 +112,20 @@ zh-TW:
       suggested_account: 建議的帳戶是 %{account}（相符度 %{confidence}）。
       title: 對帳單
       unlink: 取消連結
-      unmatched_account: 未配對收件匣
+      unmatched_account: 無帳戶
       unknown_value: 未知
+      activity: 活動
+      document_linked: 已封存文件
+      imported_state:
+        one: 1 行已匯入
+        other: "%{count} 行已匯入"
+      import_pending: 匯入待處理
+      overlap_message: 此對帳單與%{statements}在共同邊界日之外重疊，且列印的餘額不一致。請檢查期間和餘額；其中一份副本可能有誤。
+      overlap_title: 餘額不同的重疊對帳單
+      period_warning_title: 期間似乎有誤
+      mark_reviewed: 標記為已複核
+      reviewed: 已於 %{date} 複核
+      no_suggestion_description: 在下方選擇一個帳戶，或在確定歸屬前保持對帳單未配對。
     status:
       linked: 已連結
       rejected: 已拒絕
@@ -113,6 +144,22 @@ zh-TW:
       unlink: 取消連結
       view: 檢視
     unlink:
-      success: 對帳單已移回未配對收件匣。
+      success: 對帳單已移回未配對清單。
     update:
       success: 對帳單已更新。
+    assign_account:
+      label: 帳戶
+      placeholder: 選擇帳戶
+      submit: 連結帳戶
+      no_accounts: 目前沒有可連結的帳戶。
+    period_check:
+      title: 期間似乎有誤
+      sources:
+        printed: 列印
+        recorded: 記錄
+        filename: 檔名
+      message: 儲存的期間（%{actual}）與%{source}期間（%{expected}）不符。請檢查對帳單的日期。
+    review:
+      success: 對帳單已標記為已複核。
+    type:
+      statement: 對帳單

@@ -118,6 +118,19 @@ ca:
         col_tokens: Tokens
         completion: resposta
         cost_by_model: Cost per model
+        categorization_quality: "Qualitat de la categorització"
+        categorization_quality_source: "Última avaluació d'aquesta llar: %{model} · %{completed_at}"
+        categorization_accuracy: "Precisió"
+        categorization_accuracy_description: "%{count} mostres a l'última avaluació"
+        categorization_accuracy_errored: "%{errored} de %{total} mostres amb error; no s'ha mesurat la precisió"
+        categorization_not_reported: "No informat"
+        categorization_abstention: "Taxa d'abstenció"
+        categorization_abstention_description: "Respostes utilitzables que no van retornar cap categoria"
+        categorization_by_category: "Precisió per categoria"
+        categorization_category_null: "Sense categoria"
+        categorization_category_detail: "%{correct} de %{total} correctes"
+        categorization_quality_empty_title: "Encara no hi ha cap avaluació de categorització"
+        categorization_quality_empty_description: "Un administrador executa l'avaluació de categorització des de la línia d'ordres amb l'historial de transaccions exportat d'aquesta llar."
         cost_by_operation: Cost per operació
         cost_estimates_description: 'Els costos s’estimen segons els preus publicats pels proveïdors, verificats per darrera vegada el %{date}. Els costos reals poden variar. El preu és per cada milió de tokens i varia segons el model. Els models personalitzats o amb self hosting mostraran "N/A" i no s’inclouen als totals de cost.'
         cost_estimates_title: Sobre les estimacions de cost

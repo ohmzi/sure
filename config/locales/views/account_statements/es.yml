@@ -6,9 +6,13 @@ es:
       coverage_description: Meses históricos respaldados por extractos subidos y comprobaciones de saldo.
       coverage_range: "%{start} - %{end}"
       empty: Aún no hay extractos vinculados a esta cuenta.
-      open_inbox: Bandeja de entrada
       statements_title: Extractos
       year_label: Año de cobertura
+      filtered: Mostrando extractos de %{month}
+      show_all: Mostrar todos los meses
+      months_label: Cobertura de extractos por mes
+      month_link: "%{month}: %{status}"
+      open_vault: Bóveda de extractos
     balance:
       unknown: Desconocido
     coverage:
@@ -22,7 +26,7 @@ es:
     create:
       duplicates:
         one: Se omitió 1 extracto duplicado.
-        other: "Se omitieron %{count} extractos duplicados."
+        other: Se omitieron %{count} extractos duplicados.
       invalid_file_type: Sube un extracto en PDF, CSV o XLSX que no supere el límite de tamaño.
       no_files: Selecciona al menos un archivo de extracto.
       success:
@@ -31,28 +35,37 @@ es:
     destroy:
       failure: No se pudo eliminar el extracto.
       success: Extracto eliminado.
+      document_blocked: El documento de este extracto aún respalda movimientos sin conciliar (%{entries}). Concilia o elimina esos movimientos primero.
+      imported_rows:
+        one: Este extracto tiene 1 fila importada. Si lo eliminas, la importación que contiene la fila quedará huérfana; primero revierte o elimina la importación.
+        other: Este extracto tiene %{count} filas importadas. Si lo eliminas, la importación que las contiene quedará huérfana; primero revierte o elimina la importación.
+      pending_import: Este extracto tiene una importación. Elimina o revierte la importación antes de eliminar el extracto.
     form:
       account_upload: Subir extracto
       files_hint: PDF, CSV o XLSX. Máximo %{max_size} MB por archivo.
       files_label: Archivos de extracto
-      inbox_upload: Subir
-      period_hint: "Sure lee el periodo del PDF si lo indica, o de una fecha en el nombre del archivo (p. ej. 2026-04). También puedes indicarlo en el extracto."
+      period_hint: Sure lee el periodo del PDF si lo indica, o de una fecha en el nombre del archivo (p. ej. 2026-04). También puedes indicarlo en el extracto.
+      upload_title: Subir un extracto
     index:
       account_label: Cuenta
-      confidence: "Coincidencia del %{confidence}"
+      confidence: Coincidencia del %{confidence}
       empty_linked: Aún no hay extractos vinculados.
-      empty_unmatched: La bandeja de entrada de extractos está vacía.
+      empty_unmatched: La bóveda de extractos está vacía.
       leave_unmatched: Dejar sin asignar
       linked_title: Extractos vinculados
       no_suggestion: Sin sugerencia
       storage_used: Almacenamiento usado
       title: Bóveda de extractos
-      unmatched_title: Bandeja de entrada sin asignar
-      upload_description: Sube extractos a la bandeja de entrada o elige una cuenta para vincularlos de inmediato.
+      unmatched_title: Extractos sin asignar
+      upload_description: Sube extractos a la bóveda o elige una cuenta para vincularlos de inmediato.
       upload_title: Subir extractos
     link:
       no_account: Elige una cuenta antes de vincular este extracto.
       success: Extracto vinculado a %{account}.
+      account_locked: Este extracto ya no se puede reasignar aquí.
+      imported:
+        one: Vinculado a %{account}. Su transacción cuadraba con los totales del extracto, así que se está añadiendo ahora.
+        other: Vinculado a %{account}. Sus %{count} transacciones cuadraban con los totales del extracto, así que se están añadiendo ahora.
     period:
       unknown: Periodo desconocido
     reconciliation:
@@ -64,6 +77,12 @@ es:
       matched: Coincide
       mismatched: No coincide
       unavailable: Sin comprobar
+      explanations:
+        closing_balance: El extracto cierra en %{statement}, pero el libro de Sure cierra en %{ledger} (diferencia %{difference}).
+        opening_balance: El extracto abre en %{statement}, pero el libro de Sure abre en %{ledger} (diferencia %{difference}).
+        period_movement: El movimiento del extracto es %{statement}, pero el libro de Sure se movió %{ledger} (diferencia %{difference}).
+        default: El extracto dice %{statement}, pero el libro de Sure dice %{ledger} (diferencia %{difference}).
+      reviewed: Revisado
     reject:
       success: Coincidencia de extracto rechazada.
     show:
@@ -93,8 +112,20 @@ es:
       suggested_account: La cuenta sugerida es %{account} (confianza del %{confidence}).
       title: Extracto
       unlink: Desvincular
-      unmatched_account: Bandeja de entrada sin asignar
+      unmatched_account: Ninguna cuenta
       unknown_value: Desconocido
+      activity: Actividad
+      document_linked: Documento archivado
+      imported_state:
+        one: 1 fila importada
+        other: "%{count} filas importadas"
+      import_pending: Importación pendiente
+      overlap_message: Este extracto se solapa con %{statements} más allá del día límite compartido y los saldos impresos no coinciden. Revisa los períodos y saldos; puede que una copia sea incorrecta.
+      overlap_title: Extracto solapado con saldos diferentes
+      period_warning_title: El período parece incorrecto
+      mark_reviewed: Marcar como revisado
+      reviewed: Revisado el %{date}
+      no_suggestion_description: Elige una cuenta abajo o deja el extracto sin asignar hasta que sepas a cuál pertenece.
     status:
       linked: Vinculado
       rejected: Rechazado
@@ -113,6 +144,22 @@ es:
       unlink: Desvincular
       view: Ver
     unlink:
-      success: Extracto devuelto a la bandeja de entrada sin asignar.
+      success: Extracto devuelto a los extractos sin asignar.
     update:
       success: Extracto actualizado.
+    assign_account:
+      label: Cuenta
+      placeholder: Elige una cuenta
+      submit: Vincular cuenta
+      no_accounts: Aún no hay cuentas disponibles para vincular.
+    period_check:
+      title: El período parece incorrecto
+      sources:
+        printed: impreso
+        recorded: registrado
+        filename: nombre del archivo
+      message: El período guardado (%{actual}) no coincide con el período %{source} (%{expected}). Revisa las fechas del extracto.
+    review:
+      success: Extracto marcado como revisado.
+    type:
+      statement: Extracto

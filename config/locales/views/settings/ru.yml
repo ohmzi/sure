@@ -118,6 +118,19 @@ ru:
         col_tokens: Токены
         completion: ответ
         cost_by_model: Стоимость по моделям
+        categorization_quality: "Качество категоризации"
+        categorization_quality_source: "Последняя оценка для этого домохозяйства: %{model} · %{completed_at}"
+        categorization_accuracy: "Точность"
+        categorization_accuracy_description: "%{count} образцов в последней оценке"
+        categorization_accuracy_errored: "%{errored} из %{total} образцов с ошибкой; точность не измерялась"
+        categorization_not_reported: "Не сообщается"
+        categorization_abstention: "Доля воздержаний"
+        categorization_abstention_description: "Пригодные ответы, не вернувшие категорию"
+        categorization_by_category: "Точность по категориям"
+        categorization_category_null: "Без категории"
+        categorization_category_detail: "%{correct} из %{total} верных"
+        categorization_quality_empty_title: "Оценки категоризации пока нет"
+        categorization_quality_empty_description: "Администратор запускает оценку категоризации из командной строки на экспортированной истории операций этого домохозяйства."
         cost_by_operation: Стоимость по операциям
         cost_estimates_description: 'Стоимость оценивается по опубликованным ценам поставщиков, проверенным %{date}. Фактические затраты могут отличаться. Цены указаны за 1 миллион токенов и варьируются в зависимости от модели. Пользовательские или самохостинг-модели будут отображаться как "N/A" и не включаются в общую стоимость.'
         cost_estimates_title: Оценка стоимости

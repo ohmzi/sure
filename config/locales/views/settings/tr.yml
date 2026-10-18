@@ -116,6 +116,19 @@ tr:
         col_tokens: Token
         completion: tamamlama
         cost_by_model: Modele Göre Maliyet
+        categorization_quality: "Kategorizasyon kalitesi"
+        categorization_quality_source: "Bu hane için son değerlendirme: %{model} · %{completed_at}"
+        categorization_accuracy: "Doğruluk"
+        categorization_accuracy_description: "Son değerlendirmede %{count} örnek"
+        categorization_accuracy_errored: "%{total} örnekten %{errored} tanesi hatalı; doğruluk ölçülmedi"
+        categorization_not_reported: "Bildirilmedi"
+        categorization_abstention: "Çekinme oranı"
+        categorization_abstention_description: "Kategori döndürmeyen kullanılabilir yanıtlar"
+        categorization_by_category: "Kategoriye göre doğruluk"
+        categorization_category_null: "Kategori yok"
+        categorization_category_detail: "%{total} örnekten %{correct} doğru"
+        categorization_quality_empty_title: "Henüz kategorizasyon değerlendirmesi yok"
+        categorization_quality_empty_description: "Bir yönetici, bu hanenin dışa aktarılmış işlem geçmişi üzerinde kategorizasyon değerlendirmesini komut satırından çalıştırır."
         cost_by_operation: İşleme Göre Maliyet
         cost_estimates_description: Maliyetler, en son %{date} tarihinde doğrulanan yayınlanmış sağlayıcı fiyatlarına göre tahmin edilir. Gerçek
           maliyetler farklılık gösterebilir. Fiyatlandırma 1 milyon token başınadır

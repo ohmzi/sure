@@ -14,9 +14,12 @@ es:
       and_more_actions:
         one: y 1 acción más
         other: y %{count} acciones más
-      action_label_to: '%{label} a %{value}'
+      action_label_to: "%{label} a %{value}"
       all_past_and_future: Todas las %{resource} pasadas y futuras
-      on_or_after: '%{resource} a partir del %{date}'
+      on_or_after: "%{resource} a partir del %{date}"
+      review: Revisar transacciones
+      stop_processing: Detener
+      stop_processing_hint: Las reglas posteriores no cambian las transacciones que coinciden con esta regla.
     form:
       rule_name_label: Nombre de la regla (opcional)
       rule_name_placeholder: Introduce un nombre para esta regla
@@ -26,6 +29,8 @@ es:
       all_past_and_future: Todas las %{resource} pasadas y futuras
       starting_from: A partir de
       then: ENTONCES
+      stop_processing_label: Dejar de procesar más reglas
+      stop_processing_description: Las reglas posteriores de la lista no cambian las transacciones que coinciden con esta regla.
     index:
       page_title: Reglas
       delete_all_rules: Eliminar todas las reglas
@@ -34,6 +39,8 @@ es:
       rules_heading: Reglas
       no_rules_title: Todavía no hay reglas
       no_rules_description: Configura reglas para ejecutar acciones sobre tus transacciones y otros datos en cada sincronización de cuentas.
+      order_hint: Las reglas se ejecutan de arriba abajo. Cuando una regla establece un campo de una transacción, las reglas posteriores no cambian ese campo. Las etiquetas las añade cada regla coincidente. Arrastra las reglas para cambiar el orden.
+      reorder_rule: Mover la regla %{name}. Pulsa Intro o Espacio para agarrarla y luego las flechas para moverla.
     confirm:
       title: Confirmar cambios
       title_with_name: Confirmar cambios en «%{name}»
@@ -46,8 +53,12 @@ es:
       cost_warning: Puedes incurrir en costes; consulta con el proveedor del modelo los precios más actualizados.
       view_usage_history: Ver historial de uso
       confirm_changes: Confirmar cambios
+      rules_above_notice:
+        one: La regla activa de arriba se ejecuta primero, así que el resultado es el mismo que en la ejecución completa.
+        other: Las %{count} reglas activas de arriba se ejecutan primero, así que el resultado es el mismo que en la ejecución completa.
     actions:
       value_placeholder: Introduce un valor
+      to_label: a
     update:
       success: Regla actualizada
     destroy:
@@ -67,6 +78,18 @@ es:
       cost_unavailable_no_provider: Estimación de costes no disponible (no hay proveedor de LLM configurado).
       cost_warning: Puedes incurrir en costes, consulta con el proveedor del modelo los precios más actualizados.
       view_usage: Ver historial de uso
+      preview:
+        title: Qué cambiará
+        description: Solo se cuentan las transacciones cuyos valores cambian realmente.
+        transactions:
+          one: "%{count} transacción"
+          other: "%{count} transacciones"
+        none: Ninguna
+        uncategorized: Sin categorizar
+        included: Incluidas
+        excluded: Excluidas
+        not_undoable: No se deshará
+        async_hint: La IA elegirá la categoría o el comercio
     recent_runs:
       title: Ejecuciones Recientes
       description: Ver el historial de ejecución de tus reglas incluyendo el estado de éxito/fallo y los conteos de transacciones.
@@ -90,8 +113,8 @@ es:
         failed: Fallido
     clear_ai_cache:
       button: Restablecer caché de IA
-      confirm_title: ¿Restablecer caché de IA?
-      confirm_body: ¿Estás seguro de que deseas restablecer la caché de IA? Esto permitirá que las reglas de IA vuelvan a procesar todas las transacciones. Esto puede incurrir en costes adicionales de API.
+      confirm_title: "¿Restablecer caché de IA?"
+      confirm_body: "¿Estás seguro de que deseas restablecer la caché de IA? Esto permitirá que las reglas de IA vuelvan a procesar todas las transacciones. Esto puede incurrir en costes adicionales de API."
       confirm_button: Restablecer caché
       success: Se está limpiando la caché de IA. Esto puede tardar unos momentos.
     condition_filters:
@@ -100,10 +123,63 @@ es:
         expense: Gasto
         transfer: Transferencia
         equal_to: Igual a
+      operators:
+        matches_regex: Coincide (regex)
+        does_not_match_regex: No coincide (regex)
+    category_rule_cta:
+      close: Cerrar
+      create_rule: Crear regla
+      apply_to_similar:
+        one: Aplicar a 1 transacción similar
+        other: Aplicar a %{count} transacciones similares
+      description: Aplícala ahora a transacciones sin categorizar similares o crea una regla para las futuras
+      dont_show_again: No volver a mostrar
+      hide_for_today: Ocultar por hoy
+      hide_for_today_hint: "«Ocultar por hoy» pausa estas sugerencias durante 24 horas."
+      message: Actualizado a %{category_name}
+    applications:
+      title: Aplicaciones recientes
+      description: Ejecuciones de «Aplicar todo» que aún puedes deshacer. Deshacer restaura los valores que tenía cada transacción antes de la ejecución.
+      summary:
+        one: "%{time} · %{count} transacción"
+        other: "%{time} · %{count} transacciones"
+      undo: Deshacer
+      undo_success: La ejecución de la regla se ha deshecho
+      already_undone: Esta ejecución de regla ya se ha deshecho
+      undo_confirm_title: "¿Deshacer esta ejecución de regla?"
+      undo_confirm_body: Esto restaura los valores que tenían las transacciones afectadas antes de la ejecución. Las transacciones editadas desde entonces no se modifican.
+      undo_confirm_button: Deshacer ejecución
+    show:
+      conditions: Condiciones
+      matched:
+        one: 1 transacción coincidente
+        other: "%{count} transacciones coincidentes"
+      conflict_warning: 'Las reglas de arriba se ejecutan primero y pueden reclamar algunas coincidencias: %{names}.'
+      edit: Editar regla
+      apply: Aplicar
+      rule_category: Categoría que asigna esta regla
+      apply_now: Actualizar también ahora las transacciones coincidentes
+      update_rule: Actualizar regla
+      transactions: Transacciones coincidentes
+      select_hint: Desmarca cualquier fila que no quieras cambiar.
+      uncategorized: Sin categorizar
+      new_category: Nueva categoría para la selección
+      also_update_rule: Hacer también que sea la categoría de la regla
+      update_selected: Actualizar selección
+      no_transactions: Esta regla no coincide con ninguna transacción ahora mismo.
+      undo_available_title: Esta regla se aplicó
+      undo_available_body: Deshaz la última ejecución para restaurar los valores que tenían sus transacciones antes. Las transacciones editadas desde entonces no se modifican.
+      undo_last_run: Deshacer última ejecución
+    update_category:
+      success: Categoría de la regla actualizada
+    update_transactions:
+      updated:
+        one: 1 transacción categorizada
+        other: "%{count} transacciones categorizadas"
   rule:
     conditions:
       condition_group:
-        and_prefix: y
+        and_prefix: "y"
         match: cumplir
         all: todas
         any: alguna

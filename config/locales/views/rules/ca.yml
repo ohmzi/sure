@@ -16,27 +16,33 @@ ca:
       value_placeholder: Introdueix un valor
       to_label: a
     apply_all:
-      ai_cost_message: Això utilitzarà IA per categoritzar fins a %{transactions}
-        transaccions.
+      ai_cost_message: Això utilitzarà IA per categoritzar fins a %{transactions} transaccions.
       ai_cost_title: Estimació de cost d'IA
       button: Aplica-les totes
       confirm_button: Confirma i aplica-les totes
-      confirm_message: Estàs a punt d'aplicar %{count} regles que afecten %{transactions}
-        transaccions úniques. Confirma si vols continuar.
+      confirm_message: Estàs a punt d'aplicar %{count} regles que afecten %{transactions} transaccions úniques. Confirma si vols continuar.
       confirm_title: Aplica totes les regles
       cost_unavailable_model: Estimació de cost no disponible per al model "%{model}".
-      cost_unavailable_no_provider: Estimació de cost no disponible (no hi ha proveïdor
-        d'LLM configurat).
-      cost_warning: Pots tenir costos. Consulta amb el proveïdor del model per als
-        preus més actualitzats.
+      cost_unavailable_no_provider: Estimació de cost no disponible (no hi ha proveïdor d'LLM configurat).
+      cost_warning: Pots tenir costos. Consulta amb el proveïdor del model per als preus més actualitzats.
       estimated_cost: 'Cost estimat: ~$%{cost}'
       success: Totes les regles s'han posat a la cua per executar-se
       view_usage: Mostra l'historial d'ús
+      preview:
+        title: Què canviarà
+        description: Només es compten les transaccions els valors de les quals canvien realment.
+        transactions:
+          one: "%{count} transacció"
+          other: "%{count} transaccions"
+        none: Cap
+        uncategorized: Sense categoritzar
+        included: Incloses
+        excluded: Excloses
+        not_undoable: No es desfarà
+        async_hint: La IA triarà la categoria o el comerç
     clear_ai_cache:
       button: Buida la memòria cau d'IA
-      confirm_body: Segur que vols buidar la memòria cau d'IA? Això permetrà que les
-        regles d'IA tornin a processar totes les transaccions. Pot generar costos
-        d'API addicionals.
+      confirm_body: Segur que vols buidar la memòria cau d'IA? Això permetrà que les regles d'IA tornin a processar totes les transaccions. Pot generar costos d'API addicionals.
       confirm_button: Buida la memòria cau
       confirm_title: Vols buidar la memòria cau d'IA?
       success: La memòria cau d'IA s'està netejant. Pot trigar uns instants.
@@ -58,23 +64,23 @@ ca:
         greater_or_equal_to: Més gran o igual que
         less_than: Més petit que
         less_than_or_equal_to: Més petit o igual que
+        matches_regex: Coincideix (regex)
+        does_not_match_regex: No coincideix (regex)
     confirm:
       ai_cost_no_estimate_html: Això utilitzarà IA per categoritzar %{count} transaccions.
       ai_cost_title: Estimació de cost d'IA
-      ai_cost_with_estimate_html: 'Això utilitzarà IA per categoritzar %{count} transaccions.
-        Cost estimat: <span class="font-semibold">~$%{cost}</span>'
-      apply_notice_html: Estàs a punt d'aplicar aquesta regla a <span class="text-primary
-        font-medium">%{count} %{resource}</span> que compleixen els criteris especificats.
-        Confirma si vols continuar amb aquest canvi.
+      ai_cost_with_estimate_html: 'Això utilitzarà IA per categoritzar %{count} transaccions. Cost estimat: <span class="font-semibold">~$%{cost}</span>'
+      apply_notice_html: Estàs a punt d'aplicar aquesta regla a <span class="text-primary font-medium">%{count} %{resource}</span> que compleixen els criteris especificats. Confirma si vols continuar amb aquest canvi.
       confirm_changes: Confirma els canvis
       cost_unavailable_model: Estimació de cost no disponible per al model "%{model}".
-      cost_unavailable_no_provider: Estimació de cost no disponible (no hi ha proveïdor
-        d'LLM configurat).
-      cost_warning: Pots tenir costos. Consulta amb el proveïdor del model per als
-        preus més actualitzats.
+      cost_unavailable_no_provider: Estimació de cost no disponible (no hi ha proveïdor d'LLM configurat).
+      cost_warning: Pots tenir costos. Consulta amb el proveïdor del model per als preus més actualitzats.
       title: Confirma els canvis
       title_with_name: Confirma els canvis a "%{name}"
       view_usage_history: Mostra l'historial d'ús
+      rules_above_notice:
+        one: La regla activa de sobre s'executa primer, així que el resultat és el mateix que a l'execució completa.
+        other: Les %{count} regles actives de sobre s'executen primer, així que el resultat és el mateix que a l'execució completa.
     destroy:
       success: Regla eliminada
     destroy_all:
@@ -88,16 +94,18 @@ ca:
       rule_name_placeholder: Introdueix un nom per a aquesta regla
       starting_from: A partir de
       then: ALESHORES
+      stop_processing_label: Deixa de processar més regles
+      stop_processing_description: Les regles posteriors de la llista no canvien les transaccions que coincideixen amb aquesta regla.
     index:
-      ai_cost_warning: Les accions de regla amb IA tenen cost. Filtra el màxim possible
-        per evitar costos innecessaris.
+      ai_cost_warning: Les accions de regla amb IA tenen cost. Filtra el màxim possible per evitar costos innecessaris.
       delete_all_rules: Elimina totes les regles
       new_rule: Nova regla
-      no_rules_description: Configura regles per executar accions a les teves transaccions
-        i altres dades a cada sincronització.
+      no_rules_description: Configura regles per executar accions a les teves transaccions i altres dades a cada sincronització.
       no_rules_title: Encara no hi ha regles
       page_title: Regles
       rules_heading: Regles
+      order_hint: Les regles s'executen de dalt a baix. Quan una regla estableix un camp d'una transacció, les regles posteriors no canvien aquest camp. Les etiquetes les afegeix cada regla coincident. Arrossega les regles per canviar l'ordre.
+      reorder_rule: Mou la regla %{name}. Prem Intro o Espai per agafar-la i després les fletxes per moure-la.
     no_action: Sense acció
     no_condition: Sense condició
     recent_runs:
@@ -111,8 +119,7 @@ ca:
           modified: Modificades
           processed: Processades
           queued: A la cua
-      description: Visualitza l'historial d'execució de les teves regles, incloent
-        l'estat d'èxit/fallada i els recomptes de transaccions.
+      description: Visualitza l'historial d'execució de les teves regles, incloent l'estat d'èxit/fallada i els recomptes de transaccions.
       execution_types:
         manual: Manual
         scheduled: Programada
@@ -136,5 +143,58 @@ ca:
       on_or_after: "%{resource} el %{date} o després"
       re_apply_rule: Torna a aplicar la regla
       then: ALESHORES
+      review: Revisa les transaccions
+      stop_processing: Atura
+      stop_processing_hint: Les regles posteriors no canvien les transaccions que coincideixen amb aquesta regla.
     update:
       success: Regla actualitzada
+    category_rule_cta:
+      close: Tanca
+      create_rule: Crea regla
+      apply_to_similar:
+        one: Aplica a 1 transacció similar
+        other: Aplica a %{count} transaccions similars
+      description: Aplica-la ara a transaccions sense categoritzar similars o crea una regla per a les futures
+      dont_show_again: No ho tornis a mostrar
+      hide_for_today: Amaga per avui
+      hide_for_today_hint: "«Amaga per avui» pausa aquests suggeriments durant 24 hores."
+      message: Actualitzat a %{category_name}
+    applications:
+      title: Aplicacions recents
+      description: Execucions d'«Aplica-ho tot» que encara pots desfer. Desfer restaura els valors que tenia cada transacció abans de l'execució.
+      summary:
+        one: "%{time} · %{count} transacció"
+        other: "%{time} · %{count} transaccions"
+      undo: Desfés
+      undo_success: L'execució de la regla s'ha desfet
+      already_undone: Aquesta execució de regla ja s'ha desfet
+      undo_confirm_title: Vols desfer aquesta execució de regla?
+      undo_confirm_body: Això restaura els valors que tenien les transaccions afectades abans de l'execució. Les transaccions editades des d'aleshores no es modifiquen.
+      undo_confirm_button: Desfés l'execució
+    show:
+      conditions: Condicions
+      matched:
+        one: 1 transacció coincident
+        other: "%{count} transaccions coincidents"
+      conflict_warning: 'Les regles de sobre s''executen primer i poden reclamar algunes coincidències: %{names}.'
+      edit: Edita la regla
+      apply: Aplica
+      rule_category: Categoria que assigna aquesta regla
+      apply_now: Actualitza també ara les transaccions coincidents
+      update_rule: Actualitza la regla
+      transactions: Transaccions coincidents
+      select_hint: Desmarca qualsevol fila que no vulguis canviar.
+      uncategorized: Sense categoritzar
+      new_category: Nova categoria per a la selecció
+      also_update_rule: Fes que també sigui la categoria de la regla
+      update_selected: Actualitza la selecció
+      no_transactions: Aquesta regla no coincideix amb cap transacció ara mateix.
+      undo_available_title: Aquesta regla s'ha aplicat
+      undo_available_body: Desfés l'última execució per restaurar els valors que tenien les seves transaccions abans. Les transaccions editades des d'aleshores no es modifiquen.
+      undo_last_run: Desfés l'última execució
+    update_category:
+      success: Categoria de la regla actualitzada
+    update_transactions:
+      updated:
+        one: 1 transacció categoritzada
+        other: "%{count} transaccions categoritzades"

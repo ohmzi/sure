@@ -67,20 +67,6 @@ class UI::AccountPage < ApplicationComponent
     base_tabs + [ :statements ]
   end
 
-  RECENT_STATEMENTS = 6
-
-  # The statement strip (the owner's redesign, 2026-10-17): the latest
-  # statements, oldest first, each with whether its rows add up — the same
-  # check the Statements tab shows.
-  def recent_statement_checks
-    @recent_statement_checks ||= begin
-      statements = account.account_statements.where.not(period_end_on: nil)
-                          .order(period_end_on: :desc).limit(RECENT_STATEMENTS).to_a.reverse
-      statuses = statements.any? ? AccountStatement.reconciliation_statuses_for(statements, account: account) : {}
-      statements.map { |statement| [ statement, statuses[statement.id] ] }
-    end
-  end
-
   def fx_coverage_start_date
     return @fx_coverage_start_date if defined?(@fx_coverage_start_date)
 

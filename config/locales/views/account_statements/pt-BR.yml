@@ -6,9 +6,13 @@ pt-BR:
       coverage_description: Meses históricos respaldados por extratos enviados e verificações de saldo.
       coverage_range: "%{start} - %{end}"
       empty: Ainda não há extratos vinculados a esta conta.
-      open_inbox: Caixa de entrada
       statements_title: Extratos
       year_label: Ano de cobertura
+      filtered: Mostrando extratos de %{month}
+      show_all: Mostrar todos os meses
+      months_label: Cobertura de extratos por mês
+      month_link: "%{month}: %{status}"
+      open_vault: Cofre de extratos
     balance:
       unknown: Desconhecido
     coverage:
@@ -31,28 +35,37 @@ pt-BR:
     destroy:
       failure: Não foi possível excluir o extrato.
       success: Extrato excluído.
+      document_blocked: O documento deste extrato ainda sustenta lançamentos não conciliados (%{entries}). Concilie ou exclua esses lançamentos primeiro.
+      imported_rows:
+        one: Este extrato tem 1 linha importada. Excluí-lo deixaria órfã a importação que possui a linha; reverta ou exclua a importação primeiro.
+        other: Este extrato tem %{count} linhas importadas. Excluí-lo deixaria órfã a importação que as possui; reverta ou exclua a importação primeiro.
+      pending_import: Este extrato tem uma importação. Exclua ou reverta a importação antes de excluir o extrato.
     form:
       account_upload: Enviar extrato
       files_hint: PDF, CSV ou XLSX. Máximo de %{max_size} MB por arquivo.
       files_label: Arquivos de extrato
-      inbox_upload: Enviar
-      period_hint: "O Sure lê o período do PDF, quando ele o informa, ou de uma data no nome do arquivo (ex.: 2026-04). Você também pode defini-lo no extrato."
+      period_hint: 'O Sure lê o período do PDF, quando ele o informa, ou de uma data no nome do arquivo (ex.: 2026-04). Você também pode defini-lo no extrato.'
+      upload_title: Enviar um extrato
     index:
       account_label: Conta
       confidence: "%{confidence} de correspondência"
       empty_linked: Ainda não há extratos vinculados.
-      empty_unmatched: A caixa de entrada de extratos está vazia.
+      empty_unmatched: O cofre de extratos está vazio.
       leave_unmatched: Deixar sem atribuição
       linked_title: Extratos vinculados
       no_suggestion: Sem sugestão
       storage_used: Armazenamento usado
       title: Cofre de extratos
-      unmatched_title: Caixa de entrada sem atribuição
-      upload_description: Envie extratos para a caixa de entrada ou escolha uma conta para vinculá-los imediatamente.
+      unmatched_title: Extratos não associados
+      upload_description: Envie extratos para o cofre ou escolha uma conta para vinculá-los imediatamente.
       upload_title: Enviar extratos
     link:
       no_account: Escolha uma conta antes de vincular este extrato.
       success: Extrato vinculado a %{account}.
+      account_locked: Este extrato não pode mais ser reatribuído aqui.
+      imported:
+        one: Vinculado a %{account}. A transação batia com os totais do extrato, por isso está sendo adicionada agora.
+        other: Vinculado a %{account}. As %{count} transações batiam com os totais do extrato, por isso estão sendo adicionadas agora.
     period:
       unknown: Período desconhecido
     reconciliation:
@@ -64,6 +77,12 @@ pt-BR:
       matched: Correspondente
       mismatched: Divergente
       unavailable: Não verificado
+      explanations:
+        closing_balance: O extrato fecha em %{statement}, mas o livro do Sure fecha em %{ledger} (diferença %{difference}).
+        opening_balance: O extrato abre em %{statement}, mas o livro do Sure abre em %{ledger} (diferença %{difference}).
+        period_movement: A movimentação do extrato é %{statement}, mas o livro do Sure movimentou %{ledger} (diferença %{difference}).
+        default: O extrato diz %{statement}, mas o livro do Sure diz %{ledger} (diferença %{difference}).
+      reviewed: Revisado
     reject:
       success: Correspondência de extrato rejeitada.
     show:
@@ -93,8 +112,20 @@ pt-BR:
       suggested_account: A conta sugerida é %{account} (confiança de %{confidence}).
       title: Extrato
       unlink: Desvincular
-      unmatched_account: Caixa de entrada sem atribuição
+      unmatched_account: Nenhuma conta
       unknown_value: Desconhecido
+      activity: Atividade
+      document_linked: Documento arquivado
+      imported_state:
+        one: 1 linha importada
+        other: "%{count} linhas importadas"
+      import_pending: Importação pendente
+      overlap_message: Este extrato se sobrepõe a %{statements} além do dia limite compartilhado e os saldos impressos divergem. Verifique os períodos e saldos; uma cópia pode estar errada.
+      overlap_title: Extrato sobreposto com saldos diferentes
+      period_warning_title: O período parece errado
+      mark_reviewed: Marcar como revisado
+      reviewed: Revisado em %{date}
+      no_suggestion_description: Escolha uma conta abaixo ou deixe o extrato sem associação até saber a qual ele pertence.
     status:
       linked: Vinculado
       rejected: Rejeitado
@@ -113,6 +144,22 @@ pt-BR:
       unlink: Desvincular
       view: Visualizar
     unlink:
-      success: Extrato devolvido à caixa de entrada sem atribuição.
+      success: Extrato devolvido aos extratos não associados.
     update:
       success: Extrato atualizado.
+    assign_account:
+      label: Conta
+      placeholder: Escolha uma conta
+      submit: Vincular conta
+      no_accounts: Ainda não há contas disponíveis para vincular.
+    period_check:
+      title: O período parece errado
+      sources:
+        printed: impresso
+        recorded: registrado
+        filename: nome do arquivo
+      message: O período salvo (%{actual}) não corresponde ao período %{source} (%{expected}). Verifique as datas do extrato.
+    review:
+      success: Extrato marcado como revisado.
+    type:
+      statement: Extrato

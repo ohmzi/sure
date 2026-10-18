@@ -6,9 +6,13 @@ de:
       coverage_description: Historische Monate, die durch hochgeladene Kontoauszüge und Saldoprüfungen belegt sind.
       coverage_range: "%{start} - %{end}"
       empty: Diesem Konto sind noch keine Kontoauszüge zugeordnet.
-      open_inbox: Posteingang
       statements_title: Kontoauszüge
       year_label: Abdeckungsjahr
+      filtered: Zeige %{month}-Kontoauszüge
+      show_all: Alle Monate anzeigen
+      months_label: Kontoauszug-Abdeckung nach Monat
+      month_link: "%{month}: %{status}"
+      open_vault: Kontoauszug-Tresor
     balance:
       unknown: Unbekannt
     coverage:
@@ -31,28 +35,37 @@ de:
     destroy:
       failure: Kontoauszug konnte nicht gelöscht werden.
       success: Kontoauszug gelöscht.
+      document_blocked: Das Dokument dieses Kontoauszugs stützt noch nicht abgeglichene Buchungen (%{entries}). Gleiche sie zuerst ab oder lösche sie.
+      imported_rows:
+        one: Dieser Kontoauszug hat 1 importierte Zeile. Wenn du ihn löschst, verwaist der Import, dem die Zeile gehört; mach den Import zuerst rückgängig oder lösche ihn.
+        other: Dieser Kontoauszug hat %{count} importierte Zeilen. Wenn du ihn löschst, verwaist der Import, dem sie gehören; mach den Import zuerst rückgängig oder lösche ihn.
+      pending_import: Dieser Kontoauszug hat einen Import. Lösche oder mach den Import rückgängig, bevor du den Kontoauszug löschst.
     form:
       account_upload: Kontoauszug hochladen
       files_hint: PDF, CSV oder XLSX. Max. %{max_size} MB pro Datei.
       files_label: Kontoauszugsdateien
-      inbox_upload: Hochladen
-      period_hint: "Sure liest den Zeitraum aus dem PDF, wenn er dort angegeben ist, oder aus einem Datum im Dateinamen (z. B. 2026-04). Du kannst ihn auch am Auszug festlegen."
+      period_hint: Sure liest den Zeitraum aus dem PDF, wenn er dort angegeben ist, oder aus einem Datum im Dateinamen (z. B. 2026-04). Du kannst ihn auch am Auszug festlegen.
+      upload_title: Kontoauszug hochladen
     index:
       account_label: Konto
       confidence: "%{confidence} Übereinstimmung"
       empty_linked: Noch keine verknüpften Kontoauszüge.
-      empty_unmatched: Der Kontoauszug-Posteingang ist leer.
+      empty_unmatched: Der Kontoauszug-Tresor ist leer.
       leave_unmatched: Nicht zugeordnet lassen
       linked_title: Verknüpfte Kontoauszüge
       no_suggestion: Kein Vorschlag
       storage_used: Belegter Speicher
       title: Kontoauszug-Tresor
-      unmatched_title: Nicht zugeordneter Posteingang
-      upload_description: Lad Kontoauszüge in den Posteingang hoch oder wähl ein Konto zur sofortigen Verknüpfung.
+      unmatched_title: Nicht zugeordnete Kontoauszüge
+      upload_description: Lad Kontoauszüge in den Tresor hoch oder wähl ein Konto zur sofortigen Verknüpfung.
       upload_title: Kontoauszüge hochladen
     link:
       no_account: Wähl ein Konto aus, bevor du diesen Kontoauszug verknüpfst.
       success: Kontoauszug mit %{account} verknüpft.
+      account_locked: Dieser Kontoauszug kann hier nicht mehr neu zugeordnet werden.
+      imported:
+        one: Mit %{account} verknüpft. Die eine Transaktion passte zu den Summen des Kontoauszugs und wird jetzt hinzugefügt.
+        other: Mit %{account} verknüpft. Die %{count} Transaktionen passten zu den Summen des Kontoauszugs und werden jetzt hinzugefügt.
     period:
       unknown: Zeitraum unbekannt
     reconciliation:
@@ -64,6 +77,12 @@ de:
       matched: Übereinstimmend
       mismatched: Abweichend
       unavailable: Nicht geprüft
+      explanations:
+        closing_balance: Der Kontoauszug endet bei %{statement}, aber Sures Buchhaltung endet bei %{ledger} (Differenz %{difference}).
+        opening_balance: Der Kontoauszug beginnt bei %{statement}, aber Sures Buchhaltung beginnt bei %{ledger} (Differenz %{difference}).
+        period_movement: Die Bewegung im Kontoauszug beträgt %{statement}, aber Sures Buchhaltung bewegte sich um %{ledger} (Differenz %{difference}).
+        default: Der Kontoauszug sagt %{statement}, aber Sures Buchhaltung sagt %{ledger} (Differenz %{difference}).
+      reviewed: Geprüft
     reject:
       success: Kontoauszug-Zuordnung abgelehnt.
     show:
@@ -93,8 +112,20 @@ de:
       suggested_account: Vorgeschlagenes Konto ist %{account} (%{confidence} Konfidenz).
       title: Kontoauszug
       unlink: Verknüpfung aufheben
-      unmatched_account: Nicht zugeordneter Posteingang
+      unmatched_account: Kein Konto
       unknown_value: Unbekannt
+      activity: Aktivität
+      document_linked: Archiviertes Dokument
+      imported_state:
+        one: 1 importierte Zeile
+        other: "%{count} importierte Zeilen"
+      import_pending: Import ausstehend
+      overlap_message: Dieser Kontoauszug überschneidet sich mit %{statements} um mehr als den gemeinsamen Grenztag, und die gedruckten Salden stimmen nicht überein. Prüfe Zeiträume und Salden; eine Kopie könnte falsch sein.
+      overlap_title: Überlappender Kontoauszug mit abweichenden Salden
+      period_warning_title: Zeitraum sieht falsch aus
+      mark_reviewed: Als geprüft markieren
+      reviewed: Geprüft am %{date}
+      no_suggestion_description: Wähle unten ein Konto aus oder lass den Kontoauszug unzugeordnet, bis du weißt, zu welchem er gehört.
     status:
       linked: Verknüpft
       rejected: Abgelehnt
@@ -113,6 +144,22 @@ de:
       unlink: Verknüpfung aufheben
       view: Ansehen
     unlink:
-      success: Kontoauszug zurück in den nicht zugeordneten Posteingang verschoben.
+      success: Kontoauszug zurück zu den nicht zugeordneten Kontoauszügen verschoben.
     update:
       success: Kontoauszug aktualisiert.
+    assign_account:
+      label: Konto
+      placeholder: Konto auswählen
+      submit: Konto verknüpfen
+      no_accounts: Noch keine Konten zum Verknüpfen verfügbar.
+    period_check:
+      title: Zeitraum sieht falsch aus
+      sources:
+        printed: gedruckten
+        recorded: erfassten
+        filename: Dateinamen
+      message: Der gespeicherte Zeitraum (%{actual}) stimmt nicht mit dem %{source} Zeitraum (%{expected}) überein. Prüfe die Daten des Kontoauszugs.
+    review:
+      success: Kontoauszug als geprüft markiert.
+    type:
+      statement: Kontoauszug

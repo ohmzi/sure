@@ -666,6 +666,19 @@ de:
         col_tokens: Tokens
         completion: Antwort
         cost_by_model: Kosten nach Modell
+        categorization_quality: "Kategorisierungsqualität"
+        categorization_quality_source: "Letzte Auswertung für diesen Haushalt: %{model} · %{completed_at}"
+        categorization_accuracy: "Genauigkeit"
+        categorization_accuracy_description: "%{count} Stichproben in der letzten Auswertung"
+        categorization_accuracy_errored: "%{errored} von %{total} Stichproben fehlerhaft; Genauigkeit wurde nicht gemessen"
+        categorization_not_reported: "Nicht gemeldet"
+        categorization_abstention: "Enthaltungsrate"
+        categorization_abstention_description: "Verwertbare Antworten ohne Kategorie"
+        categorization_by_category: "Genauigkeit nach Kategorie"
+        categorization_category_null: "Keine Kategorie"
+        categorization_category_detail: "%{correct} von %{total} korrekt"
+        categorization_quality_empty_title: "Noch keine Kategorisierungsauswertung"
+        categorization_quality_empty_description: "Ein Administrator führt die Kategorisierungsauswertung über die Befehlszeile mit dem exportierten Transaktionsverlauf dieses Haushalts aus."
         cost_by_operation: Kosten nach Vorgang
         cost_estimates_description: Die Kosten werden anhand der veröffentlichten Anbieterpreise geschätzt, zuletzt geprüft am %{date}. Die tatsächlichen Kosten können abweichen. Die Preise gelten je 1 Million Tokens und unterscheiden sich je Modell. Eigene oder selbst gehostete Modelle zeigen „N/A“ und fließen nicht in die Gesamtkosten ein.
         cost_estimates_title: Zur Kostenschätzung

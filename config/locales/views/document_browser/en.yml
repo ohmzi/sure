@@ -68,6 +68,8 @@ en:
       title: Nothing matches these filters
       description: Try widening or clearing the filters.
       clear_filters: Clear filters
+      duplicates_title: No duplicate groups
+      duplicates_description: Every duplicate group has been reduced to one document.
       documents_title: No documents yet
       documents_description: Upload a receipt or bill above and it will appear here once processed.
       statements_title: No statements yet

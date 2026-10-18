@@ -6,9 +6,13 @@ vi:
       coverage_description: Các tháng lịch sử được hỗ trợ bởi sao kê đã tải lên và kiểm tra số dư.
       coverage_range: "%{start} - %{end}"
       empty: Chưa có sao kê nào được liên kết với tài khoản này.
-      open_inbox: Hộp thư đến
       statements_title: Sao kê
       year_label: Năm phạm vi
+      filtered: Đang hiển thị sao kê %{month}
+      show_all: Hiển thị tất cả các tháng
+      months_label: Phạm vi sao kê theo tháng
+      month_link: "%{month}: %{status}"
+      open_vault: Kho sao kê
     balance:
       unknown: Không xác định
     coverage:
@@ -31,28 +35,37 @@ vi:
     destroy:
       failure: Không thể xóa sao kê.
       success: Sao kê đã được xóa.
+      document_blocked: Tài liệu của sao kê này vẫn hỗ trợ các giao dịch chưa đối chiếu (%{entries}). Hãy đối chiếu hoặc xóa chúng trước.
+      imported_rows:
+        one: Sao kê này có 1 dòng đã nhập. Xóa nó sẽ khiến lần nhập sở hữu dòng đó bị mồ côi; hãy hoàn tác hoặc xóa lần nhập trước.
+        other: Sao kê này có %{count} dòng đã nhập. Xóa nó sẽ khiến lần nhập sở hữu các dòng đó bị mồ côi; hãy hoàn tác hoặc xóa lần nhập trước.
+      pending_import: Sao kê này có một lần nhập. Hãy xóa hoặc hoàn tác lần nhập trước khi xóa sao kê.
     form:
       account_upload: Tải lên sao kê
       files_hint: PDF, CSV hoặc XLSX. Tối đa %{max_size}MB mỗi tệp.
       files_label: Tệp sao kê
-      inbox_upload: Tải lên
-      period_hint: "Sure đọc kỳ sao kê từ tệp PDF nếu tệp có ghi kỳ, hoặc từ ngày trong tên tệp (ví dụ 2026-04). Bạn cũng có thể đặt kỳ trên sao kê."
+      period_hint: Sure đọc kỳ sao kê từ tệp PDF nếu tệp có ghi kỳ, hoặc từ ngày trong tên tệp (ví dụ 2026-04). Bạn cũng có thể đặt kỳ trên sao kê.
+      upload_title: Tải lên sao kê
     index:
       account_label: Tài khoản
-      confidence: "Khớp %{confidence}"
+      confidence: Khớp %{confidence}
       empty_linked: Chưa có sao kê nào được liên kết.
-      empty_unmatched: Hộp thư sao kê đang trống.
+      empty_unmatched: Kho sao kê đang trống.
       leave_unmatched: Để không khớp
       linked_title: Sao kê đã liên kết
       no_suggestion: Không có gợi ý
       storage_used: Dung lượng đã sử dụng
       title: Kho lưu trữ sao kê
-      unmatched_title: Hộp thư chưa khớp
-      upload_description: Tải lên sao kê vào hộp thư, hoặc chọn tài khoản để liên kết ngay.
+      unmatched_title: Sao kê chưa khớp
+      upload_description: Tải sao kê lên kho hoặc chọn tài khoản để liên kết ngay.
       upload_title: Tải lên sao kê
     link:
       no_account: Chọn một tài khoản trước khi liên kết sao kê này.
       success: Đã liên kết sao kê với %{account}.
+      account_locked: Không thể gán lại sao kê này ở đây nữa.
+      imported:
+        one: Đã liên kết với %{account}. Giao dịch của nó khớp với tổng của sao kê nên đang được thêm ngay.
+        other: Đã liên kết với %{account}. %{count} giao dịch của nó khớp với tổng của sao kê nên đang được thêm ngay.
     period:
       unknown: Kỳ không xác định
     reconciliation:
@@ -64,6 +77,12 @@ vi:
       matched: Khớp
       mismatched: Không khớp
       unavailable: Chưa kiểm tra
+      explanations:
+        closing_balance: Sao kê kết thúc ở %{statement}, nhưng sổ Sure kết thúc ở %{ledger} (chênh lệch %{difference}).
+        opening_balance: Sao kê bắt đầu ở %{statement}, nhưng sổ Sure bắt đầu ở %{ledger} (chênh lệch %{difference}).
+        period_movement: Biến động của sao kê là %{statement}, nhưng sổ Sure đã biến động %{ledger} (chênh lệch %{difference}).
+        default: Sao kê ghi %{statement}, nhưng sổ Sure ghi %{ledger} (chênh lệch %{difference}).
+      reviewed: Đã xem xét
     reject:
       success: Gợi ý khớp sao kê đã bị từ chối.
     show:
@@ -93,8 +112,20 @@ vi:
       suggested_account: Tài khoản được gợi ý là %{account} (độ tin cậy %{confidence}).
       title: Sao kê
       unlink: Hủy liên kết
-      unmatched_account: Hộp thư chưa khớp
+      unmatched_account: Không có tài khoản
       unknown_value: Không xác định
+      activity: Hoạt động
+      document_linked: Tài liệu đã lưu trữ
+      imported_state:
+        one: 1 dòng đã nhập
+        other: "%{count} dòng đã nhập"
+      import_pending: Đang chờ nhập
+      overlap_message: Sao kê này chồng lấn với %{statements} quá ngày ranh giới chung và số dư in ra không khớp. Hãy kiểm tra kỳ và số dư; có thể một bản sao bị sai.
+      overlap_title: Sao kê chồng lấn với số dư khác nhau
+      period_warning_title: Kỳ sao kê có vẻ không đúng
+      mark_reviewed: Đánh dấu đã xem xét
+      reviewed: Đã xem xét %{date}
+      no_suggestion_description: Chọn một tài khoản bên dưới hoặc để sao kê chưa được gán cho đến khi bạn biết nó thuộc về đâu.
     status:
       linked: Đã liên kết
       rejected: Đã từ chối
@@ -113,6 +144,22 @@ vi:
       unlink: Hủy liên kết
       view: Xem
     unlink:
-      success: Sao kê đã được chuyển lại hộp thư chưa khớp.
+      success: Sao kê đã được chuyển lại danh sách chưa khớp.
     update:
       success: Sao kê đã được cập nhật.
+    assign_account:
+      label: Tài khoản
+      placeholder: Chọn tài khoản
+      submit: Liên kết tài khoản
+      no_accounts: Chưa có tài khoản nào để liên kết.
+    period_check:
+      title: Kỳ sao kê có vẻ không đúng
+      sources:
+        printed: in
+        recorded: đã ghi
+        filename: tên tệp
+      message: Kỳ đã lưu (%{actual}) không khớp với kỳ theo %{source} (%{expected}). Hãy kiểm tra ngày của sao kê.
+    review:
+      success: Đã đánh dấu sao kê là đã xem xét.
+    type:
+      statement: Sao kê

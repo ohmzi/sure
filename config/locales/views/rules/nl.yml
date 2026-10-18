@@ -5,6 +5,7 @@ nl:
     no_condition: Geen voorwaarde
     actions:
       value_placeholder: Voer een waarde in
+      to_label: naar
     apply_all:
       button: Alles toepassen
       confirm_title: Alle regels toepassen
@@ -13,11 +14,23 @@ nl:
       success: Alle regels zijn in de wachtrij geplaatst voor uitvoering
       ai_cost_title: AI kostenraming
       ai_cost_message: Dit zal AI gebruiken om tot %{transactions} transacties te categoriseren.
-      estimated_cost: "Geschatte kosten: ~$%{cost}"
+      estimated_cost: 'Geschatte kosten: ~$%{cost}'
       cost_unavailable_model: Kostenraming niet beschikbaar voor model "%{model}".
       cost_unavailable_no_provider: Kostenraming niet beschikbaar (geen LLM provider geconfigureerd).
       cost_warning: U kunt kosten maken, controleer bij de modelprovider voor de meest actuele prijzen.
       view_usage: Gebruiksgeschiedenis bekijken
+      preview:
+        title: Wat er gaat veranderen
+        description: Alleen transacties waarvan de waarden echt veranderen, worden geteld.
+        transactions:
+          one: "%{count} transactie"
+          other: "%{count} transacties"
+        none: Geen
+        uncategorized: Niet gecategoriseerd
+        included: Inbegrepen
+        excluded: Uitgesloten
+        not_undoable: Wordt niet ongedaan gemaakt
+        async_hint: De categorie of handelaar wordt door AI gekozen
     recent_runs:
       title: Recente uitvoeringen
       description: Bekijk de uitvoeringsgeschiedenis van uw regels inclusief succes/faalstatus en transactieaantallen.
@@ -38,3 +51,71 @@ nl:
         pending: In behandeling
         success: Succesvol
         failed: Mislukt
+    category_rule_cta:
+      close: Sluiten
+      create_rule: Regel maken
+      apply_to_similar:
+        one: Toepassen op 1 vergelijkbare transactie
+        other: Toepassen op %{count} vergelijkbare transacties
+      description: Pas hem nu toe op vergelijkbare niet-gecategoriseerde transacties of maak een regel voor toekomstige
+      dont_show_again: Dit niet meer tonen
+      hide_for_today: Vandaag verbergen
+      hide_for_today_hint: "‘Vandaag verbergen’ pauzeert deze suggesties 24 uur."
+      message: Bijgewerkt naar %{category_name}
+    rule:
+      review: Transacties bekijken
+      stop_processing: Stoppen
+      stop_processing_hint: Regels verderop wijzigen geen transacties die door deze regel worden gematcht.
+    form:
+      stop_processing_label: Verdere regels niet meer verwerken
+      stop_processing_description: Regels verderop in de lijst wijzigen geen transacties die door deze regel worden gematcht.
+    index:
+      order_hint: Regels lopen van boven naar beneden. Zodra een regel een veld van een transactie instelt, wijzigen regels verderop dat veld niet meer. Labels worden door elke matchende regel toegevoegd. Sleep regels om de volgorde te wijzigen.
+      reorder_rule: Regel %{name} verplaatsen. Druk op Enter of Spatie om hem vast te pakken en gebruik dan de pijltjestoetsen om te verplaatsen.
+    confirm:
+      rules_above_notice:
+        one: De actieve regel erboven loopt eerst, dus het resultaat is hetzelfde als in de volledige run.
+        other: De %{count} actieve regels erboven lopen eerst, dus het resultaat is hetzelfde als in de volledige run.
+    applications:
+      title: Recente toepassingen
+      description: Toepassen-op-alles-runs die je nog ongedaan kunt maken. Ongedaan maken herstelt de waarden die elke transactie vóór de run had.
+      summary:
+        one: "%{time} · %{count} transactie"
+        other: "%{time} · %{count} transacties"
+      undo: Ongedaan maken
+      undo_success: De regelloop is ongedaan gemaakt
+      already_undone: Deze regelloop is al ongedaan gemaakt
+      undo_confirm_title: Deze regelloop ongedaan maken?
+      undo_confirm_body: Dit herstelt de waarden die de betrokken transacties vóór de run hadden. Transacties die daarna zijn bewerkt, blijven ongewijzigd.
+      undo_confirm_button: Loop ongedaan maken
+    condition_filters:
+      operators:
+        matches_regex: Komt overeen (regex)
+        does_not_match_regex: Komt niet overeen (regex)
+    show:
+      conditions: Voorwaarden
+      matched:
+        one: 1 gematchte transactie
+        other: "%{count} gematchte transacties"
+      conflict_warning: 'Regels hierboven lopen eerst en kunnen sommige matches opeisen: %{names}.'
+      edit: Regel bewerken
+      apply: Toepassen
+      rule_category: Categorie die deze regel toewijst
+      apply_now: De gematchte transacties nu ook bijwerken
+      update_rule: Regel bijwerken
+      transactions: Gematchte transacties
+      select_hint: Vink rijen uit die je niet wilt wijzigen.
+      uncategorized: Niet gecategoriseerd
+      new_category: Nieuwe categorie voor selectie
+      also_update_rule: Maak dit ook de categorie van de regel
+      update_selected: Selectie bijwerken
+      no_transactions: Deze regel matcht momenteel geen transacties.
+      undo_available_title: Deze regel is toegepast
+      undo_available_body: Maak de laatste run ongedaan om de waarden te herstellen die de transacties ervoor hadden. Transacties die daarna zijn bewerkt, blijven ongewijzigd.
+      undo_last_run: Laatste run ongedaan maken
+    update_category:
+      success: Regelcategorie bijgewerkt
+    update_transactions:
+      updated:
+        one: 1 transactie gecategoriseerd
+        other: "%{count} transacties gecategoriseerd"

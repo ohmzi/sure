@@ -14,9 +14,12 @@ zh-TW:
       and_more_actions:
         one: 另有 1 個動作
         other: 另有 %{count} 個動作
-      action_label_to: '%{label} 為 %{value}'
+      action_label_to: "%{label} 為 %{value}"
       all_past_and_future: 過去與未來所有的 %{resource}
-      on_or_after: '%{date} 當日或之後的 %{resource}'
+      on_or_after: "%{date} 當日或之後的 %{resource}"
+      review: 檢視交易
+      stop_processing: 停止
+      stop_processing_hint: 下方的規則不會變更與此規則相符的交易。
     form:
       rule_name_label: 規則名稱（選填）
       rule_name_placeholder: 為這條規則輸入一個名稱
@@ -26,6 +29,8 @@ zh-TW:
       all_past_and_future: 過去與未來所有的 %{resource}
       starting_from: 起始日
       then: 然後
+      stop_processing_label: 停止處理後續規則
+      stop_processing_description: 清單下方的規則不會變更與此規則相符的交易。
     index:
       page_title: 自動化規則
       delete_all_rules: 刪除所有規則
@@ -34,6 +39,8 @@ zh-TW:
       rules_heading: 自動化規則
       no_rules_title: 還沒有任何規則
       no_rules_description: 設定規則，就能在每次帳戶同步時對您的交易與其他資料執行動作。
+      order_hint: 規則由上而下執行。一旦規則設定了交易的某個欄位，下方的規則就不會再變更該欄位。每條相符的規則都會新增標籤。拖曳規則以變更順序。
+      reorder_rule: 移動規則 %{name}。按 Enter 或空白鍵抓取，然後使用方向鍵移動。
     confirm:
       title: 確認變更
       title_with_name: 確認對「%{name}」的變更
@@ -46,8 +53,12 @@ zh-TW:
       cost_warning: 您可能會產生費用，最新的價格請向模型供應商確認。
       view_usage_history: 查看使用紀錄
       confirm_changes: 確認變更
+      rules_above_notice:
+        one: 上方的啟用規則會先執行，因此結果與完整執行相同。
+        other: 上方的 %{count} 條啟用規則會先執行，因此結果與完整執行相同。
     actions:
       value_placeholder: 輸入一個值
+      to_label: 改為
     update:
       success: 規則已更新
     destroy:
@@ -67,6 +78,18 @@ zh-TW:
       cost_unavailable_no_provider: 無法預估費用（尚未設定 LLM 供應商）。
       cost_warning: 您可能會產生費用，最新的價格請向模型供應商確認。
       view_usage: 查看使用紀錄
+      preview:
+        title: 將會變更什麼
+        description: 只計入值確實變更的交易。
+        transactions:
+          one: "%{count} 筆交易"
+          other: "%{count} 筆交易"
+        none: 無
+        uncategorized: 未分類
+        included: 包含
+        excluded: 排除
+        not_undoable: 不會復原
+        async_hint: 類別或商家將由 AI 選擇
     recent_runs:
       title: 最近執行紀錄
       description: 查看規則的執行紀錄，包括成功/失敗狀態以及交易處理筆數。
@@ -100,10 +123,63 @@ zh-TW:
         expense: 支出
         transfer: 轉帳
         equal_to: 等於
+      operators:
+        matches_regex: 相符（regex）
+        does_not_match_regex: 不相符（regex）
+    category_rule_cta:
+      close: 關閉
+      create_rule: 建立規則
+      apply_to_similar:
+        one: 套用到 1 筆相似交易
+        other: 套用到 %{count} 筆相似交易
+      description: 立即套用到相似的未分類交易，或為日後的交易建立規則
+      dont_show_again: 不再顯示
+      hide_for_today: 今天隱藏
+      hide_for_today_hint: "「今天隱藏」會暫停這些建議 24 小時。"
+      message: 已更新為%{category_name}
+    applications:
+      title: 最近的套用
+      description: 仍可復原的「全部套用」執行。復原會還原每筆交易在執行前的值。
+      summary:
+        one: "%{time} · %{count} 筆交易"
+        other: "%{time} · %{count} 筆交易"
+      undo: 復原
+      undo_success: 規則執行已復原
+      already_undone: 此規則執行已復原
+      undo_confirm_title: 要復原此規則執行嗎？
+      undo_confirm_body: 這會還原受影響交易在執行前的值。此後編輯過的交易保持不變。
+      undo_confirm_button: 復原執行
+    show:
+      conditions: 條件
+      matched:
+        one: 1 筆相符交易
+        other: "%{count} 筆相符交易"
+      conflict_warning: 上方的規則會先執行，可能會取用部分相符項目：%{names}。
+      edit: 編輯規則
+      apply: 套用
+      rule_category: 此規則指定的類別
+      apply_now: 同時立即更新相符的交易
+      update_rule: 更新規則
+      transactions: 相符的交易
+      select_hint: 取消勾選你不想變更的資料列。
+      uncategorized: 未分類
+      new_category: 為所選項目選擇新類別
+      also_update_rule: 同時設為規則的類別
+      update_selected: 更新所選
+      no_transactions: 此規則目前不符合任何交易。
+      undo_available_title: 此規則已套用
+      undo_available_body: 復原上次執行以還原其交易在執行前的值。此後編輯過的交易保持不變。
+      undo_last_run: 復原上次執行
+    update_category:
+      success: 規則類別已更新
+    update_transactions:
+      updated:
+        one: 1 筆交易已分類
+        other: "%{count} 筆交易已分類"
   rule:
     conditions:
       condition_group:
-        and_prefix: ' 與 '
+        and_prefix: " 與 "
         match: 符合
         all: 以下所有
         any: 以下任一

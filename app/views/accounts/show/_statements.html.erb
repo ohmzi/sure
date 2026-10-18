@@ -32,15 +32,21 @@
         <%= link_to account_statements_path,
                     data: { turbo_frame: "_top" },
                     class: "inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary-hover" do %>
-          <%= icon("inbox", size: "sm") %>
-          <%= t("account_statements.account_tab.open_inbox") %>
+          <%= icon("archive", size: "sm") %>
+          <%= t("account_statements.account_tab.open_vault") %>
         <% end %>
       </div>
     </div>
 
     <%# Tapping a month filters the list below to that month; tapping the
-        active month clears the filter. The grid itself stays whole. %>
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 bg-container rounded-lg shadow-border-xs p-3">
+        active month clears the filter. The grid itself stays whole. The
+        controller adds arrow-key movement; every month stays a link in the
+        tab order, so it also works without JavaScript. %>
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 bg-container rounded-lg shadow-border-xs p-3"
+         data-controller="month-grid"
+         data-action="keydown->month-grid#navigate"
+         role="group"
+         aria-label="<%= t("account_statements.account_tab.months_label") %>">
       <% coverage.months.each do |month| %>
         <% month_param = month.date.strftime("%Y-%m") %>
         <% active = statement_month == month_param %>
@@ -52,7 +58,12 @@
         <%# Full-page navigation: the chart above the tabs must follow the month. %>
         <%= link_to month_path,
               data: { turbo_frame: "_top" },
-              aria: { current: ("date" if active) },
+              aria: {
+                current: ("date" if active),
+                label: t("account_statements.account_tab.month_link",
+                         month: account_statement_coverage_label(month),
+                         status: t("account_statements.coverage.status.#{month.status}"))
+              },
               class: "block rounded-lg ring px-3 py-2 transition focus-ring #{account_statement_coverage_classes(month.status)} #{active ? "outline outline-2 outline-offset-2 outline-primary" : ""}" do %>
           <p class="text-xs font-medium"><%= account_statement_coverage_label(month) %></p>
           <p class="text-xs capitalize"><%= t("account_statements.coverage.status.#{month.status}") %></p>

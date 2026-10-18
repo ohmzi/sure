@@ -64,7 +64,7 @@
 %>
 <%# A card (the Quicken Simplifi language, 2026-10-17): the thumbnail inset
     in a rounded container, the state pill in its corner, the title bold. %>
-<div id="<%= row.key %>" class="flex flex-col gap-2.5 min-w-0 rounded-2xl bg-container p-2 shadow-border-xs" data-document-state="<%= state %>">
+<div id="<%= row.key %>" class="flex flex-col gap-2.5 min-w-0 rounded-2xl bg-container p-2 shadow-border-xs transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary" data-document-state="<%= state %>">
   <div class="relative aspect-[4/3] overflow-hidden rounded-xl bg-container-inset<%= " border border-dashed border-secondary" if state == :reading %>">
     <% if state == :reading %>
       <%# Nothing to show yet — the design's dashed box with the state centred. %>

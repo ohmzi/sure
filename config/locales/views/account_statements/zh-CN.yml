@@ -6,9 +6,13 @@ zh-CN:
       coverage_description: 由已上传对账单和余额核验支持的历史月份。
       coverage_range: "%{start} - %{end}"
       empty: 此账户尚未关联任何对账单。
-      open_inbox: 收件箱
       statements_title: 对账单
       year_label: 覆盖年份
+      filtered: 显示 %{month} 对账单
+      show_all: 显示所有月份
+      months_label: 按月份排列的对账单覆盖情况
+      month_link: "%{month}：%{status}"
+      open_vault: 对账单库
     balance:
       unknown: 未知
     coverage:
@@ -31,28 +35,37 @@ zh-CN:
     destroy:
       failure: 无法删除对账单。
       success: 对账单已删除。
+      document_blocked: 该对账单的文档仍支撑未对账的交易（%{entries}）。请先对账或删除这些交易。
+      imported_rows:
+        one: 该对账单有 1 行已导入。删除它会使拥有该行的导入变为孤立状态；请先还原或删除该导入。
+        other: 该对账单有 %{count} 行已导入。删除它会使拥有这些行的导入变为孤立状态；请先还原或删除该导入。
+      pending_import: 该对账单有一个导入。请先删除或还原该导入，再删除对账单。
     form:
       account_upload: 上传对账单
       files_hint: PDF、CSV 或 XLSX。每个文件最大 %{max_size}MB。
       files_label: 对账单文件
-      inbox_upload: 上传
-      period_hint: "如果 PDF 中写明了账单周期，Sure 会直接读取，否则从文件名中的日期（例如 2026-04）读取。你也可以在账单上手动设置。"
+      period_hint: 如果 PDF 中写明了账单周期，Sure 会直接读取，否则从文件名中的日期（例如 2026-04）读取。你也可以在账单上手动设置。
+      upload_title: 上传对账单
     index:
       account_label: 账户
       confidence: "%{confidence} 匹配"
       empty_linked: 尚无已关联的对账单。
-      empty_unmatched: 对账单收件箱已清空。
+      empty_unmatched: 对账单库中没有待处理项目。
       leave_unmatched: 保持未匹配
       linked_title: 已关联的对账单
       no_suggestion: 没有建议
       storage_used: 已用存储
       title: 对账单库
-      unmatched_title: 未匹配收件箱
-      upload_description: 将对账单上传到收件箱，或选择一个账户立即关联。
+      unmatched_title: 未匹配的对账单
+      upload_description: 将对账单上传到对账单库，或选择一个账户立即关联。
       upload_title: 上传对账单
     link:
       no_account: 在关联此对账单之前，请先选择一个账户。
       success: 已将对账单关联到 %{account}。
+      account_locked: 该对账单已无法在此重新分配。
+      imported:
+        one: 已关联到%{account}。其交易与对账单总额相符，因此现在正在添加。
+        other: 已关联到%{account}。其 %{count} 笔交易与对账单总额相符，因此现在正在添加。
     period:
       unknown: 周期未知
     reconciliation:
@@ -64,6 +77,12 @@ zh-CN:
       matched: 已匹配
       mismatched: 不匹配
       unavailable: 未检查
+      explanations:
+        closing_balance: 对账单期末为 %{statement}，但 Sure 账簿期末为 %{ledger}（差额 %{difference}）。
+        opening_balance: 对账单期初为 %{statement}，但 Sure 账簿期初为 %{ledger}（差额 %{difference}）。
+        period_movement: 对账单的变动为 %{statement}，但 Sure 账簿变动为 %{ledger}（差额 %{difference}）。
+        default: 对账单显示 %{statement}，但 Sure 账簿显示 %{ledger}（差额 %{difference}）。
+      reviewed: 已复核
     reject:
       success: 已拒绝对账单匹配。
     show:
@@ -93,8 +112,20 @@ zh-CN:
       suggested_account: 建议账户是 %{account}（置信度 %{confidence}）。
       title: 对账单
       unlink: 取消关联
-      unmatched_account: 未匹配收件箱
+      unmatched_account: 无账户
       unknown_value: 未知
+      activity: 活动
+      document_linked: 已归档文档
+      imported_state:
+        one: 1 行已导入
+        other: "%{count} 行已导入"
+      import_pending: 导入待处理
+      overlap_message: 该对账单与%{statements}在共同边界日之外重叠，且打印的余额不一致。请检查周期和余额；其中一份副本可能有误。
+      overlap_title: 余额不同的重叠对账单
+      period_warning_title: 周期似乎有误
+      mark_reviewed: 标记为已复核
+      reviewed: 已于 %{date} 复核
+      no_suggestion_description: 在下方选择一个账户，或在确定归属前保持对账单未匹配。
     status:
       linked: 已关联
       rejected: 已拒绝
@@ -113,6 +144,22 @@ zh-CN:
       unlink: 取消关联
       view: 查看
     unlink:
-      success: 对账单已移回未匹配收件箱。
+      success: 对账单已移回未匹配列表。
     update:
       success: 对账单已更新。
+    assign_account:
+      label: 账户
+      placeholder: 选择账户
+      submit: 关联账户
+      no_accounts: 暂无可关联的账户。
+    period_check:
+      title: 周期似乎有误
+      sources:
+        printed: 打印
+        recorded: 记录
+        filename: 文件名
+      message: 保存的周期（%{actual}）与%{source}周期（%{expected}）不符。请检查对账单的日期。
+    review:
+      success: 对账单已标记为已复核。
+    type:
+      statement: 对账单

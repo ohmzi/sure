@@ -1,5 +1,12 @@
-<%# locals: (filtered:, url:, documents:) %>
-<% if filtered %>
+<%# locals: (filtered:, url:, documents:, duplicates: false) %>
+<% if duplicates %>
+  <%= render DS::EmptyState.new(icon: "copy-check", title: t("document_browser.empty.duplicates_title"),
+                                description: t("document_browser.empty.duplicates_description")) do |es| %>
+    <% es.with_action do %>
+      <%= render DS::Link.new(text: t("document_browser.empty.clear_filters"), href: url) %>
+    <% end %>
+  <% end %>
+<% elsif filtered %>
   <%= render DS::EmptyState.new(icon: "search", title: t("document_browser.empty.title"),
                                 description: t("document_browser.empty.description")) do |es| %>
     <% es.with_action do %>
