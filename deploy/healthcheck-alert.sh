@@ -70,6 +70,36 @@ POSTGRES_USER="${POSTGRES_USER:-sure_user}"
 POSTGRES_DB="${POSTGRES_DB:-sure_production}"
 HEAVY_QUEUE_MAX="${HEAVY_QUEUE_MAX:-15}"
 REAPER_MAX_AGE_MINUTES="${REAPER_MAX_AGE_MINUTES:-20}"
+# A read or an import that has not moved past these bounds is no longer just
+# slow: the reaper/sweeper that resumes it is not running, or the job was lost.
+# A held document (failure_message set) is waiting on a person and is excluded
+# from the stall check on purpose. Import.clean reaps importing/reverting rows
+# after 6 hours, so 90 minutes is an early warning, not a duplicate reaper.
+DOCUMENT_STALL_MAX_MINUTES="${DOCUMENT_STALL_MAX_MINUTES:-60}"
+IMPORT_STUCK_MAX_MINUTES="${IMPORT_STUCK_MAX_MINUTES:-90}"
+# The recorded LLM provider failure share. LlmUsage stores a failed call with
+# metadata.error, so this is a real rate over a real denominator; local
+# providers that record no usage simply leave the sample too small to judge.
+LLM_ERROR_RATE_MAX="${LLM_ERROR_RATE_MAX:-50}"
+LLM_ERROR_WINDOW_MINUTES="${LLM_ERROR_WINDOW_MINUTES:-60}"
+LLM_ERROR_MIN_CALLS="${LLM_ERROR_MIN_CALLS:-5}"
+case "$DOCUMENT_STALL_MAX_MINUTES" in ''|*[!0-9]*) DOCUMENT_STALL_MAX_MINUTES=60 ;; esac
+case "$IMPORT_STUCK_MAX_MINUTES" in ''|*[!0-9]*) IMPORT_STUCK_MAX_MINUTES=90 ;; esac
+case "$LLM_ERROR_RATE_MAX" in ''|*[!0-9]*) LLM_ERROR_RATE_MAX=50 ;; esac
+case "$LLM_ERROR_WINDOW_MINUTES" in ''|*[!0-9]*) LLM_ERROR_WINDOW_MINUTES=60 ;; esac
+case "$LLM_ERROR_MIN_CALLS" in ''|*[!0-9]*) LLM_ERROR_MIN_CALLS=5 ;; esac
+
+# Sidekiq's keys live in the database REDIS_URL selects. This stack sets
+# redis://redis:6379/1 in compose.yml, but redis-cli defaults to db 0 — without
+# -n the heavy-queue and reaper reads silently look in the wrong database.
+# Derive the index from REDIS_URL when the caller/.env supplies it, falling
+# back to the value compose.yml declares for this deployment.
+REDIS_URL="${REDIS_URL:-$(sed -n 's/^[[:space:]]*REDIS_URL:[[:space:]]*"\([^"]*\)".*/\1/p' "$DEPLOY_DIR/compose.yml" 2>/dev/null | head -n1)}"
+REDIS_DB=1
+case "${REDIS_URL##*/}" in
+  ''|*[!0-9]*) ;;
+  *) REDIS_DB="${REDIS_URL##*/}" ;;
+esac
 
 exhausted="$("$DC" exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
   "select count(*) from document_links where failure_code = 'retry_exhausted' and deleted_at is null" \
@@ -80,17 +110,46 @@ elif [ "$exhausted" -gt 0 ]; then
   fail=1; reasons="$reasons documents_exhausted=$exhausted"
 fi
 
-# Sidekiq keeps its queues and the reaper heartbeat in a non-default Redis
-# database (compose.yml uses /1). redis-cli defaults to db 0, which would read
-# an empty queue and miss the heartbeat entirely. REDIS_DB wins when set;
-# otherwise a REDIS_URL in the environment supplies its index.
-REDIS_DB="${REDIS_DB:-1}"
-if [ -n "${REDIS_URL:-}" ]; then
-  _url_db="${REDIS_URL##*/}"
-  case "$_url_db" in
-    ''|*[!0-9]*) ;;
-    *) REDIS_DB="$_url_db" ;;
-  esac
+# 5. A read that is still queued/processing past its lease and the reaper's
+#    grace window means nothing is resuming it. Held rows carry a failure
+#    message and are waiting on a person, so they are not a stall.
+stalled_docs="$("$DC" exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+  "select count(*) from document_links where deleted_at is null and status in ('queued', 'processing') and stored_path is not null and failure_message is null and updated_at < now() - interval '${DOCUMENT_STALL_MAX_MINUTES} minutes'" \
+  2>/dev/null | tr -d '[:space:]')"
+if [ -z "$stalled_docs" ]; then
+  fail=1; reasons="$reasons document_health_unreadable"
+elif [ "$stalled_docs" -gt 0 ]; then
+  fail=1; reasons="$reasons documents_stalled=$stalled_docs"
+fi
+
+# 6. An import still job-owned past the bound means its worker died and the
+#    sweeper has not reconciled it. Import.clean handles the 6-hour case; this
+#    catches the wedge much earlier.
+stuck_imports="$("$DC" exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+  "select count(*) from imports where status in ('importing', 'reverting') and updated_at < now() - interval '${IMPORT_STUCK_MAX_MINUTES} minutes'" \
+  2>/dev/null | tr -d '[:space:]')"
+if [ -z "$stuck_imports" ]; then
+  fail=1; reasons="$reasons imports_unreadable"
+elif [ "$stuck_imports" -gt 0 ]; then
+  fail=1; reasons="$reasons imports_stuck=$stuck_imports"
+fi
+
+# 7. The recorded LLM provider failure share. LlmUsage has both sides of the
+#    ratio (a successful call's tokens, a failed call's metadata.error), so a
+#    small sample is skipped rather than reported as a false 100%. The
+#    predicate matches OperatorMetrics: a present-but-null error is not counted.
+llm_counts="$("$DC" exec -T db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc \
+  "select count(*) filter (where metadata ->> 'error' is not null), count(*) from llm_usages where created_at > now() - interval '${LLM_ERROR_WINDOW_MINUTES} minutes'" \
+  2>/dev/null | tr -d '[:space:]')"
+llm_failed="${llm_counts%%|*}"
+llm_total="${llm_counts##*|}"
+if [ -z "$llm_counts" ] || [ "$llm_failed" = "$llm_counts" ]; then
+  fail=1; reasons="$reasons llm_usage_unreadable"
+elif [ "$llm_total" -ge "$LLM_ERROR_MIN_CALLS" ]; then
+  llm_rate=$(( llm_failed * 100 / llm_total ))
+  if [ "$llm_rate" -ge "$LLM_ERROR_RATE_MAX" ]; then
+    fail=1; reasons="$reasons llm_error_rate=${llm_rate}%>=${LLM_ERROR_RATE_MAX}%"
+  fi
 fi
 
 # Sidekiq names each queue's list queue:<name>; DocumentUnderstandingJob runs

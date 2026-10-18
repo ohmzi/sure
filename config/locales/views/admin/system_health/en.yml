@@ -325,13 +325,29 @@ en:
           local_setup:
             title: Recommended local setup
             description: Run the LLM through your local OpenAI-compatible endpoint, store document vectors in pgvector, and point the embedding settings at an OpenAI-compatible embeddings endpoint. The PostgreSQL image must include the vector extension, and embedding dimensions must match the selected model.
-    documents:
-      title: Document processing
-      description: Reads in flight, automatic retries, exhausted reads and imports waiting for review.
-      documents: Documents
-      in_flight: In flight
-      retrying: Retrying
-      exhausted: Exhausted
-      awaiting_review: Awaiting review
-      pending_imports: Pending imports
-      attention: Some documents or imports need attention.
+      documents:
+        title: Document processing
+        description: Reads in flight, proven and unverified outcomes, held and retrying reads, exhausted reads and imports waiting for review.
+        documents: Documents
+        in_flight: In flight
+        proven: Proven
+        unverified: Unverified
+        held: Held
+        retrying: Retrying
+        exhausted: Exhausted
+        awaiting_review: Awaiting review
+        pending_imports: Pending imports
+        attention: Some documents or imports need attention.
+      operations:
+        title: Provider and import health
+        description: Recorded provider calls and completed imports from the last %{days} days. Read-only; nothing here makes a live request.
+        llm_calls: LLM calls
+        provider_error_rate: Provider error rate
+        provider_latency: Provider latency
+        import_publish_latency: Import publish latency
+        values:
+          no_calls: No provider calls recorded
+          provider_latency_unavailable: Not recorded — provider requests store no request duration
+          import_latency: "%{average}s average · %{p95}s p95 · %{samples} imports"
+          import_latency_help: Upload to published. Import stores no publish-start time.
+          no_imports: No completed import in this window

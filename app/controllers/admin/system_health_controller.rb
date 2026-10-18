@@ -25,6 +25,7 @@ module Admin
       SidekiqHealth.expire_cache!
       @health = SidekiqHealth.new
       @document_health = DocumentProcessingHealth.new(Current.family)
+      @operator_metrics = OperatorMetrics.new(Current.family)
     end
 
     # Each live probe can take up to AiHealth::Probe.timeout, so the page

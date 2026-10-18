@@ -55,6 +55,28 @@ class Admin::SystemHealthControllerTest < ActionDispatch::IntegrationTest
     assert_select "[role='region'][aria-label='Queues']"
   end
 
+  test "renders the document read outcomes and operational metrics" do
+    sign_in users(:sure_support_staff)
+    stub_healthy_sidekiq
+
+    get admin_system_health_url(tab: "background_jobs")
+
+    assert_response :success
+    assert_select "h2", text: "Document processing"
+    assert_select "dt", text: "Proven"
+    assert_select "dt", text: "Unverified"
+    assert_select "dt", text: "Held"
+    assert_select "dt", text: "Retrying"
+    assert_select "dt", text: "Exhausted"
+    assert_select "dt", text: "Awaiting review"
+    assert_select "h2", text: "Provider and import health"
+    assert_select "dt", text: "Provider error rate"
+    assert_select "dt", text: "Provider latency"
+    assert_select "dd", text: /no request duration/i
+    assert_select "dt", text: "Import publish latency"
+    assert_select "dd", text: /no completed import/i
+  end
+
   test "renders degraded state with reason when Sidekiq is unhealthy" do
     sign_in users(:sure_support_staff)
     SidekiqHealth.any_instance.stubs(:healthy?).returns(false)

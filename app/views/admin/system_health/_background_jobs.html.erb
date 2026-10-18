@@ -64,6 +64,18 @@
         <dd class="text-primary font-medium"><%= document_health.in_flight %></dd>
       </div>
       <div>
+        <dt class="text-secondary"><%= t("admin.system_health.documents.proven") %></dt>
+        <dd class="text-primary font-medium"><%= document_health.proven %></dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.documents.unverified") %></dt>
+        <dd class="<%= document_health.unverified.positive? ? "text-warning" : "text-primary" %> font-medium"><%= document_health.unverified %></dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.documents.held") %></dt>
+        <dd class="<%= document_health.held.positive? ? "text-warning" : "text-primary" %> font-medium"><%= document_health.held %></dd>
+      </div>
+      <div>
         <dt class="text-secondary"><%= t("admin.system_health.documents.retrying") %></dt>
         <dd class="text-primary font-medium"><%= document_health.retrying %></dd>
       </div>
@@ -84,6 +96,49 @@
     <% unless document_health.healthy? %>
       <p class="text-sm text-warning"><%= t("admin.system_health.documents.attention") %></p>
     <% end %>
+  <% end %>
+
+  <%= render DS::Card.new(class: "gap-4") do %>
+    <div>
+      <h2 class="text-lg font-semibold text-primary"><%= t("admin.system_health.operations.title") %></h2>
+      <p class="mt-1 text-sm text-secondary"><%= t("admin.system_health.operations.description", days: operator_metrics.window_days) %></p>
+    </div>
+
+    <dl class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.operations.llm_calls") %></dt>
+        <dd class="text-primary font-medium"><%= number_with_delimiter(operator_metrics.llm_calls) %></dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.operations.provider_error_rate") %></dt>
+        <% error_rate = operator_metrics.provider_error_rate %>
+        <dd class="<%= error_rate&.positive? ? "text-warning" : "text-primary" %> font-medium">
+          <% if error_rate %>
+            <%= number_to_percentage(error_rate * 100, precision: 1) %>
+          <% else %>
+            <%= t("admin.system_health.operations.values.no_calls") %>
+          <% end %>
+        </dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.operations.provider_latency") %></dt>
+        <dd class="text-secondary"><%= t("admin.system_health.operations.values.provider_latency_unavailable") %></dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.operations.import_publish_latency") %></dt>
+        <dd class="text-primary font-medium">
+          <% if (latency = operator_metrics.import_latency) %>
+            <%= t("admin.system_health.operations.values.import_latency",
+                  average: number_with_precision(latency[:average_seconds], precision: 1),
+                  p95: number_with_precision(latency[:p95_seconds], precision: 1),
+                  samples: latency[:samples]) %>
+            <span class="block text-xs font-normal text-secondary"><%= t("admin.system_health.operations.values.import_latency_help") %></span>
+          <% else %>
+            <%= t("admin.system_health.operations.values.no_imports") %>
+          <% end %>
+        </dd>
+      </div>
+    </dl>
   <% end %>
 
   <%= render DS::Card.new(class: "gap-4") do %>

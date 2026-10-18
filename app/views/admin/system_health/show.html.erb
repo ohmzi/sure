@@ -15,6 +15,7 @@
 
   <% tabs.with_panel(tab_id: "background_jobs") do %>
     <%= render "background_jobs", health: @health, document_health: @document_health,
+      operator_metrics: @operator_metrics,
       push_notification_test: @push_notification_test,
       push_disabled_reason: @push_disabled_reason, latest_push_test: @latest_push_test,
       push_test_results: @push_test_results %>

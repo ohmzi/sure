@@ -245,7 +245,17 @@ are fresh (`BACKUP_MAX_AGE_HOURS`, default 26). It also watches the document
 pipeline: it fails when any `document_links` row is in `retry_exhausted`, when the
 heavy lane holds more than `HEAVY_QUEUE_MAX` queued reads (default 15), or when
 `DocumentReaperJob` has not recorded a heartbeat within `REAPER_MAX_AGE_MINUTES`
-(default 20; the key is `sure:document_reaper:last_run` in Redis). It matches on
+(default 20; the key is `sure:document_reaper:last_run` in Redis). Two age bounds
+catch a wedge the liveness checks miss: a `queued`/`processing` read with no hold
+reason that has not moved for `DOCUMENT_STALL_MAX_MINUTES` (default 60), and an
+`imports` row still `importing`/`reverting` after `IMPORT_STUCK_MAX_MINUTES`
+(default 90; `Import.clean` only reaps at 6 hours). It also watches the recorded
+LLM provider failure share over `LLM_ERROR_WINDOW_MINUTES` (default 60): above
+`LLM_ERROR_RATE_MAX` percent (default 50) once at least `LLM_ERROR_MIN_CALLS`
+(default 5) calls were recorded. The Redis reads derive their
+database index from `REDIS_URL` (falling back to the value in `compose.yml`, which
+is `/1` for this stack) and pass it with `redis-cli -n`, because `redis-cli`
+otherwise inspects db 0 while Sidekiq's keys are in db 1. It matches on
 the compose **service name**, so stopped orphan containers from the removed
 paperless service are ignored. When healthy it prints one OK line and exits 0; on
 failure it posts one JSON alert to `ALERT_WEBHOOK_URL` and exits 1. It sources
@@ -294,6 +304,15 @@ Each run writes only to `sure_restore_drill`; the live `sure_production`
 database is read for the comparison counts and otherwise untouched. The drill is
 the verification for the backup set, so run it after enabling cron and after any
 schema or backup change.
+
+Host crontab entry (monthly on the 1st at 04:17 — after the 03:17 nightly backup;
+the log lives under the owner's backup root, not `/var/log`):
+
+```cron
+17 4 1 * * /home/ohmz/StudioProjects/sure/deploy/restore-drill.sh >> "$HOME/sure-backups/restore-drill.log" 2>&1
+```
+
+Confirm it is installed with `crontab -l | grep restore-drill`.
 
 ## Restore
 This is the **standing restore procedure**; the drill above remains the routine
