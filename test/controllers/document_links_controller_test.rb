@@ -662,6 +662,85 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_no_match document_links(:linked_receipt).title.to_s, response.body
   end
 
+  test "the attention strip counts a statement with no period and links to fix it" do
+    statement = AccountStatement.create_from_upload!(
+      family: @family, account: accounts(:depository),
+      file: uploaded_file(filename: "statement.pdf", content_type: "application/pdf", content: "%PDF-1.4 no period")
+    )
+    statement.update_columns(period_start_on: nil, period_end_on: nil)
+    document_link_for(statement)
+
+    get documents_path
+
+    assert_response :success
+    assert_select "#documents_attention",
+                  text: /#{Regexp.escape(I18n.t("document_browser.attention.reasons.missing_period", count: 1))}/
+    assert_select "#documents_attention a[href='#{account_statements_path(q: { attention: "missing_period" })}']"
+
+    get documents_path(q: { attention: 1 })
+    assert_match statement.filename, response.body
+  end
+
+  test "the attention strip counts a statement with no printed identity and links to fix it" do
+    statement = AccountStatement.create_from_upload!(
+      family: @family, account: accounts(:depository),
+      file: uploaded_file(filename: "statement.pdf", content_type: "application/pdf", content: "%PDF-1.4 no identity")
+    )
+    statement.update_columns(
+      period_start_on: Date.new(2026, 5, 1),
+      period_end_on: Date.new(2026, 5, 31),
+      account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+      sanitized_parser_output: {}
+    )
+    document_link_for(statement)
+
+    get documents_path
+
+    assert_response :success
+    assert_select "#documents_attention",
+                  text: /#{Regexp.escape(I18n.t("document_browser.attention.reasons.missing_identity", count: 1))}/
+    assert_select "#documents_attention a[href='#{account_statements_path(q: { attention: "missing_identity" })}']"
+  end
+
+  test "the viewer surfaces a stored period that disagrees with the filename" do
+    statement = AccountStatement.create_from_upload!(
+      family: @family, account: accounts(:depository),
+      file: uploaded_file(
+        filename: "statement-2026-05-09-to-2026-06-08.pdf",
+        content_type: "application/pdf",
+        content: "%PDF-1.4 period mismatch"
+      )
+    )
+    statement.update_columns(
+      period_start_on: Date.new(2026, 6, 1), period_end_on: Date.new(2026, 6, 30),
+      account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+      sanitized_parser_output: {}
+    )
+    link = document_link_for(statement)
+
+    get viewer_document_path(link)
+
+    assert_response :success
+    assert_match I18n.t("account_statements.period_check.title"), response.body
+    assert_match(/does not match the filename period/, response.body)
+    assert_select "a[href='#{account_statement_path(statement)}'][aria-label='#{I18n.t("document_browser.row.fix_statement_details")}']"
+  end
+
+  test "attention metadata counts stay inside the family" do
+    foreign_family = families(:empty)
+    foreign = AccountStatement.create_from_upload!(
+      family: foreign_family, account: nil,
+      file: uploaded_file(filename: "statement.pdf", content_type: "application/pdf", content: "%PDF-1.4 foreign")
+    )
+    foreign.update_columns(period_start_on: nil, period_end_on: nil)
+    foreign_link = DocumentLink.create!(family: foreign_family, source: "statement", status: "unlinked",
+                                        account_statement: foreign, original_filename: "statement.pdf")
+
+    assert_not_includes DocumentLink.needs_attention(@family), foreign_link
+    assert_equal 0, DocumentsAttentionComponent.new(family: @family).missing_period
+    assert_equal 0, DocumentsAttentionComponent.new(family: @family).missing_printed_identity
+  end
+
   test "the attention strip renders nothing when no document needs a person" do
     DocumentLink.where(family: @family).where.not(failure_message: nil).update_all(failure_message: nil)
     # receipt_understood is the only understood draft; completing it clears the

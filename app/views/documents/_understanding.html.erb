@@ -19,6 +19,18 @@
     </div>
   <% end %>
 
+  <%# P1.11: the stored period disagrees with the filename or the printed
+      period. The statement page owns the correction; this names the doubt. %>
+  <% if panel.respond_to?(:period_warning_message) && (period_warning = panel.period_warning_message) %>
+    <div data-period-warning>
+      <%= render DS::Alert.new(
+            variant: :warning,
+            title: t("account_statements.period_check.title"),
+            message: period_warning
+          ) %>
+    </div>
+  <% end %>
+
   <% if panel.read? %>
     <%# What it decided: the class the router settled on, how sure it was, and
         the account the read resolved to (nil is said, not left blank). %>

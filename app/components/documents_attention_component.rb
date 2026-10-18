@@ -36,6 +36,8 @@ class DocumentsAttentionComponent < ApplicationComponent
     [
       [ couldnt_read, "couldnt_read" ],
       [ needs_account, "needs_account" ],
+      [ missing_period, "missing_period" ],
+      [ missing_printed_identity, "missing_identity" ],
       [ ready, "ready" ],
       [ pending_imports, "imports" ]
     ].select { |count, _key| count.positive? }
@@ -58,11 +60,40 @@ class DocumentsAttentionComponent < ApplicationComponent
   # and it is counted there.
   def needs_account = @needs_account ||= drafts_needing_account + statements_needing_account
 
+  # P1.11 data-quality asks. Both count a statement that already has an account:
+  # "needs an account" is the more urgent ask and owns that statement's count.
+  # The identity ask excludes statements already counted as missing a period, so
+  # the breakdown stays disjoint and its parts add up to the total.
+  def missing_period
+    @missing_period ||= statement_scope
+                          .where(account_statement_id: metadata_statements(AccountStatement.missing_period))
+                          .where.not(account_statement_id: AccountStatement.unmatched.select(:id))
+                          .distinct
+                          .count
+  end
+
+  def missing_printed_identity
+    @missing_printed_identity ||= statement_scope
+                                    .where(account_statement_id: metadata_statements(AccountStatement.missing_printed_identity))
+                                    .where.not(account_statement_id: AccountStatement.unmatched.select(:id))
+                                    .where.not(account_statement_id: metadata_statements(AccountStatement.missing_period))
+                                    .distinct
+                                    .count
+  end
+
   # The rest of the scope: a resolved draft with an account, unpublished.
-  def ready = total - couldnt_read - needs_account
+  def ready = total - couldnt_read - needs_account - missing_period - missing_printed_identity
 
   private
     def scope = @scope ||= DocumentLink.needs_attention(family)
+
+    # Statement asks apply only to a live document that is not held: a held row
+    # is counted under "couldn't be read", its own ask.
+    def statement_scope = @statement_scope ||= scope.where.not(account_statement_id: nil).where(failure_message: nil)
+
+    def metadata_statements(relation)
+      relation.where.not(review_status: "rejected")
+    end
 
     def drafts_needing_account
       scope.where(failure_message: nil)

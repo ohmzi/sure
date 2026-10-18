@@ -17,6 +17,18 @@
   </div>
 <% end %>
 
+<%# P1.11: the stored period disagrees with the filename or the printed period.
+    This is a warning beside the editable dates, never a silent correction. %>
+<% if @statement.period_looks_wrong? %>
+  <div class="pb-4">
+    <%= render DS::Alert.new(
+          variant: :warning,
+          title: t(".period_warning_title"),
+          message: @statement.period_warning_message
+        ) %>
+  </div>
+<% end %>
+
 <%= settings_section title: t(".title") do %>
   <div class="space-y-4">
     <div class="rounded-xl bg-container-inset p-4">
@@ -221,6 +233,11 @@
                       <dd class="privacy-sensitive"><%= Money.new(check[:difference], @statement.statement_currency).format %></dd>
                     </div>
                   </dl>
+                  <%# P1.11: a failed check explains the expected and actual
+                      figures instead of only wearing a "Mismatched" badge. %>
+                  <% if check[:explanation].present? %>
+                    <p class="mt-2 text-xs text-destructive"><%= check[:explanation] %></p>
+                  <% end %>
                 </div>
               <% end %>
             </div>

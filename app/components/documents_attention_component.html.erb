@@ -9,6 +9,14 @@
     </p>
   </div>
   <div class="flex flex-wrap items-center gap-2">
+    <% if missing_period.positive? %>
+      <%= link_to t("document_browser.attention.review_missing_period", count: missing_period), account_statements_path(q: { attention: "missing_period" }),
+            class: "inline-flex items-center h-10 px-5 rounded-full bg-container text-link text-sm font-semibold hover:bg-container-hover active:scale-95 transition focus-ring" %>
+    <% end %>
+    <% if missing_printed_identity.positive? %>
+      <%= link_to t("document_browser.attention.review_missing_identity", count: missing_printed_identity), account_statements_path(q: { attention: "missing_identity" }),
+            class: "inline-flex items-center h-10 px-5 rounded-full bg-container text-link text-sm font-semibold hover:bg-container-hover active:scale-95 transition focus-ring" %>
+    <% end %>
     <% if duplicates.positive? %>
       <%= link_to t("document_browser.attention.review_duplicates", count: duplicates), documents_path(q: { duplicates: 1 }),
             class: "inline-flex items-center h-10 px-5 rounded-full bg-container text-link text-sm font-semibold hover:bg-container-hover active:scale-95 transition focus-ring" %>

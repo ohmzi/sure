@@ -1183,6 +1183,100 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_match second.filename, response.body
   end
 
+  # -- data-quality warnings (P1.11) ------------------------------------------
+
+  test "the statement page warns when the stored period disagrees with the filename" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(
+        filename: "statement-2026-05-09-to-2026-06-08.csv",
+        content_type: "text/csv",
+        content: "date,amount\n2026-05-09,1\n2026-06-08,2\n"
+      )
+    )
+    statement.update_columns(period_start_on: Date.new(2026, 6, 1), period_end_on: Date.new(2026, 6, 30))
+
+    get account_statement_url(statement)
+
+    assert_response :success
+    assert_match I18n.t("account_statements.period_check.title"), response.body
+    assert_match(/does not match the filename period/, response.body)
+  end
+
+  test "the statement page does not warn when the stored period matches the filename" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(
+        filename: "statement-2026-05-09-to-2026-06-08.csv",
+        content_type: "text/csv",
+        content: "date,amount\n2026-05-09,1\n2026-06-08,2\n"
+      )
+    )
+
+    get account_statement_url(statement)
+
+    assert_response :success
+    assert_no_match(/does not match the filename period/, response.body)
+  end
+
+  test "the statement page explains a mismatched reconciliation check" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "explained.pdf", content_type: "application/pdf", content: "%PDF-1.4 explained")
+    )
+    statement.update!(period_start_on: Date.new(2026, 5, 1), period_end_on: Date.new(2026, 5, 31),
+                      opening_balance: 100, closing_balance: 130)
+    @account.entries.create!(date: Date.new(2026, 5, 10), amount: 10, name: "Explaining row",
+                             currency: @account.currency, entryable: Transaction.new,
+                             reconciled_at: Time.current, reconciled_by_statement_id: statement.id)
+
+    get account_statement_url(statement)
+
+    assert_response :success
+    assert_match(/ledger moved/, response.body)
+  end
+
+  # -- data-quality attention filters (P1.11) ---------------------------------
+
+  test "the statements page narrows to statements missing a period or a printed identity" do
+    missing_period = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "missing_period.pdf", content_type: "application/pdf", content: "%PDF-1.4 no period")
+    )
+    missing_period.update_columns(period_start_on: nil, period_end_on: nil)
+
+    missing_identity = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "missing_identity.pdf", content_type: "application/pdf", content: "%PDF-1.4 no identity")
+    )
+    missing_identity.update_columns(
+      period_start_on: Date.new(2026, 5, 1), period_end_on: Date.new(2026, 5, 31),
+      account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+      sanitized_parser_output: {}
+    )
+
+    complete = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "complete_statement.pdf", content_type: "application/pdf", content: "%PDF-1.4 complete")
+    )
+    complete.update_columns(
+      period_start_on: Date.new(2026, 4, 1), period_end_on: Date.new(2026, 4, 30),
+      account_last4_hint: nil, institution_name_hint: "RBC"
+    )
+
+    get account_statements_path(q: { attention: "missing_period" })
+    assert_response :success
+    assert_match missing_period.filename, response.body
+    assert_no_match missing_identity.filename, response.body
+    assert_no_match complete.filename, response.body
+
+    get account_statements_path(q: { attention: "missing_identity" })
+    assert_response :success
+    assert_match missing_identity.filename, response.body
+    assert_no_match missing_period.filename, response.body
+    assert_no_match complete.filename, response.body
+  end
+
   test "the statement page does not flag normal boundary-day adjacency" do
     first = AccountStatement.create_from_upload!(
       family: @account.family, account: @account,

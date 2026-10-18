@@ -138,8 +138,13 @@ class DocumentLink < ApplicationRecord
 
     # The design's "needs you" scope (Milestone B, design D5): documents that
     # are waiting on a person. A held row (the reader stopped with a reason), a
-    # draft waiting for review, or a statement with no account yet — the three
-    # asks behind the strip's count, its list, and its "Show them" filter.
+    # draft waiting for review, or a statement with no account yet — the asks
+    # behind the strip's count, its list, and its "Show them" filter.
+    #
+    # P1.11 adds the data-quality asks: a statement whose stored period is
+    # incomplete, or which prints no identity to match an account by. Both are
+    # things the owner can fix on the statement page, and both would otherwise
+    # sit silently in the vault.
     def needs_attention(family)
       held = where(family: family).where.not(failure_message: nil)
       # A tombstone has left the archive, so it can never be "waiting on a
@@ -150,8 +155,15 @@ class DocumentLink < ApplicationRecord
       # "Which account?" tile state. `AccountStatement.unmatched` is exactly
       # "no account, not rejected", the same line the picker gates on.
       unmatched_statements = AccountStatement.unmatched.select(:id)
+      # A rejected statement is not waiting on anyone, so its missing metadata
+      # is not an ask.
+      incomplete_statements = AccountStatement.where(family: family)
+                                               .where.not(review_status: "rejected")
+                                               .merge(AccountStatement.incomplete_metadata)
+                                               .select(:id)
       held.or(where(family: family, id: ready_drafts))
           .or(where(family: family, account_statement_id: unmatched_statements))
+          .or(where(family: family, account_statement_id: incomplete_statements))
           .not_deleted
     end
 

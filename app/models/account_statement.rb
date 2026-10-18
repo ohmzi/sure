@@ -126,6 +126,23 @@ class AccountStatement < ApplicationRecord
     SQL
   }
   scope :unmatched, -> { where(account_id: nil).where(review_status: "unmatched") }
+  # Data-quality asks (P1.11): a statement whose stored period is incomplete,
+  # and one with no printed identity to match an account by. Both are facts the
+  # owner can fix on the statement page, so the attention strip counts them.
+  scope :missing_period, -> { where("period_start_on IS NULL OR period_end_on IS NULL") }
+  scope :with_printed_identity, -> {
+    where(<<~SQL.squish)
+      COALESCE(account_statements.account_last4_hint, '') <> ''
+      OR COALESCE(account_statements.institution_name_hint, '') <> ''
+      OR COALESCE(account_statements.account_name_hint, '') <> ''
+      OR (
+        jsonb_typeof(account_statements.sanitized_parser_output -> 'printed_last4s') = 'array'
+        AND jsonb_array_length(account_statements.sanitized_parser_output -> 'printed_last4s') > 0
+      )
+    SQL
+  }
+  scope :missing_printed_identity, -> { where.not(id: with_printed_identity.select(:id)) }
+  scope :incomplete_metadata, -> { missing_period.or(missing_printed_identity) }
   scope :for_month, ->(month) {
     month_start = month.to_date.beginning_of_month
     month_end = month_start.end_of_month
@@ -435,6 +452,39 @@ class AccountStatement < ApplicationRecord
     account_id.nil? && !rejected?
   end
 
+  def missing_period?
+    period_start_on.blank? || period_end_on.blank?
+  end
+
+  # The identity the statement itself gives: a printed card/account number, a
+  # bank name, or the filename hint. With none of these, nothing can match the
+  # statement to an account automatically.
+  def printed_identity?
+    account_last4_hint.present? ||
+      institution_name_hint.present? ||
+      account_name_hint.present? ||
+      Array(sanitized_parser_output.to_h["printed_last4s"]).compact_blank.any?
+  end
+
+  def missing_printed_identity? = !printed_identity?
+
+  # The metadata the owner can supply on this page. A rejected statement is not
+  # waiting on anyone, so it is never offered as an ask.
+  def needs_details?
+    !rejected? && (missing_period? || missing_printed_identity?)
+  end
+
+  # P1.11: a disagreement between the stored period and the filename/printed
+  # period is a warning on the record, never an automatic rewrite.
+  def period_warning
+    return @period_warning if defined?(@period_warning)
+
+    @period_warning = AccountStatement::PeriodCheck.new(self).warning
+  end
+
+  def period_looks_wrong? = period_warning.present?
+  def period_warning_message = period_warning&.message
+
   def unlink!
     transaction do
       update!(
@@ -678,13 +728,34 @@ class AccountStatement < ApplicationRecord
 
     def reconciliation_check(key:, statement_amount:, ledger_amount:)
       difference = statement_amount.to_d - ledger_amount.to_d
-      {
+      status = difference.abs <= 0.01.to_d ? "matched" : "mismatched"
+      check = {
         key: key,
         statement_amount: statement_amount.to_d,
         ledger_amount: ledger_amount.to_d,
         difference: difference,
-        status: difference.abs <= 0.01.to_d ? "matched" : "mismatched"
+        status: status
       }
+      check[:explanation] = reconciliation_explanation(key, statement_amount, ledger_amount, difference) if status == "mismatched"
+      check
+    end
+
+    # A failed check must say what disagreed, not only that it did. The wording
+    # lives here (not in the view) so every consumer reads the same sentence.
+    def reconciliation_explanation(key, statement_amount, ledger_amount, difference)
+      I18n.t(
+        "account_statements.reconciliation.explanations.#{key}",
+        default: I18n.t("account_statements.reconciliation.explanations.default"),
+        statement: reconciliation_amount_label(statement_amount),
+        ledger: reconciliation_amount_label(ledger_amount),
+        difference: reconciliation_amount_label(difference.abs)
+      )
+    end
+
+    def reconciliation_amount_label(amount)
+      Money.new(amount.to_d, statement_currency).format
+    rescue Money::Currency::UnknownCurrencyError, ArgumentError
+      ActiveSupport::NumberHelper.number_to_currency(amount.to_d, unit: statement_currency)
     end
 
     def balance_record_for(date, currency, balance_lookup)

@@ -100,6 +100,13 @@ class DocumentPanel
   # Why the document is held, with its actions — nil when it is not.
   def hold = @link.hold_reason
 
+  # P1.11: the statement's stored period disagrees with the filename or the
+  # period its own text printed. Shown beside the read, where the owner reviews
+  # the document, so the warning is not buried on another page.
+  def period_warning_message
+    @link.account_statement&.period_warning_message
+  end
+
   # Memoized on purpose. `DocumentLink#extraction` is an un-memoized
   # `order(...).first`, and one viewer render reads it through several readers
   # (`shows_panel?` -> `read?`/`fields` -> `split?` -> ...): without this, every
@@ -123,7 +130,8 @@ class DocumentPanel
 
   # The design's rule: a picture stays a picture; a document with something to
   # say opens split, because a read the user cannot see is the problem itself.
-  def split? = read? && fields.any?
+  # A period warning is something to say even when the read produced no fields.
+  def split? = read? && (fields.any? || period_warning_message.present?)
 
   # Whether the viewer has anything to say at all. A read with fields splits; a
   # document with no read still owes the reader the reason and the two ways

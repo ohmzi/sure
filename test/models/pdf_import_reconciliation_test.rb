@@ -510,6 +510,45 @@ class PdfImportReconciliationTest < ActiveSupport::TestCase
     end
   end
 
+  test "a liability statement whose extracted signs match its printed movement publishes" do
+    card = accounts(:credit_card)
+    statement = AccountStatement.create_from_upload!(
+      family: @family, account: card,
+      file: uploaded_file(filename: "card.pdf", content_type: "application/pdf", content: "%PDF-1.4 card")
+    )
+    statement.update!(opening_balance: 100, closing_balance: 130)
+    import = PdfImport.create_from_statement!(statement: statement)
+    # Extractor convention is inflows-positive; the publisher flips it into
+    # Sure's outflows-positive convention. A purchase is -30 on the page and
+    # +30 in the ledger, the movement a liability is expected to show.
+    import.update!(document_type: "bank_statement",
+                   extracted_data: { "transactions" => [ extracted(date: @date, amount: -30, name: "Purchase") ] })
+    import.generate_rows_from_extracted_data
+
+    assert_difference -> { card.transactions.count }, 1 do
+      import.import!
+    end
+    assert_equal 30.to_d, card.entries.find_by!(name: "Purchase").amount,
+                 "a correct liability sign is written once, never normalized twice"
+  end
+
+  test "a liability statement whose extracted signs reverse its printed movement fails to publish" do
+    card = accounts(:credit_card)
+    statement = AccountStatement.create_from_upload!(
+      family: @family, account: card,
+      file: uploaded_file(filename: "card.pdf", content_type: "application/pdf", content: "%PDF-1.4 card")
+    )
+    statement.update!(opening_balance: 100, closing_balance: 130)
+    import = PdfImport.create_from_statement!(statement: statement)
+    import.update!(document_type: "bank_statement",
+                   extracted_data: { "transactions" => [ extracted(date: @date, amount: 30, name: "Purchase") ] })
+    import.generate_rows_from_extracted_data
+
+    error = assert_raises(PdfImport::ArithmeticMismatchError) { import.import! }
+    assert_match(/reversed signs/, error.message)
+    assert_empty card.entries.where(name: "Purchase")
+  end
+
   # The review screen edits Import::Row, never extracted_data. The guard must
   # judge the rows the publish will actually write, or a corrected amount still
   # raises against the stale read.

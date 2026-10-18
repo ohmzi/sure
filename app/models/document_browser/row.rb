@@ -183,6 +183,11 @@ class DocumentBrowser::Row
         if statement&.needs_account?
           actions << Action.new(label: I18n.t("document_browser.row.assign_account"), icon: "link",
                                 url: routes.account_statement_path(statement), method: :get, tone: :neutral)
+        elsif statement&.needs_details?
+          # P1.11: a statement with an account but no period (or no printed
+          # identity) still needs a person; the statement page owns the forms.
+          actions << Action.new(label: I18n.t("document_browser.row.fix_statement_details"), icon: "calendar",
+                                url: routes.account_statement_path(statement), method: :get, tone: :warning)
         end
         if draft
           # (repaired 2026-10-11, verifier F8) the awaiting_ocr draft keeps a

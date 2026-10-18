@@ -1093,6 +1093,78 @@ class AccountStatementTest < ActiveSupport::TestCase
     assert_equal [ "image/heif" ], AccountStatement::ALLOWED_EXTENSION_CONTENT_TYPES[".heif"]
   end
 
+  # -- data-quality guardrails (P1.11) ---------------------------------------
+
+  test "records the printed period beside the stored period" do
+    statement = AccountStatement.create_from_upload!(
+      family: @family,
+      account: @account,
+      file: Rack::Test::UploadedFile.new(
+        file_fixture("imports/sample_bank_statement.pdf"),
+        "application/pdf",
+        true,
+        original_filename: "sample_bank_statement_2024-01.pdf"
+      )
+    )
+
+    assert_equal(
+      { "start_on" => "2025-01-01", "end_on" => "2025-07-01", "source" => "pdf_text" },
+      statement.sanitized_parser_output["detected_period"]
+    )
+    # The printed period won the stored dates; the filename disagrees, and the
+    # disagreement is surfaced instead of silently rewriting either one.
+    assert_equal :filename, statement.period_warning.source
+    assert statement.period_looks_wrong?
+  end
+
+  test "missing_period finds a statement whose stored period is incomplete" do
+    statement = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "missing-period")
+    statement.update_columns(period_start_on: nil)
+
+    assert_includes AccountStatement.missing_period, statement
+    assert statement.missing_period?
+  end
+
+  test "missing_printed_identity ignores hints and printed card numbers" do
+    anonymous = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "anonymous")
+    anonymous.update_columns(account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil)
+    anonymous.update_columns(sanitized_parser_output: {})
+
+    hinted = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "hinted")
+    hinted.update_columns(institution_name_hint: "RBC")
+
+    printed = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "printed")
+    printed.update_columns(account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil)
+    printed.update_columns(sanitized_parser_output: { "printed_last4s" => %w[1234] })
+
+    assert_includes AccountStatement.missing_printed_identity, anonymous
+    assert_not_includes AccountStatement.missing_printed_identity, hinted
+    assert_not_includes AccountStatement.missing_printed_identity, printed
+  end
+
+  test "a mismatched reconciliation check explains its expected and actual figures" do
+    card = accounts(:credit_card)
+    statement = card_statement(card, Date.new(2026, 5, 9), 100, 130, [ [ Date.new(2026, 5, 20), 25 ] ])
+
+    check = statement.reconciliation_checks.find { |candidate| candidate[:key] == "period_movement" }
+
+    assert_equal "mismatched", check[:status]
+    assert check[:explanation].present?
+    assert_includes check[:explanation], "$30.00"
+    assert_includes check[:explanation], "$25.00"
+    assert_includes check[:explanation], "$5.00"
+  end
+
+  test "a matched reconciliation check carries no explanation" do
+    card = accounts(:credit_card)
+    statement = card_statement(card, Date.new(2026, 5, 9), 100, 130, [ [ Date.new(2026, 5, 20), 30 ] ])
+
+    check = statement.reconciliation_checks.find { |candidate| candidate[:key] == "period_movement" }
+
+    assert_equal "matched", check[:status]
+    assert_nil check[:explanation]
+  end
+
   private
 
     def create_pdf_statement

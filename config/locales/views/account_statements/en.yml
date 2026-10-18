@@ -72,12 +72,23 @@ en:
         other: Linked to %{account}. Its %{count} transactions added up to the statement's totals, so they are being added now.
     period:
       unknown: Period unknown
+    period_check:
+      title: Period looks wrong
+      sources:
+        printed: printed
+        filename: filename
+      message: "The stored period (%{actual}) does not match the %{source} period (%{expected}). Check the statement's dates."
     reconciliation:
       checks:
         closing_balance: Closing balance
         opening_balance: Opening balance
         period_movement: Period movement
         unknown_check: Unknown check
+      explanations:
+        closing_balance: "The statement closes at %{statement}, but Sure's ledger closes at %{ledger} (difference %{difference})."
+        opening_balance: "The statement opens at %{statement}, but Sure's ledger opens at %{ledger} (difference %{difference})."
+        period_movement: "The statement's movement is %{statement}, but Sure's ledger moved %{ledger} (difference %{difference})."
+        default: "The statement says %{statement}, but Sure's ledger says %{ledger} (difference %{difference})."
       matched: Matched
       mismatched: Mismatched
       reviewed: Reviewed
@@ -113,6 +124,7 @@ en:
       overlap_title: Overlapping statement with different balances
       period_end_on: Period end
       period_start_on: Period start
+      period_warning_title: Period looks wrong
       reconciliation_title: Reconciliation
       mark_reviewed: Mark reviewed
       reviewed: "Reviewed %{date}"

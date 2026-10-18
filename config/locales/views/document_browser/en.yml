@@ -76,6 +76,7 @@ en:
       retry: Retry
       remove: Remove
       assign_account: Which account?
+      fix_statement_details: Fix statement details
       duplicates:
         one: 1 duplicate
         other: "%{count} duplicates"
@@ -113,10 +114,22 @@ en:
         needs_account:
           one: 1 needs an account
           other: "%{count} need an account"
+        missing_period:
+          one: 1 has no period
+          other: "%{count} have no period"
+        missing_identity:
+          one: 1 has no printed account identity
+          other: "%{count} have no printed account identity"
         ready:
           one: 1 ready to review
           other: "%{count} ready to review"
       show: Show them
+      review_missing_period:
+        one: Add the missing period
+        other: Add %{count} missing periods
+      review_missing_identity:
+        one: Identify 1 statement
+        other: Identify %{count} statements
       review_duplicates:
         one: Review 1 duplicate
         other: Review %{count} duplicate groups

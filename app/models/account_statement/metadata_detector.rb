@@ -37,6 +37,12 @@ class AccountStatement::MetadataDetector
   MAX_CSV_SAMPLE_BYTES = 256
   MAX_PDF_METADATA_PAGES = 2
 
+  # What a filename can say about a period. A two-date filename names the period
+  # boundaries exactly; a single date is an anchor whose role is ambiguous, and a
+  # month/year names a month. The PeriodCheck treats each with the confidence its
+  # shape earns instead of inventing an exact period from a weak token.
+  FilenamePeriod = Data.define(:start_on, :end_on, :kind, :anchor_on)
+
   attr_reader :statement, :content
 
   def initialize(statement, content:)
@@ -92,23 +98,9 @@ class AccountStatement::MetadataDetector
         detected = true
       end
 
-      dates = DATE_PATTERNS.flat_map { |pattern| basename.scan(pattern) }
-                           .map { |match| Array(match).first }
-                           .filter_map { |value| parse_date(value) }
-                           .uniq
-                           .sort
-
-      if dates.size >= 2
-        statement.period_start_on ||= dates.first
-        statement.period_end_on ||= dates.last
-        detected = true
-      elsif dates.size == 1
-        statement.period_start_on ||= dates.first.beginning_of_month
-        statement.period_end_on ||= dates.first.end_of_month
-        detected = true
-      elsif (month_date = parse_month_from_filename(basename))
-        statement.period_start_on ||= month_date.beginning_of_month
-        statement.period_end_on ||= month_date.end_of_month
+      if (period = self.class.filename_period(statement.filename))
+        statement.period_start_on ||= period.start_on
+        statement.period_end_on ||= period.end_on
         detected = true
       end
 
@@ -134,6 +126,11 @@ class AccountStatement::MetadataDetector
     def detect_from_pdf(output)
       summary = AccountStatement::TextMetadataParser.parse(pdf_text, currency: statement.currency)
       return false unless summary
+
+      # Keep the printed period beside the stored one. The stored dates may be
+      # corrected by the owner (or overwritten by a later read), so a warning
+      # that compares the two needs the printed fact recorded independently.
+      record_detected_period(output, summary)
 
       statement.period_start_on ||= summary.period_start_on
       statement.period_end_on ||= summary.period_end_on
@@ -213,26 +210,16 @@ class AccountStatement::MetadataDetector
       return nil if hint.blank?
 
       normalized = hint.downcase.gsub(/[^a-z0-9]+/, " ").squish
+      # Connectors left behind by a date range ("statement 2026-05-09 to
+      # 2026-06-08") are not an identity; stripping them keeps the hint from
+      # pretending a statement prints a bank/account name it never did.
       without_generic_words = normalized
-        .gsub(/\b(?:bank|account|card|credit|debit|statement|statements)\b/, "")
+        .gsub(/\b(?:bank|account|card|credit|debit|statement|statements|to|from|through|until|and)\b/, "")
         .squish
 
       return nil if GENERIC_FILENAME_HINTS.include?(normalized) || without_generic_words.blank?
 
       hint
-    end
-
-    def parse_date(value)
-      text = value.to_s.tr("_", "-")
-      date = if text.match?(/\A\d{8}\z/)
-        Date.strptime(text, "%Y%m%d")
-      else
-        Date.parse(text)
-      end
-
-      AccountStatement::MetadataDetector.reasonable_date?(date) ? date : nil
-    rescue Date::Error, ArgumentError
-      nil
     end
 
     def parse_date_with_format(value, format)
@@ -242,24 +229,79 @@ class AccountStatement::MetadataDetector
       nil
     end
 
-    def parse_month_from_filename(basename)
-      match = basename.match(MONTH_PATTERN)
-      return nil unless match
+    # The printed period is a separate witness from the stored dates. Record it
+    # only when the text printed BOTH boundaries; one printed date is not a
+    # period and must never become a warning.
+    def record_detected_period(output, summary)
+      return unless summary.period_start_on.present? && summary.period_end_on.present?
 
-      year = (match[:year_first] || match[:year_second]).to_i
-      month = if match[:month_first]
-        match[:month_first].to_i
-      else
-        Date::ABBR_MONTHNAMES.index(match[:month_name][0, 3].capitalize)
-      end
-
-      date = Date.new(year, month, 1)
-      AccountStatement::MetadataDetector.reasonable_date?(date) ? date : nil
-    rescue Date::Error, NoMethodError
-      nil
+      output["detected_period"] = {
+        "start_on" => summary.period_start_on.iso8601,
+        "end_on" => summary.period_end_on.iso8601,
+        "source" => "pdf_text"
+      }
     end
 
-    def self.reasonable_date?(date)
-      Import.reasonable_date_range.cover?(date)
+    class << self
+      # The date(s) an original filename carries, in the shape each deserves:
+      # two dates are the period boundaries, one date is an anchor, and a
+      # month/year names a month. nil when the filename has no usable date.
+      def filename_period(filename)
+        basename = File.basename(filename.to_s, ".*")
+        return nil if basename.blank?
+
+        dates = DATE_PATTERNS.flat_map { |pattern| basename.scan(pattern) }
+                             .map { |match| Array(match).first }
+                             .filter_map { |value| parse_date(value) }
+                             .uniq
+                             .sort
+
+        if dates.size >= 2
+          FilenamePeriod.new(start_on: dates.first, end_on: dates.last,
+                             kind: :range, anchor_on: dates.last)
+        elsif dates.size == 1
+          FilenamePeriod.new(start_on: dates.first.beginning_of_month,
+                             end_on: dates.first.end_of_month,
+                             kind: :date, anchor_on: dates.first)
+        elsif (month_date = parse_month_from_filename(basename))
+          FilenamePeriod.new(start_on: month_date.beginning_of_month,
+                             end_on: month_date.end_of_month,
+                             kind: :month, anchor_on: month_date)
+        end
+      end
+
+      def parse_date(value)
+        text = value.to_s.tr("_", "-")
+        date = if text.match?(/\A\d{8}\z/)
+          Date.strptime(text, "%Y%m%d")
+        else
+          Date.parse(text)
+        end
+
+        reasonable_date?(date) ? date : nil
+      rescue Date::Error, ArgumentError
+        nil
+      end
+
+      def parse_month_from_filename(basename)
+        match = basename.match(MONTH_PATTERN)
+        return nil unless match
+
+        year = (match[:year_first] || match[:year_second]).to_i
+        month = if match[:month_first]
+          match[:month_first].to_i
+        else
+          Date::ABBR_MONTHNAMES.index(match[:month_name][0, 3].capitalize)
+        end
+
+        date = Date.new(year, month, 1)
+        reasonable_date?(date) ? date : nil
+      rescue Date::Error, NoMethodError
+        nil
+      end
+
+      def reasonable_date?(date)
+        Import.reasonable_date_range.cover?(date)
+      end
     end
 end
