@@ -55,6 +55,10 @@ class AccountStatementsController < ApplicationController
     @accounts = Current.user.accessible_accounts.visible.alphabetically
     @can_manage_statement = @statement.manageable_by?(Current.user)
     @reconciliation_checks = @statement.reconciliation_checks
+    @overlap_mismatches = @statement.overlapping_balance_mismatches
+    @imported_rows_count = Entry.reconciled_by(@statement).count
+    @statement_imports_count = @statement.pdf_imports.count
+    @delete_blocked_message = deletion_blocker_message(@statement)
     @breadcrumbs = [
       [ t("breadcrumbs.home"), root_path ],
       [ t("account_statements.index.title"), account_statements_path ],
@@ -121,6 +125,10 @@ class AccountStatementsController < ApplicationController
       @accounts = Current.user.accessible_accounts.visible.alphabetically
       @can_manage_statement = @statement.manageable_by?(Current.user)
       @reconciliation_checks = @statement.reconciliation_checks
+      @overlap_mismatches = @statement.overlapping_balance_mismatches
+      @imported_rows_count = Entry.reconciled_by(@statement).count
+      @statement_imports_count = @statement.pdf_imports.count
+      @delete_blocked_message = deletion_blocker_message(@statement)
       flash.now[:alert] = @statement.errors.full_messages.to_sentence
       render :show, status: :unprocessable_entity
     end
@@ -183,7 +191,20 @@ class AccountStatementsController < ApplicationController
     return if @statement.account && !require_account_permission!(@statement.account)
 
     redirect_path = @statement.account ? account_path(@statement.account, tab: "statements") : account_statements_path
-    if @statement.destroy
+    if (message = deletion_blocker_message(@statement))
+      redirect_to redirect_path, alert: message
+      return
+    end
+
+    # The statement and its archived document are one artifact. Soft-delete the
+    # document in the same transaction so neither is left orphaned, and roll
+    # the document back if the statement itself cannot go.
+    destroyed = @statement.transaction do
+      @statement.archived_document_link&.soft_delete!
+      @statement.destroy || raise(ActiveRecord::Rollback)
+    end
+
+    if destroyed
       redirect_to redirect_path, notice: t("account_statements.destroy.success")
     else
       redirect_back_or_to redirect_path, alert: t("account_statements.destroy.failure")
@@ -220,10 +241,25 @@ class AccountStatementsController < ApplicationController
         .or(Current.family.account_statements.where(account_id: Current.user.accessible_accounts.select(:id)))
     end
 
+    def deletion_blocker_message(statement)
+      case statement.deletion_blocker
+      when :document
+        t("account_statements.destroy.document_blocked",
+          entries: statement.archived_document_link.deletion_blockers.to_sentence)
+      when :imports
+        imported_rows = Entry.reconciled_by(statement).count
+        if imported_rows.positive?
+          t("account_statements.destroy.imported_rows", count: imported_rows)
+        else
+          t("account_statements.destroy.pending_import")
+        end
+      end
+    end
+
     def set_statement
       @statement = Current.family.account_statements
         .with_attached_original_file
-        .includes(:account, :suggested_account)
+        .includes(:account, :suggested_account, :archived_document_link)
         .find(params[:id])
 
       raise ActiveRecord::RecordNotFound unless @statement.viewable_by?(Current.user)

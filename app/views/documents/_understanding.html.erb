@@ -149,6 +149,9 @@
         <%= t(".duplicates.title", count: duplicates.size) %>
       </p>
       <p class="px-1 text-xs text-secondary"><%= t(".duplicates.description") %></p>
+      <% if duplicates.filter_map(&:account_statement).combination(2).any? { |a, b| a.overlapping_balance_mismatch?(b) } %>
+        <p class="px-1 text-xs text-warning"><%= t(".duplicates.balance_mismatch") %></p>
+      <% end %>
       <div class="rounded-2xl bg-container-inset divide-y divide-subdued">
         <% duplicates.each do |document| %>
           <% statement = document.account_statement %>

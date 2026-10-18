@@ -6,6 +6,17 @@
   <h1 class="text-xl font-bold tracking-tight"><%= @statement.filename %></h1>
 </header>
 
+<% if @overlap_mismatches.present? %>
+  <div class="pb-4">
+    <%= render DS::Alert.new(
+          variant: :warning,
+          title: t(".overlap_title"),
+          message: t(".overlap_message",
+                     statements: @overlap_mismatches.map { |statement| "#{statement.filename} (#{account_statement_period(statement)})" }.to_sentence)
+        ) %>
+  </div>
+<% end %>
+
 <%= settings_section title: t(".title") do %>
   <div class="space-y-4">
     <div class="rounded-xl bg-container-inset p-4">
@@ -19,6 +30,15 @@
             <%= account_statement_status_badge(@statement) %>
             <span><%= number_to_human_size(@statement.byte_size) %></span>
             <span><%= @statement.content_type %></span>
+            <% if @statement_imports_count.positive? %>
+              <span>
+                <%= @imported_rows_count.positive? ? t(".imported_state", count: @imported_rows_count) : t(".import_pending") %>
+              </span>
+            <% end %>
+            <% if @statement.archived_document_link.present? %>
+              <%= link_to t(".document_linked"), document_path(@statement.archived_document_link),
+                          class: "hover:text-primary" %>
+            <% end %>
           </div>
         </div>
 
@@ -31,13 +51,18 @@
             <% end %>
           <% end %>
           <% if @can_manage_statement %>
-            <%= button_to account_statement_path(@statement),
-                          method: :delete,
-                          class: "inline-flex items-center gap-2 text-sm font-medium text-destructive",
-                          data: { turbo_confirm: CustomConfirm.for_resource_deletion("statement") } do %>
-              <%= icon("trash-2", size: "sm", color: "destructive") %>
-              <%= t(".delete") %>
-            <% end %>
+            <div class="text-right">
+              <%= button_to account_statement_path(@statement),
+                            method: :delete,
+                            class: "inline-flex items-center gap-2 text-sm font-medium text-destructive",
+                            data: { turbo_confirm: CustomConfirm.for_resource_deletion("statement") } do %>
+                <%= icon("trash-2", size: "sm", color: "destructive") %>
+                <%= t(".delete") %>
+              <% end %>
+              <% if @delete_blocked_message.present? %>
+                <p class="mt-1 max-w-xs text-xs text-secondary"><%= @delete_blocked_message %></p>
+              <% end %>
+            </div>
           <% end %>
         </div>
       </div>
