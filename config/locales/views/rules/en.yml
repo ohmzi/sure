@@ -81,7 +81,18 @@ en:
       confirm_title: Apply All Rules
       confirm_message: You are about to apply %{count} rules affecting %{transactions} unique transactions. Please confirm if you wish to proceed.
       confirm_button: Confirm and Apply All
-      success: All rules have been queued for execution
+      success: All rules have been queued for execution. Undo the run from Recent applications once it finishes.
+      preview:
+        title: What will change
+        description: Only transactions whose values actually change are counted.
+        transactions:
+          one: "%{count} transaction"
+          other: "%{count} transactions"
+        none: None
+        uncategorized: Uncategorized
+        included: Included
+        excluded: Excluded
+        async_hint: The category will be chosen by AI
       ai_cost_title: AI Cost Estimation
       ai_cost_message: This will use AI to categorize up to %{transactions} transactions.
       estimated_cost: "Estimated cost: ~$%{cost}"
@@ -89,6 +100,18 @@ en:
       cost_unavailable_no_provider: Cost estimation unavailable (no LLM provider configured).
       cost_warning: You may incur costs, please check with the model provider for the most up-to-date prices.
       view_usage: View usage history
+    applications:
+      title: Recent applications
+      description: Apply-all runs you can still undo. Undo restores the values each transaction had before the run.
+      summary:
+        one: "%{time} · %{count} transaction"
+        other: "%{time} · %{count} transactions"
+      undo: Undo
+      undo_success: The rule run was undone
+      already_undone: This rule run has already been undone
+      undo_confirm_title: Undo this rule run?
+      undo_confirm_body: This restores the values the affected transactions had before the run. Transactions edited since then are left untouched.
+      undo_confirm_button: Undo run
     recent_runs:
       title: Recent Runs
       description: View the execution history of your rules including success/failure status and transaction counts.
@@ -154,6 +177,9 @@ en:
       also_update_rule: Also make this the rule's category
       update_selected: Update selected
       no_transactions: This rule matches no transactions right now.
+      undo_available_title: This rule was applied
+      undo_available_body: Undo the last run to restore the values its transactions had before it. Transactions edited since then are left untouched.
+      undo_last_run: Undo last run
     update_category:
       success: Rule category updated
     update_transactions:

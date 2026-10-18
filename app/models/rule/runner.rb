@@ -23,11 +23,13 @@ class Rule::Runner
     Digest::MD5.hexdigest("rule_runner:#{family_id}").to_i(16) % (2**62)
   end
 
-  def initialize(family, rules:, execution_type:, ignore_attribute_locks: false)
+  def initialize(family, rules:, execution_type:, ignore_attribute_locks: false, application_batch_id: nil, actor: nil)
     @family = family
     @rule_ids = rules.map(&:id).to_set
     @execution_type = execution_type
     @ignore_attribute_locks = ignore_attribute_locks
+    @application_batch_id = application_batch_id
+    @actor = actor
     @claimed_ids = Hash.new { |hash, attribute| hash[attribute] = Set.new }
     @stopped_ids = Set.new
     @errors = []
@@ -45,7 +47,8 @@ class Rule::Runner
   end
 
   private
-    attr_reader :family, :rule_ids, :execution_type, :ignore_attribute_locks, :claimed_ids, :stopped_ids
+    attr_reader :family, :rule_ids, :execution_type, :ignore_attribute_locks, :application_batch_id,
+                :actor, :claimed_ids, :stopped_ids
 
     def run_rules
       rule_runs = []
@@ -91,10 +94,12 @@ class Rule::Runner
       executed_at = Time.current
       matched_ids = []
       rule_run = nil
+      recorder = build_recorder(rule)
 
       begin
         scope = unstopped_scope(rule)
         matched_ids = scope.pluck(:id)
+        recorder&.snapshot(matched_ids)
 
         rule_run = RuleRun.create!(
           rule: rule,
@@ -123,12 +128,23 @@ class Rule::Runner
       rescue => e
         rule_run = record_failure(rule, rule_run, e, executed_at: executed_at, queued: matched_ids.size)
       ensure
+        # Record what actually changed even if the rule failed halfway, so the
+        # owner can still undo the partial application.
+        recorder&.record!(rule_run: rule_run)
         # Claims hold even when the rule failed halfway, so a rule further down
         # never overwrites what this rule may already have set.
         record_claims(rule, matched_ids)
       end
 
       rule_run
+    end
+
+    # An apply-all started from the UI passes a batch id. Scheduled runs and the
+    # post-sync runs do not, so they never accumulate undo rows.
+    def build_recorder(rule)
+      return if application_batch_id.blank?
+
+      Rule::ApplicationRecorder.new(rule: rule, actor: actor, batch_id: application_batch_id)
     end
 
     def run_counts(result, queued:, rule:)

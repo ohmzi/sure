@@ -5,12 +5,14 @@ class RuleJob < ApplicationJob
 
   retry_on Rule::Runner::LockBusy, wait: 30.seconds, attempts: 20
 
-  def perform(rule, ignore_attribute_locks: false, execution_type: "manual")
+  def perform(rule, ignore_attribute_locks: false, execution_type: "manual", actor: nil, batch_id: nil)
     runner = Rule::Runner.new(
       rule.family,
       rules: [ rule ],
       execution_type: execution_type,
-      ignore_attribute_locks: ignore_attribute_locks
+      ignore_attribute_locks: ignore_attribute_locks,
+      application_batch_id: batch_id,
+      actor: actor
     )
     rule_runs = runner.run
 

@@ -720,6 +720,12 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :rule_applications, only: [] do
+    member do
+      post :undo
+    end
+  end
+
   resources :accounts, only: %i[index new show destroy], shallow: true do
     member do
       post :sync

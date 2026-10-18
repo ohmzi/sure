@@ -108,6 +108,45 @@
   <% end %>
 </div>
 
+<!-- Undoable apply-all runs -->
+<% if @undoable_batches.present? %>
+  <div id="rule-applications" class="mt-6 bg-container rounded-xl shadow-border-xs p-4">
+    <div class="mb-3">
+      <h2 class="text-primary text-lg font-medium mb-1"><%= t("rules.applications.title") %></h2>
+      <p class="text-sm text-secondary"><%= t("rules.applications.description") %></p>
+    </div>
+
+    <ul class="divide-y divide-subdued">
+      <% @undoable_batches.each do |_batch_id, applications| %>
+        <% first = applications.first %>
+        <li class="flex flex-wrap items-center justify-between gap-3 py-3">
+          <div class="min-w-0">
+            <p class="truncate text-sm font-medium text-primary">
+              <%= applications.map { |application| application.rule&.name.presence || application.rule&.primary_condition_title || t("rules.recent_runs.unnamed_rule") }.to_sentence %>
+            </p>
+            <p class="text-xs text-secondary">
+              <%= t("rules.applications.summary",
+                    time: l(first.applied_at, format: :short),
+                    count: applications.sum { |application| application.transaction_ids.size }) %>
+            </p>
+          </div>
+          <%= render DS::Button.new(
+            text: t("rules.applications.undo"),
+            href: undo_rule_application_path(first),
+            method: :post,
+            variant: "outline",
+            size: :sm,
+            confirm: CustomConfirm.new(
+              title: t("rules.applications.undo_confirm_title"),
+              body: t("rules.applications.undo_confirm_body"),
+              btn_text: t("rules.applications.undo_confirm_button")
+            )) %>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
 <!-- Recent Runs Section -->
 <% if @recent_runs.any? %>
   <div class="mt-6 bg-container rounded-xl shadow-border-xs p-4">

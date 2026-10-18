@@ -523,12 +523,96 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "confirm_all previews the category each matched transaction will move from and to" do
+    create_category_rule(name: "Coffee Shop", category: categories(:food_and_drink))
+    create_transaction(account: accounts(:depository), name: "Coffee Shop", amount: 10)
+    already_dining = create_transaction(account: accounts(:depository), name: "Coffee Shop", amount: 20).transaction
+    already_dining.update!(category: categories(:income))
+
+    get confirm_all_rules_url
+
+    assert_response :success
+    assert_includes response.body, ERB::Util.html_escape(categories(:food_and_drink).name)
+    assert_includes response.body, ERB::Util.html_escape(categories(:income).name)
+    assert_includes response.body, I18n.t("rules.apply_all.preview.uncategorized")
+    assert_select "[data-testid='apply-all-preview']"
+  end
+
+  test "rule page links to the last apply that can still be undone" do
+    rule = rules(:one)
+    application = RuleApplication.create!(
+      family: @user.family,
+      rule: rule,
+      user: @user,
+      batch_id: SecureRandom.uuid,
+      applied_at: Time.current,
+      transaction_ids: [],
+      attribute_changes: {}
+    )
+
+    get rule_url(rule)
+
+    assert_response :success
+    assert_select "form[action=?]", undo_rule_application_path(application)
+  end
+
+  test "undo restores the recorded values and refuses a second attempt" do
+    rule = rules(:one)
+    transaction = create_transaction(account: accounts(:depository), name: "Coffee Shop", amount: 10).transaction
+    transaction.update!(category: categories(:income))
+    application = RuleApplication.create!(
+      family: @user.family,
+      rule: rule,
+      user: @user,
+      batch_id: SecureRandom.uuid,
+      applied_at: Time.current,
+      transaction_ids: [ transaction.id ],
+      attribute_changes: {
+        transaction.id => { "category_id" => { "from" => nil, "to" => categories(:income).id } }
+      }
+    )
+
+    post undo_rule_application_url(application)
+
+    assert_redirected_to rule_url(rule)
+    assert_nil transaction.reload.category_id
+    assert application.reload.undone_at.present?
+    assert_equal I18n.t("rules.applications.undo_success"), flash[:notice]
+
+    post undo_rule_application_url(application)
+
+    assert_redirected_to rule_url(rule)
+    assert_equal I18n.t("rules.applications.already_undone"), flash[:alert]
+    assert_nil transaction.reload.category_id
+  end
+
+  test "cannot undo another family's rule application" do
+    other_family = families(:empty)
+    other_rule = other_family.rules.create!(
+      resource_type: "transaction",
+      actions: [ Rule::Action.new(action_type: "exclude_transaction") ]
+    )
+    application = RuleApplication.create!(
+      family: other_family,
+      rule: other_rule,
+      batch_id: SecureRandom.uuid,
+      applied_at: Time.current,
+      transaction_ids: [],
+      attribute_changes: {}
+    )
+
+    post undo_rule_application_url(application)
+
+    assert_response :not_found
+    assert_nil application.reload.undone_at
+  end
+
   test "apply_all enqueues job and redirects" do
     assert_enqueued_with(job: ApplyAllRulesJob) do
       post apply_all_rules_url
     end
 
-    assert_redirected_to rules_url
+    assert_redirected_to rules_url(anchor: "rule-applications")
   end
 
   test "guest cannot create rule" do

@@ -4,6 +4,27 @@
 <%= content_for :page_title, @rule.name.presence || @rule.primary_condition_title %>
 
 <div class="space-y-4">
+  <% if @last_application %>
+    <div class="rounded-xl bg-container p-4 shadow-border-xs">
+      <%= render DS::Alert.new(title: t(".undo_available_title"), variant: :info) do %>
+        <p class="text-sm text-secondary"><%= t(".undo_available_body") %></p>
+        <div class="mt-3">
+          <%= render DS::Button.new(
+            text: t(".undo_last_run"),
+            href: undo_rule_application_path(@last_application),
+            method: :post,
+            variant: "outline",
+            size: :sm,
+            confirm: CustomConfirm.new(
+              title: t("rules.applications.undo_confirm_title"),
+              body: t("rules.applications.undo_confirm_body"),
+              btn_text: t("rules.applications.undo_confirm_button")
+            )) %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+
   <div class="rounded-xl bg-container p-4 shadow-border-xs space-y-4">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div class="min-w-0 space-y-1">

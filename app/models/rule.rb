@@ -8,6 +8,7 @@ class Rule < ApplicationRecord
   has_many :conditions, dependent: :destroy
   has_many :actions, dependent: :destroy
   has_many :rule_runs, dependent: :destroy
+  has_many :rule_applications, dependent: :destroy
 
   accepts_nested_attributes_for :conditions, allow_destroy: true
   accepts_nested_attributes_for :actions, allow_destroy: true
@@ -171,8 +172,13 @@ class Rule < ApplicationRecord
     end
   end
 
-  def apply_later(ignore_attribute_locks: false)
-    RuleJob.perform_later(self, ignore_attribute_locks: ignore_attribute_locks)
+  def apply_later(ignore_attribute_locks: false, actor: nil, application_batch_id: nil)
+    RuleJob.perform_later(
+      self,
+      ignore_attribute_locks: ignore_attribute_locks,
+      actor: actor,
+      batch_id: application_batch_id
+    )
   end
 
   def primary_condition_title

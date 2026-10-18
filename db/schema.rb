@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_17_210000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_17_220000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -2350,6 +2350,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_210000) do
     t.index ["rule_id"], name: "index_rule_actions_on_rule_id"
   end
 
+  create_table "rule_applications", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
+    t.datetime "applied_at", null: false
+    t.jsonb "attribute_changes", default: {}, null: false
+    t.uuid "batch_id", null: false
+    t.datetime "created_at", null: false
+    t.uuid "family_id", null: false
+    t.uuid "rule_id", null: false
+    t.uuid "rule_run_id"
+    t.jsonb "skipped_transaction_ids", default: [], null: false
+    t.string "status", default: "applied", null: false
+    t.jsonb "transaction_ids", default: [], null: false
+    t.datetime "undone_at"
+    t.uuid "undone_by_id"
+    t.datetime "updated_at", null: false
+    t.uuid "user_id"
+    t.index ["batch_id"], name: "index_rule_applications_on_batch_id"
+    t.index ["family_id", "batch_id"], name: "index_rule_applications_on_family_id_and_batch_id"
+    t.index ["family_id"], name: "index_rule_applications_on_family_id"
+    t.index ["rule_id", "applied_at"], name: "index_rule_applications_on_rule_id_and_applied_at"
+    t.index ["rule_id"], name: "index_rule_applications_on_rule_id"
+    t.index ["rule_run_id"], name: "index_rule_applications_on_rule_run_id"
+    t.index ["undone_by_id"], name: "index_rule_applications_on_undone_by_id"
+    t.index ["user_id"], name: "index_rule_applications_on_user_id"
+  end
+
   create_table "rule_conditions", id: :uuid, default: -> { "gen_random_uuid()" }, force: :cascade do |t|
     t.string "condition_type", null: false
     t.datetime "created_at", null: false
@@ -3211,6 +3236,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_17_210000) do
   add_foreign_key "rejected_transfers", "transactions", column: "inflow_transaction_id", on_delete: :cascade
   add_foreign_key "rejected_transfers", "transactions", column: "outflow_transaction_id", on_delete: :cascade
   add_foreign_key "rule_actions", "rules"
+  add_foreign_key "rule_applications", "families", on_delete: :cascade
+  add_foreign_key "rule_applications", "rule_runs", on_delete: :nullify
+  add_foreign_key "rule_applications", "rules", on_delete: :cascade
+  add_foreign_key "rule_applications", "users", on_delete: :nullify
   add_foreign_key "rule_conditions", "rule_conditions", column: "parent_id"
   add_foreign_key "rule_conditions", "rules"
   add_foreign_key "rule_runs", "rules"

@@ -28,6 +28,30 @@ class ApplyAllRulesJobTest < ActiveJob::TestCase
     assert_equal "scheduled", rule.rule_runs.last.execution_type
   end
 
+  test "records the prior values and actor for an undoable apply-all batch" do
+    rule = create_rule(active: true)
+    batch_id = SecureRandom.uuid
+
+    ApplyAllRulesJob.perform_now(@family, actor: users(:empty), batch_id: batch_id)
+
+    application = RuleApplication.find_by!(batch_id: batch_id, rule: rule)
+    assert_equal @family, application.family
+    assert_equal users(:empty), application.user
+    assert_equal [ @transaction.id ], application.transaction_ids
+    assert_equal(
+      { "from" => nil, "to" => @groceries_category.id },
+      application.attribute_changes.fetch(@transaction.id).fetch("category_id")
+    )
+  end
+
+  test "does not record an application when no batch was requested" do
+    create_rule(active: true)
+
+    assert_no_difference "RuleApplication.count" do
+      ApplyAllRulesJob.perform_now(@family)
+    end
+  end
+
   private
     def create_rule(active:)
       Rule.create!(

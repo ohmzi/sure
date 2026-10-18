@@ -17,6 +17,15 @@ class RulesController < ApplicationController
 
     @pagy, @recent_runs = pagy(recent_runs_scope, limit: safe_per_page, page_param: :runs_page)
 
+    # Runs the owner can still undo, newest first. Grouped by batch so a run
+    # that touched several rules appears once.
+    @undoable_batches = Current.family.rule_applications
+                                .applied
+                                .recent
+                                .includes(rule: { conditions: :sub_conditions })
+                                .limit(20)
+                                .group_by(&:batch_id)
+
     render layout: "settings"
   end
 
@@ -54,7 +63,11 @@ class RulesController < ApplicationController
 
   def apply
     @rule.update!(active: true)
-    @rule.apply_later(ignore_attribute_locks: true)
+    @rule.apply_later(
+      ignore_attribute_locks: true,
+      actor: Current.user,
+      application_batch_id: SecureRandom.uuid
+    )
     redirect_back_or_to rules_path, notice: "#{@rule.resource_type.humanize} rule activated"
   end
 
@@ -75,6 +88,7 @@ class RulesController < ApplicationController
     @categories = Current.family.categories.alphabetically_by_hierarchy.to_a
     matched = @rule.matching_scope
     @matched_count = matched.count
+    @last_application = @rule.rule_applications.applied.recent.first
     @pagy, @matched_entries = pagy(
       Current.accessible_entries
              .where(entryable_type: "Transaction", entryable_id: matched.select(:id))
@@ -94,7 +108,11 @@ class RulesController < ApplicationController
       action.update!(value: category.id.to_s)
     end
 
-    @rule.apply_later(ignore_attribute_locks: true) if params[:apply_now] == "1"
+    @rule.apply_later(
+      ignore_attribute_locks: true,
+      actor: Current.user,
+      application_batch_id: SecureRandom.uuid
+    ) if params[:apply_now] == "1"
 
     redirect_to rule_path(@rule), notice: t(".success")
   end
@@ -150,6 +168,7 @@ class RulesController < ApplicationController
   def confirm_all
     @rules = Current.family.rules
     @total_affected_count = Rule.total_affected_resource_count(@rules)
+    @preview_changes = Rule::ApplicationPreview.new(Current.family).changes
 
     # Compute AI cost estimation if any rule has auto_categorize action
     if @rules.any? { |r| r.actions.any? { |a| a.action_type == "auto_categorize" } }
@@ -161,8 +180,12 @@ class RulesController < ApplicationController
   end
 
   def apply_all
-    ApplyAllRulesJob.perform_later(Current.family)
-    redirect_back_or_to rules_path, notice: t("rules.apply_all.success")
+    ApplyAllRulesJob.perform_later(
+      Current.family,
+      actor: Current.user,
+      batch_id: SecureRandom.uuid
+    )
+    redirect_back_or_to rules_path(anchor: "rule-applications"), notice: t("rules.apply_all.success")
   end
 
   def clear_ai_cache
