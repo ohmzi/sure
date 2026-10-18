@@ -2,8 +2,63 @@ require "test_helper"
 
 class Category::MergerTest < ActiveSupport::TestCase
   setup do
+    Current.reset
     @family = families(:dylan_family)
     @other_family = families(:empty)
+  end
+
+  teardown { Current.reset }
+
+  test "merge! records one summary event with the affected count and actor" do
+    Current.session = sessions(:one)
+    Current.audit_source = "web"
+    target = create_category(@family, "Audit Merge Target")
+    source_a = create_category(@family, "Audit Merge Source A")
+    source_b = create_category(@family, "Audit Merge Source B")
+    create_transaction_for(@family, source_a)
+    create_transaction_for(@family, source_b)
+
+    assert_difference -> { AuditLog.count }, 1 do
+      merger = Category::Merger.new(
+        family: @family,
+        target_category: target,
+        source_categories: [ source_a, source_b ]
+      )
+
+      assert merger.merge!
+    end
+
+    log = AuditLog.order(:created_at).last
+
+    assert_equal "category.merged", log.action
+    assert_equal @family, log.family
+    assert_equal target, log.auditable
+    assert_equal users(:family_admin), log.actor
+    assert_equal "web", log.metadata["source"]
+    assert_equal 2, log.metadata["affected_count"]
+    assert_equal [ source_a.id, source_b.id ].sort, log.metadata["from_category_ids"].sort
+    assert_equal [ source_a.name, source_b.name ].sort, log.metadata["from_category_names"].sort
+    assert_equal target.id, log.metadata["to_category_id"]
+    assert_equal target.name, log.metadata["to_category_name"]
+  end
+
+  test "a failed trail write rolls back the merge" do
+    target = create_category(@family, "Audit Rollback Target")
+    source = create_category(@family, "Audit Rollback Source")
+    transaction = create_transaction_for(@family, source)
+
+    AuditLog.stubs(:create!).raises(ActiveRecord::StatementInvalid.new("audit unavailable"))
+
+    assert_raises(ActiveRecord::StatementInvalid) do
+      Category::Merger.new(
+        family: @family,
+        target_category: target,
+        source_categories: [ source ]
+      ).merge!
+    end
+
+    assert_equal source.id, transaction.reload.category_id
+    assert Category.exists?(source.id)
   end
 
   test "merge only reassigns and deletes categories inside the current family" do

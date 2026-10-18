@@ -17,7 +17,14 @@ module Auditable
   extend ActiveSupport::Concern
 
   included do
+    # A single logical edit can save the record more than once: for example the
+    # transaction controllers call lock_saved_attributes!, which saves again to
+    # record locked_attributes and would otherwise wipe saved_changes before
+    # after_commit runs. Capture each save's financial changes and record the
+    # net before -> after on commit.
+    after_update :capture_auditable_changes
     after_commit :record_auditable_change, on: :update
+    after_rollback :clear_auditable_changes, on: :update
   end
 
   class_methods do
@@ -52,16 +59,35 @@ module Auditable
       end
     end
 
-    def record_auditable_change
-      target = audit_target
-      family = audit_family
-      return if target.nil? || family.nil?
-
+    # Collects the declared financial fields changed by one save. A later save
+    # in the same transaction keeps the first `before` value and the latest
+    # `after` value, so the committed event describes the net edit.
+    def capture_auditable_changes
       changes = saved_changes.slice(*self.class.audited_financial_attributes)
       changes.delete("updated_at")
       return if changes.empty?
 
-      AuditLog.record!(
+      @audited_changes ||= {}
+      changes.each do |attribute, (before_value, after_value)|
+        if @audited_changes.key?(attribute)
+          @audited_changes[attribute][1] = after_value
+        else
+          @audited_changes[attribute] = [ before_value, after_value ]
+        end
+      end
+    end
+
+    # Failure policy: this runs after_commit, so the edit is already durable.
+    # The trail write is therefore best-effort (see AuditLog) — a failure is
+    # logged and never turns a successful edit into a 500.
+    def record_auditable_change
+      target = audit_target
+      family = audit_family
+      changes = @audited_changes || {}
+      clear_auditable_changes
+      return if target.nil? || family.nil? || changes.empty?
+
+      AuditLog.record_best_effort!(
         auditable: target,
         family: family,
         action: audit_action,
@@ -72,10 +98,10 @@ module Auditable
           "currency" => audit_currency
         }
       )
-    rescue => error
-      # The financial write already committed. A trail write must be visible in
-      # the logs, but it cannot turn a successful edit into a 500.
-      Rails.logger.error("Auditable audit write failed for #{self.class.name} #{id}: #{error.class}: #{error.message}")
+    end
+
+    def clear_auditable_changes
+      @audited_changes = nil
     end
 
     def audit_snapshot(changes, index)

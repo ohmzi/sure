@@ -367,7 +367,8 @@ class Category < ApplicationRecord
 
   def replace_and_destroy!(replacement)
     transaction do
-      Transaction.reassign_category!(transactions, replacement&.id)
+      affected_count = Transaction.reassign_category!(transactions, replacement&.id)
+      record_bulk_recategorization!(replacement, affected_count) if affected_count.positive?
       destroy!
     end
   end
@@ -428,7 +429,26 @@ class Category < ApplicationRecord
 
   private
     def reassign_transactions_to_nothing
-      Transaction.reassign_category!(transactions, nil)
+      affected_count = Transaction.reassign_category!(transactions, nil)
+      record_bulk_recategorization!(nil, affected_count) if affected_count.positive?
+    end
+
+    # One summary row for the bulk change, written inside the caller's
+    # transaction (strict policy, see AuditLog). The category itself is the
+    # auditable when there is no replacement, because it is still alive here.
+    def record_bulk_recategorization!(replacement, affected_count)
+      AuditLog.record!(
+        auditable: replacement || self,
+        family: family,
+        action: "transactions.bulk_recategorized",
+        metadata: {
+          "from_category_id" => id,
+          "from_category_name" => name,
+          "to_category_id" => replacement&.id,
+          "to_category_name" => replacement&.name,
+          "affected_count" => affected_count
+        }
+      )
     end
 
     def category_level_limit

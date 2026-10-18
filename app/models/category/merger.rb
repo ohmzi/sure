@@ -27,13 +27,33 @@ class Category::Merger
 
   private
     def merge_sources!
+      from_category_ids = source_categories.map(&:id)
+      from_category_names = source_categories.map(&:name)
+      affected_count = 0
+
       source_categories.each do |source|
-        Transaction.reassign_category!(family.transactions.where(category_id: source.id), target_category.id)
+        affected_count += Transaction.reassign_category!(family.transactions.where(category_id: source.id), target_category.id)
         merge_budget_categories(source)
         family.categories.where(parent_id: source.id).where.not(id: target_category.id).update_all(parent_id: target_category.id)
         family.categories.find(source.id).destroy!
         @merged_count += 1
       end
+
+      # One summary row for the operation, not one per transaction. Written
+      # inside the merge transaction (strict policy, see AuditLog): a trail
+      # failure rolls the whole merge back.
+      AuditLog.record!(
+        auditable: target_category,
+        family: family,
+        action: "category.merged",
+        metadata: {
+          "from_category_ids" => from_category_ids,
+          "from_category_names" => from_category_names,
+          "to_category_id" => target_category.id,
+          "to_category_name" => target_category.name,
+          "affected_count" => affected_count
+        }
+      )
     end
 
     def validate_category_belongs_to_family!(category, label)

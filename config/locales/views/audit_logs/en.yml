@@ -5,6 +5,10 @@ en:
       by: "by %{actor}"
       change: "%{field} changed from %{from} to %{to}"
       document: "Document: %{filename}"
+      statement: "Statement: %{filename}"
+      affected:
+        one: "1 transaction affected"
+        other: "%{count} transactions affected"
       empty: No recorded activity yet.
       none: None
       rows:
@@ -30,6 +34,8 @@ en:
         deleted: Statement deleted
         reviewed: Statement reviewed
         updated: Statement edited
+      category:
+        merged: Categories merged
       document:
         deleted: Document deleted
       family_export:
@@ -38,8 +44,14 @@ en:
         deleted: Import deleted
         published: Import published
         reverted: Import reverted
+      merchant:
+        converted: Merchant converted
+        merged: Merchants merged
+        unlinked: Merchant unlinked
       transaction:
         updated: Transaction edited
+      transactions:
+        bulk_recategorized: Transactions recategorized
     kinds:
       cc_payment: Credit card payment
       funds_movement: Funds movement

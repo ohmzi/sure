@@ -4,8 +4,51 @@ class ProviderMerchantTest < ActiveSupport::TestCase
   include EntriesTestHelper
 
   setup do
+    Current.reset
     @family = families(:dylan_family)
     @provider_merchant = ProviderMerchant.create!(name: "Acme Synced", source: "plaid")
+  end
+
+  teardown { Current.reset }
+
+  test "convert_to_family_merchant_for records the bulk merchant change" do
+    Current.session = sessions(:one)
+    entry = create_transaction(merchant: @provider_merchant)
+
+    assert_difference -> { AuditLog.count }, 1 do
+      @family_merchant = @provider_merchant.convert_to_family_merchant_for(@family)
+    end
+
+    log = AuditLog.order(:created_at).last
+
+    assert_equal "merchant.converted", log.action
+    assert_equal @family, log.family
+    assert_equal @family_merchant, log.auditable
+    assert_equal users(:family_admin), log.actor
+    assert_equal 1, log.metadata["affected_count"]
+    assert_equal @provider_merchant.id, log.metadata["from_merchant_id"]
+    assert_equal @provider_merchant.name, log.metadata["from_merchant_name"]
+    assert_equal @family_merchant.id, log.metadata["to_merchant_id"]
+    assert_equal @family_merchant.id, entry.reload.entryable.merchant_id
+  end
+
+  test "unlink_from_family records the bulk merchant change" do
+    Current.session = sessions(:one)
+    entry = create_transaction(merchant: @provider_merchant)
+
+    assert_difference -> { AuditLog.count }, 1 do
+      @provider_merchant.unlink_from_family(@family)
+    end
+
+    log = AuditLog.order(:created_at).last
+
+    assert_equal "merchant.unlinked", log.action
+    assert_equal @family, log.family
+    assert_equal @provider_merchant, log.auditable
+    assert_equal users(:family_admin), log.actor
+    assert_equal 1, log.metadata["affected_count"]
+    assert_equal @provider_merchant.id, log.metadata["from_merchant_id"]
+    assert_nil entry.reload.entryable.merchant_id
   end
 
   # Regression: issue #1977. Converting a synced merchant to a family merchant

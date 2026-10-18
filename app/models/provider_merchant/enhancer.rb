@@ -60,14 +60,35 @@ class ProviderMerchant::Enhancer
 
       return 0 if duplicates.none?
 
-      count = 0
+      affected_count = 0
+      from_merchant_ids = duplicates.map(&:id)
+      from_merchant_names = duplicates.map(&:name)
+
       duplicates.each do |duplicate|
         # Reassign family's transactions from duplicate to target
-        @family.transactions.where(merchant_id: duplicate.id)
-               .update_all(merchant_id: target_merchant.id)
-        count += 1
+        affected_count += @family.transactions.where(merchant_id: duplicate.id)
+                                   .update_all(merchant_id: target_merchant.id)
       end
-      count
+
+      if affected_count.positive?
+        # This runs in a background job after the rows already moved, so the
+        # trail write is deliberately best-effort (see AuditLog).
+        AuditLog.record_best_effort!(
+          auditable: target_merchant,
+          family: @family,
+          action: "merchant.merged",
+          source: "system",
+          metadata: {
+            "from_merchant_ids" => from_merchant_ids,
+            "from_merchant_names" => from_merchant_names,
+            "to_merchant_id" => target_merchant.id,
+            "to_merchant_name" => target_merchant.name,
+            "affected_count" => affected_count
+          }
+        )
+      end
+
+      from_merchant_ids.size
     end
 
     # Honors Setting.llm_provider (issue #2113) — Provider::Anthropic implements

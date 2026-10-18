@@ -113,20 +113,44 @@ class AuditTrailTest < ActionDispatch::IntegrationTest
     assert_equal @user, log.actor
   end
 
-  test "a statement delete records the deletion" do
-    statement = create_statement
+  test "a statement delete records the statement and its archived document" do
+    with_document_store do
+      statement = create_statement
+      document_link = statement.archive_document_link!(uploader: @user)
 
-    assert_difference -> { AuditLog.count }, 1 do
-      delete account_statement_url(statement)
+      assert_difference -> { AuditLog.count }, 2 do
+        delete account_statement_url(statement)
+      end
+
+      statement_log = AuditLog.for_auditable(statement).order(:created_at).last
+      document_log = AuditLog.for_auditable(document_link).order(:created_at).last
+
+      assert_equal "account_statement.deleted", statement_log.action
+      assert_equal statement.id, statement_log.auditable_id
+      assert_equal "AccountStatement", statement_log.auditable_type
+      assert_equal @family, statement_log.family
+      assert_equal statement.filename, statement_log.before["filename"]
+
+      assert_equal "document.deleted", document_log.action
+      assert_equal @family, document_log.family
+      assert_equal @user, document_log.actor
+      assert_equal document_link.reload.original_filename, document_log.metadata["filename"]
+      assert_equal statement.id, document_log.before["account_statement_id"]
     end
+  end
 
-    log = AuditLog.order(:created_at).last
+  test "a failed trail write never turns a successful delete into a 500" do
+    with_document_store do
+      link = document_links(:unlinked_receipt)
+      DocumentLink::Staging.write(io: StringIO.new("receipt bytes"), id: link.id)
+      AuditLog.stubs(:create!).raises(ActiveRecord::StatementInvalid.new("audit unavailable"))
+      Rails.logger.stubs(:error)
 
-    assert_equal "account_statement.deleted", log.action
-    assert_equal statement.id, log.auditable_id
-    assert_equal "AccountStatement", log.auditable_type
-    assert_equal @family, log.family
-    assert_equal statement.filename, log.before["filename"]
+      delete document_url(link)
+
+      assert_response :redirect
+      assert link.reload.deleted?
+    end
   end
 
   test "publishing an import records the publish request" do

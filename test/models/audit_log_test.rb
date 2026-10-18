@@ -76,6 +76,138 @@ class AuditLogTest < ActiveSupport::TestCase
     end
   end
 
+  test "records a financial change even when the record is saved again before commit" do
+    Current.session = sessions(:one)
+
+    assert_difference -> { AuditLog.count }, 1 do
+      @transaction.transaction do
+        @transaction.update!(category: categories(:income))
+        # The controllers do this after an edit; it is a second save that would
+        # otherwise wipe saved_changes before after_commit.
+        @transaction.lock_attr!(:category_id)
+      end
+    end
+
+    log = AuditLog.order(:created_at).last
+
+    assert_equal categories(:food_and_drink).id, log.before["category_id"]
+    assert_equal categories(:income).id, log.after["category_id"]
+  end
+
+  test "records a transfer pairing change on the transaction, not the entry" do
+    Current.session = sessions(:one)
+
+    assert_difference -> { AuditLog.count }, 1 do
+      @transaction.update!(transfer_id: transfers(:one).id)
+    end
+
+    log = AuditLog.order(:created_at).last
+
+    assert_equal "transaction.updated", log.action
+    assert_equal @transaction, log.auditable
+    assert_equal transfers(:one).id, log.after["transfer_id"]
+    assert_includes Transaction.audited_financial_attributes, "transfer_id"
+    assert_not_includes Entry.audited_financial_attributes, "transfer_id"
+  end
+
+  test "sanitizes forbidden keys at every depth" do
+    log = AuditLog.record!(
+      auditable: @transaction,
+      action: "transaction.updated",
+      metadata: {
+        "source" => "web",
+        "api_key" => "key",
+        "nested" => {
+          "raw_payload" => "payload",
+          "encrypted_value" => "cipher",
+          "certificate_pem" => "pem",
+          "safe" => "kept"
+        },
+        "items" => [ { "payload" => { "value" => "x" }, "safe" => "kept" } ]
+      }
+    )
+
+    assert_nil log.metadata["api_key"]
+    assert_nil log.metadata["nested"]["raw_payload"]
+    assert_nil log.metadata["nested"]["encrypted_value"]
+    assert_nil log.metadata["nested"]["certificate_pem"]
+    assert_equal "kept", log.metadata["nested"]["safe"]
+    assert_nil log.metadata["items"].first["payload"]
+    assert_equal "kept", log.metadata["items"].first["safe"]
+  end
+
+  test "an impersonated edit records the impersonated actor and the true user" do
+    admin = users(:sure_support_staff)
+    impersonation = ImpersonationSession.create!(
+      impersonator: admin,
+      impersonated: @user,
+      status: :in_progress
+    )
+    admin_session = admin.sessions.create!(user_agent: "test", ip_address: "127.0.0.1")
+    admin_session.update!(active_impersonator_session: impersonation)
+    Current.session = admin_session
+
+    assert_difference -> { AuditLog.count }, 1 do
+      @transaction.update!(category: categories(:income))
+    end
+
+    log = AuditLog.order(:created_at).last
+
+    assert_equal @user, log.actor
+    assert_equal admin.id, log.metadata["true_user_id"]
+  end
+
+  test "a strict audit failure raises" do
+    AuditLog.stubs(:create!).raises(ActiveRecord::StatementInvalid.new("audit unavailable"))
+
+    assert_raises(ActiveRecord::StatementInvalid) do
+      AuditLog.record!(auditable: @transaction, action: "transaction.updated")
+    end
+  end
+
+  test "a best-effort audit failure is logged and does not raise" do
+    AuditLog.stubs(:create!).raises(ActiveRecord::StatementInvalid.new("audit unavailable"))
+    Rails.logger.stubs(:error)
+
+    assert_nil AuditLog.record_best_effort!(auditable: @transaction, action: "transaction.updated")
+  end
+
+  test "a failed after-commit trail write does not fail the committed edit" do
+    Current.session = sessions(:one)
+    AuditLog.stubs(:create!).raises(ActiveRecord::StatementInvalid.new("audit unavailable"))
+    Rails.logger.stubs(:error)
+
+    assert @transaction.update(category: categories(:income))
+    assert_equal categories(:income).id, @transaction.reload.category_id
+  end
+
+  test "purge_for_family! removes only that family's trail" do
+    log = create_log
+    other_family = families(:empty)
+    other_category = other_family.categories.create!(name: "Other", color: "#FF0000", lucide_icon: "tag")
+    other_log = AuditLog.record!(auditable: other_category, action: "transaction.updated")
+
+    assert_difference -> { AuditLog.count }, -1 do
+      AuditLog.purge_for_family!(@family)
+    end
+
+    assert_not AuditLog.exists?(log.id)
+    assert AuditLog.exists?(other_log.id)
+  end
+
+  test "application code cannot rewrite audit history outside the tenant purge" do
+    offenders = Dir[Rails.root.join("app/**/*.rb")].filter_map do |path|
+      next if path == Rails.root.join("app/models/audit_log.rb").to_s
+
+      source = File.read(path)
+      path if source.match?(/AuditLog\b[^\n;]*\.(?:update_all|delete_all)\b/) ||
+              source.match?(/audit_logs\b[^\n;]*\.(?:update_all|delete_all)\b/)
+    end
+
+    assert_empty offenders,
+      "Audit history may only be purged through AuditLog.purge_for_family!: #{offenders.join(", ")}"
+  end
+
   test "refuses updates" do
     log = create_log
 

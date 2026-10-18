@@ -75,7 +75,22 @@ class ProviderMerchant < Merchant
       Entry.mark_user_modified_for_transactions!(scope)
 
       # Update only this family's transactions to point to new merchant
-      scope.update_all(merchant_id: family_merchant.id)
+      affected_count = scope.update_all(merchant_id: family_merchant.id)
+
+      if affected_count.positive?
+        AuditLog.record!(
+          auditable: family_merchant,
+          family: family,
+          action: "merchant.converted",
+          metadata: {
+            "from_merchant_id" => id,
+            "from_merchant_name" => name,
+            "to_merchant_id" => family_merchant.id,
+            "to_merchant_name" => family_merchant.name,
+            "affected_count" => affected_count
+          }
+        )
+      end
 
       family_merchant
     end
@@ -96,17 +111,34 @@ class ProviderMerchant < Merchant
   # Does NOT delete the ProviderMerchant since it may be used by other families.
   # Tracks the unlink in FamilyMerchantAssociation so it shows as "recently unlinked".
   def unlink_from_family(family)
-    scope = family.transactions.where(merchant_id: id)
+    transaction do
+      scope = family.transactions.where(merchant_id: id)
 
-    # Protect the manual unlink from being reverted on the next provider sync
-    # (issue #1977). Must run before the merchant_id is nulled.
-    Entry.mark_user_modified_for_transactions!(scope)
+      # Protect the manual unlink from being reverted on the next provider sync
+      # (issue #1977). Must run before the merchant_id is nulled.
+      Entry.mark_user_modified_for_transactions!(scope)
 
-    scope.update_all(merchant_id: nil)
+      affected_count = scope.update_all(merchant_id: nil)
 
-    # Track that this merchant was unlinked from this family
-    association = FamilyMerchantAssociation.find_or_initialize_by(family: family, merchant: self)
-    association.update!(unlinked_at: Time.current)
+      # Track that this merchant was unlinked from this family
+      association = FamilyMerchantAssociation.find_or_initialize_by(family: family, merchant: self)
+      association.update!(unlinked_at: Time.current)
+
+      if affected_count.positive?
+        AuditLog.record!(
+          auditable: self,
+          family: family,
+          action: "merchant.unlinked",
+          metadata: {
+            "from_merchant_id" => id,
+            "from_merchant_name" => name,
+            "to_merchant_id" => nil,
+            "to_merchant_name" => nil,
+            "affected_count" => affected_count
+          }
+        )
+      end
+    end
   end
 
   private

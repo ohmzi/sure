@@ -38,6 +38,10 @@ class Merchant::Merger
     return false if source_merchants.empty?
 
     Merchant.transaction do
+      from_merchant_ids = source_merchants.map(&:id)
+      from_merchant_names = source_merchants.map(&:name)
+      affected_count = 0
+
       source_merchants.each do |source|
         scope = family.transactions.where(merchant_id: source.id)
 
@@ -47,13 +51,28 @@ class Merchant::Merger
         Entry.mark_user_modified_for_transactions!(scope)
 
         # Reassign family's transactions to target
-        scope.update_all(merchant_id: target_merchant.id)
+        affected_count += scope.update_all(merchant_id: target_merchant.id)
 
         # Delete FamilyMerchant, keep ProviderMerchant (it may be used by other families)
         source.destroy! if source.is_a?(FamilyMerchant)
 
         @merged_count += 1
       end
+
+      # One summary row for the whole operation. Strict policy: a failed trail
+      # write rolls the merge back with it.
+      AuditLog.record!(
+        auditable: target_merchant,
+        family: family,
+        action: "merchant.merged",
+        metadata: {
+          "from_merchant_ids" => from_merchant_ids,
+          "from_merchant_names" => from_merchant_names,
+          "to_merchant_id" => target_merchant.id,
+          "to_merchant_name" => target_merchant.name,
+          "affected_count" => affected_count
+        }
+      )
     end
 
     true

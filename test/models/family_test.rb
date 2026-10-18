@@ -159,6 +159,49 @@ class FamilyTest < ActiveSupport::TestCase
     end
   end
 
+  test "investment_contributions_category records the automatic merge as a system event" do
+    Current.reset
+    family = families(:dylan_family)
+    family.update!(locale: "en")
+    family.categories.where(name: [ "Investment Contributions", "Contributions aux investissements" ]).destroy_all
+
+    keeper = family.categories.create!(
+      name: "Investment Contributions",
+      color: "#0d9488",
+      lucide_icon: "trending-up"
+    )
+    duplicate = family.categories.create!(
+      name: "Contributions aux investissements",
+      color: "#0d9488",
+      lucide_icon: "trending-up"
+    )
+
+    transaction = Transaction.create!(category: duplicate)
+    Entry.create!(
+      account: family.accounts.first,
+      entryable: transaction,
+      amount: 100,
+      currency: family.currency,
+      date: Date.current,
+      name: "Automatic cleanup transaction"
+    )
+
+    assert_difference -> { AuditLog.count }, 1 do
+      family.investment_contributions_category
+    end
+
+    log = AuditLog.order(:created_at).last
+
+    assert_equal "category.merged", log.action
+    assert_equal family, log.family
+    assert_equal keeper, log.auditable
+    assert_nil log.actor
+    assert_equal "system", log.metadata["source"]
+    assert_equal 1, log.metadata["affected_count"]
+    assert_equal [ duplicate.id ], log.metadata["from_category_ids"]
+    assert_equal keeper.id, log.metadata["to_category_id"]
+  end
+
   test "investment_contributions_category merges duplicates across accounts" do
     family = families(:dylan_family)
     family.update!(locale: "en")

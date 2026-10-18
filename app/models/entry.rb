@@ -1,10 +1,10 @@
 class Entry < ApplicationRecord
   include Monetizable, Enrichable, Auditable
 
-  # Amount and date live on the entry; category and merchant live on the
-  # transaction. The trail still hangs off the Transaction (see #audit_target)
-  # so the detail page reads one stream.
-  audit_financial_attributes :date, :amount, :account_id, :transfer_id, :currency
+  # Amount and date live on the entry; category, merchant and transfer pairing
+  # live on the transaction. The trail still hangs off the Transaction (see
+  # #audit_target) so the detail page reads one stream.
+  audit_financial_attributes :date, :amount, :account_id, :currency
 
   TRUTHY_VALUES = [ true, "true", "1", 1 ].freeze
   private_constant :TRUTHY_VALUES

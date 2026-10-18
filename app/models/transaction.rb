@@ -1,7 +1,9 @@
 class Transaction < ApplicationRecord
   include Entryable, Transferable, Ruleable, Splittable, Auditable
 
-  audit_financial_attributes :category_id, :merchant_id, :kind
+  # Transfer pairing is stored on the transaction (Entry has no such column),
+  # so a pairing change is recorded against the user-facing transaction.
+  audit_financial_attributes :category_id, :merchant_id, :kind, :transfer_id
 
   belongs_to :category, optional: true
   belongs_to :merchant, optional: true

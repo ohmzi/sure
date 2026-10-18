@@ -54,7 +54,12 @@ class Family < ApplicationRecord
   has_many :import_sessions, dependent: :destroy
   has_many :import_source_mappings, dependent: :destroy
   has_many :family_exports, dependent: :destroy
-  has_many :audit_logs, dependent: :delete_all
+  # Append-only for the household's lifetime. Destroying the household is the
+  # tenant-purge exception: purge_audit_logs! is the one permitted bulk delete
+  # (see AuditLog), and the DB foreign key cascade is the last line if this
+  # callback is bypassed.
+  has_many :audit_logs
+  before_destroy :purge_audit_logs!, prepend: true
   has_many :account_statements, dependent: :destroy
   has_many :document_links, dependent: :destroy
   has_many :document_extractions, dependent: :destroy
@@ -117,6 +122,12 @@ class Family < ApplicationRecord
   end
 
   private
+
+    # Tenant-purge exception: a deleted household takes its own trail with it.
+    # This is the only permitted bulk delete of AuditLog rows.
+    def purge_audit_logs!
+      AuditLog.purge_for_family!(self)
+    end
 
     # Depository accounts linked to this family's goals, restricted to the
     # primary currency until FX is added. Memoized for the lifetime of the
@@ -532,10 +543,32 @@ class Family < ApplicationRecord
       # Reassign transactions and subcategories from duplicates to keeper
       if duplicates.any?
         duplicate_ids = duplicates.map(&:id)
-        categories.where(parent_id: duplicate_ids).update_all(parent_id: keeper.id)
-        Transaction.reassign_category!(transactions.where(category_id: duplicate_ids), keeper.id)
-        BudgetCategory.where(category_id: duplicate_ids).update_all(category_id: keeper.id)
-        categories.where(id: duplicate_ids).delete_all
+        duplicate_names = duplicates.map(&:name)
+        affected_count = 0
+
+        transaction do
+          categories.where(parent_id: duplicate_ids).update_all(parent_id: keeper.id)
+          affected_count = Transaction.reassign_category!(transactions.where(category_id: duplicate_ids), keeper.id)
+          BudgetCategory.where(category_id: duplicate_ids).update_all(category_id: keeper.id)
+          categories.where(id: duplicate_ids).delete_all
+
+          # Automatic cleanup: one summary row, attributed to the system even
+          # when it happens inside a person's request (strict policy, see
+          # AuditLog). A trail failure rolls the cleanup back.
+          AuditLog.record!(
+            auditable: keeper,
+            family: self,
+            action: "category.merged",
+            source: "system",
+            metadata: {
+              "from_category_ids" => duplicate_ids,
+              "from_category_names" => duplicate_names,
+              "to_category_id" => keeper.id,
+              "to_category_name" => keeper.name,
+              "affected_count" => affected_count
+            }
+          )
+        end
       end
 
       # Rename keeper to family's locale name if needed

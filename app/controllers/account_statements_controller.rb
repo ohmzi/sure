@@ -193,13 +193,17 @@ class AccountStatementsController < ApplicationController
   def review
     return if @statement.account && !require_account_permission!(@statement.account)
 
-    @statement.update!(reviewed_at: Time.current, reviewed_by: Current.user)
-    AuditLog.record!(
-      auditable: @statement,
-      action: "account_statement.reviewed",
-      after: { "reviewed_at" => @statement.reviewed_at.iso8601 },
-      metadata: { "reviewed_by_id" => Current.user&.id }
-    )
+    # The review and its trail row commit together; a failed trail write
+    # rolls the review back rather than leaving an unaudited state change.
+    @statement.transaction do
+      @statement.update!(reviewed_at: Time.current, reviewed_by: Current.user)
+      AuditLog.record!(
+        auditable: @statement,
+        action: "account_statement.reviewed",
+        after: { "reviewed_at" => @statement.reviewed_at.iso8601 },
+        metadata: { "reviewed_by_id" => Current.user&.id }
+      )
+    end
     redirect_back_or_to account_statement_path(@statement), notice: t("account_statements.review.success")
   end
 
@@ -221,6 +225,7 @@ class AccountStatementsController < ApplicationController
     # with the bytes still on disk — the old order deleted them and left a
     # byte-less duplicate on re-upload.
     refusal = nil
+    document_link = nil
     destroyed = @statement.transaction do
       @statement.lock!
 
@@ -250,17 +255,7 @@ class AccountStatementsController < ApplicationController
     end
 
     if destroyed
-      AuditLog.record!(
-        auditable: @statement,
-        family: @statement.family,
-        action: "account_statement.deleted",
-        before: {
-          "filename" => @statement.filename,
-          "account_id" => @statement.account_id,
-          "period_start_on" => @statement.period_start_on&.iso8601,
-          "period_end_on" => @statement.period_end_on&.iso8601
-        }
-      )
+      record_statement_deleted_events(@statement, document_link)
       redirect_to redirect_path, notice: t("account_statements.destroy.success")
     else
       redirect_back_or_to redirect_path, alert: refusal || t("account_statements.destroy.failure")
@@ -288,6 +283,39 @@ class AccountStatementsController < ApplicationController
       Current.family.account_statements
         .where(account_id: nil)
         .or(Current.family.account_statements.where(account_id: Current.user.accessible_accounts.select(:id)))
+    end
+
+    # Two events for one delete: the statement's own removal and the archived
+    # document's soft delete. Both run after the transaction, whose byte
+    # deletion cannot be rolled back, so they are best-effort (see AuditLog) —
+    # a trail failure is logged instead of turning a successful delete into a
+    # 500.
+    def record_statement_deleted_events(statement, document_link)
+      AuditLog.record_best_effort!(
+        auditable: statement,
+        family: statement.family,
+        action: "account_statement.deleted",
+        before: {
+          "filename" => statement.filename,
+          "account_id" => statement.account_id,
+          "period_start_on" => statement.period_start_on&.iso8601,
+          "period_end_on" => statement.period_end_on&.iso8601
+        }
+      )
+
+      return if document_link.nil?
+
+      AuditLog.record_best_effort!(
+        auditable: document_link,
+        family: statement.family,
+        action: "document.deleted",
+        before: {
+          "filename" => document_link.original_filename,
+          "source" => document_link.source,
+          "account_statement_id" => statement.id
+        },
+        metadata: { "filename" => document_link.original_filename }
+      )
     end
 
     def deletion_blocker_message(statement)

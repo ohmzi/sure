@@ -34,6 +34,12 @@ module AuditLogsHelper
       t("audit_logs.activity.rows", count: log.metadata["rows_count"].to_i)
     when "document.deleted"
       log.metadata["filename"].presence && t("audit_logs.activity.document", filename: log.metadata["filename"])
+    when "account_statement.deleted"
+      filename = (log.before || {})["filename"]
+      filename.presence && t("audit_logs.activity.statement", filename: filename)
+    when "category.merged", "merchant.merged", "transactions.bulk_recategorized",
+         "merchant.converted", "merchant.unlinked"
+      t("audit_logs.activity.affected", count: log.metadata["affected_count"].to_i)
     end
   end
 

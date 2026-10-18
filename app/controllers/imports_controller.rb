@@ -46,7 +46,8 @@ class ImportsController < ApplicationController
   def publish
     @import.publish_later
 
-    AuditLog.record!(
+    # The job is already enqueued (irreversible), so the trail is best-effort.
+    AuditLog.record_best_effort!(
       auditable: @import,
       action: "import.published",
       metadata: { "import_type" => @import.type, "rows_count" => @import.rows_count }
@@ -176,7 +177,7 @@ class ImportsController < ApplicationController
   def revert
     @import.revert_later
 
-    AuditLog.record!(
+    AuditLog.record_best_effort!(
       auditable: @import,
       action: "import.reverted",
       metadata: { "import_type" => @import.type, "rows_count" => @import.rows_count }
@@ -203,7 +204,7 @@ class ImportsController < ApplicationController
     @import.destroy
 
     if @import.destroyed?
-      AuditLog.record!(
+      AuditLog.record_best_effort!(
         auditable: @import,
         action: "import.deleted",
         metadata: deleted

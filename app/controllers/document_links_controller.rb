@@ -255,7 +255,9 @@ class DocumentLinksController < ApplicationController
     deleted_now = @link.soft_delete!
 
     if deleted_now
-      AuditLog.record!(
+      # The bytes are already gone, so this is a best-effort trail write (see
+      # AuditLog): a failure is logged, never surfaced as a 500.
+      AuditLog.record_best_effort!(
         auditable: @link,
         action: "document.deleted",
         before: {

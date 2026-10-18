@@ -649,6 +649,25 @@ class Api::V1::TransactionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   # UPDATE action tests
+  test "an API edit records the API source" do
+    new_category = categories(:income)
+    new_category = categories(:food_and_drink) if @transaction.category_id == new_category.id
+
+    assert_difference -> { AuditLog.count }, 1 do
+      put api_v1_transaction_url(@transaction),
+          params: { transaction: { category_id: new_category.id } },
+          headers: api_headers(@api_key)
+    end
+
+    assert_response :success
+
+    log = AuditLog.order(:created_at).last
+
+    assert_equal "transaction.updated", log.action
+    assert_equal "api", log.metadata["source"]
+    assert_equal @user, log.actor
+  end
+
   test "should update transaction with valid parameters" do
     update_params = {
       transaction: {

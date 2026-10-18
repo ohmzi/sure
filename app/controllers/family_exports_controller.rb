@@ -12,7 +12,9 @@ class FamilyExportsController < ApplicationController
     @export = Current.family.family_exports.create!
     FamilyDataExportJob.perform_later(@export)
 
-    AuditLog.record!(
+    # The export job is already enqueued, so a trail failure must not fail the
+    # request (see AuditLog's failure policy).
+    AuditLog.record_best_effort!(
       auditable: @export,
       action: "family_export.created",
       metadata: { "export_id" => @export.id }

@@ -323,6 +323,9 @@ class Api::V1::BaseController < ApplicationController
         ip_address: request.ip
       )
       Current.session.active_impersonator_session = nil
+      # Attribution: an API edit is not a web edit, even though the request
+      # plumbing ran first and defaulted the source to "web".
+      Current.audit_source = "api"
     end
 
     # Check if AI features are enabled for the current user

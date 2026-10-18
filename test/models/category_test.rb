@@ -21,6 +21,51 @@ class CategoryTest < ActiveSupport::TestCase
     assert_nil transactions.map { |t| t.reload.category }.uniq.first
   end
 
+  test "replace_and_destroy! records one bulk recategorization summary" do
+    Current.session = sessions(:one)
+    source = categories(:food_and_drink)
+    replacement = categories(:income)
+    affected = source.transactions.count
+
+    assert_difference -> { AuditLog.count }, 1 do
+      source.replace_and_destroy!(replacement)
+    end
+
+    log = AuditLog.order(:created_at).last
+
+    assert_equal "transactions.bulk_recategorized", log.action
+    assert_equal @family, log.family
+    assert_equal replacement, log.auditable
+    assert_equal users(:family_admin), log.actor
+    assert_equal affected, log.metadata["affected_count"]
+    assert_equal source.id, log.metadata["from_category_id"]
+    assert_equal source.name, log.metadata["from_category_name"]
+    assert_equal replacement.id, log.metadata["to_category_id"]
+    assert_equal replacement.name, log.metadata["to_category_name"]
+  ensure
+    Current.reset
+  end
+
+  test "destroy records one bulk recategorization when it nullifies transactions" do
+    Current.session = sessions(:one)
+    category = categories(:food_and_drink)
+    affected = category.transactions.count
+
+    assert_difference -> { AuditLog.count }, 1 do
+      category.destroy!
+    end
+
+    log = AuditLog.order(:created_at).last
+
+    assert_equal "transactions.bulk_recategorized", log.action
+    assert_equal @family, log.family
+    assert_equal category.id, log.metadata["from_category_id"]
+    assert_equal affected, log.metadata["affected_count"]
+    assert_nil log.metadata["to_category_id"]
+  ensure
+    Current.reset
+  end
+
   test "replacing and destroying invalidates entries_cache_version" do
     before = @family.entries_cache_version
 

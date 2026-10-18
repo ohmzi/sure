@@ -4,9 +4,37 @@ class Merchant::MergerTest < ActiveSupport::TestCase
   include EntriesTestHelper
 
   setup do
+    Current.reset
     @family = families(:dylan_family)
     @target = merchants(:netflix)
     @source = merchants(:amazon)
+  end
+
+  teardown { Current.reset }
+
+  test "merge! records one summary event with the affected count and actor" do
+    Current.session = sessions(:one)
+    Current.audit_source = "web"
+    create_transaction(merchant: @source)
+    create_transaction(merchant: @source)
+    affected = @family.transactions.where(merchant_id: @source.id).count
+
+    assert_difference -> { AuditLog.count }, 1 do
+      Merchant::Merger.new(family: @family, target_merchant: @target, source_merchants: [ @source ]).merge!
+    end
+
+    log = AuditLog.order(:created_at).last
+
+    assert_equal "merchant.merged", log.action
+    assert_equal @family, log.family
+    assert_equal @target, log.auditable
+    assert_equal users(:family_admin), log.actor
+    assert_equal "web", log.metadata["source"]
+    assert_equal affected, log.metadata["affected_count"]
+    assert_equal [ @source.id ], log.metadata["from_merchant_ids"]
+    assert_equal [ @source.name ], log.metadata["from_merchant_names"]
+    assert_equal @target.id, log.metadata["to_merchant_id"]
+    assert_equal @target.name, log.metadata["to_merchant_name"]
   end
 
   # Regression: issue #1977. Merging merchants reassigns merchant_id via
