@@ -125,16 +125,20 @@ class AccountStatement::Coverage
   private
 
     def build_month(month)
-      return Month.new(date: month, status: "not_expected", statements: [], ambiguous_statements: []) unless expected_month?(month)
-
       linked_statements = statements_covering(linked_statement_scope, month)
       ambiguous_statements = statements_covering(ambiguous_statement_scope, month)
       # A month is judged by the statement that ENDS in it, not by every cycle
       # that happens to overlap it. Consecutive monthly statements share a
       # boundary date, so an adjacent June statement would otherwise make a
       # perfectly reconciled May look mismatched.
-      status_statements = statements_ending_in(linked_statements, month)
-      status_statements = linked_statements if status_statements.empty?
+      ending_statements = statements_ending_in(linked_statements, month)
+      status_statements = ending_statements.any? ? ending_statements : linked_statements
+
+      # A month outside the default window is "not expected" unless a statement
+      # actually ends in it. The window stops at last month (the current month's
+      # statement usually has not arrived yet), but when it HAS arrived it is
+      # present evidence and must be reported, not hidden as "not expected".
+      return Month.new(date: month, status: "not_expected", statements: [], ambiguous_statements: []) unless expected_month?(month) || ending_statements.any?
 
       status = if status_statements.many? && overlapping_statements?(status_statements)
         "duplicate"
