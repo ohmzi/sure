@@ -620,6 +620,7 @@ en:
       errors:
         provider_not_configured: AI provider not configured
         provider_no_pdf_support: AI provider does not support PDF processing
+        arithmetic_mismatch: "The statement's transactions do not match the statement's printed balance change (%{read_total} read vs %{statement_change} expected). The rows may have been read with reversed signs; review them before publishing."
       ready_for_review_title: Ready for Review
       ready_for_review_description:
         one: "%{count} transaction from your statement isn't in this account yet. Review and publish it to add it."

@@ -486,6 +486,42 @@ class PdfImportReconciliationTest < ActiveSupport::TestCase
                  "a second statement must not steal the first statement's evidence"
   end
 
+  test "a statement whose extracted signs disagree with its printed movement fails to publish" do
+    # Depository: closing is 30 above opening, so the saved rows must total -30.
+    # A read that flips the sign offers +30 instead.
+    @statement.update!(opening_balance: 100, closing_balance: 130)
+
+    @import.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: -30, name: "Deposit") ] })
+    @import.generate_rows_from_extracted_data
+
+    error = assert_raises(PdfImport::ArithmeticMismatchError) { @import.import! }
+    assert_match(/do not match the statement/, error.message)
+    assert_empty @account.entries.where(name: "Deposit")
+  end
+
+  test "a statement whose extracted signs match its printed movement publishes" do
+    @statement.update!(opening_balance: 100, closing_balance: 130)
+
+    @import.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: 30, name: "Withdrawal") ] })
+    @import.generate_rows_from_extracted_data
+
+    assert_difference -> { @account.transactions.count }, 1 do
+      @import.import!
+    end
+  end
+
+  test "publish records the arithmetic mismatch instead of importing it" do
+    @statement.update!(opening_balance: 100, closing_balance: 130)
+
+    @import.update!(extracted_data: { "transactions" => [ extracted(date: @date, amount: -30, name: "Deposit") ] })
+    @import.generate_rows_from_extracted_data
+    @import.publish
+
+    assert @import.reload.failed?
+    assert_match(/do not match the statement/, @import.error)
+    assert_empty @account.entries.where(name: "Deposit")
+  end
+
   private
 
     def create_statement

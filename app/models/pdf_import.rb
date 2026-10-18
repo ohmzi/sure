@@ -1,4 +1,9 @@
 class PdfImport < Import
+  # The extracted rows must reproduce the statement's own opening-to-closing
+  # movement. A read that reverses a sign still produces plausible-looking rows,
+  # but it writes wrong money; publishing it must fail instead.
+  ArithmeticMismatchError = Class.new(StandardError)
+
   has_one_attached :pdf_file, dependent: :purge_later
 
   validates :document_type, inclusion: { in: DOCUMENT_TYPES }, allow_nil: true
@@ -135,6 +140,10 @@ class PdfImport < Import
 
   def import!
     raise "Account required for PDF import" unless account.present?
+
+    if (error = extraction_reconciliation_error)
+      raise ArithmeticMismatchError, error
+    end
 
     # (Ruling M2-C10, 2026-10-11: the M7-L8 atomic-guard pattern, deferred by
     # M7's close-out review and closed here) The committed check and the entry
@@ -347,6 +356,44 @@ class PdfImport < Import
 
   def extracted_transactions
     extracted_data&.dig("transactions") || []
+  end
+
+  # nil when the read agrees with the statement's printed movement (or when the
+  # statement carries no balances to check against); otherwise a human-readable
+  # explanation of the mismatch. The signed total is computed through the same
+  # Import::Row#signed_amount the publisher uses, so the check cannot drift from
+  # the money the import would write.
+  def extraction_reconciliation_error
+    return nil unless account.present? && statement_with_transactions?
+    return nil unless account_statement&.opening_balance.present? && account_statement&.closing_balance.present?
+    return nil unless has_extracted_transactions?
+
+    expected = expected_signed_total
+    actual = extracted_signed_total
+    return nil if (actual - expected).abs <= 0.01.to_d
+
+    I18n.t(
+      "imports.pdf_import.errors.arithmetic_mismatch",
+      read_total: ActiveSupport::NumberHelper.number_to_currency(actual, unit: account.currency),
+      statement_change: ActiveSupport::NumberHelper.number_to_currency(expected, unit: account.currency)
+    )
+  end
+
+  def extraction_reconciles_with_statement?
+    extraction_reconciliation_error.nil?
+  end
+
+  def expected_signed_total
+    delta = account_statement.closing_balance - account_statement.opening_balance
+    account.classification == "liability" ? delta : -delta
+  end
+
+  def extracted_signed_total
+    extracted_transactions.sum(0.to_d) do |transaction|
+      next 0.to_d if transaction["amount"].blank?
+
+      Import::Row.new(import: self, amount: transaction["amount"]).signed_amount
+    end
   end
 
   def generate_rows_from_extracted_data
