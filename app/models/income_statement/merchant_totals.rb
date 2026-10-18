@@ -5,7 +5,7 @@
 class IncomeStatement::MerchantTotals
   include IncomeStatement::ScopedTransactionsQuery
 
-  Row = Data.define(:merchant_id, :name, :logo_url, :color, :total, :transactions_count)
+  Row = Data.define(:merchant_id, :name, :logo_url, :color, :spending, :income, :total, :transactions_count)
 
   def initialize(family, transactions_scope:, date_range:, category_ids:, included_account_ids: nil)
     @family = family
@@ -26,6 +26,8 @@ class IncomeStatement::MerchantTotals
         name: row["name"],
         logo_url: row["logo_url"],
         color: row["color"],
+        spending: row["spending"],
+        income: row["income"],
         total: row["total"],
         transactions_count: row["transactions_count"]
       )
@@ -38,13 +40,17 @@ class IncomeStatement::MerchantTotals
     end
 
     def sql
+      converted = converted_amount_sql("at")
+
       <<~SQL
         SELECT
           m.id::text AS merchant_id,
           COALESCE(m.name, ae.name) AS name,
           m.logo_url AS logo_url,
           m.color AS color,
-          SUM(#{converted_amount_sql("at")}) AS total,
+          SUM(CASE WHEN (#{converted}) > 0 THEN (#{converted}) ELSE 0 END) AS spending,
+          SUM(CASE WHEN (#{converted}) < 0 THEN -(#{converted}) ELSE 0 END) AS income,
+          SUM(#{converted}) AS total,
           COUNT(ae.id) AS transactions_count
         FROM (#{@transactions_scope.to_sql}) at
         #{entries_join_sql("at")}
@@ -61,8 +67,7 @@ class IncomeStatement::MerchantTotals
           #{exclude_tax_advantaged_sql}
           #{include_finance_accounts_sql}
         GROUP BY m.id, COALESCE(m.name, ae.name), m.logo_url, m.color
-        HAVING SUM(#{converted_amount_sql("at")}) <> 0
-        ORDER BY ABS(SUM(#{converted_amount_sql("at")})) DESC, name ASC
+        ORDER BY ABS(SUM(#{converted})) DESC, name ASC
       SQL
     end
 

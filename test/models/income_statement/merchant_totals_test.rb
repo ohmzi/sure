@@ -28,11 +28,15 @@ class IncomeStatement::MerchantTotalsTest < ActiveSupport::TestCase
                  rows.map { |row| [ row.name, row.total.to_f ] }
   end
 
-  test "keeps refunds signed so the caller can choose a direction" do
+  test "keeps spending, refunds and the net separately" do
     transaction(amount: 100, merchant: @amazon, name: "Amazon order")
     transaction(amount: -40, merchant: @amazon, name: "Amazon refund")
 
-    assert_equal 60.0, totals.first.total.to_f
+    row = totals.first
+
+    assert_equal 100.0, row.spending.to_f
+    assert_equal 40.0, row.income.to_f
+    assert_equal 60.0, row.total.to_f
   end
 
   private

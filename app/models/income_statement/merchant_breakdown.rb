@@ -17,17 +17,18 @@ class IncomeStatement::MerchantBreakdown
 
   def call
     totals = @statement.merchant_totals(category: @category, period: @period)
-    direction = totals.sum { |total| total.total.to_d } >= 0 ? :spending : :income
-    sign = direction == :spending ? 1 : -1
+    direction = totals.sum { |total| total.spending.to_d } >= totals.sum { |total| total.income.to_d } ? :spending : :income
 
     # The SQL groups by the raw merchant/entry name; the normalizer folds the
     # variants (AMZN Mktp, Amazon.ca, Amazon.ae) into one canonical merchant.
+    # Use gross spending/income per merchant, so a refund cannot hide a
+    # merchant's purchases from the pie.
     groups = totals.group_by { |total| Merchant::NameNormalizer.canonical_name(total.name) }
     included = groups.filter_map do |canonical_name, group|
-      amount = group.sum { |total| total.total.to_d }
-      next if amount * sign <= 0
+      amount = group.sum { |total| direction == :spending ? total.spending.to_d : total.income.to_d }
+      next if amount.zero?
 
-      { name: canonical_name, amount: amount.abs, rows: group }
+      { name: canonical_name, amount: amount, rows: group }
     end
     amount_total = included.sum { |group| group[:amount] }
     return empty_result if amount_total.zero?

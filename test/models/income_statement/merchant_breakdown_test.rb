@@ -38,8 +38,21 @@ class IncomeStatement::MerchantBreakdownTest < ActiveSupport::TestCase
     result = breakdown(category: salary)
 
     assert_equal :income, result.direction
-    assert_equal 400.0, result.total.to_f
+    assert_equal 500.0, result.total.to_f
     assert_equal 100.0, result.rows.first.percentage
+  end
+
+  test "a refund does not hide a merchant's spending" do
+    transaction(amount: 100, merchant: @amazon, name: "Amazon")
+    transaction(amount: -40, merchant: @amazon, name: "Amazon refund")
+    transaction(amount: 50, name: "Corner Store")
+
+    result = breakdown
+
+    assert_equal :spending, result.direction
+    assert_equal [ "Amazon", "Corner Store" ], result.rows.map(&:name)
+    assert_equal [ 100.0, 50.0 ], result.rows.map { |row| row.amount.to_f }
+    assert_equal 150.0, result.total.to_f
   end
 
   test "merges similar merchant names into one canonical slice" do
