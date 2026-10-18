@@ -168,14 +168,12 @@
         </tbody>
         <tfoot>
           <%
-            total_income = @trends_data.sum { |t| t[:income].to_d }
-            total_expenses = @trends_data.sum { |t| t[:expenses].to_d }
-            total_net = @trends_data.sum { |t| t[:net].to_d }
-            trends_count = @trends_data.length
-            avg_income = trends_count > 0 ? (total_income / trends_count) : 0
-            avg_expenses = trends_count > 0 ? (total_expenses / trends_count) : 0
-            avg_net = trends_count > 0 ? (total_net / trends_count) : 0
-            overall_savings_rate = total_income > 0 ? ((total_net / total_income) * 100).round(0) : 0
+            # Averages and the overall savings rate cover the whole selected
+            # period, even when the table above is bounded to a chart window.
+            avg_income = @trends_summary[:avg_income]
+            avg_expenses = @trends_summary[:avg_expenses]
+            avg_net = @trends_summary[:avg_net]
+            overall_savings_rate = @trends_summary[:savings_rate]
           %>
           <tr>
             <td><%= t("reports.print.trends.average") %></td>
@@ -186,6 +184,9 @@
           </tr>
         </tfoot>
       </table>
+      <% if @trends_summary[:truncated] %>
+        <p class="tufte-footnote"><%= t("reports.trends.chart_window_disclosure", months: @trends_summary[:max_months]) %></p>
+      <% end %>
       <% if @trends_data.any? { |t| t[:is_current_month] } %>
         <p class="tufte-footnote"><%= t("reports.print.trends.current_month_note") %></p>
       <% end %>

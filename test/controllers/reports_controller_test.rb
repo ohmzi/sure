@@ -1,4 +1,5 @@
 require "test_helper"
+require "csv"
 
 class ReportsControllerTest < ActionDispatch::IntegrationTest
   include EntriesTestHelper
@@ -141,6 +142,73 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_operator trend_rows.size, :>, 0, "the trends section must render for this to prove anything"
     assert_equal ReportsController::MAX_TREND_MONTHS, trend_rows.size,
                  "the trends table must stop at the documented month cap"
+  end
+
+  # Capping the chart must not change the numbers derived from it. A 72-month
+  # range still shows 60 rows, but the "Avg. Monthly" cards and the printed
+  # average/savings rate cover the whole 72-month period, and the page says so.
+  test "a capped trends chart still averages the full custom range" do
+    start_date = Date.current.beginning_of_month - 71.months
+    end_date = Date.current
+    month_count = 72
+
+    # Income only in the first month, which the capped chart does not plot.
+    # A 60-month average would therefore omit it.
+    create_transaction(
+      account: @family.accounts.first,
+      name: "Oldest month income",
+      amount: -1_200,
+      date: start_date + 1.day
+    )
+
+    period = Period.custom(start_date: start_date, end_date: end_date)
+    statement = IncomeStatement.new(@family, user: @user)
+    expected_avg_income = statement.income_totals(period: period).total / month_count
+    expected_avg_expenses = statement.expense_totals(period: period).total / month_count
+
+    get reports_path(period_type: :custom, start_date: start_date, end_date: end_date)
+    assert_response :ok
+
+    section = css_select("section[data-section-key='trends_insights']").first
+    assert section, "the trends section must render for this to prove anything"
+    assert_equal ReportsController::MAX_TREND_MONTHS, section.css("tbody tr").size,
+                 "the chart stays capped"
+
+    assert_includes section.text,
+      I18n.t("reports.trends.chart_window_disclosure", months: ReportsController::MAX_TREND_MONTHS)
+
+    income_card = section.css("div.p-4").find { |card| card.text.include?(I18n.t("reports.trends.avg_monthly_income")) }
+    expenses_card = section.css("div.p-4").find { |card| card.text.include?(I18n.t("reports.trends.avg_monthly_expenses")) }
+    assert income_card, "the average income card must render"
+    assert expenses_card, "the average expenses card must render"
+
+    assert_includes income_card.text, Money.new(expected_avg_income, @family.currency).format,
+                    "the average must cover all #{month_count} months, not only the plotted #{ReportsController::MAX_TREND_MONTHS}"
+    assert_includes expenses_card.text, Money.new(expected_avg_expenses, @family.currency).format
+  end
+
+  test "the printed report averages the full custom range and discloses the chart cap" do
+    start_date = Date.current.beginning_of_month - 71.months
+    end_date = Date.current
+    month_count = 72
+
+    create_transaction(
+      account: @family.accounts.first,
+      name: "Oldest month income",
+      amount: -1_200,
+      date: start_date + 1.day
+    )
+
+    period = Period.custom(start_date: start_date, end_date: end_date)
+    expected_avg_income = IncomeStatement.new(@family, user: @user).income_totals(period: period).total / month_count
+
+    get print_reports_path(period_type: :custom, start_date: start_date, end_date: end_date)
+    assert_response :ok
+
+    assert_includes @response.body,
+      I18n.t("reports.trends.chart_window_disclosure", months: ReportsController::MAX_TREND_MONTHS)
+    assert_includes @response.body, Money.new(expected_avg_income, @family.currency).format,
+                    "the printed average must cover all #{month_count} months"
   end
 
   test "index renders successfully" do
@@ -547,6 +615,52 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "text/csv", @response.media_type
     assert_match /Export Taxable Income/, @response.body
     assert_no_match /Export Retirement Income/, @response.body
+  end
+
+  # The HTML breakdown and the CSV export group and convert the same rows, so
+  # for a category holding both a foreign- and a home-currency transaction they
+  # must report the same converted total. This pins the rendered row total too,
+  # not just the number of rate lookups.
+  test "multi-currency report rows and CSV export agree on the converted total" do
+    start_date = Date.current.beginning_of_month
+    end_date = Date.current.end_of_month
+    account = @family.accounts.first
+    category = @family.categories.create!(name: "Reports Multi Currency #{SecureRandom.hex(3)}", color: "#123456")
+
+    ExchangeRate.find_or_initialize_by(
+      from_currency: "EUR",
+      to_currency: @family.currency,
+      date: Date.current
+    ).update!(rate: 1.25)
+
+    create_transaction(account: account, name: "EUR expense", amount: 100, currency: "EUR",
+                       category: category, date: Date.current)
+    create_transaction(account: account, name: "Home currency expense", amount: 50, currency: @family.currency,
+                       category: category, date: Date.current)
+
+    expected_total = Money.new(175, @family.currency)
+
+    get reports_path(period_type: :custom, start_date: start_date, end_date: end_date)
+    assert_response :ok
+
+    row = css_select("tr[data-category='category-#{category.id}']").first
+    assert row, "the category row must render"
+    assert_includes row.text, expected_total.format,
+                    "the report row must show the converted multi-currency total"
+
+    get export_transactions_reports_path(
+      format: :csv,
+      period_type: :custom,
+      start_date: start_date,
+      end_date: end_date
+    )
+    assert_response :ok
+
+    csv = CSV.parse(@response.body)
+    category_row = csv.find { |cells| cells.first == category.name }
+    assert category_row, "the category must appear in the CSV export"
+    assert_equal expected_total.format, category_row.last,
+                 "the CSV total must match the report's converted total"
   end
 
   test "export transactions swaps dates when end_date is before start_date" do

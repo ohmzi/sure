@@ -1442,6 +1442,13 @@ end
     normalized_queries = queries.map { |sql| normalize_sql_query(sql) }
     assert_empty single_record_lookups(normalized_queries, table: "transfers", column: "id"),
                  "Expected Transfer records to be preloaded for the whole page"
+    # `Transaction::Transferable#transfer` reads the has_one associations, which
+    # query by these foreign keys. Asserting only transfers.id would still pass
+    # if the includes were deleted, because nothing looks up a transfer by id.
+    assert_empty single_record_lookups(normalized_queries, table: "transfers", column: "inflow_transaction_id"),
+                 "Expected Transfer inflow associations to be preloaded for the whole page"
+    assert_empty single_record_lookups(normalized_queries, table: "transfers", column: "outflow_transaction_id"),
+                 "Expected Transfer outflow associations to be preloaded for the whole page"
   end
 
   test "index caches uncategorized_count and projected_recurring across requests" do

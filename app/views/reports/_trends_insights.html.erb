@@ -72,11 +72,19 @@
           </div>
         </div>
 
+        <% if trends_summary[:truncated] %>
+          <p class="mt-3 rounded-lg bg-container-inset px-4 py-3 text-sm text-secondary">
+            <%= t("reports.trends.chart_window_disclosure", months: trends_summary[:max_months]) %>
+          </p>
+        <% end %>
+
         <%# Trend Insights %>
         <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <% avg_income = trends_data.sum { |t| t[:income] } / trends_data.length %>
-          <% avg_expenses = trends_data.sum { |t| t[:expenses] } / trends_data.length %>
-          <% avg_net = trends_data.sum { |t| t[:net] } / trends_data.length %>
+          <%# Averages cover the whole selected period even when the chart above
+              is capped, so they agree with the summary totals. %>
+          <% avg_income = trends_summary[:avg_income] %>
+          <% avg_expenses = trends_summary[:avg_expenses] %>
+          <% avg_net = trends_summary[:avg_net] %>
 
           <div class="p-4 bg-surface-inset rounded-lg">
             <p class="text-sm text-secondary mb-1"><%= t("reports.trends.avg_monthly_income") %></p>

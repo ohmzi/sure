@@ -126,8 +126,12 @@ class ReportsController < ApplicationController
       # Calculate summary metrics
       @summary_metrics = build_summary_metrics
 
-      # Build trend data (last 6 months)
+      # Build the month-by-month chart series (bounded for long ranges)
       @trends_data = build_trends_data(income_statement: @income_statement)
+
+      # Chart averages are derived from the whole period, not the bounded chart
+      # series, so a long range's summary does not disagree with the totals above.
+      @trends_summary = build_trends_summary
 
       # Net worth metrics
       @net_worth_metrics = build_net_worth_metrics
@@ -170,7 +174,7 @@ class ReportsController < ApplicationController
           key: "trends_insights",
           title: "reports.trends.title",
           partial: "reports/trends_insights",
-          locals: { trends_data: @trends_data },
+          locals: { trends_data: @trends_data, trends_summary: @trends_summary },
           visible: @has_accounts,
           collapsible: true
         },
@@ -388,11 +392,36 @@ class ReportsController < ApplicationController
     # just to find where the bounded window starts.
     def first_trend_month
       start_month = @start_date.beginning_of_month
-      end_month = @end_date.beginning_of_month
-      month_count = (end_month.year * 12 + end_month.month) - (start_month.year * 12 + start_month.month) + 1
+      month_count = trend_month_count
       return start_month if month_count <= MAX_TREND_MONTHS
 
       start_month + (month_count - MAX_TREND_MONTHS).months
+    end
+
+    # Months touched by the selected period, including partial first and last
+    # months. The full-period totals are already loaded for the summary cards,
+    # so this derives the averages without running an aggregate per month.
+    def build_trends_summary
+      month_count = trend_month_count
+      income_total = ensure_money(@current_income_totals.total)
+      expenses_total = ensure_money(@current_expense_totals.total)
+      net_total = income_total - expenses_total
+
+      {
+        month_count: month_count,
+        max_months: MAX_TREND_MONTHS,
+        truncated: month_count > MAX_TREND_MONTHS,
+        avg_income: month_count.zero? ? 0 : income_total.amount / month_count,
+        avg_expenses: month_count.zero? ? 0 : expenses_total.amount / month_count,
+        avg_net: month_count.zero? ? 0 : net_total.amount / month_count,
+        savings_rate: income_total.amount.positive? ? ((net_total.amount / income_total.amount) * 100).round(0) : 0
+      }
+    end
+
+    def trend_month_count
+      start_month = @start_date.beginning_of_month
+      end_month = @end_date.beginning_of_month
+      (end_month.year * 12 + end_month.month) - (start_month.year * 12 + start_month.month) + 1
     end
 
     def build_transactions_breakdown
