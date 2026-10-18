@@ -13,6 +13,7 @@ class Category::MerchantCategorizerTest < ActiveSupport::TestCase
     @subscriptions = @family.categories.create!(name: "Subscriptions")
     @fees = @family.categories.create!(name: "Fees")
     @personal = @family.categories.create!(name: "Personal Care")
+    @transport = @family.categories.create!(name: "Transportation")
 
     transaction(100, "AMZN Mktp CA SAMPLE ON")
     transaction(30, "TIM HORTONS #0000 SAMPLE ON")
@@ -24,6 +25,9 @@ class Category::MerchantCategorizerTest < ActiveSupport::TestCase
     transaction(10, "CHAIR SAMPLE ON")
     transaction(12, "Amazon.ca Prime Member SAMPLE ON")
     transaction(100, "e-Transfer Request Fulfilled Canadian Tire Bank SAMPLE")
+    transaction(25, "CDN TIRE STORE #0000 SAMPLE ON")
+    transaction(30, "CDN TIRE GASBAR #0000 SAMPLE ON")
+    transaction(500, "Online Banking payment - 0000 CDN TIRE MC")
   end
 
   test "fills uncategorized merchants from the known patterns" do
@@ -54,6 +58,14 @@ class Category::MerchantCategorizerTest < ActiveSupport::TestCase
 
     assert_equal @subscriptions.id, category_for("Amazon.ca Prime Member SAMPLE ON")
     assert_nil category_for("e-Transfer Request Fulfilled Canadian Tire Bank SAMPLE")
+  end
+
+  test "Canadian Tire store, gas bar and card payment are kept apart" do
+    Category::MerchantCategorizer.new(@family).call
+
+    assert_equal @shopping.id, category_for("CDN TIRE STORE #0000 SAMPLE ON")
+    assert_equal @transport.id, category_for("CDN TIRE GASBAR #0000 SAMPLE ON")
+    assert_nil category_for("Online Banking payment - 0000 CDN TIRE MC")
   end
 
   test "creates one rule per category and is idempotent" do

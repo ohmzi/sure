@@ -21,7 +21,7 @@ class Category::MerchantCategorizer
     [ "Fees", /dhl|customs|(?:^|[^a-z])nsf(?:[^a-z]|$)|service\s*charge|interest\s*charge|bank\s*fee|monthly\s*fee/i ],
     [ "Cash Withdrawal", /(?:^|[^a-z])atm(?:[^a-z]|$)|cash\s*withdrawal/i ],
     [ "Cash Deposited", /cash\s*deposit/i ],
-    [ "Shopping", /amazon|amzn|ebay|etsy|aliexpress|winners|tj\s*maxx|carters|adidas|dollarama|staples|officemax|best\s*buy|walmart|(?:canadian|cdn)\s*tire(?!\s+bank)|wayfair|apple\.com\/ca|apple\s+store|costco/i ]
+    [ "Shopping", /amazon|amzn|ebay|etsy|aliexpress|winners|tj\s*maxx|carters|adidas|dollarama|staples|officemax|best\s*buy|walmart|(?:canadian|cdn)\s*tire(?!\s+(?:bank|gas|mc))|wayfair|apple\.com\/ca|apple\s+store|costco/i ]
   ].freeze
 
   Result = Data.define(:category, :rule, :updated)
