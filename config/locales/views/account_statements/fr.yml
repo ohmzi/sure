@@ -126,6 +126,8 @@ fr:
       mark_reviewed: Marquer comme vérifié
       reviewed: Vérifié le %{date}
       no_suggestion_description: Choisissez un compte ci-dessous, ou laissez le relevé non associé jusqu'à savoir auquel il appartient.
+      not_linked: Non lié à un compte
+      not_linked_description: Ce relevé n'est pas lié à un compte.
     status:
       linked: Lié
       rejected: Rejeté

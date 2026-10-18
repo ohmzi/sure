@@ -126,6 +126,8 @@ it:
       mark_reviewed: Segna come rivisto
       reviewed: Rivisto il %{date}
       no_suggestion_description: Scegli un conto qui sotto o lascia l'estratto non assegnato finché non sai a quale appartiene.
+      not_linked: Non collegato a un conto
+      not_linked_description: Questo estratto conto non è collegato a un conto.
     status:
       linked: Collegato
       rejected: Rifiutato

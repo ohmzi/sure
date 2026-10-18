@@ -126,6 +126,8 @@ tr:
       mark_reviewed: İncelendi olarak işaretle
       reviewed: "%{date} tarihinde incelendi"
       no_suggestion_description: Aşağıdan bir hesap seçin veya hangisine ait olduğunu öğrenene kadar ekstreyi atanmamış bırakın.
+      not_linked: Bir hesaba bağlı değil
+      not_linked_description: Bu ekstre bir hesaba bağlı değil.
     status:
       linked: Bağlı
       rejected: Reddedildi

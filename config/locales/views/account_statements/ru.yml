@@ -130,6 +130,8 @@ ru:
       mark_reviewed: Отметить как проверенную
       reviewed: Проверено %{date}
       no_suggestion_description: Выберите счёт ниже или оставьте выписку без счёта, пока не узнаете, к какому она относится.
+      not_linked: Не привязано к счёту
+      not_linked_description: Эта выписка не привязана к счёту.
     status:
       linked: Привязано
       rejected: Отклонено

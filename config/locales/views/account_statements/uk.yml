@@ -130,6 +130,8 @@ uk:
       mark_reviewed: Позначити як перевірену
       reviewed: Перевірено %{date}
       no_suggestion_description: Виберіть рахунок нижче або залиште виписку без рахунку, доки не дізнаєтеся, до якого вона належить.
+      not_linked: Не прив'язано до рахунку
+      not_linked_description: Ця виписка не прив'язана до рахунку.
     status:
       linked: Прив'язано
       rejected: Відхилено

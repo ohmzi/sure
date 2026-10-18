@@ -151,6 +151,23 @@ class I18nTest < ActiveSupport::TestCase
     end
   end
 
+  # The statement detail page uses these instead of the English fallback when a
+  # statement has no account, so every translated account_statements locale
+  # must carry them.
+  def test_account_statement_not_linked_copy_exists_for_each_locale
+    Dir[File.expand_path("../config/locales/views/account_statements/*.yml", __dir__)].sort.each do |file|
+      locale = File.basename(file, ".yml")
+      next if locale == "en"
+
+      show = YAML.load_file(file, aliases: true).dig(locale, "account_statements", "show") || {}
+
+      %w[not_linked not_linked_description].each do |key|
+        assert show[key].is_a?(String) && show[key].present?,
+               "#{file} is missing account_statements.show.#{key}"
+      end
+    end
+  end
+
   private
     # { "months_saved.one" => "...", ... } for UI.account.chart.loan in one locale.
     def loan_chart_leaves(locale)

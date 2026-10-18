@@ -130,6 +130,8 @@ pl:
       mark_reviewed: Oznacz jako sprawdzony
       reviewed: Sprawdzono %{date}
       no_suggestion_description: Wybierz konto poniżej lub pozostaw wyciąg nieprzypisany, dopóki nie dowiesz się, do którego należy.
+      not_linked: Niepowiązany z kontem
+      not_linked_description: Ten wyciąg nie jest powiązany z żadnym kontem.
     status:
       linked: Powiązany
       rejected: Odrzucony

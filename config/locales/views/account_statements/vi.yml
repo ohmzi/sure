@@ -126,6 +126,8 @@ vi:
       mark_reviewed: Đánh dấu đã xem xét
       reviewed: Đã xem xét %{date}
       no_suggestion_description: Chọn một tài khoản bên dưới hoặc để sao kê chưa được gán cho đến khi bạn biết nó thuộc về đâu.
+      not_linked: Chưa liên kết với tài khoản
+      not_linked_description: Sao kê này chưa được liên kết với tài khoản nào.
     status:
       linked: Đã liên kết
       rejected: Đã từ chối

@@ -126,6 +126,8 @@ zh-CN:
       mark_reviewed: 标记为已复核
       reviewed: 已于 %{date} 复核
       no_suggestion_description: 在下方选择一个账户，或在确定归属前保持对账单未匹配。
+      not_linked: 未关联账户
+      not_linked_description: 此对账单未关联到任何账户。
     status:
       linked: 已关联
       rejected: 已拒绝

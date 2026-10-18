@@ -126,6 +126,8 @@ hu:
       mark_reviewed: Megjelölés átnézettként
       reviewed: 'Átnézve: %{date}'
       no_suggestion_description: Válassz számlát lent, vagy hagyd a kimutatást hozzárendelés nélkül, amíg nem tudod, melyikhez tartozik.
+      not_linked: Nincs számlához kapcsolva
+      not_linked_description: Ez a kimutatás nincs számlához kapcsolva.
     status:
       linked: Összekapcsolt
       rejected: Elutasított

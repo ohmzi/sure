@@ -126,6 +126,8 @@ de:
       mark_reviewed: Als geprüft markieren
       reviewed: Geprüft am %{date}
       no_suggestion_description: Wähle unten ein Konto aus oder lass den Kontoauszug unzugeordnet, bis du weißt, zu welchem er gehört.
+      not_linked: Mit keinem Konto verknüpft
+      not_linked_description: Dieser Kontoauszug ist mit keinem Konto verknüpft.
     status:
       linked: Verknüpft
       rejected: Abgelehnt

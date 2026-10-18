@@ -126,6 +126,8 @@ pt-PT:
       mark_reviewed: Marcar como revisado
       reviewed: Revisado a %{date}
       no_suggestion_description: Escolha uma conta abaixo ou deixe o extrato sem associação até saber a qual pertence.
+      not_linked: Não ligado a uma conta
+      not_linked_description: Este extrato não está ligado a uma conta.
     status:
       linked: Ligado
       rejected: Rejeitado

@@ -126,6 +126,8 @@ ca:
       mark_reviewed: Marca com a revisat
       reviewed: Revisat el %{date}
       no_suggestion_description: Tria un compte a continuació o deixa l'extracte sense assignar fins que sàpigues a quin pertany.
+      not_linked: No enllaçat a cap compte
+      not_linked_description: Aquest extracte no està enllaçat a cap compte.
     status:
       linked: Enllaçat
       rejected: Rebutjat

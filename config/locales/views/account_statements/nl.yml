@@ -126,6 +126,8 @@ nl:
       mark_reviewed: Als gecontroleerd markeren
       reviewed: Gecontroleerd op %{date}
       no_suggestion_description: Kies hieronder een account of laat het afschrift ongekoppeld tot je weet waarbij het hoort.
+      not_linked: Niet gekoppeld aan een account
+      not_linked_description: Dit afschrift is niet gekoppeld aan een account.
     status:
       linked: Gekoppeld
       rejected: Afgewezen

@@ -126,6 +126,8 @@ zh-TW:
       mark_reviewed: 標記為已複核
       reviewed: 已於 %{date} 複核
       no_suggestion_description: 在下方選擇一個帳戶，或在確定歸屬前保持對帳單未配對。
+      not_linked: 未連結帳戶
+      not_linked_description: 此對帳單未連結到任何帳戶。
     status:
       linked: 已連結
       rejected: 已拒絕
