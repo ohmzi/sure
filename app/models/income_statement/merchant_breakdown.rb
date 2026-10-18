@@ -6,6 +6,10 @@ class IncomeStatement::MerchantBreakdown
   require "digest/md5"
   require "zlib"
 
+  # Refund merchants keep a neutral slice colour so the pie never reads a
+  # credit as spending.
+  REFUND_COLOR = "#737373".freeze
+
   Row = Data.define(:id, :name, :merchant_id, :merchant_name, :logo_url, :color, :amount, :percentage, :negative)
   Result = Data.define(:rows, :refunds, :total, :net_total, :currency, :currency_symbol, :direction, :category)
 
@@ -42,13 +46,14 @@ class IncomeStatement::MerchantBreakdown
     pie_total = sided.sum { |group| group[:net].abs }
     refund_total = refunds.sum { |group| group[:net].abs }
     net_total = pie_total - refund_total
+    activity_total = pie_total + refund_total
 
     merchants = canonical_merchants
     rows = sided.map do |group|
-      build_row(group, merchants[group[:name]], pie_total, negative: false)
+      build_row(group, merchants[group[:name]], activity_total, negative: false)
     end.sort_by { |row| -row.amount }
     refund_rows = refunds.map do |group|
-      build_row(group, merchants[group[:name]], pie_total, negative: true)
+      build_row(group, merchants[group[:name]], activity_total, negative: true)
     end.sort_by { |row| -row.amount }
 
     Result.new(
@@ -90,7 +95,7 @@ class IncomeStatement::MerchantBreakdown
         merchant_id: merchant&.id,
         merchant_name: group[:name],
         logo_url: merchant&.logo_url.presence || source&.logo_url,
-        color: merchant&.color.presence || source&.color.presence || color_for(group[:name]),
+        color: negative ? REFUND_COLOR : (merchant&.color.presence || source&.color.presence || color_for(group[:name])),
         amount: amount,
         percentage: denominator.zero? ? 0 : (amount / denominator * 100).round(1),
         negative: negative

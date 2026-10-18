@@ -20,8 +20,9 @@
       <% if breakdown.nil? || (breakdown.rows.empty? && breakdown.refunds.empty?) %>
         <p class="py-8 text-center text-sm text-secondary"><%= t(".empty") %></p>
       <% else %>
-        <% if breakdown.rows.any? %>
-        <% segments = breakdown.rows.map { |row| { id: row.id, amount: row.amount.to_f, color: row.color } } %>
+        <% if breakdown.rows.any? || breakdown.refunds.any? %>
+        <% all_rows = breakdown.rows + breakdown.refunds %>
+        <% segments = all_rows.map { |row| { id: row.id, amount: row.amount.to_f, color: row.color } } %>
         <div class="flex flex-col @2xl:flex-row gap-8 items-center"
           data-controller="donut-chart"
           data-donut-chart-segments-value="<%= segments.to_json %>"
@@ -46,13 +47,13 @@
                   </div>
                 </div>
 
-                <% breakdown.rows.each do |row| %>
+                <% all_rows.each do |row| %>
                   <div id="segment_<%= row.id %>" class="hidden">
                     <div class="flex flex-col gap-2 items-center">
-                      <p class="text-sm text-secondary"><%= row.name %></p>
+                      <p class="text-sm text-secondary"><%= row.negative ? t(".refund_label", name: row.name) : row.name %></p>
 
                       <p data-donut-chart-target="amount" class="text-3xl font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
-                        <%= breakdown.currency_symbol %><%= number_with_delimiter(row.amount.to_f.round(2), delimiter: ",") %>
+                        <%= "-" if row.negative %><%= breakdown.currency_symbol %><%= number_with_delimiter(row.amount.to_f.round(2), delimiter: ",") %>
                       </p>
 
                       <p class="text-sm text-secondary privacy-sensitive"><%= row.percentage %>%</p>

@@ -172,6 +172,7 @@ en:
         net_spending: "Net spending"
         net_income: "Net income"
         refunds: "Refunds & credits"
+        refund_label: "%{name} (refund)"
         net_after_refunds: "Net after refunds"
         empty: "No merchant activity in this category for this period."
       investment_summary:

@@ -68,6 +68,7 @@ class IncomeStatement::MerchantBreakdownTest < ActiveSupport::TestCase
     assert_equal [ "Amazon" ], result.refunds.map(&:name)
     assert_equal 40.0, result.refunds.first.amount.to_f
     assert result.refunds.first.negative
+    assert_equal IncomeStatement::MerchantBreakdown::REFUND_COLOR, result.refunds.first.color
     assert_equal 10.0, result.net_total.to_f
   end
 
