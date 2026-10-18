@@ -77,6 +77,34 @@ class Admin::SystemHealthControllerTest < ActionDispatch::IntegrationTest
     assert_select "dd", text: /no completed import/i
   end
 
+  # Usage lives under Settings → LLM usage, but an operator watching provider
+  # health should see this household's recorded tokens and spend without
+  # leaving System Health. Read-only: the page queries existing LlmUsage rows.
+  test "renders the household's LLM usage and links to the usage page" do
+    sign_in users(:sure_support_staff)
+    stub_healthy_sidekiq
+    family = families(:empty)
+    family.llm_usages.create!(
+      provider: "openai", model: "gpt-4.1", operation: "categorization",
+      prompt_tokens: 1_000, completion_tokens: 250, total_tokens: 1_250,
+      estimated_cost: 0.25
+    )
+    family.llm_usages.create!(
+      provider: "openai", model: "gpt-4.1", operation: "categorization",
+      prompt_tokens: 2_000, completion_tokens: 500, total_tokens: 2_500,
+      estimated_cost: 0.5
+    )
+
+    get admin_system_health_url(tab: "background_jobs")
+
+    assert_response :success
+    assert_select "dt", text: "LLM tokens"
+    assert_select "dd", text: "3,750"
+    assert_select "dt", text: "Estimated LLM cost"
+    assert_select "dd", text: "$0.75"
+    assert_select "a[href=?]", settings_llm_usage_path
+  end
+
   test "renders degraded state with reason when Sidekiq is unhealthy" do
     sign_in users(:sure_support_staff)
     SidekiqHealth.any_instance.stubs(:healthy?).returns(false)

@@ -342,6 +342,9 @@ en:
         title: Provider and import health
         description: Recorded provider calls and completed imports from the last %{days} days. Read-only; nothing here makes a live request.
         llm_calls: LLM calls
+        llm_tokens: LLM tokens
+        llm_estimated_cost: Estimated LLM cost
+        llm_usage_details: View LLM usage details
         provider_error_rate: Provider error rate
         provider_latency: Provider latency
         import_publish_latency: Import publish latency

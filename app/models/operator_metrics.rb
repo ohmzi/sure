@@ -32,6 +32,19 @@ class OperatorMetrics
     @llm_calls ||= llm_scope.count
   end
 
+  # The same recorded calls the Settings LLM-usage page summarises, kept to a
+  # couple of figures here so an operator watching provider health sees token
+  # volume and estimated spend without leaving System Health.
+  def llm_tokens
+    @llm_tokens ||= llm_scope.sum(:total_tokens)
+  end
+
+  # Estimated, not billed: LlmUsage stores the price-table estimate it wrote at
+  # call time. Rows without a price contribute nothing.
+  def llm_estimated_cost
+    @llm_estimated_cost ||= llm_scope.sum(:estimated_cost).to_f
+  end
+
   def llm_failures
     @llm_failures ||= llm_scope.where("metadata ->> 'error' IS NOT NULL").count
   end

@@ -1,6 +1,11 @@
 class ReportsController < ApplicationController
   include Periodable
 
+  # The trends section runs one income and one expense aggregate per month.
+  # A custom range can span decades, so the chart shows at most this many
+  # months, ending with the selected range.
+  MAX_TREND_MONTHS = 60
+
   # Allow API key authentication for exports (for Google Sheets integration)
   # Note: We run authentication_for_export which handles both session and API key auth
   skip_authentication only: :export_transactions
@@ -228,6 +233,27 @@ class ReportsController < ApplicationController
       Money.new(value, Current.family.currency)
     end
 
+    # One batched lookup for every distinct source currency in the report,
+    # instead of one (or two) lookups per row. `rates_for` also hits the
+    # provider at most once per missing currency and defaults to 1, which is
+    # the same fallback `Money#exchange_to`'s ConversionError rescue used.
+    def exchange_rates_for(entries, to:)
+      family_currency = Money::Currency.new(to).iso_code
+      currencies = entries.filter_map do |entry|
+        Money::Currency.new(entry.currency).iso_code if entry.currency.present?
+      end.uniq - [ family_currency ]
+
+      ExchangeRate.rates_for(currencies, to: family_currency, date: Date.current)
+    end
+
+    def convert_to_family_currency(entry, family_currency, rates)
+      money = Money.new(entry.amount.abs, entry.currency)
+      rate = rates[money.currency.iso_code]
+      money.exchange_to(family_currency, custom_rate: rate).amount
+    rescue Money::ConversionError
+      entry.amount.abs
+    end
+
     def parse_date_param(param_name)
       date_string = params[param_name]
       return nil if date_string.blank?
@@ -325,8 +351,10 @@ class ReportsController < ApplicationController
       # Generate month-by-month data based on the current period filter
       trends = []
 
-      # Generate list of months within the period
-      current_month = @start_date.beginning_of_month
+      # Generate list of months within the period, bounded for long custom
+      # ranges so each visit cannot issue two aggregates per month since the
+      # epoch.
+      current_month = first_trend_month
       end_of_period = @end_date.end_of_month
 
       while current_month <= end_of_period
@@ -353,6 +381,18 @@ class ReportsController < ApplicationController
       end
 
       trends
+    end
+
+    # The first month the trends chart covers. Month arithmetic stays on
+    # integer year/month values so very long ranges never step month by month
+    # just to find where the bounded window starts.
+    def first_trend_month
+      start_month = @start_date.beginning_of_month
+      end_month = @end_date.beginning_of_month
+      month_count = (end_month.year * 12 + end_month.month) - (start_month.year * 12 + start_month.month) + 1
+      return start_month if month_count <= MAX_TREND_MONTHS
+
+      start_month + (month_count - MAX_TREND_MONTHS).months
     end
 
     def build_transactions_breakdown
@@ -383,6 +423,18 @@ class ReportsController < ApplicationController
 
       trades = apply_entry_filters(trades)
 
+      # Materialize the period once, then fetch each source currency's rate
+      # once for the whole breakdown. The report converts everything at today's
+      # rate, so a per-row lookup repeats identical work (and can repeat an
+      # external provider call) for every transaction.
+      transaction_rows = transactions.to_a
+      trade_rows = trades.to_a
+      family_currency = Current.family.currency
+      conversion_rates = exchange_rates_for(
+        transaction_rows.map(&:entry) + trade_rows.map(&:entry),
+        to: family_currency
+      )
+
       # Get sort parameters
       sort_by = %w[amount count].include?(params[:sort_by]) ? params[:sort_by] : "amount"
       sort_direction = %w[asc desc].include?(params[:sort_direction]) ? params[:sort_direction] : "desc"
@@ -394,7 +446,6 @@ class ReportsController < ApplicationController
       # Group by category (tracking parent relationship) and type
       # Structure: { [parent_category_id, type] => { parent_data, subcategories: { subcategory_id => data } } }
       grouped_data = {}
-      family_currency = Current.family.currency
 
       # Helper to initialize a category group hash
       init_category_group = ->(id, name, color, icon, type, filter_value) do
@@ -429,11 +480,7 @@ class ReportsController < ApplicationController
       # Helper to process an entry (transaction or trade)
       process_entry = ->(category, entry, is_trade) do
         type = entry.amount > 0 ? "expense" : "income"
-        begin
-          converted_amount = Money.new(entry.amount.abs, entry.currency).exchange_to(family_currency).amount
-        rescue Money::ConversionError
-          converted_amount = entry.amount.abs
-        end
+        converted_amount = convert_to_family_currency(entry, family_currency, conversion_rates)
 
         if category.nil?
           # Uncategorized or Other Investments (for trades)
@@ -467,12 +514,12 @@ class ReportsController < ApplicationController
       end
 
       # Process transactions
-      transactions.each do |transaction|
+      transaction_rows.each do |transaction|
         process_entry.call(transaction.category, transaction.entry, false)
       end
 
       # Process trades
-      trades.each do |trade|
+      trade_rows.each do |trade|
         process_entry.call(trade.category, trade.entry, true)
       end
 
@@ -786,9 +833,11 @@ class ReportsController < ApplicationController
       # Group by category, type, and month
       breakdown = {}
       family_currency = Current.family.currency
+      transaction_rows = transactions.to_a
+      conversion_rates = exchange_rates_for(transaction_rows.map(&:entry), to: family_currency)
 
       # Process transactions
-      transactions.each do |transaction|
+      transaction_rows.each do |transaction|
         entry = transaction.entry
         is_expense = entry.amount > 0
         type = is_expense ? "expense" : "income"
@@ -796,11 +845,7 @@ class ReportsController < ApplicationController
         month_key = entry.date.beginning_of_month
 
         # Convert to family currency
-        begin
-          converted_amount = Money.new(entry.amount.abs, entry.currency).exchange_to(family_currency).amount
-        rescue Money::ConversionError
-          converted_amount = entry.amount.abs
-        end
+        converted_amount = convert_to_family_currency(entry, family_currency, conversion_rates)
 
         key = [ category_name, type ]
         breakdown[key] ||= { category: category_name, type: type, months: {}, total: 0 }

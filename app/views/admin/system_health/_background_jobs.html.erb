@@ -121,6 +121,14 @@
         </dd>
       </div>
       <div>
+        <dt class="text-secondary"><%= t("admin.system_health.operations.llm_tokens") %></dt>
+        <dd class="text-primary font-medium"><%= number_with_delimiter(operator_metrics.llm_tokens) %></dd>
+      </div>
+      <div>
+        <dt class="text-secondary"><%= t("admin.system_health.operations.llm_estimated_cost") %></dt>
+        <dd class="text-primary font-medium"><%= number_to_currency(operator_metrics.llm_estimated_cost, precision: 2) %></dd>
+      </div>
+      <div>
         <dt class="text-secondary"><%= t("admin.system_health.operations.provider_latency") %></dt>
         <dd class="text-secondary"><%= t("admin.system_health.operations.values.provider_latency_unavailable") %></dd>
       </div>
@@ -139,6 +147,16 @@
         </dd>
       </div>
     </dl>
+
+    <div class="flex justify-end">
+      <%= render DS::Link.new(
+        href: settings_llm_usage_path,
+        variant: :outline,
+        size: :sm,
+        icon: "activity",
+        text: t("admin.system_health.operations.llm_usage_details")
+      ) %>
+    </div>
   <% end %>
 
   <%= render DS::Card.new(class: "gap-4") do %>

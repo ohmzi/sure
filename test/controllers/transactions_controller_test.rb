@@ -1402,6 +1402,48 @@ end
                  "Expected transfer counterparty accounts to be preloaded"
   end
 
+  # Every rendered row asks `transaction.transfer` for the drawer link, the
+  # selection checkbox and the badges. On this branch `Transaction::Transferable`
+  # resolves that to the already-preloaded `transfer_as_inflow || transfer_as_outflow`
+  # has_ones, but the legacy `belongs_to :transfer` is still declared and some
+  # provider paths populate `transactions.transfer_id`. Populate it here so a
+  # regression to the lazy association would show up as one lookup per row.
+  test "index does not look up the transfer record per rendered row" do
+    family = @user.family
+    from_account = family.accounts.visible.first
+    to_account = family.accounts.create!(
+      name: "Transfer Record Counterparty",
+      currency: family.currency,
+      balance: 0,
+      accountable: Depository.new
+    )
+
+    transfers = 6.times.map do |i|
+      transfer = create_transfer(
+        from_account: from_account,
+        to_account: to_account,
+        amount: 40 + i,
+        date: Date.current - i.days
+      )
+      transfer.outflow_transaction.update_column(:transfer_id, transfer.id)
+      transfer
+    end
+
+    queries = capture_sql_queries { get transactions_url(per_page: 50) }
+
+    assert_response :success
+
+    rendered_ids = rendered_entry_ids
+    transfers.each do |transfer|
+      assert_includes rendered_ids, transfer.outflow_transaction.entry.id.to_s,
+                      "Expected transfer outflow entry to render on the index"
+    end
+
+    normalized_queries = queries.map { |sql| normalize_sql_query(sql) }
+    assert_empty single_record_lookups(normalized_queries, table: "transfers", column: "id"),
+                 "Expected Transfer records to be preloaded for the whole page"
+  end
+
   test "index caches uncategorized_count and projected_recurring across requests" do
     # Test environment uses null_store; swap in a memory store so the cache
     # actually persists between the two requests below.

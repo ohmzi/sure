@@ -93,6 +93,56 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  # The breakdown converts every row at today's rate, so the rate for a source
+  # currency is the same for the whole page. Asking per row is one lookup (or
+  # an HTTP fetch) per transaction; one batched lookup per distinct currency
+  # is the same arithmetic without the repeated work. Distinct currencies are
+  # used so the query cache cannot make a per-row lookup look batched.
+  test "the transactions breakdown looks up each currency's rate once" do
+    # A past custom period keeps the budget calculator (which has its own FX
+    # path) out of the request, so this counts the breakdown's lookups only.
+    start_date = Date.current.beginning_of_month - 1.month
+    end_date = Date.current.beginning_of_month - 1.day
+    account = @family.accounts.first
+    %w[EUR GBP CAD JPY].each_with_index do |currency, index|
+      ExchangeRate.create!(from_currency: currency, to_currency: "USD", date: Date.current, rate: 1.25)
+      create_transaction(
+        account: account,
+        name: "Multi-currency #{currency}",
+        amount: 10 + index,
+        currency: currency,
+        date: start_date + 1.day
+      )
+    end
+
+    queries = capture_sql_queries do
+      get reports_path(period_type: :custom, start_date: start_date, end_date: end_date)
+    end
+
+    assert_response :ok
+
+    rate_lookups = queries.map { |sql| sql.squish.downcase }
+                          .grep(/from "exchange_rates" where/)
+    assert_equal 1, rate_lookups.size,
+                 "expected one batched exchange_rates lookup, got #{rate_lookups.size}"
+  end
+
+  # A custom range can span decades, and the trends section runs one income
+  # and one expense aggregate per month. The chart is bounded to a readable
+  # window so a long range cannot multiply that work by the month count.
+  test "a long custom range bounds the monthly trends loop" do
+    start_date = Date.current.beginning_of_month - 71.months
+
+    get reports_path(period_type: :custom, start_date: start_date, end_date: Date.current)
+
+    assert_response :ok
+
+    trend_rows = css_select("section[data-section-key='trends_insights'] tbody tr")
+    assert_operator trend_rows.size, :>, 0, "the trends section must render for this to prove anything"
+    assert_equal ReportsController::MAX_TREND_MONTHS, trend_rows.size,
+                 "the trends table must stop at the documented month cap"
+  end
+
   test "index renders successfully" do
     get reports_path
     assert_response :ok
