@@ -1,14 +1,14 @@
 <%# locals: (category:) %>
 <% category ||= Category.uncategorized %>
 
+<%# A tinted squircle in the category's colour (the Alive pass, 2026-10-18). %>
 <div>
-  <span class="flex lg:hidden items-center gap-1 text-sm font-medium rounded-full px-1.5 py-1 border truncate focus-visible:outline-none focus-visible:ring-0 w-8 h-8 justify-center"
+  <span class="flex lg:hidden items-center justify-center rounded-[14px] w-10 h-10 truncate focus-visible:outline-none focus-visible:ring-0"
       style="
-        background-color: color-mix(in oklab, <%= category.color %> 10%, transparent);
-        border-color: color-mix(in oklab, <%= category.color %> 10%, transparent);
+        background-color: color-mix(in oklab, <%= category.color %> 14%, transparent);
         color: <%= category.color %>;">
     <% if category.lucide_icon.present? %>
-      <%= icon category.lucide_icon, size: "sm", color: "current" %>
+      <%= icon category.lucide_icon, size: "md", color: "current" %>
     <% end %>
   </span>
 </div>

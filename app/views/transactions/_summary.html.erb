@@ -1,4 +1,4 @@
-<%# locals: (totals:) %>
+<%# locals: (totals:, week: nil) %>
 <%# Show Inflow/Outflow labels only when the result set contains exclusively transfers
     (income and expense are both $0). For mixed filters (e.g. Expense+Transfer),
     we keep Income/Expenses labels — transfer amounts aren't included in the summary
@@ -8,7 +8,10 @@
 <%# One compact row on every width (the polish pass, 2026-10-17): on a phone the
     three figures used to stack into three tall rows above the list, and its
     amounts are whole units so each fits one line. %>
-<div class="grid grid-cols-3 bg-container rounded-2xl shadow-border-xs divide-x divide-subdued">
+<%# The Alive pass (2026-10-18): one card — the figures, then the last seven
+    days as bars, each a tap away from that day's list. %>
+<section class="bg-container rounded-[26px] shadow-border-xs p-1.5 md:p-2 flex flex-col">
+<div class="grid grid-cols-3 divide-x divide-subdued">
   <div class="min-w-0 p-3 md:p-4 space-y-1 md:space-y-2">
     <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.total_transactions") %></p>
     <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-transactions"><%= totals.count.round(0) %></p>
@@ -21,7 +24,7 @@
       </p>
     <% else %>
       <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.income") %></p>
-      <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-income">
+      <p class="text-success font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-income">
         <span class="md:hidden"><%= (totals.income_money).format(precision: 0) %></span><span class="hidden md:inline"><%= (totals.income_money).format %></span>
       </p>
     <% end %>
@@ -40,3 +43,22 @@
     <% end %>
   </div>
 </div>
+<% if week %>
+  <% days = week.days %>
+  <% tallest = days.map { |day| day.spent.amount }.max.to_d %>
+  <% picked = params.dig(:q, :start_date).presence if params.dig(:q, :start_date) == params.dig(:q, :end_date) %>
+  <nav aria-label="<%= t("transactions.summary.week") %>" class="grid grid-cols-7 gap-2 border-t border-subdued px-2.5 pt-3 pb-2 mt-1">
+    <% days.each_with_index do |day, index| %>
+      <% on = picked == day.date.iso8601 %>
+      <% height = tallest.positive? ? (day.spent.amount / tallest * 100).round : 0 %>
+      <%= link_to transactions_path(q: { start_date: day.date.iso8601, end_date: day.date.iso8601 }),
+            class: "press group flex h-20 flex-col items-center justify-end gap-1.5 rounded-xl focus-ring",
+            aria: { label: t("transactions.summary.day_spent", day: l(day.date, format: :long), amount: day.spent.format(precision: 0)), current: ("date" if on) } do %>
+        <span class="grow-up block w-full min-h-1 rounded-lg transition-colors <%= on || (picked.nil? && day.date == Date.current) ? "bg-inverse" : "bg-link/30 group-hover:bg-link/45" %>"
+              style="height: <%= [ height, 6 ].max %>%; animation-delay: <%= index * 40 %>ms"></span>
+        <span class="text-[11px] <%= on ? "font-extrabold text-link" : "font-semibold text-secondary" %>"><%= l(day.date, format: "%a").first(2) %></span>
+      <% end %>
+    <% end %>
+  </nav>
+<% end %>
+</section>

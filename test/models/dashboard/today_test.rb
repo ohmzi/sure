@@ -53,4 +53,27 @@ class Dashboard::TodayTest < ActiveSupport::TestCase
 
     assert_equal 0, Dashboard::Today.new(family: @family, user: @user).percent_spent
   end
+
+  # The hero's range (the Alive pass, 2026-10-18): a week, a month or a year of
+  # net worth; anything else reads as the month.
+  test "the net worth range picks its period and falls back to the month" do
+    assert_equal "1Y", Dashboard::Today.new(family: @family, user: @user, range: "1Y").range
+    assert_equal Period.from_key("last_365_days").start_date,
+                 Dashboard::Today.new(family: @family, user: @user, range: "1Y").net_worth_series.start_date
+    assert_equal "1M", Dashboard::Today.new(family: @family, user: @user, range: "bogus").range
+  end
+
+  # The ring under "left to spend" (the Alive pass): each spending category is
+  # its own coloured slice, largest first, the rest gathered into one.
+  test "spending slices are the month's categories with spending, largest first" do
+    budget = today.budget
+    skip "no budget for this family's current month" if budget.nil?
+
+    slices = today.spending_slices
+
+    assert slices.all? { |slice| slice.amount.positive? }
+    assert_equal slices.map(&:amount).sort.reverse, slices.map(&:amount)
+    assert_operator slices.size, :<=, Dashboard::Today::SLICES + 1
+    assert slices.all? { |slice| slice.color.present? && slice.name.present? }
+  end
 end

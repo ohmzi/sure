@@ -1,39 +1,49 @@
-<%# Quick filters (the owner's redesign, 2026-10-17): one tap to what most
-    often needs a look — the uncategorized, this month, one account. The full
-    filter form stays beside the search. %>
-<% this_month = { start_date: Date.current.beginning_of_month.iso8601 } %>
+<%# Quick filters (the owner's redesign, 2026-10-17), one sliding control since
+    the Alive pass (2026-10-18): All, what needs a category, and what came in.
+    Accounts and dates live in the filter sheet beside the search; transfers
+    waiting for a yes get their own line under the control. %>
 <% current_q = (params[:q].respond_to?(:to_unsafe_h) ? params[:q].to_unsafe_h : {}).stringify_keys %>
-<% chips = [] %>
-<% chips << [ t("transactions.index.quick_filters.uncategorized", count: @uncategorized_count), transactions_categorize_path, false ] if @uncategorized_count.to_i.positive? %>
+<% to_review = { "categories" => [ Category::UNCATEGORIZED_FILTER_VALUE ] } %>
+<% income = { "types" => [ "income" ] } %>
+<% confirm = { "status" => [ "needs_confirmation" ] } %>
+<% segments = [
+     [ t("transactions.index.quick_filters.all"), transactions_path(clear_filters: true), current_q.blank?, nil ],
+     [ t("transactions.index.quick_filters.to_review"), transactions_path(q: to_review), current_q == to_review, @uncategorized_count.to_i ],
+     [ t("transactions.index.quick_filters.income"), transactions_path(q: income), current_q == income, nil ]
+   ] %>
 <%# Auto-matched transfers waiting for you to confirm them (2026-10-17). %>
 <% needs_confirmation = Transfer.pending.joins(inflow_transaction: { entry: :account })
                                 .merge(Account.where(id: Current.user.accessible_accounts.select(:id))).count %>
-<% if needs_confirmation.positive? %>
-  <% chips << [ t("transactions.index.quick_filters.needs_confirmation", count: needs_confirmation),
-                transactions_path(q: { status: [ "needs_confirmation" ] }), current_q == { "status" => [ "needs_confirmation" ] } ] %>
-<% end %>
-<% chips << [ t("transactions.index.quick_filters.this_month"), transactions_path(q: this_month), current_q.slice("start_date") == this_month.stringify_keys && current_q.except("start_date").blank? ] %>
-<%# Accounts with day-to-day activity (cash and cards), not a house or a car. %>
-<% Current.user.accessible_accounts.visible.where(accountable_type: %w[Depository CreditCard]).alphabetically.limit(4).each do |account| %>
-  <% chips << [ account.name, transactions_path(q: { account_ids: [ account.id ] }), current_q == { "account_ids" => [ account.id ] } ] %>
-<% end %>
-<nav aria-label="<%= t("transactions.index.quick_filters.label") %>">
-  <ul class="flex flex-wrap gap-2">
-    <% if current_q.present? %>
-      <li>
-        <%= link_to transactions_path(clear_filters: true),
-              class: "inline-flex items-center gap-1.5 h-9 px-3.5 rounded-full text-sm font-semibold whitespace-nowrap active:scale-95 transition focus-ring border border-secondary bg-container text-secondary hover:bg-container-hover hover:text-primary" do %>
-          <%= icon("x", size: "sm") %>
-          <%= t("transactions.index.quick_filters.clear") %>
-        <% end %>
-      </li>
+<nav aria-label="<%= t("transactions.index.quick_filters.label") %>" class="flex flex-col gap-2">
+  <div class="flex items-center gap-2">
+    <ul class="grid grow grid-cols-3 gap-1 rounded-full bg-surface-inset p-1">
+      <% segments.each do |label, path, active, count| %>
+        <li>
+          <%= link_to path, aria: { current: ("page" if active) },
+                class: class_names("press flex h-9 items-center justify-center gap-1.5 rounded-full px-2 text-sm font-bold whitespace-nowrap focus-ring",
+                                   active ? "bg-container text-primary shadow-border-xs" : "text-secondary hover:text-primary") do %>
+            <span><%= label %></span>
+            <% if count.to_i.positive? %>
+              <span class="inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-warning px-1 text-[11px] text-inverse"><%= count %></span>
+            <% end %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+    <% if current_q.present? && segments.none? { |segment| segment[2] } && current_q != confirm %>
+      <%= link_to transactions_path(clear_filters: true),
+            class: "press inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-container px-3.5 text-sm font-semibold text-secondary shadow-border-xs hover:text-primary focus-ring" do %>
+        <%= icon("x", size: "sm") %>
+        <%= t("transactions.index.quick_filters.clear") %>
+      <% end %>
     <% end %>
-    <% chips.each do |label, path, active| %>
-      <li>
-        <%= link_to label, path, aria: { current: ("page" if active) },
-              class: class_names("inline-flex items-center h-9 px-3.5 rounded-full text-sm font-semibold whitespace-nowrap active:scale-95 transition focus-ring",
-                                 active ? "bg-inverse text-inverse" : "border border-secondary bg-container text-primary hover:bg-container-hover") %>
-      </li>
+  </div>
+  <% if needs_confirmation.positive? %>
+    <%= link_to transactions_path(q: confirm), aria: { current: ("page" if current_q == confirm) },
+          class: "press flex items-center gap-3 rounded-2xl bg-warning/10 px-3.5 py-2.5 text-sm font-semibold text-warning hover:bg-warning/15 focus-ring" do %>
+      <%= icon("arrow-left-right", size: "sm", color: "current") %>
+      <span class="grow"><%= t("transactions.index.quick_filters.needs_confirmation", count: needs_confirmation) %></span>
+      <%= icon("chevron-right", size: "sm", color: "current") %>
     <% end %>
-  </ul>
+  <% end %>
 </nav>

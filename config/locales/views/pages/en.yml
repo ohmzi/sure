@@ -48,25 +48,47 @@ en:
       today_title: Today
       today:
         net_worth: Net worth
-        change_up: "Up %{amount} in 30 days"
-        change_down: "Down %{amount} in 30 days"
-        no_change: No change in 30 days
-        left_to_spend: "Left to spend in %{month}"
+        range: Net worth range
+        ranges:
+          1W: this week
+          1M: this month
+          1Y: this year
+        change_up_in: "Up %{amount} %{range}"
+        change_down_in: "Down %{amount} %{range}"
+        no_change_in: "No change %{range}"
+        quick_actions: Quick actions
+        actions:
+          add: Add
+          scan: Scan
+          transfer: Transfer
+          ask: Ask
+        this_month: This month's spending
+        open_plan: Plan
         percent_spent: "%{percent}% of the budget spent"
-        budget_used: "%{percent}% of budget used · %{days} days left"
+        left_to_spend_short: left to spend
+        over_budget: over budget
+        nothing_spent: Nothing spent yet this month.
+        days_left:
+          one: 1 day left
+          other: "%{count} days left"
+        per_day: "%{amount} a day keeps you on track"
+        other: Other
         needs_you: Needs you
         coming_up: Coming up
-        due_on: "Due %{date}"
+        due_today: Due today
+        due_in:
+          one: In 1 day
+          other: "In %{count} days"
         needs:
           documents:
             one: document to review
             other: documents to review
           uncategorized:
-            one: uncategorized
-            other: uncategorized
+            one: needs a category
+            other: need a category
           bills:
-            one: bill due this week
-            other: bills due this week
+            one: bill this week
+            other: bills this week
       new: "New"
       sections_aria_label: "Dashboard sections"
       drag_to_reorder: "Drag to reorder section"

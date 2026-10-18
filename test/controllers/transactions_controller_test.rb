@@ -20,6 +20,18 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[data-action='date-range#clear']", text: /#{I18n.t("transactions.searches.filters.date_filter.clear_dates")}/
   end
 
+  # The Alive pass (2026-10-18): the last seven days as bars, each opening that
+  # day, and one All / To review / Income control in place of the chip rows.
+  test "activity shows the week's bars and the three views" do
+    get transactions_url
+
+    assert_response :success
+    assert_select "nav[aria-label='#{I18n.t("transactions.summary.week")}'] a", count: 7
+    assert_select "nav[aria-label='#{I18n.t("transactions.summary.week")}'] a[href*='start_date%5D=#{Date.current.iso8601}']"
+    assert_select "a[aria-current='page']", text: I18n.t("transactions.index.quick_filters.all")
+    assert_select "a[href*='types%5D%5B%5D=income']", text: I18n.t("transactions.index.quick_filters.income")
+  end
+
   test "shows a clear filters quick action when a filter is active" do
     get transactions_url(q: { search: "coffee" })
 
@@ -776,6 +788,8 @@ end
       transfer_outflow_money: Money.new(0, "USD")
     )
 
+    Transaction::Week.any_instance.stubs(:days).returns([]) # the week bars run their own searches
+
     Transaction::Search.expects(:new).with(family, filters: {}, accessible_account_ids: [ account.id ]).returns(search)
     search.expects(:totals).once.returns(totals)
 
@@ -800,6 +814,8 @@ end
       transfer_outflow_money: Money.new(0, "USD")
     )
 
+    Transaction::Week.any_instance.stubs(:days).returns([]) # the week bars run their own searches
+
     Transaction::Search.expects(:new).with(family, filters: { "categories" => [ "Food" ], "types" => [ "expense" ] }, accessible_account_ids: [ account.id ]).returns(search)
     search.expects(:totals).once.returns(totals)
 
@@ -822,6 +838,8 @@ end
       transfer_inflow_money: Money.new(5000, "USD"),
       transfer_outflow_money: Money.new(3000, "USD")
     )
+
+    Transaction::Week.any_instance.stubs(:days).returns([]) # the week bars run their own searches
 
     Transaction::Search.expects(:new).with(family, filters: { "types" => [ "transfer" ] }, accessible_account_ids: [ account.id ]).returns(search)
     search.expects(:totals).once.returns(totals)

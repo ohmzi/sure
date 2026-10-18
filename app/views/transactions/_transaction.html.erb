@@ -57,6 +57,9 @@
                 <%= image_tag Setting.transform_brand_fetch_url(transaction.merchant.logo_url),
                     class: "w-9 h-9 rounded-full border border-secondary",
                     loading: "lazy" %>
+              <% elsif transaction.category.present? %>
+                <%# The category's own colour and icon (the Alive pass, 2026-10-18). %>
+                <%= render DS::FilledIcon.new(icon: transaction.category.lucide_icon.presence || "shapes", hex_color: transaction.category.color, size: "lg") %>
               <% else %>
                 <div class="hidden lg:flex">
                   <%= render DS::FilledIcon.new(

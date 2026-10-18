@@ -13,7 +13,9 @@
       aria: { controls: "document_add_sheet", haspopup: "dialog" },
       data: { controller: "sheet-opener", sheet_opener_sheet_value: "document_add_sheet", action: "sheet-opener#open" }) %>
 
-<%= render DS::Dialog.new(variant: "sheet", auto_open: false, disable_frame: true, width: "sm", id: "document_add_sheet") do |dialog| %>
+<%# Home's Scan shortcut arrives with ?add=1 and finds the sheet already open
+    (the Alive pass, 2026-10-18). %>
+<%= render DS::Dialog.new(variant: "sheet", auto_open: params[:add].present?, disable_frame: true, width: "sm", id: "document_add_sheet") do |dialog| %>
   <% dialog.with_body do %>
     <%# Add sheet A (the owner's pick, 2026-10-17): a bold title, three big
         tiles — one tap per source — the receipt currency, and a Cancel pill. %>

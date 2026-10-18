@@ -1,6 +1,6 @@
 {
   "$schema": "https://design-tokens.github.io/community-group/format/",
-  "$version": "2.1.0",
+  "$version": "2.2.0",
   "$description": "Sure design tokens. Single source of truth. Hand-edit; run `npm run tokens:build` to regenerate CSS. Template syntax in $value strings: `{path.to.token}` resolves to `var(--path-to-token)`; `{path|N%}` becomes `--alpha(var(--path) / N%)`. Utility tokens whose value lacks `{}` are treated as raw Tailwind class lists for @apply.",
 
   "font": {
@@ -31,14 +31,14 @@
     "link":                  { "$value": "{color.brand.600}",         "$type": "color", "$extensions": { "sure.dark": "{color.brand.300}" } },
     "focus-ring":            { "$value": "{color.alpha-black.700}",  "$type": "color", "$extensions": { "sure.dark": "{color.alpha-white.700}" } },
     "tertiary":              { "$value": "{color.alpha-black.100}",  "$type": "color", "$extensions": { "sure.dark": "{color.alpha-white.200}" } },
-    "surface":               { "$value": "{color.gray.50}",          "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.850}" } },
-    "surface-hover":         { "$value": "{color.gray.100}",         "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.800}" } },
-    "surface-inset":         { "$value": "{color.gray.100}",         "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.800}" } },
-    "surface-inset-hover":   { "$value": "{color.gray.200}",         "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.700}" } },
+    "surface":               { "$value": "{color.lavender.50}",        "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.850}" } },
+    "surface-hover":         { "$value": "{color.lavender.100}",        "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.800}" } },
+    "surface-inset":         { "$value": "{color.lavender.100}",        "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.800}" } },
+    "surface-inset-hover":   { "$value": "{color.lavender.200}",        "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.700}" } },
     "container":             { "$value": "{color.white}",            "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.800}" } },
-    "container-hover":       { "$value": "{color.gray.50}",          "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.700}" } },
-    "container-inset":       { "$value": "{color.gray.50}",          "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.700}" } },
-    "container-inset-hover": { "$value": "{color.gray.100}",         "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.600}" } },
+    "container-hover":       { "$value": "{color.lavender.25}",        "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.700}" } },
+    "container-inset":       { "$value": "{color.lavender.25}",        "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.700}" } },
+    "container-inset-hover": { "$value": "{color.lavender.50}",        "$type": "color", "$extensions": { "sure.dark": "{color.charcoal.600}" } },
     "nav-indicator":         { "$value": "{color.brand.600}",            "$type": "color", "$extensions": { "sure.dark": "{color.brand.300}" } },
     "toggle-track":          { "$value": "{color.gray.300}",         "$type": "color", "$extensions": { "sure.dark": "{color.gray.700}" } },
     "destructive-subtle":    { "$value": "{color.red.200}",          "$type": "color", "$extensions": { "sure.dark": "{color.red.800}" } },
@@ -58,6 +58,14 @@
       "DEFAULT": { "$value": "{color.gray.500}",       "$type": "color" },
       "tint-5":  { "$value": "{color.gray.500|5%}",    "$type": "color" },
       "tint-10": { "$value": "{color.gray.500|10%}",   "$type": "color" }
+    },
+
+    "lavender": {
+      "$description": "The Alive pass (2026-10-18): a cool lavender ground, so white cards lift off the page instead of sitting flat on grey.",
+      "25":  { "$value": "#F7F6FB", "$type": "color" },
+      "50":  { "$value": "#F3F2F8", "$type": "color" },
+      "100": { "$value": "#E9E7F1", "$type": "color" },
+      "200": { "$value": "#DCD9E8", "$type": "color" }
     },
 
     "alpha-white": {
@@ -305,6 +313,7 @@
   "utility": {
     "bg-inverse":             { "$type": "utility", "$value": "{color.brand.600}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.brand.600}" } },
     "bg-inverse-hover":       { "$type": "utility", "$value": "{color.brand.700}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.brand.500}" } },
+    "bg-on-accent":           { "$type": "utility", "$value": "{color.white}", "$description": "A white chip or fill laid on a coloured hero (the Alive pass, 2026-10-18); white in both themes.", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.white}" } },
     "bg-subdued":             { "$type": "utility", "$value": "{color.gray.400}", "$extensions": { "sure.utility": { "prefix": "bg" }, "sure.dark": "{color.gray.400}" } },
     "bg-overlay": {
       "$type": "utility",
@@ -326,7 +335,7 @@
 
     "shadow-border-xs": {
       "$type": "utility",
-      "$value": "{shadow.xs}, 0px 0px 0px 1px {color.alpha-black.50}",
+      "$value": "{shadow.xs}, 0px 10px 26px -16px {color.black|20%}, 0px 0px 0px 1px {color.black|3%}",
       "$extensions": {
         "sure.utility": { "raw": "box-shadow" },
         "sure.dark": "{shadow.xs}, 0px 0px 0px 1px {color.alpha-white.50}"
@@ -334,7 +343,7 @@
     },
     "shadow-border-sm": {
       "$type": "utility",
-      "$value": "{shadow.sm}, 0px 0px 0px 1px {color.alpha-black.50}",
+      "$value": "{shadow.xs}, 0px 14px 32px -18px {color.black|26%}, 0px 0px 0px 1px {color.black|3%}",
       "$extensions": {
         "sure.utility": { "raw": "box-shadow" },
         "sure.dark": "{shadow.sm}, 0px 0px 0px 1px {color.alpha-white.50}"
@@ -342,7 +351,7 @@
     },
     "shadow-border-md": {
       "$type": "utility",
-      "$value": "{shadow.md}, 0px 0px 0px 1px {color.alpha-black.50}",
+      "$value": "{shadow.xs}, 0px 18px 40px -18px {color.black|30%}, 0px 0px 0px 1px {color.black|3%}",
       "$extensions": {
         "sure.utility": { "raw": "box-shadow" },
         "sure.dark": "{shadow.md}, 0px 0px 0px 1px {color.alpha-white.50}"

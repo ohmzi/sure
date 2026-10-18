@@ -5,8 +5,20 @@
     the figures' alignment. %>
 <div id="<%= dom_id(budget_category, :envelope) %>" class="px-3 py-2 space-y-2 lg:space-y-0 lg:grid lg:grid-cols-12 lg:items-center lg:gap-2">
   <div class="lg:col-span-6 flex items-center gap-2 min-w-0">
-    <span class="w-1 h-3 rounded-xl" style="background-color: <%= budget_category.category.color %>"></span>
-    <span class="truncate text-primary"><%= budget_category.category.display_name %></span>
+    <%# A ring that fills in the category's colour, its icon inside (the Alive
+        pass, 2026-10-18); red once the envelope is overspent. %>
+    <% ring_budgeted = budget_category.budgeted_spending.to_d %>
+    <% ring_pct = ring_budgeted.positive? ? (budget_category.actual_spending.to_d / ring_budgeted).clamp(0, 1).to_f : 0 %>
+    <% ring_color = budget_category.available_to_spend.negative? ? "var(--color-destructive)" : budget_category.category.color %>
+    <span class="relative flex size-10 shrink-0 items-center justify-center" style="color: <%= budget_category.category.color %>">
+      <svg viewBox="0 0 40 40" class="absolute inset-0 size-10 -rotate-90" aria-hidden="true">
+        <circle cx="20" cy="20" r="16" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-opacity="0.18" stroke-width="4"></circle>
+        <circle cx="20" cy="20" r="16" fill="none" stroke="<%= ring_color %>" stroke-width="4" stroke-linecap="round"
+                stroke-dasharray="<%= (ring_pct * 100.53).round(2) %> 100.53"></circle>
+      </svg>
+      <%= icon(budget_category.category.lucide_icon.presence || "shapes", size: "sm", color: "current", class: "relative") %>
+    </span>
+    <span class="truncate font-semibold text-primary"><%= budget_category.category.display_name %></span>
     <%# Opens the shared move dialog filled from this row. The params match
         budget_move_controller's `open({ params })`, which drives the
         `toSelect` destination select — there is no `toId` target. %>

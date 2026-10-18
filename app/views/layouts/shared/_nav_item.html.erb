@@ -1,11 +1,13 @@
 <%# locals: (name:, path:, icon:, icon_custom:, active:, mobile_only: false, preview: false, badge: nil, badge_title: nil) %>
 <%# One navigation entry, bottom bar and sidebar alike (2026-10-17): an iOS-style
-    tinted pill behind the active icon and a brand-coloured label. The active
+    tinted pill behind the active icon and a brand-coloured label; the active
+    icon fills in, and on a computer the pill is solid brand with a glow (the
+    Alive pass, 2026-10-18). The active
     look is keyed on aria-current alone, so nav_press_controller can light a
     tapped entry up at once, before the next page has arrived. %>
-<%= link_to path, class: "group flex flex-col items-center gap-1 py-1 rounded-2xl focus-ring active:scale-95 transition-transform", aria: { current: ("page" if active) } do %>
-  <%= tag.div class: "relative flex items-center justify-center w-12 h-8 rounded-full text-secondary transition-colors group-hover:bg-surface-hover group-aria-[current=page]:button-bg-accent group-aria-[current=page]:text-link" do %>
-    <%= icon(icon, color: "current", custom: icon_custom) %>
+<%= link_to path, class: "group flex flex-col items-center gap-1 py-1 rounded-2xl focus-ring press", aria: { current: ("page" if active) } do %>
+  <%= tag.div class: "relative flex items-center justify-center w-14 h-8 lg:w-12 lg:h-10 rounded-full lg:rounded-2xl text-secondary transition-[background-color,color,box-shadow] duration-200 group-hover:bg-surface-hover group-aria-[current=page]:button-bg-accent group-aria-[current=page]:text-link lg:group-aria-[current=page]:button-bg-primary lg:group-aria-[current=page]:text-inverse lg:group-aria-[current=page]:shadow-[0_10px_20px_-10px_var(--color-link)]" do %>
+    <%= icon(icon, color: "current", custom: icon_custom, class: "group-aria-[current=page]:fill-current/15 lg:group-aria-[current=page]:fill-none") %>
     <% if preview %>
       <span class="absolute -top-0.5 right-1">
         <%= render DS::Pill.new(tone: :violet, dot_only: true, title: t("shared.preview")) %>

@@ -8,7 +8,7 @@ const parseLocalDate = d3.timeParse("%Y-%m-%d");
 export default class extends Controller {
   static values = {
     data: Object,
-    strokeWidth: { type: Number, default: 2 },
+    strokeWidth: { type: Number, default: 2.5 },
     useLabels: { type: Boolean, default: true },
     useTooltip: { type: Boolean, default: true },
     selectable: { type: Boolean, default: false },
@@ -163,6 +163,10 @@ export default class extends Controller {
         .attr("stroke", `url(#${this.element.id}-split-gradient)`)
         .attr("clip-path", `url(#${this.element.id}-clip-${part})`)
         .attr("d", this._d3Line)
+        // The line draws itself in (the Alive pass, 2026-10-18); pathLength
+        // makes the motion utility's dash cover any path length.
+        .attr("pathLength", 1600)
+        .attr("class", "draw-line")
         .attr("stroke-linejoin", "round")
         .attr("stroke-linecap", "round")
         // A flat series (no variation across the period — a single valuation or an

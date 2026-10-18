@@ -64,7 +64,7 @@ class PagesController < ApplicationController
   # The "Today" summary, fetched into Home's dashboard_today frame.
   def today
     render partial: "pages/dashboard/today_frame",
-           locals: { today: Dashboard::Today.new(family: Current.family, user: Current.user) }
+           locals: { today: Dashboard::Today.new(family: Current.family, user: Current.user, range: params[:range]) }
   end
 
   # The merchants-by-category widget's own frame: changing the category

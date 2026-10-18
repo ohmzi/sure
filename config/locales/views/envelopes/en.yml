@@ -7,8 +7,8 @@ en:
       available: Available
     left_to_spend:
       title: Left to spend
-      spent: "%{amount} spent"
-      of: "of %{amount}"
+      spent_of: "%{spent} spent of %{budgeted}"
+      today: "Today · day %{day} of %{days}"
     accounts:
       heading: "Accounts"
     ready_to_assign:

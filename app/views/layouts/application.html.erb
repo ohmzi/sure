@@ -176,7 +176,7 @@ end %>
 
     <%# MOBILE - Bottom Nav %>
     <%# The bottom bar: frosted, iOS-style (2026-10-17). %>
-    <%= tag.nav class: "lg:hidden fixed bottom-0 left-0 right-0 z-10 bg-surface/85 backdrop-blur-xl border-t border-tertiary flex justify-around px-1 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.25rem)]",
+    <%= tag.nav class: "lg:hidden fixed bottom-0 left-0 right-0 z-10 bg-container/85 backdrop-blur-xl border-t border-tertiary flex justify-around px-1 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.25rem)]",
       data: { viewport_target: "bottomNav", controller: "nav-press", action: "click->nav-press#press" } do %>
       <% mobile_nav_items.each do |nav_item| %>
         <%= render "layouts/shared/nav_item", **nav_item %>

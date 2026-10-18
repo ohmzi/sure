@@ -208,6 +208,8 @@ en:
       confirm_title: "Merge with posted transaction (%{posted_amount})"
       reject_title: Keep as separate transactions
     summary:
+      week: Last 7 days
+      day_spent: "%{day}: %{amount} spent"
       total_transactions: Total transactions
       income: Income
       expenses: Expenses
@@ -224,9 +226,12 @@ en:
       title: "Activity"
       quick_filters:
         label: Quick filters
-        uncategorized: "Uncategorized · %{count}"
-        needs_confirmation: "Needs confirmation · %{count}"
-        this_month: This month
+        all: All
+        to_review: To review
+        income: Income
+        needs_confirmation:
+          one: 1 transfer waiting for you to confirm
+          other: "%{count} transfers waiting for you to confirm"
         clear: Clear filters
       transaction: transaction
       transactions: transactions

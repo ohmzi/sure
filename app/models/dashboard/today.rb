@@ -10,16 +10,25 @@ module Dashboard
     BILLS_WEEK = 7
     UPCOMING_WINDOW = 14
     UPCOMING_LIMIT = 3
+    # The hero's range toggle (the Alive pass, 2026-10-18).
+    RANGES = { "1W" => "last_7_days", "1M" => "last_30_days", "1Y" => "last_365_days" }.freeze
+    DEFAULT_RANGE = "1M"
+    # The spending ring's slices: the biggest categories, the rest as one.
+    SLICES = 5
+    OTHER_COLOR = "#9E9E9E"
 
-    attr_reader :family, :user
+    Slice = Data.define(:name, :color, :amount)
 
-    def initialize(family:, user:)
+    attr_reader :family, :user, :range
+
+    def initialize(family:, user:, range: nil)
       @family = family
       @user = user
+      @range = RANGES.key?(range) ? range : DEFAULT_RANGE
     end
 
     def net_worth_series
-      @net_worth_series ||= family.balance_sheet(user: user).net_worth_series(period: Period.last_30_days)
+      @net_worth_series ||= family.balance_sheet(user: user).net_worth_series(period: Period.from_key(RANGES[range]))
     end
 
     # The line under the net worth: one number per day of the period.
@@ -62,6 +71,22 @@ module Dashboard
       return 0 unless budgeted.to_d.positive?
 
       (budget.actual_spending.to_d / budgeted.to_d * 100).to_f.clamp(0, 100)
+    end
+
+    # This month's spending by category, largest first: the top SLICES, and
+    # everything else as one "Other" slice.
+    def spending_slices
+      @spending_slices ||= begin
+        slices = (budget&.budget_categories || []).reject(&:subcategory?).filter_map do |budget_category|
+          amount = budget_category.actual_spending.to_d
+          Slice.new(name: budget_category.name, color: budget_category.category.color.presence || OTHER_COLOR, amount:) if amount.positive?
+        end.sort_by { |slice| -slice.amount }
+
+        rest = slices.drop(SLICES).sum(&:amount)
+        slices.first(SLICES).tap do |top|
+          top << Slice.new(name: I18n.t("pages.dashboard.today.other"), color: OTHER_COLOR, amount: rest) if rest.positive?
+        end
+      end
     end
 
     def days_left_in_month = budget ? [ (budget.end_date - Date.current).to_i, 0 ].max : 0

@@ -1,78 +1,192 @@
 <%# locals: (today:) %>
 <%# "Today" (the owner's redesign, 2026-10-17): the story of the day before the
     customizable widgets — net worth and its line, what needs you, what is left
-    to spend this month, and the bills coming up. %>
+    to spend this month, and the bills coming up.
+    The Alive pass (2026-10-18): the hero has depth and a range you can switch,
+    the quick actions sit under it on a phone, each "needs you" card carries its
+    own colour, and the month's spending is a ring of categories you can tap. %>
 <% series = today.net_worth_series %>
 <% trend = series.trend %>
 <% points = today.net_worth_points %>
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-  <section aria-label="<%= t(".net_worth") %>" class="rounded-3xl bg-inverse text-inverse p-5 flex flex-col gap-2 shadow-border-sm">
-    <p class="text-sm font-medium opacity-80"><%= t(".net_worth") %></p>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-x-5 gap-y-6 mb-6 rise-children">
+  <section aria-label="<%= t(".net_worth") %>" class="relative overflow-hidden rounded-[30px] bg-inverse text-inverse px-5 pt-5 flex flex-col gap-2 shadow-[0_18px_40px_-18px_var(--color-link)]">
+    <span aria-hidden="true" class="pointer-events-none absolute -right-24 -top-28 size-60 rounded-full bg-white/10"></span>
+    <span aria-hidden="true" class="pointer-events-none absolute right-10 -top-16 size-36 rounded-full bg-white/5"></span>
+
+    <div class="relative flex items-center justify-between gap-3">
+      <p class="text-sm font-semibold opacity-85"><%= t(".net_worth") %></p>
+      <nav aria-label="<%= t(".range") %>" class="flex gap-0.5 rounded-full bg-black/20 p-1">
+        <% Dashboard::Today::RANGES.each_key do |key| %>
+          <% on = key == today.range %>
+          <%= link_to key, dashboard_today_path(range: key),
+                class: class_names("press min-w-11 h-7 px-2 rounded-full text-xs font-bold flex items-center justify-center focus-ring",
+                                   on ? "bg-on-accent text-brand-600" : "text-inverse hover:bg-white/10"),
+                aria: { current: (on ? "true" : nil) },
+                data: { turbo_frame: "dashboard_today", turbo_action: "replace" } %>
+        <% end %>
+      </nav>
+    </div>
+
     <% if trend %>
-      <p class="text-4xl font-bold tracking-tight privacy-sensitive"><%= trend.current.format %></p>
-      <p class="text-sm opacity-80 privacy-sensitive">
+      <p class="relative text-[44px] leading-none font-extrabold tracking-tight privacy-sensitive"><%= trend.current.format %></p>
+      <p class="relative">
         <% if trend.value.zero? %>
-          <%= t(".no_change") %>
+          <span class="text-sm opacity-85"><%= t(".no_change_in", range: t(".ranges.#{today.range}")) %></span>
         <% else %>
-          <%= t(".change_#{trend.direction == "down" ? "down" : "up"}", amount: trend.value.abs.format) %>
+          <% up = trend.direction != "down" %>
+          <span class="inline-flex items-center gap-1.5 rounded-full bg-on-accent px-2.5 py-1 text-[13px] font-bold privacy-sensitive <%= up ? "text-success" : "text-destructive" %>">
+            <%= icon(up ? "trending-up" : "trending-down", size: "sm", color: "current") %>
+            <%= t(".change_#{up ? "up" : "down"}_in", amount: trend.value.abs.format, range: t(".ranges.#{today.range}")) %>
+          </span>
         <% end %>
       </p>
     <% end %>
+
     <%# No movement draws no line (a flat rule along the card's foot read as
-        broken). %>
+        broken). The line draws itself in, its area fades below it, and today's
+        point glows. %>
     <% if points.size >= 2 && points.uniq.size > 1 %>
       <% min, max = points.minmax %>
       <% span = (max - min).zero? ? 1 : (max - min) %>
-      <% line = points.each_with_index.map { |v, i| "#{(i * 100.0 / (points.size - 1)).round(2)},#{(30 - (v - min) / span * 28).round(2)}" }.join(" ") %>
-      <svg viewBox="0 0 100 32" preserveAspectRatio="none" class="w-full h-12 mt-1" aria-hidden="true">
-        <polyline points="<%= line %>" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></polyline>
-      </svg>
+      <% xy = points.each_with_index.map { |v, i| [ (i * 100.0 / (points.size - 1)).round(2), (36 - (v - min) / span * 30).round(2) ] } %>
+      <% line = "M#{xy.first.join(" ")}" + xy.each_cons(2).map { |(x0, y0), (x1, y1)| mid = ((x0 + x1) / 2).round(2); " C#{mid} #{y0} #{mid} #{y1} #{x1} #{y1}" }.join %>
+      <div class="relative -mx-5 mt-1 h-24">
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" class="absolute inset-0 size-full" aria-hidden="true">
+          <defs>
+            <linearGradient id="today-net-worth-fill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stop-color="currentColor" stop-opacity="0.3"></stop>
+              <stop offset="1" stop-color="currentColor" stop-opacity="0"></stop>
+            </linearGradient>
+          </defs>
+          <path d="<%= line %> L100 40 L0 40 Z" fill="url(#today-net-worth-fill)"></path>
+          <path d="<%= line %>" class="draw-line" fill="none" stroke="currentColor" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></path>
+        </svg>
+        <span aria-hidden="true" class="absolute right-1 size-2.5 -translate-y-1/2 rounded-full bg-on-accent" style="top: <%= (xy.last.last / 40 * 100).round(2) %>%">
+          <span class="ping absolute inset-0 rounded-full bg-on-accent"></span>
+        </span>
+      </div>
+    <% else %>
+      <div class="h-4"></div>
     <% end %>
   </section>
 
-  <% if (budget = today.budget) %>
-    <%= link_to budgets_path, class: "rounded-3xl bg-container shadow-border-xs p-5 flex items-center gap-5 hover:bg-container-hover transition-colors focus-ring" do %>
-      <% pct = today.percent_spent %>
-      <svg viewBox="0 0 72 72" class="size-20 shrink-0" role="img" aria-label="<%= t(".percent_spent", percent: pct.round) %>">
-        <circle cx="36" cy="36" r="30" fill="none" stroke="currentColor" class="text-container-inset" stroke-width="9"></circle>
-        <circle cx="36" cy="36" r="30" fill="none" stroke="currentColor" class="<%= today.left_to_spend.to_d.negative? ? "text-destructive" : "text-success" %>" stroke-width="9" stroke-linecap="round"
-                stroke-dasharray="<%= (pct / 100.0 * 188.5).round(1) %> 188.5" transform="rotate(-90 36 36)"></circle>
-      </svg>
-      <div class="min-w-0 space-y-0.5">
-        <p class="text-sm text-secondary"><%= t(".left_to_spend", month: l(Date.current, format: "%B")) %></p>
-        <p class="text-3xl font-bold tracking-tight text-primary privacy-sensitive"><%= Money.new(today.left_to_spend, budget.currency).format(precision: 0) %></p>
-        <p class="text-sm text-secondary"><%= t(".budget_used", percent: pct.round, days: today.days_left_in_month) %></p>
-      </div>
+  <%# Quick actions, a phone's shortcuts under the hero; a computer has the
+      page's New button. %>
+  <nav aria-label="<%= t(".quick_actions") %>" class="lg:hidden grid grid-cols-4 gap-2">
+    <% [ [ "plus", t(".actions.add"), new_transaction_path, { turbo_frame: :modal }, true ],
+         [ "scan-line", t(".actions.scan"), documents_path(add: 1), {}, false, "var(--color-brand-600)" ],
+         [ "arrow-left-right", t(".actions.transfer"), new_transfer_path, { turbo_frame: :modal }, false, "var(--color-blue-600)" ],
+         [ "message-circle", t(".actions.ask"), chats_path, {}, false, "var(--color-green-600)" ] ].each do |icon_key, label, path, data, solid, tint| %>
+      <%= link_to path, data: data, class: "press flex flex-col items-center gap-2 rounded-2xl py-1 focus-ring" do %>
+        <% if solid %>
+          <span class="flex size-14 items-center justify-center rounded-2xl bg-inverse text-inverse shadow-[0_10px_20px_-10px_var(--color-link)]">
+            <%= icon(icon_key, size: "lg", color: "current") %>
+          </span>
+        <% else %>
+          <span class="rounded-2xl bg-container shadow-border-xs">
+            <%= render DS::FilledIcon.new(icon: icon_key, hex_color: tint, size: "xl") %>
+          </span>
+        <% end %>
+        <span class="text-xs font-semibold text-primary"><%= label %></span>
+      <% end %>
     <% end %>
+  </nav>
+
+  <% if (budget = today.budget) %>
+    <% slices = today.spending_slices %>
+    <% left = today.left_to_spend.to_d %>
+    <% days = today.days_left_in_month %>
+    <% denominator = [ budget.budgeted_spending.to_d, slices.sum(&:amount) ].max %>
+    <% circumference = 2 * Math::PI * 54 %>
+    <section aria-label="<%= t(".this_month") %>" class="rounded-[26px] bg-container shadow-border-xs p-5 flex flex-col gap-4"
+             data-controller="spending-ring">
+      <div class="flex items-baseline justify-between">
+        <h2 class="text-xl font-extrabold tracking-tight text-primary"><%= l(Date.current, format: "%B") %></h2>
+        <%= link_to t(".open_plan"), budgets_path, class: "text-sm font-semibold text-link hover:underline focus-ring rounded" %>
+      </div>
+      <div class="flex items-center gap-5">
+        <svg viewBox="0 0 132 132" class="size-32 shrink-0" role="img"
+             aria-label="<%= t(".percent_spent", percent: today.percent_spent.round) %>">
+          <circle cx="66" cy="66" r="54" fill="none" stroke="currentColor" stroke-opacity="0.14" class="text-secondary" stroke-width="16"></circle>
+          <% offset = 0 %>
+          <% slices.each_with_index do |slice, index| %>
+            <% length = denominator.positive? ? [ (slice.amount / denominator).to_f * circumference, circumference - offset ].min : 0 %>
+            <% next unless length.positive? %>
+            <circle cx="66" cy="66" r="54" fill="none" stroke="<%= slice.color %>" stroke-width="16"
+                    stroke-dasharray="<%= [ length - 2, 1 ].max.round(2) %> <%= circumference.round(2) %>" stroke-dashoffset="<%= -offset.round(2) %>"
+                    transform="rotate(-90 66 66)" class="transition-[stroke-width] duration-200"
+                    data-spending-ring-target="slice" data-index="<%= index %>"></circle>
+            <% offset += length %>
+          <% end %>
+          <text x="66" y="63" text-anchor="middle" class="fill-current text-primary text-[18px] font-extrabold privacy-sensitive" data-spending-ring-target="value"
+                data-default="<%= Money.new(left.abs, budget.currency).format(precision: 0) %>"><%= Money.new(left.abs, budget.currency).format(precision: 0) %></text>
+          <text x="66" y="81" text-anchor="middle" class="fill-current text-secondary text-[10px] font-medium" data-spending-ring-target="label"
+                data-default="<%= left.negative? ? t(".over_budget") : t(".left_to_spend_short") %>"><%= left.negative? ? t(".over_budget") : t(".left_to_spend_short") %></text>
+        </svg>
+        <div class="min-w-0 grow flex flex-col gap-0.5">
+          <% if slices.any? %>
+            <% slices.each_with_index do |slice, index| %>
+              <button type="button" class="press flex min-h-8 items-center gap-2 rounded-lg px-2 text-left text-sm text-primary hover:bg-container-inset aria-pressed:bg-container-inset focus-ring"
+                      aria-pressed="false"
+                      data-action="spending-ring#pick" data-spending-ring-target="item" data-index="<%= index %>"
+                      data-value="<%= Money.new(slice.amount, budget.currency).format(precision: 0) %>" data-name="<%= slice.name %>">
+                <span class="size-2.5 shrink-0 rounded-[4px]" style="background-color: <%= slice.color %>"></span>
+                <span class="min-w-0 grow truncate"><%= slice.name %></span>
+                <span class="font-bold privacy-sensitive"><%= Money.new(slice.amount, budget.currency).format(precision: 0) %></span>
+              </button>
+            <% end %>
+          <% else %>
+            <p class="text-sm text-secondary"><%= t(".nothing_spent") %></p>
+          <% end %>
+        </div>
+      </div>
+      <% if days.positive? %>
+        <p class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-2xl px-3 py-2.5 text-[13px] font-semibold <%= left.negative? ? "bg-destructive/10 text-destructive" : "bg-success/10 text-success" %>">
+          <span><%= t(".days_left", count: days) %></span>
+          <% unless left.negative? %>
+            <span class="privacy-sensitive"><%= t(".per_day", amount: Money.new(left / days, budget.currency).format(precision: 0)) %></span>
+          <% end %>
+        </p>
+      <% end %>
+    </section>
   <% end %>
 
-  <section aria-label="<%= t(".needs_you") %>" class="space-y-2">
-    <h2 class="px-1 text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".needs_you") %></h2>
-    <div class="grid grid-cols-3 gap-2">
-      <% [ [ :documents, documents_path(q: { attention: 1 }), "text-link" ],
-           [ :uncategorized, transactions_categorize_path, "text-warning" ],
-           ([ :bills, bills_path, "text-success" ] unless Current.family.recurring_transactions_disabled?) ].compact.each do |key, path, tone| %>
+  <section aria-label="<%= t(".needs_you") %>" class="flex flex-col gap-2.5">
+    <h2 class="px-1 text-xl font-extrabold tracking-tight text-primary"><%= t(".needs_you") %></h2>
+    <div class="grid grid-cols-3 gap-2.5">
+      <% [ [ :documents, documents_path(q: { attention: 1 }), "file-text", "var(--color-brand-600)" ],
+           [ :uncategorized, transactions_categorize_path, "tag", "var(--color-orange-600)" ],
+           ([ :bills, bills_path, "calendar", "var(--color-blue-600)" ] unless Current.family.recurring_transactions_disabled?) ].compact.each do |key, path, icon_key, tint| %>
         <% count = today.needs[key] %>
-        <%= link_to path, class: "rounded-2xl bg-container shadow-border-xs p-3 flex flex-col gap-1 min-h-11 hover:bg-container-hover active:scale-[0.98] transition focus-ring" do %>
-          <span class="text-2xl font-bold <%= count.positive? ? tone : "text-subdued" %>"><%= count %></span>
-          <span class="text-xs leading-snug text-secondary"><%= t(".needs.#{key}", count: count) %></span>
+        <%= link_to path, class: "press lift relative rounded-[22px] bg-container shadow-border-xs p-3.5 flex flex-col gap-2.5 min-h-11 focus-ring" do %>
+          <%= render DS::FilledIcon.new(icon: icon_key, hex_color: tint, size: "lg") %>
+          <span class="text-[28px] leading-none font-extrabold tracking-tight <%= count.positive? ? "text-primary" : "text-subdued" %>"><%= count %></span>
+          <span class="text-xs font-medium leading-snug text-secondary"><%= t(".needs.#{key}", count: count) %></span>
+          <% if count.positive? %>
+            <span aria-hidden="true" class="absolute right-3.5 top-3.5 size-2 rounded-full" style="background-color: <%= tint %>"></span>
+          <% end %>
         <% end %>
       <% end %>
     </div>
   </section>
 
   <% if today.upcoming_bills.any? %>
-    <section aria-label="<%= t(".coming_up") %>" class="space-y-2">
-      <h2 class="px-1 text-xs font-medium uppercase tracking-wide text-secondary"><%= t(".coming_up") %></h2>
-      <ul class="rounded-2xl bg-container shadow-border-xs divide-y divide-subdued">
+    <section aria-label="<%= t(".coming_up") %>" class="flex flex-col gap-2.5">
+      <h2 class="px-1 text-xl font-extrabold tracking-tight text-primary"><%= t(".coming_up") %></h2>
+      <ul class="rounded-3xl bg-container shadow-border-xs divide-y divide-subdued overflow-hidden">
         <% today.upcoming_bills.each do |bill| %>
+          <% in_days = (bill.next_expected_date - Date.current).to_i %>
+          <% soon = in_days <= 3 %>
           <li class="flex items-center gap-3 px-4 py-3">
-            <%= render DS::FilledIcon.new(text: bill.display_name.to_s, hex_color: "var(--color-cyan-600)", size: "md", rounded: true) %>
+            <span class="flex h-12 w-11 shrink-0 flex-col items-center justify-center rounded-2xl leading-none <%= soon ? "bg-warning/10 text-warning" : "button-bg-accent text-link" %>">
+              <span class="text-[10px] font-bold uppercase tracking-wide"><%= l(bill.next_expected_date, format: "%b") %></span>
+              <span class="text-lg font-extrabold"><%= bill.next_expected_date.day %></span>
+            </span>
             <div class="min-w-0 grow">
-              <p class="text-sm font-semibold text-primary break-words"><%= bill.display_name %></p>
-              <p class="text-xs text-secondary"><%= t(".due_on", date: l(bill.next_expected_date, format: :short)) %></p>
+              <p class="text-[15px] font-bold text-primary break-words"><%= bill.display_name %></p>
+              <p class="text-xs font-semibold <%= soon ? "text-warning" : "text-secondary" %>"><%= in_days.zero? ? t(".due_today") : t(".due_in", count: in_days) %></p>
             </div>
-            <p class="text-sm font-semibold text-primary privacy-sensitive"><%= Money.new(bill.amount, bill.currency).format %></p>
+            <p class="text-[15px] font-bold text-primary privacy-sensitive"><%= Money.new(bill.amount, bill.currency).format %></p>
           </li>
         <% end %>
       </ul>

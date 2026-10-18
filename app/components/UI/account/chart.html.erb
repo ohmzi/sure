@@ -1,4 +1,4 @@
-<div id="<%= dom_id(account, :chart) %>" class="bg-container shadow-border-xs rounded-xl space-y-2">
+<div id="<%= dom_id(account, :chart) %>" class="bg-container shadow-border-xs rounded-[26px] space-y-2 overflow-hidden rise">
   <div class="flex justify-between flex-col-reverse lg:flex-row gap-2 px-4 pt-4 mb-2">
     <div class="space-y-2 w-full">
       <div class="flex items-center gap-1">
@@ -9,7 +9,7 @@
         <% end %>
       </div>
       <div class="flex flex-row gap-2 items-baseline">
-        <%= tag.p view_balance_display, class: "text-primary text-3xl font-medium truncate privacy-sensitive" %>
+        <%= tag.p view_balance_display, class: "text-primary text-[40px] leading-tight font-extrabold tracking-tight truncate privacy-sensitive" %>
 
         <% if converted_balance_display %>
           <%= tag.p converted_balance_display, class: "text-sm font-medium text-secondary privacy-sensitive" %>

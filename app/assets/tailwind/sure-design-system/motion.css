@@ -1,0 +1,83 @@
+/*
+ * The Alive pass (2026-10-18): touch, lift and entrance motion. Things press
+ * in under a finger, cards lift under a pointer, a page's sections rise in one
+ * after another and its charts draw themselves. All of it stops for a reader
+ * who asked for less motion.
+ */
+@keyframes sure-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes sure-draw {
+  from { stroke-dashoffset: 1600; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes sure-grow-y {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+
+@keyframes sure-grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@keyframes sure-ping {
+  from { transform: scale(1); opacity: 0.55; }
+  to { transform: scale(2.6); opacity: 0; }
+}
+
+@utility press {
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms, background-color 180ms;
+  &:active { transform: scale(0.97); }
+}
+
+@utility lift {
+  transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 220ms;
+  @media (hover: hover) {
+    &:hover { transform: translateY(-2px); box-shadow: var(--utility-shadow-border-md); }
+  }
+}
+
+@utility rise {
+  animation: sure-rise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Each direct child rises a beat after the one before it. */
+@utility rise-children {
+  & > * { animation: sure-rise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  & > :nth-child(2) { animation-delay: 50ms; }
+  & > :nth-child(3) { animation-delay: 100ms; }
+  & > :nth-child(4) { animation-delay: 150ms; }
+  & > :nth-child(5) { animation-delay: 200ms; }
+  & > :nth-child(6) { animation-delay: 250ms; }
+  & > :nth-child(n + 7) { animation-delay: 300ms; }
+}
+
+@utility draw-line {
+  stroke-dasharray: 1600;
+  animation: sure-draw 1200ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+
+@utility grow-up {
+  transform-origin: bottom;
+  animation: sure-grow-y 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@utility grow-right {
+  transform-origin: left;
+  animation: sure-grow-x 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@utility ping {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: sure-ping 1800ms ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise, .rise-children > *, .draw-line, .grow-up, .grow-right, .ping { animation: none; }
+  .press:active, .lift:hover { transform: none; }
+}

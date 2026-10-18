@@ -21,6 +21,13 @@ class DS::FilledIcon < DesignSystemComponent
       container_radius: "rounded-xl",
       icon_size: "lg",
       text_size: "text-sm"
+    },
+    # A quick-action tile (the Alive pass, 2026-10-18).
+    xl: {
+      container_size: "w-14 h-14",
+      container_radius: "rounded-2xl",
+      icon_size: "lg",
+      text_size: "text-base"
     }
   }.freeze
 
