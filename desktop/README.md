@@ -93,8 +93,19 @@ applicable.
 
 ## Deep links
 Registered scheme: `sure://{host}[:port]/{path}` → opens the app to that
-server/page. Example: `open "sure://localhost:3000/accounts"`. (Works from the
-bundled `.app`, not `tauri dev`.)
+server/page. Examples: `open "sure://localhost:3000/accounts"`,
+`open "sure://localhost:3000/transactions/<id>"`, and
+`open "sure://localhost:3000/documents/<id>?entry_id=<id>"`. The link's query
+and fragment are preserved.
+
+The link carries no scheme for the server address, so it is resolved against
+the servers you have saved (HTTPS first, then HTTP); a link to a server you
+have not saved is ignored. Navigation health-checks the target first: if the
+server cannot be reached, the app keeps the current page, shows an offline
+banner, and offers Retry instead of loading a dead page. On launch, an offline
+last-used server likewise returns to the saved-server picker rather than
+WebKit's error page. (Deep links work from the bundled `.app`, not
+`tauri dev`.)
 
 ## Code signing & notarization (required for distribution — NOT wired up)
 No Apple Developer credentials are needed to build/run locally. To ship a

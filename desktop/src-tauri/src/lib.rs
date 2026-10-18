@@ -10,6 +10,7 @@ pub mod state;
 pub mod window;
 
 use state::AppState;
+use tauri::Emitter;
 
 pub fn run() {
     tauri::Builder::default()
@@ -117,16 +118,36 @@ pub fn run() {
                         // Generic sure://{host}/{path} navigation — only to a
                         // server the user has saved, so a malicious deep link
                         // can't load an arbitrary origin into the main webview.
-                        if let Some(target) = deep_link::parse(u) {
+                        // The link carries no scheme, so resolve against the
+                        // saved servers (HTTPS first, then HTTP).
+                        if let Some(target) = deep_link::resolve(u, servers::is_known_server) {
                             // Gate on the destination, not the bare origin: a
                             // saved server may be mounted under a path, and the
                             // link's own path is what lands inside it.
                             let dest = format!("{}{}", target.server, target.path);
-                            if servers::is_known_server(&dest) {
-                                if let Some(w) = handle.get_webview_window("main") {
-                                    let _ = w.eval(&format!("window.location.assign({:?})", dest));
+                            // Check the server before navigating, off the
+                            // event-loop thread: a link to an offline server
+                            // asks the page to show a recoverable Retry instead
+                            // of loading a dead page.
+                            let nav = handle.clone();
+                            std::thread::spawn(move || {
+                                let reachable =
+                                    matches!(crate::commands::reachable_base(&dest), Ok(Some(_)));
+                                if reachable {
+                                    if let Some(w) = nav.get_webview_window("main") {
+                                        let js = format!(
+                                            "window.location.assign({})",
+                                            serde_json::to_string(&dest).unwrap_or_default()
+                                        );
+                                        let _ = w.eval(&js);
+                                    }
+                                } else {
+                                    let _ = nav.emit(
+                                        "sure://server-offline",
+                                        serde_json::json!({ "url": dest }),
+                                    );
                                 }
-                            }
+                            });
                         }
                     }
                 });
@@ -146,6 +167,8 @@ pub fn run() {
         .run(|app, event| {
             // Clicking the dock icon (while the main window is hidden, not
             // destroyed) fires Reopen — re-show and focus the main window.
+            // Reopen is a macOS-only run event.
+            #[cfg(target_os = "macos")]
             if let tauri::RunEvent::Reopen { .. } = event {
                 use tauri::Manager;
                 if let Some(w) = app.get_webview_window("main") {
@@ -153,5 +176,7 @@ pub fn run() {
                     let _ = w.set_focus();
                 }
             }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
         });
 }

@@ -50,6 +50,7 @@ pub fn setup(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
     // Overlay titlebar + inset traffic lights so content sits under a clean bar.
     window.create_overlay_titlebar()?;
+    #[cfg(target_os = "macos")]
     window.set_traffic_lights_inset(16.0, 20.0)?;
 
     Ok(())

@@ -26,9 +26,8 @@ pub fn remove_server(url: String) -> Result<Vec<ServerEntry>, String> {
 /// The base `url`'s server is actually served under — a sub-path or the bare
 /// origin, whichever answers `/up` with a 200 — or `None` if neither does. That
 /// base is what the caller should save and navigate to.
-#[tauri::command]
-pub fn check_server(url: String) -> Result<Option<String>, String> {
-    let canonical = normalize_server_url(&url).map_err(|e| e.to_string())?;
+pub fn reachable_base(url: &str) -> Result<Option<String>, String> {
+    let canonical = normalize_server_url(url).map_err(|e| e.to_string())?;
     for base in base_candidates(&canonical) {
         let health = health_check_url(&base);
         match ureq::get(&health).timeout(std::time::Duration::from_secs(6)).call() {
@@ -40,6 +39,11 @@ pub fn check_server(url: String) -> Result<Option<String>, String> {
         }
     }
     Ok(None)
+}
+
+#[tauri::command]
+pub fn check_server(url: String) -> Result<Option<String>, String> {
+    reachable_base(&url)
 }
 
 #[tauri::command]

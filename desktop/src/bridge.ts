@@ -57,6 +57,18 @@
   }
   const emit = tauri.event.emit as (e: string, p: unknown) => void;
 
+  // A deep link to a saved server that is offline does not navigate to a dead
+  // page: Rust reports the failed health check, and the Retry here goes to the
+  // link's destination once the server is back. Kept standalone (no imports)
+  // because this file is injected into the page with eval().
+  if (!(window as any).__sureOfflineHook) {
+    (window as any).__sureOfflineHook = true;
+    tauri.event.listen("sure://server-offline", (e: any) => {
+      const url = e?.payload?.url;
+      showOfflineBanner(typeof url === "string" ? url : "");
+    });
+  }
+
   // SSO must run in the system browser (passkeys/WebAuthn don't work in an
   // embedded webview). Each provider is a form POSTing to /auth/{provider};
   // intercept and hand off to Rust, which opens the browser. Password login
@@ -104,6 +116,74 @@
       w.__sureNav = e.payload;
       window.location.assign(`${e.payload}/`);
     });
+  }
+
+  function showOfflineBanner(target: string) {
+    document.getElementById("sure-offline")?.remove();
+    const host = document.createElement("div");
+    host.id = "sure-offline";
+    const root = host.attachShadow({ mode: "open" });
+
+    const style = document.createElement("style");
+    style.textContent = `
+      :host { all: initial; }
+      .panel {
+        position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+        z-index: 2147483647; box-sizing: border-box;
+        display: flex; gap: 14px; align-items: center;
+        max-width: min(560px, calc(100vw - 32px));
+        padding: 12px 14px; border-radius: 12px;
+        background: #1c1c1e; color: #f5f5f7;
+        font: 13px/1.45 -apple-system, system-ui, "Segoe UI", sans-serif;
+        box-shadow: 0 10px 34px rgba(0, 0, 0, 0.35);
+      }
+      .text { min-width: 0; }
+      .title { margin: 0 0 2px; font-weight: 600; }
+      .body { margin: 0; color: #a1a1a6; }
+      .actions { display: flex; gap: 8px; flex: none; }
+      button {
+        font: inherit; border-radius: 8px; padding: 6px 10px; cursor: pointer;
+        border: 1px solid #3a3a3c; background: transparent; color: #f5f5f7;
+      }
+      button.primary {
+        background: #f5f5f7; border-color: #f5f5f7;
+        color: #1c1c1e; font-weight: 600;
+      }
+    `;
+
+    const panel = document.createElement("div");
+    panel.className = "panel";
+    panel.setAttribute("role", "alert");
+
+    const text = document.createElement("div");
+    text.className = "text";
+    const title = document.createElement("p");
+    title.className = "title";
+    title.textContent = "Can't reach your server";
+    const body = document.createElement("p");
+    body.className = "body";
+    body.textContent = "Check your connection, then try again.";
+    text.append(title, body);
+
+    const actions = document.createElement("div");
+    actions.className = "actions";
+    const dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.textContent = "Dismiss";
+    dismiss.addEventListener("click", () => host.remove());
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "primary";
+    retry.textContent = "Retry";
+    retry.addEventListener("click", () => {
+      host.remove();
+      if (target) window.location.assign(target);
+    });
+    actions.append(dismiss, retry);
+
+    panel.append(text, actions);
+    root.append(style, panel);
+    document.documentElement.appendChild(host);
   }
 
   // Sync-complete + alert toasts: Sure renders flash/notification nodes.

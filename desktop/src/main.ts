@@ -91,8 +91,11 @@ $("server-form").addEventListener("submit", (e) => {
 });
 
 // On launch, resume straight to the last server if there is one; otherwise
-// show the picker.
+// show the picker. A resume health-checks first: when the server is offline,
+// the picker stays on screen with the remembered servers and a retry path
+// instead of loading a dead page that would strand the user.
 async function boot() {
+  fill();
   let active: string | null = null;
   try {
     active = await invoke<string | null>("active_server");
@@ -102,10 +105,19 @@ async function boot() {
     console.error("[sure] failed to read active server", e);
   }
   if (active) {
-    goToServer(active);
-    return;
+    setStatus(S.checking, "info");
+    let reachable: string | null = null;
+    try {
+      reachable = await invoke<string | null>("check_server", { url: active });
+    } catch {
+      reachable = null;
+    }
+    if (reachable) {
+      goToServer(reachable);
+      return;
+    }
+    setStatus(S.unreachable, "error");
   }
-  fill();
   renderRemembered();
 }
 boot();
