@@ -50,6 +50,7 @@ en:
       files_label: Statement files
       inbox_upload: Upload
       period_hint: "Sure reads the period from the PDF when it states one, or from a date in the filename (e.g. 2026-04). You can also set it on the statement."
+      upload_fab: Upload a document
     index:
       account_label: Account
       confidence: "%{confidence} match"

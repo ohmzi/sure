@@ -34,6 +34,15 @@ class UI::AccountPageStatementStripTest < ViewComponent::TestCase
     assert checks.all? { |_, status| %w[matched mismatched unavailable].include?(status) }
   end
 
+  test "the account page uploads a document from a floating action button" do
+    render_inline(UI::AccountPage.new(account: @account, can_manage_statements: true))
+
+    assert_no_text I18n.t("account_statements.form.upload_title")
+    assert_selector "label[for='account-statement-fab-#{@account.id}']"
+    assert_selector "label[aria-label='#{I18n.t("account_statements.form.upload_fab")}']"
+    assert_selector "input[type='file'][data-auto-submit-form-target='auto']", visible: :all
+  end
+
   test "an account with no statements has no strip" do
     assert_empty UI::AccountPage.new(account: @account).recent_statement_checks
 
