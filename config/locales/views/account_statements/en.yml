@@ -36,7 +36,12 @@ en:
         one: 1 statement uploaded.
         other: "%{count} statements uploaded."
     destroy:
+      document_blocked: "This statement's document still backs unreconciled entries (%{entries}). Reconcile or delete them first."
       failure: Statement could not be deleted.
+      imported_rows:
+        one: "This statement has 1 imported row. Deleting it would orphan the import that owns the row; revert or delete the import first."
+        other: "This statement has %{count} imported rows. Deleting it would orphan the import that owns them; revert or delete the import first."
+      pending_import: "This statement has an import. Delete or revert the import before deleting the statement."
       success: Statement deleted.
     form:
       upload_title: Upload a statement
@@ -87,8 +92,9 @@ en:
       account_name_hint: Account name hint
       closing_balance: Closing balance
       currency: Currency
-      delete: Delete
+      delete: Delete statement
       difference: Difference
+      document_linked: Archived document
       download: Download
       institution_name_hint: Institution hint
       ledger_amount: Sure ledger
@@ -97,7 +103,13 @@ en:
       link_suggestion: Link suggestion
       metadata_title: Statement metadata
       no_suggestion: No account suggestion yet.
+      imported_state:
+        one: 1 imported row
+        other: "%{count} imported rows"
+      import_pending: Import pending
       opening_balance: Opening balance
+      overlap_message: "This statement overlaps %{statements} by more than the shared boundary day, and the printed balances disagree. Check the periods and balances; one copy may be wrong."
+      overlap_title: Overlapping statement with different balances
       period_end_on: Period end
       period_start_on: Period start
       reconciliation_title: Reconciliation

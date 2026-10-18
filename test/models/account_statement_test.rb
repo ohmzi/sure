@@ -29,6 +29,124 @@ class AccountStatementTest < ActiveSupport::TestCase
     assert_not_includes AccountStatement.excluding_tombstones, statement
   end
 
+  test "a tombstoned statement does not cover its month" do
+    month = Date.new(2026, 5, 1)
+    statement = create_statement(account: @account, month: month, content: "tombstoned-coverage")
+    link = DocumentLink.create!(family: @family, source: "statement", status: "unlinked",
+                                original_filename: statement.filename, content_type: statement.content_type,
+                                account_statement: statement)
+
+    link.soft_delete!
+
+    coverage = AccountStatement::Coverage.new(@account, start_month: month, end_month: month)
+    assert_equal "missing", coverage.months.first.status
+  end
+
+  test "a statement is not deletable while its document still backs an unreconciled entry" do
+    statement = create_pdf_statement
+    entry = entries(:transaction)
+    entry.update!(reconciled_at: nil, reconciled_by_statement: nil)
+    DocumentLink.create!(family: @family, source: "statement", status: "linked",
+                         original_filename: statement.filename, content_type: statement.content_type,
+                         account_statement: statement, entry: entry)
+
+    assert_equal :document, statement.reload.deletion_blocker
+    assert_not statement.deletable?
+  end
+
+  # -- overlap review hint (P1.7) --------------------------------------------
+
+  test "overlap hint flags statements overlapping beyond the boundary day with different balances" do
+    first = create_statement_with_period(
+      account: @account,
+      period_start_on: Date.new(2026, 6, 12),
+      period_end_on: Date.new(2026, 7, 10),
+      content: "overlap-first"
+    )
+    first.update!(opening_balance: 1000, closing_balance: 1200)
+
+    second = create_statement_with_period(
+      account: @account,
+      # Shares July 5-10 with the first statement — not just the boundary day.
+      period_start_on: Date.new(2026, 7, 5),
+      period_end_on: Date.new(2026, 8, 10),
+      content: "overlap-second"
+    )
+    second.update!(opening_balance: 1100, closing_balance: 1300)
+
+    assert first.overlapping_balance_mismatch?(second)
+    assert_includes first.overlapping_balance_mismatches, second
+    assert_includes second.overlapping_balance_mismatches, first
+  end
+
+  test "overlap hint ignores statements that only share the boundary day" do
+    first = create_statement_with_period(
+      account: @account,
+      period_start_on: Date.new(2026, 6, 12),
+      period_end_on: Date.new(2026, 7, 10),
+      content: "adjacent-first"
+    )
+    first.update!(opening_balance: 1000, closing_balance: 1200)
+
+    second = create_statement_with_period(
+      account: @account,
+      period_start_on: Date.new(2026, 7, 10),
+      period_end_on: Date.new(2026, 8, 12),
+      content: "adjacent-second"
+    )
+    second.update!(opening_balance: 1200, closing_balance: 1400)
+
+    assert_not first.overlapping_balance_mismatch?(second)
+    assert_empty first.overlapping_balance_mismatches
+  end
+
+  test "overlap hint ignores a true overlap whose printed balances agree" do
+    first = create_statement_with_period(
+      account: @account,
+      period_start_on: Date.new(2026, 6, 12),
+      period_end_on: Date.new(2026, 7, 10),
+      content: "same-balance-first"
+    )
+    first.update!(opening_balance: 1000, closing_balance: 1200)
+
+    second = create_statement_with_period(
+      account: @account,
+      period_start_on: Date.new(2026, 7, 5),
+      period_end_on: Date.new(2026, 8, 10),
+      content: "same-balance-second"
+    )
+    second.update!(opening_balance: 1000, closing_balance: 1200)
+
+    assert_not first.overlapping_balance_mismatch?(second)
+    assert_empty first.overlapping_balance_mismatches
+  end
+
+  test "overlap hint stays within the account" do
+    other_account = Account.create!(
+      family: @family, owner: users(:family_admin), name: "Overlap Other",
+      balance: 0, currency: "USD", accountable: Depository.new
+    )
+
+    first = create_statement_with_period(
+      account: @account,
+      period_start_on: Date.new(2026, 6, 12),
+      period_end_on: Date.new(2026, 7, 10),
+      content: "account-scope-first"
+    )
+    first.update!(opening_balance: 1000, closing_balance: 1200)
+
+    second = create_statement_with_period(
+      account: other_account,
+      period_start_on: Date.new(2026, 7, 5),
+      period_end_on: Date.new(2026, 8, 10),
+      content: "account-scope-second"
+    )
+    second.update!(opening_balance: 1100, closing_balance: 1300)
+
+    assert_not first.overlapping_balance_mismatch?(second)
+    assert_empty first.overlapping_balance_mismatches
+  end
+
   OversizedDeclaredUpload = Struct.new(:original_filename, keyword_init: true) do
     def size
       AccountStatement::MAX_FILE_SIZE + 1

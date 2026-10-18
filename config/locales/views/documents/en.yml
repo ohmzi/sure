@@ -177,6 +177,7 @@ en:
           one: Duplicate document
           other: "Duplicate documents (%{count})"
         description: "These documents cover the same account and period. Keep the right one; open a document to correct its account or month, or delete an extra."
+        balance_mismatch: These copies print different balances. Compare the statement totals before keeping one.
         current: This document
         duplicate_copy: Duplicate copy
         open: Open

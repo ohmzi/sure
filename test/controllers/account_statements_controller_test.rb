@@ -1038,4 +1038,133 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_match linked.filename, response.body
     assert_no_match unmatched.filename, response.body
   end
+
+  # -- delete statement (P1.7) -------------------------------------------------
+
+  test "deleting an unimported statement soft-deletes its archived document" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "unimported_delete.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    link = DocumentLink.create!(family: @account.family, source: "statement", status: "unlinked",
+                                original_filename: statement.filename, content_type: statement.content_type,
+                                account_statement: statement)
+
+    assert_difference "AccountStatement.count", -1 do
+      delete account_statement_url(statement)
+    end
+
+    assert_redirected_to account_url(@account, tab: "statements")
+    assert_equal I18n.t("account_statements.destroy.success"), flash[:notice]
+    assert link.reload.deleted_at.present?, "the statement's document goes with it, never left orphaned"
+    assert_nil link.account_statement_id
+  end
+
+  test "deleting a statement refuses while its import still owns rows" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: Rack::Test::UploadedFile.new(file_fixture("imports/sample_bank_statement.pdf"), "application/pdf")
+    )
+    import = PdfImport.create_from_statement!(statement: statement)
+
+    assert_no_difference [ "AccountStatement.count", "Import.count" ] do
+      delete account_statement_url(statement)
+    end
+
+    assert_redirected_to account_url(@account, tab: "statements")
+    assert_equal I18n.t("account_statements.destroy.pending_import"), flash[:alert]
+    assert AccountStatement.exists?(statement.id)
+    assert_equal statement.id, import.reload.account_statement_id
+  end
+
+  test "deleting a statement refuses while posted rows still point at it, naming the count" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "posted_delete.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    Entry.create!(
+      account: @account, name: "Statement row", date: Date.current,
+      currency: @account.currency, amount: 10, entryable: Transaction.new,
+      reconciled_at: Time.current, reconciled_by_statement: statement
+    )
+
+    assert_no_difference "AccountStatement.count" do
+      delete account_statement_url(statement)
+    end
+
+    assert_redirected_to account_url(@account, tab: "statements")
+    assert_equal I18n.t("account_statements.destroy.imported_rows", count: 1), flash[:alert]
+    assert AccountStatement.exists?(statement.id)
+  end
+
+  test "a tombstoned statement stays out of the vault" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "tombstoned_vault.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    link = DocumentLink.create!(family: @account.family, source: "statement", status: "unlinked",
+                                original_filename: statement.filename, content_type: statement.content_type,
+                                account_statement: statement)
+    link.soft_delete!
+
+    get account_statements_path
+
+    assert_response :success
+    assert_no_match statement.filename, response.body
+  end
+
+  test "deleting another family's statement is a 404, never a cross-family delete" do
+    foreign = AccountStatement.create_from_upload!(
+      family: families(:empty), account: nil,
+      file: uploaded_file(filename: "foreign_delete.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+
+    assert_no_difference "AccountStatement.count" do
+      delete account_statement_url(foreign)
+    end
+
+    assert_response :not_found
+    assert AccountStatement.exists?(foreign.id)
+  end
+
+  test "the statement page shows an overlap hint for a real overlap with different balances" do
+    first = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "overlap_hint_first.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    first.update!(period_start_on: Date.new(2026, 6, 12), period_end_on: Date.new(2026, 7, 10),
+                  opening_balance: 1000, closing_balance: 1200)
+    second = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "overlap_hint_second.csv", content_type: "text/csv", content: "date,amount\n2024-01-02,2\n")
+    )
+    second.update!(period_start_on: Date.new(2026, 7, 5), period_end_on: Date.new(2026, 8, 10),
+                   opening_balance: 1100, closing_balance: 1300)
+
+    get account_statement_url(first)
+
+    assert_response :success
+    assert_match I18n.t("account_statements.show.overlap_title"), response.body
+    assert_match second.filename, response.body
+  end
+
+  test "the statement page does not flag normal boundary-day adjacency" do
+    first = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "adjacent_hint_first.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    first.update!(period_start_on: Date.new(2026, 6, 12), period_end_on: Date.new(2026, 7, 10),
+                  opening_balance: 1000, closing_balance: 1200)
+    second = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "adjacent_hint_second.csv", content_type: "text/csv", content: "date,amount\n2024-01-02,2\n")
+    )
+    second.update!(period_start_on: Date.new(2026, 7, 10), period_end_on: Date.new(2026, 8, 12),
+                   opening_balance: 1200, closing_balance: 1400)
+
+    get account_statement_url(first)
+
+    assert_response :success
+    assert_no_match I18n.t("account_statements.show.overlap_title"), response.body
+  end
 end

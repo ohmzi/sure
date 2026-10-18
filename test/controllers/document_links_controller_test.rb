@@ -565,6 +565,20 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "the duplicate review flags copies whose printed balances disagree" do
+    first_statement = statement_for_period(Date.new(2026, 6, 12), Date.new(2026, 7, 10),
+                                           opening: 1000, closing: 1200)
+    second_statement = statement_for_period(Date.new(2026, 6, 12), Date.new(2026, 7, 10),
+                                            opening: 1000, closing: 1300)
+    link = document_link_for(first_statement)
+    document_link_for(second_statement)
+
+    get viewer_document_path(link)
+
+    assert_response :success
+    assert_match I18n.t("documents.understanding.duplicates.balance_mismatch"), response.body
+  end
+
   test "the viewer shows a hold's reason and its actions" do
     link = document_links(:held_bill)
     link.update_columns(failure_message: "DeepSeek is overloaded right now. Nothing was imported.")
@@ -835,5 +849,26 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     def create_statement_entry(import, name:, amount:)
       Entry.create!(account: accounts(:depository), name: name, date: Date.current, currency: "USD", amount: amount,
                     entryable: Transaction.new, import: import)
+    end
+
+    def statement_for_period(start_on, end_on, opening:, closing:)
+      content = file_fixture("imports/sample_bank_statement.pdf").binread
+      statement = AccountStatement.new(
+        family: @family, account: accounts(:depository),
+        filename: "statement_#{SecureRandom.hex(4)}.pdf", content_type: "application/pdf",
+        checksum: SecureRandom.hex, content_sha256: SecureRandom.hex(32), byte_size: content.bytesize,
+        period_start_on: start_on, period_end_on: end_on,
+        opening_balance: opening, closing_balance: closing
+      )
+      statement.original_file.attach(io: StringIO.new(content), filename: statement.filename,
+                                     content_type: "application/pdf")
+      statement.save!
+      statement
+    end
+
+    def document_link_for(statement)
+      DocumentLink.create!(family: @family, source: "statement", status: "unlinked",
+                           original_filename: statement.filename, content_type: statement.content_type,
+                           account_statement: statement)
     end
 end

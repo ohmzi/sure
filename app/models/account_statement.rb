@@ -485,6 +485,33 @@ class AccountStatement < ApplicationRecord
 
   def reviewed? = reviewed_at.present?
 
+  # --- overlap review hint (P1.7) -------------------------------------------
+  # Consecutive monthly statements share exactly the boundary day: one ends
+  # where the next begins. That is normal. Two statements sharing MORE than
+  # that day while printing different balances are the shape of a duplicate
+  # upload with a wrong period, or a misread. Strict inside-comparisons are what
+  # keep the ordinary adjacency out; the balance comparison lives here, never
+  # in a view.
+  def overlapping_balance_mismatches
+    return self.class.none unless account_id.present? && period_start_on.present? && period_end_on.present?
+
+    account.account_statements
+           .excluding_tombstones
+           .where.not(id: id)
+           .where("period_start_on < ? AND period_end_on > ?", period_end_on, period_start_on)
+           .select { |other| printed_balance_mismatch?(other) }
+  end
+
+  def overlapping_balance_mismatch?(other)
+    return false unless other && other.id != id
+    return false unless account_id.present? && other.account_id == account_id
+    return false unless period_start_on.present? && period_end_on.present? &&
+                        other.period_start_on.present? && other.period_end_on.present?
+    return false unless other.period_start_on < period_end_on && other.period_end_on > period_start_on
+
+    printed_balance_mismatch?(other)
+  end
+
   def reconciliation_mismatched?(balance_lookup: nil)
     reconciliation_status(balance_lookup: balance_lookup) == "mismatched"
   end
@@ -564,7 +591,29 @@ class AccountStatement < ApplicationRecord
     pdf_imports.where.not(status: :failed).order(created_at: :desc).first
   end
 
+  # A statement may only be deleted as an unimported whole. The import owns the
+  # rows it posted; deleting the statement under it would orphan that import.
+  # The archived document is the surviving evidence and obeys the same N9 rule
+  # as the document browser: it must not cover unreconciled entries.
+  def deletion_blocker
+    return :imports if pdf_imports.exists? || Entry.reconciled_by(self).exists?
+    return :document if archived_document_link.present? && !archived_document_link.deletable?
+
+    nil
+  end
+
+  def deletable? = deletion_blocker.nil?
+
   private
+
+    # Balances a statement actually prints. A missing balance is not evidence
+    # of a mismatch, and a cent of rounding is not a disagreement.
+    def printed_balance_mismatch?(other)
+      pairs = [ [ opening_balance, other.opening_balance ], [ closing_balance, other.closing_balance ] ]
+      comparable = pairs.select { |mine, theirs| mine.present? && theirs.present? }
+
+      comparable.any? { |mine, theirs| (mine.to_d - theirs.to_d).abs > 0.01.to_d }
+    end
 
     def statement_rows
       Entry.reconciled_by(self).where(account_id: account_id).where.not(entryable_type: "Valuation")
