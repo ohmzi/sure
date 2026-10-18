@@ -17,6 +17,7 @@ class PagesController < ApplicationController
     "money_flow"         => { col_span: "single", grow: false, min_height: 0,   width_toggle: true },
     "spending_trend"     => { col_span: "single", grow: true,  min_height: 208, width_toggle: true },
     "outflows_donut"     => { col_span: "single", grow: false, min_height: 0 },
+    "merchant_breakdown" => { col_span: "single", grow: false, min_height: 0, width_toggle: true },
     "investment_summary" => { col_span: "single", grow: false, min_height: 0, width_toggle: true },
     "net_worth_chart"    => { col_span: "single", grow: true,  min_height: 208, width_toggle: true },
     "balance_sheet"      => { col_span: "single", grow: false, min_height: 0, width_toggle: true }
@@ -29,7 +30,7 @@ class PagesController < ApplicationController
   # Query params that shape what the dashboard shows without being saved
   # anywhere. Customize mode carries them through its links and hide/add
   # buttons so the widgets don't jump back to their defaults.
-  DASHBOARD_VIEW_PARAMS = [ :start_date, :end_date, :money_flow_month, :spending_month, { money_flow_account_ids: [] } ].freeze
+  DASHBOARD_VIEW_PARAMS = [ :start_date, :end_date, :money_flow_month, :spending_month, :category_id, { money_flow_account_ids: [] } ].freeze
 
   # Selectable height presets (px) for grow widgets.
   DASHBOARD_HEIGHT_PRESETS = { "compact" => 208, "auto" => 288, "tall" => 416 }.freeze
@@ -64,6 +65,13 @@ class PagesController < ApplicationController
   def today
     render partial: "pages/dashboard/today_frame",
            locals: { today: Dashboard::Today.new(family: Current.family, user: Current.user) }
+  end
+
+  # The merchants-by-category widget's own frame: changing the category
+  # reloads this card only, with the dashboard's current period.
+  def merchant_breakdown
+    render partial: "pages/dashboard/merchant_breakdown",
+           locals: merchant_breakdown_locals(dashboard_selected_category)
   end
 
   def intro
@@ -203,6 +211,18 @@ class PagesController < ApplicationController
             collapsible: true
           }
         },
+        "merchant_breakdown" => -> {
+          category = dashboard_selected_category
+          {
+            key: "merchant_breakdown",
+            title: "pages.dashboard.merchant_breakdown.title",
+            partial: "pages/dashboard/merchant_breakdown",
+            layout: section_layout("merchant_breakdown"),
+            locals: merchant_breakdown_locals(category),
+            visible: category.present? && @accounts.any?,
+            collapsible: true
+          }
+        },
         "investment_summary" => -> {
           {
             key: "investment_summary",
@@ -293,6 +313,30 @@ class PagesController < ApplicationController
           dashboard_net_totals
         end
       end
+    end
+
+    # The widget's category: an explicit pick wins for this render, then the
+    # user's saved default, then Shopping (or the family's first root).
+    def dashboard_selected_category
+      @dashboard_selected_category ||= begin
+        requested = Current.family.categories.find_by(id: params[:category_id]) if params[:category_id].present?
+        requested || Current.user.resolved_dashboard_category
+      end
+    end
+
+    def dashboard_category_options
+      Category::Group.select_options(Current.family.categories.alphabetically, indent: true)
+    end
+
+    def merchant_breakdown_locals(category)
+      {
+        breakdown: category && IncomeStatement::MerchantBreakdown.new(
+          dashboard_income_statement, category: category, period: @period
+        ).call,
+        period: @period,
+        selected_category: category,
+        category_options: dashboard_category_options
+      }
     end
 
     def cashflow_sankey_data

@@ -1,0 +1,136 @@
+<%# locals: (breakdown:, period:, selected_category:, category_options:) %>
+<%= turbo_frame_tag "dashboard_merchant_breakdown" do %>
+  <div id="merchant-breakdown-section" class="@container">
+    <div class="px-4">
+      <div class="pb-2 flex items-center justify-end">
+        <%= form_with url: dashboard_merchant_breakdown_path, method: :get,
+              data: { controller: "auto-submit-form", turbo_frame: "dashboard_merchant_breakdown" },
+              class: "flex items-center gap-2" do |form| %>
+          <%= hidden_field_tag :start_date, period.date_range.first %>
+          <%= hidden_field_tag :end_date, period.date_range.last %>
+          <%= form.select :category_id,
+                          category_options,
+                          { selected: selected_category&.id },
+                          class: "bg-container border border-secondary rounded-lg px-3 py-2 text-sm pr-7 cursor-pointer text-primary focus:outline-hidden focus:ring-0",
+                          data: { "auto-submit-form-target": "auto" },
+                          aria: { label: t(".category_label") } %>
+        <% end %>
+      </div>
+
+      <% if breakdown.nil? || breakdown.rows.empty? %>
+        <p class="py-8 text-center text-sm text-secondary"><%= t(".empty") %></p>
+      <% else %>
+        <% segments = breakdown.rows.map { |row| { id: row.id, amount: row.amount.to_f, color: row.color } } %>
+        <div class="flex flex-col @2xl:flex-row gap-8 items-center"
+          data-controller="donut-chart"
+          data-donut-chart-segments-value="<%= segments.to_json %>"
+          data-donut-chart-segment-opacity-value="0.9"
+          data-donut-chart-extended-hover-value="true"
+          data-donut-chart-hover-extension-value="3"
+          data-donut-chart-enable-click-value="false"
+          data-donut-chart-start-date-value="<%= period.date_range.first %>"
+          data-donut-chart-end-date-value="<%= period.date_range.last %>">
+          <div class="w-full @2xl:w-1/3 max-w-[300px] px-4">
+            <div class="h-[300px] relative">
+              <div data-donut-chart-target="chartContainer" class="absolute inset-0 pointer-events-none"></div>
+
+              <div data-donut-chart-target="contentContainer" class="flex justify-center items-center h-full">
+                <div data-donut-chart-target="defaultContent" class="flex flex-col items-center">
+                  <div class="text-secondary text-sm mb-2">
+                    <span><%= t(".total_#{breakdown.direction}") %></span>
+                  </div>
+
+                  <div data-donut-chart-target="amount" class="text-3xl font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
+                    <%= format_money Money.new(breakdown.total, breakdown.currency) %>
+                  </div>
+                </div>
+
+                <% breakdown.rows.each do |row| %>
+                  <div id="segment_<%= row.id %>" class="hidden">
+                    <div class="flex flex-col gap-2 items-center">
+                      <p class="text-sm text-secondary"><%= row.name %></p>
+
+                      <p data-donut-chart-target="amount" class="text-3xl font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
+                        <%= breakdown.currency_symbol %><%= number_with_delimiter(row.amount.to_f.round(2), delimiter: ",") %>
+                      </p>
+
+                      <p class="text-sm text-secondary privacy-sensitive"><%= row.percentage %>%</p>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            </div>
+          </div>
+
+          <div class="w-full @2xl:w-2/3 bg-container-inset rounded-xl p-1 space-y-1 overflow-x-auto">
+            <div class="px-4 py-2 flex items-center uppercase text-xs font-medium text-secondary">
+              <div class="w-16 @2xl:w-40">
+                <p><%= t(".merchants") %><span class="text-subdued mx-1">&middot;</span><%= breakdown.rows.count %></p>
+              </div>
+              <div class="ml-auto text-right flex items-center gap-6">
+                <div class="w-16 @2xl:w-40">
+                  <p><%= t(".value") %></p>
+                </div>
+                <div class="w-16">
+                  <p><%= t(".weight") %></p>
+                </div>
+              </div>
+            </div>
+
+            <div class="py-3 shadow-border-xs rounded-lg bg-container font-medium text-sm max-w-full">
+              <% breakdown.rows.each_with_index do |row, idx| %>
+                <% row_content = capture do %>
+                  <div class="flex items-center gap-3 flex-1 min-w-0">
+                    <div class="h-7 w-7 flex-shrink-0 group-hover:scale-105 transition-all duration-300 rounded-full flex justify-center items-center"
+                      style="background-color: color-mix(in oklab, <%= row.color %> 10%, transparent); color: <%= row.color %>;">
+                      <% if row.logo_url.present? %>
+                        <%= image_tag Setting.transform_brand_fetch_url(row.logo_url),
+                                      class: "h-5 w-5 rounded-full", loading: "lazy", alt: "" %>
+                      <% else %>
+                        <%= render DS::FilledIcon.new(
+                          variant: :text,
+                          hex_color: row.color,
+                          text: row.name,
+                          size: "sm",
+                          rounded: true
+                        ) %>
+                      <% end %>
+                    </div>
+                    <span class="text-sm font-medium text-primary truncate"><%= row.name %></span>
+                  </div>
+                  <div class="flex items-center gap-4 flex-shrink-0 text-right">
+                    <span class="text-sm font-medium text-primary whitespace-nowrap privacy-sensitive"><%= format_money Money.new(row.amount, breakdown.currency) %></span>
+                    <span class="text-sm text-secondary whitespace-nowrap w-10 @2xl:w-15 privacy-sensitive"><%= row.percentage %>%</span>
+                  </div>
+                <% end %>
+
+                <% query = { categories: [ selected_category.filter_value ],
+                             start_date: period.date_range.first,
+                             end_date: period.date_range.last } %>
+                <% if row.merchant_id.present? %>
+                  <% query[:merchants] = [ row.merchant_name ] %>
+                <% else %>
+                  <% query[:search] = row.name %>
+                <% end %>
+                <%= link_to transactions_path(q: query),
+                    class: "flex items-center justify-between mx-3 p-3 rounded-lg cursor-pointer group gap-3",
+                    data: {
+                      turbo_frame: "_top",
+                      turbo_prefetch: false,
+                      category_id: row.id,
+                      action: "mouseenter->donut-chart#highlightSegment mouseleave->donut-chart#unhighlightSegment"
+                    } do %>
+                  <%= row_content %>
+                <% end %>
+
+                <% if idx < breakdown.rows.size - 1 %>
+                  <%= render "shared/ruler", classes: "mx-3 @2xl:mx-4" %>
+                <% end %>
+              <% end %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+<% end %>

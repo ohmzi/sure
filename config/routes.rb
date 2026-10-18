@@ -331,6 +331,7 @@ Rails.application.routes.draw do
   get "exports/archive/:token", to: "archived_exports#show", as: :archived_export
 
   get "dashboard/today", to: "pages#today", as: :dashboard_today
+  get "dashboard/merchant_breakdown", to: "pages#merchant_breakdown", as: :dashboard_merchant_breakdown
   get "more", to: "pages#more", as: :more
   get "changelog", to: "pages#changelog"
   get "release_highlight", to: "release_highlights#show"

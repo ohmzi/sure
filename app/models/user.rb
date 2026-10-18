@@ -665,6 +665,26 @@ class User < ApplicationRecord
     CASHFLOW_SANKEY_GROUPINGS.include?(group_by) ? group_by : "account"
   end
 
+  # The category whose merchant breakdown the dashboard shows. A saved id
+  # wins; a deleted/invalid id falls back to Shopping, then the family's first
+  # top-level category.
+  def dashboard_category
+    id = preferences&.dig("dashboard_category_id")
+    return nil if id.blank?
+
+    family.categories.find_by(id: id)
+  end
+
+  def default_dashboard_category
+    shopping_names = [ I18n.t("models.category.defaults.shopping"), "Shopping" ].uniq.map(&:downcase)
+    family.categories.roots.where("LOWER(categories.name) IN (?)", shopping_names).first ||
+      family.categories.roots.first
+  end
+
+  def resolved_dashboard_category
+    dashboard_category || default_dashboard_category
+  end
+
   # Per-widget column-span override ("single" | "full"); nil = use default.
   def dashboard_section_width(section_key)
     preferences&.dig("dashboard_section_layout", section_key, "col_span")
@@ -822,7 +842,7 @@ class User < ApplicationRecord
     end
 
     def default_dashboard_section_order
-      %w[insights_feed cashflow_sankey outflows_donut net_worth_chart balance_sheet]
+      %w[insights_feed cashflow_sankey outflows_donut merchant_breakdown net_worth_chart balance_sheet]
     end
 
     def default_reports_section_order

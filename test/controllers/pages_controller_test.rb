@@ -14,6 +14,41 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "dashboard includes the merchants-by-category widget" do
+    get root_path
+
+    assert_response :ok
+    assert_select "section[data-section-key='merchant_breakdown']"
+  end
+
+  test "merchant breakdown renders the selected category's merchants" do
+    shopping = @family.categories.find_or_create_by!(name: "Shopping")
+    amazon = @family.merchants.find_or_create_by!(name: "Amazon") { |merchant| merchant.type = "FamilyMerchant" }
+    create_transaction(account: accounts(:depository), amount: 100, name: "Amazon order",
+                       category: shopping, merchant: amazon, date: Date.current)
+
+    get dashboard_merchant_breakdown_path(start_date: Date.current.beginning_of_month, end_date: Date.current)
+
+    assert_response :ok
+    assert_select "select[name='category_id'] option[selected][value='#{shopping.id}']"
+    assert_includes response.body, "Amazon"
+  end
+
+  test "merchant breakdown follows an explicit category" do
+    create_transaction(account: accounts(:depository), amount: 40, name: "Netflix",
+                       category: categories(:food_and_drink), merchant: merchants(:netflix), date: Date.current)
+
+    get dashboard_merchant_breakdown_path(
+      category_id: categories(:food_and_drink).id,
+      start_date: Date.current.beginning_of_month,
+      end_date: Date.current
+    )
+
+    assert_response :ok
+    assert_select "select[name='category_id'] option[selected][value='#{categories(:food_and_drink).id}']"
+    assert_includes response.body, "Netflix"
+  end
+
   test "dashboard renders the net worth chart as drag-selectable, opting it out of card drag-and-drop" do
     get root_path
 

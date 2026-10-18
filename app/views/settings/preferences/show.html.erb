@@ -285,6 +285,22 @@
   <% end %>
 <% end %>
 
+<%# Dashboard category — the default category for the merchants-by-category
+    widget. The widget's own picker changes the category for that view only;
+    this card is the persistent choice. %>
+<%= settings_section do %>
+  <%= styled_form_with url: settings_preferences_path, method: :patch, scope: :user,
+        data: { controller: "auto-submit-form" } do |f| %>
+    <%= f.select :dashboard_category_id,
+          Category::Group.select_options(Current.family.categories.alphabetically, indent: true),
+          { selected: @user.resolved_dashboard_category&.id,
+            include_blank: t(".dashboard_category.none"),
+            label: t(".dashboard_category.label"),
+            help_text: t(".dashboard_category.hint") },
+          { data: { auto_submit_form_target: "auto" } } %>
+  <% end %>
+<% end %>
+
 <%# Preview features toggle — visible to all users, not just admins. Lives at
     the bottom of Preferences as a standalone card (no section header) so the
     toggle row is the entire surface. Posts directly to
