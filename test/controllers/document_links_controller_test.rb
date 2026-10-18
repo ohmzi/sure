@@ -534,8 +534,11 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
 
     get documents_path
 
+    # Unmatched statements have their own vault list; the draft ask keeps
+    # "needs an account" to itself so each count has one honest surface.
     assert_select "#documents_attention",
-                  text: /#{Regexp.escape(I18n.t("document_browser.attention.reasons.needs_account", count: 1))}/
+                  text: /#{Regexp.escape(I18n.t("document_browser.attention.reasons.unmatched", count: 1))}/
+    assert_select "#documents_attention a[href='#{account_statements_path(q: { attention: "unmatched" })}']"
 
     get viewer_document_path(link)
 
@@ -678,6 +681,68 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
     assert_select "#documents_attention a[href='#{account_statements_path(q: { attention: "missing_period" })}']"
 
     get documents_path(q: { attention: 1 })
+    assert_match statement.filename, response.body
+  end
+
+  # A PDF import mints a statement with no DocumentLink, so the documents grid
+  # can never list it. The strip must still render, and its action must open
+  # the vault list that genuinely contains the row.
+  test "the attention strip renders for an unlinked statement from the PDF-import path" do
+    clear_document_attention!
+
+    import = PdfImport.create_from_upload!(
+      family: @family, user: users(:family_admin),
+      file: uploaded_file(filename: "pdf_import_unmatched.pdf", content_type: "application/pdf",
+                          content: "%PDF-1.4 pdf import unmatched")
+    )
+    statement = import.account_statement
+
+    assert_nil statement.archived_document_link
+
+    get documents_path
+
+    assert_response :success
+    assert_select "#documents_attention",
+                  text: /#{Regexp.escape(I18n.t("document_browser.attention.reasons.unmatched", count: 1))}/
+    assert_select "#documents_attention a[href='#{account_statements_path(q: { attention: "unmatched" })}']"
+    # No link means the documents grid cannot list it, so the strip must not
+    # offer that empty filter.
+    assert_select "#documents_attention a[href='#{documents_path(q: { attention: 1 })}']", count: 0
+
+    get account_statements_path(q: { attention: "unmatched" })
+
+    assert_response :success
+    assert_match statement.filename, response.body
+  end
+
+  test "the attention strip's missing period action lists an unlinked PDF-import statement" do
+    clear_document_attention!
+
+    import = PdfImport.create_from_upload!(
+      family: @family, user: users(:family_admin),
+      file: uploaded_file(filename: "pdf_import_no_period.pdf", content_type: "application/pdf",
+                          content: "%PDF-1.4 pdf import no period")
+    )
+    statement = import.account_statement
+    statement.update_columns(
+      account_id: accounts(:depository).id, review_status: "linked",
+      period_start_on: nil, period_end_on: nil,
+      account_last4_hint: "1234",
+      institution_name_hint: nil, account_name_hint: nil,
+      sanitized_parser_output: {}
+    )
+
+    get documents_path
+
+    assert_response :success
+    assert_select "#documents_attention",
+                  text: /#{Regexp.escape(I18n.t("document_browser.attention.reasons.missing_period", count: 1))}/
+    assert_select "#documents_attention a[href='#{account_statements_path(q: { attention: "missing_period" })}']"
+    assert_select "#documents_attention a[href='#{documents_path(q: { attention: 1 })}']", count: 0
+
+    get account_statements_path(q: { attention: "missing_period" })
+
+    assert_response :success
     assert_match statement.filename, response.body
   end
 
@@ -1016,6 +1081,14 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
                     "a soft-deleted document must not appear in the Documents grid"
   end
   private
+    # Clear the fixture attention sources so a statement-only ask is the only
+    # reason the strip can render for.
+    def clear_document_attention!
+      DocumentLink.where(family: @family).where.not(failure_message: nil).update_all(failure_message: nil)
+      imports(:receipt_understood).update!(status: "complete")
+      @family.imports.where(status: "pending").where.not(document_link_id: nil).update_all(status: "complete")
+    end
+
     # Two live statement documents for one account and printed period: the
     # duplicate review's own identity, independent of any page filter.
     def create_duplicate_group

@@ -106,6 +106,9 @@ en:
       imports_title:
         one: 1 import ready to review
         other: "%{count} imports ready to review"
+      duplicates_title:
+        one: 1 duplicate group needs review
+        other: "%{count} duplicate groups need review"
       reasons:
         imports:
           one: 1 import ready to review
@@ -116,6 +119,9 @@ en:
         needs_account:
           one: 1 needs an account
           other: "%{count} need an account"
+        unmatched:
+          one: 1 statement needs an account
+          other: "%{count} statements need an account"
         missing_period:
           one: 1 has no period
           other: "%{count} have no period"
@@ -126,6 +132,9 @@ en:
           one: 1 ready to review
           other: "%{count} ready to review"
       show: Show them
+      review_unmatched:
+        one: Link 1 statement to an account
+        other: Link %{count} statements to an account
       review_missing_period:
         one: Add the missing period
         other: Add %{count} missing periods

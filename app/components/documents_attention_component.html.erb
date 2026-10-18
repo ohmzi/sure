@@ -9,6 +9,10 @@
     </p>
   </div>
   <div class="flex flex-wrap items-center gap-2">
+    <% if unmatched_statements.positive? %>
+      <%= render DS::PillLink.new(text: t("document_browser.attention.review_unmatched", count: unmatched_statements),
+                                  href: account_statements_path(q: { attention: "unmatched" })) %>
+    <% end %>
     <% if missing_period.positive? %>
       <%= render DS::PillLink.new(text: t("document_browser.attention.review_missing_period", count: missing_period),
                                   href: account_statements_path(q: { attention: "missing_period" })) %>
@@ -25,7 +29,9 @@
       <%= render DS::PillLink.new(text: t("document_browser.attention.review_imports", count: pending_imports),
                                   href: imports_path) %>
     <% end %>
-    <% if total.positive? %>
+    <%# The documents grid can list only link-backed attention; a
+        statement-only ask has its own vault button above. %>
+    <% if document_attention.positive? %>
       <%= render DS::PillLink.new(text: t("document_browser.attention.show"),
                                   href: documents_path(q: { attention: 1 })) %>
     <% end %>
