@@ -169,8 +169,8 @@ module Family::AutoTransferMatchable
 
     # The automatic match is a suggestion, but a nonsensical suggestion is
     # noise. Skip a candidate when:
-    # * money is leaving a liability (a card purchase or loan draw is never a
-    #   transfer leg; only a payment INTO the liability can be);
+    # * money is leaving a credit card (a purchase is never a transfer leg;
+    #   loans still have legitimate disbursement outflows);
     # * a card inflow's bank leg names a different card network, or does not
     #   share any identity token with the card account;
     # * a depository-to-depository pair carries two different reference
@@ -217,7 +217,10 @@ module Family::AutoTransferMatchable
     end
 
     def card_payment_description_against_family_cards?(match)
-      tokens = identity_tokens(match.outflow_name) + identity_tokens(match.inflow_name)
+      # Raw tokens here, not identity tokens: a bank leg such as "… TRIANGLE MC"
+      # identifies the card by its network abbreviation, which the generic-token
+      # filter would otherwise discard.
+      tokens = raw_tokens(match.outflow_name) + raw_tokens(match.inflow_name)
       (tokens & family_liability_identity_tokens).any?
     end
 
