@@ -76,11 +76,11 @@ class StatementAutoPost
       return nil if numbers.empty? || @statement.period_start_on.nil? || @statement.period_end_on.nil?
 
       @statement.family.account_statements
+                .excluding_tombstones
                 .where.not(id: @statement.id)
                 .where(period_start_on: @statement.period_start_on, period_end_on: @statement.period_end_on)
                 .where("account_statements.created_at < ?", @statement.created_at)
                 .order(:created_at)
-                .reject { |other| other.archived_document_link&.deleted? }
                 .find { |other| (printed_numbers(other) & numbers).any? }
     end
 

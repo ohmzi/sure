@@ -90,6 +90,10 @@ class AccountStatementsController < ApplicationController
     rescue AccountStatement::InvalidUploadError
       validation_errors << t("account_statements.create.invalid_file_type")
     rescue AccountStatement::DuplicateUploadError => e
+      # A duplicate upload is also the user's chance to restore a document their
+      # duplicate review deleted. Keep the surviving statement's existing link
+      # when one is live; otherwise archive its stored bytes again.
+      e.statement.archive_document_link!(uploader: Current.user) if e.statement.original_file.attached?
       duplicates << e.statement
     rescue ActiveRecord::RecordInvalid => e
       validation_errors << e.record.errors.full_messages.to_sentence

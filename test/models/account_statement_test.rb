@@ -1093,4 +1093,110 @@ class AccountStatementTest < ActiveSupport::TestCase
 
       assert_equal "matched", statuses(july)["opening_balance"]
     end
+
+    # Live on the owner's RBC chequing account: the boundary day's fee is already
+    # in the previous statement, so the day OPENS at 94.22 and CLOSES at 81.27.
+    # The statement opens where the previous one closed — the end of that day,
+    # never its start. Using start_balance reported a false mismatch.
+    test "a statement without rows checks its opening against the end of the boundary day" do
+      account = accounts(:depository)
+      statement = AccountStatement.create_from_upload!(
+        family: @family, account: account,
+        file: uploaded_file(
+          filename: "boundary_2026-05-12_2026-06-12.csv",
+          content_type: "text/csv",
+          content: "date,amount\n2026-05-12,1\n2026-06-12,2\n"
+        )
+      )
+      statement.update!(
+        period_start_on: Date.new(2026, 5, 12),
+        period_end_on: Date.new(2026, 6, 12),
+        opening_balance: 81.27,
+        closing_balance: 1550.58
+      )
+      account.balances.create!(
+        date: Date.new(2026, 5, 12), balance: 81.27, currency: account.currency,
+        start_cash_balance: 94.22, cash_outflows: 12.95
+      )
+      account.balances.create!(
+        date: Date.new(2026, 6, 12), balance: 1550.58, currency: account.currency,
+        start_cash_balance: 1263.53, cash_inflows: 300, cash_outflows: 12.95
+      )
+
+      checks = statuses(statement)
+      assert_equal "matched", checks["opening_balance"]
+      assert_equal "matched", checks["period_movement"]
+    end
+
+    # Re-downloading a statement changes its PDF metadata, so the same statement
+    # arrives with a different SHA-256. Period + account (or last4) is the
+    # statement's identity; the bytes are not.
+    test "re-uploading the same statement with different bytes is a duplicate" do
+      upload = ->(marker) do
+        AccountStatement.create_from_upload!(
+          family: @family,
+          account: @account,
+          file: uploaded_file(
+            filename: "statement-account-1512-2026-05-09-to-2026-06-08.pdf",
+            content_type: "application/pdf",
+            content: "%PDF-1.4 #{marker}"
+          )
+        )
+      end
+
+      first = upload.call("first")
+      assert_equal Date.new(2026, 5, 9), first.period_start_on
+      assert_equal Date.new(2026, 6, 8), first.period_end_on
+      assert_equal "1512", first.account_last4_hint
+
+      duplicate = assert_raises(AccountStatement::DuplicateUploadError) { upload.call("second") }
+      assert_equal first, duplicate.statement
+      assert_equal 1, @family.account_statements
+        .where(period_start_on: Date.new(2026, 5, 9), period_end_on: Date.new(2026, 6, 8)).count
+    end
+
+    test "coverage counts a statement that ends in the current month" do
+      account = families(:dylan_family).accounts.create!(
+        name: "Current Month Coverage", balance: 0, currency: "USD", accountable: Depository.new
+      )
+      create_statement_with_period(
+        account: account,
+        period_start_on: Date.new(2026, 9, 9),
+        period_end_on: Date.new(2026, 10, 8),
+        content: "current-month"
+      )
+
+      travel_to Date.new(2026, 10, 17) do
+        coverage = AccountStatement::Coverage.new(
+          account,
+          start_month: Date.new(2026, 10, 1),
+          end_month: Date.new(2026, 12, 1),
+          expected_end_month: Date.new(2026, 9, 1)
+        )
+
+        assert_equal "covered", coverage.months.index_by(&:date)[Date.new(2026, 10, 1)].status
+      end
+    end
+
+    test "a deleted archived document link can be restored" do
+      store = Pathname.new(Dir.mktmpdir("statement-link"))
+      previous = ENV["SURE_DOCUMENT_STORE_DIR"]
+      ENV["SURE_DOCUMENT_STORE_DIR"] = store.to_s
+
+      statement = create_pdf_statement
+      first = statement.archive_document_link!
+      assert first.present?
+
+      first.soft_delete!
+      statement.reload
+      assert_nil statement.archived_document_link
+
+      restored = statement.archive_document_link!
+      assert_not_equal first.id, restored.id
+      assert_equal statement.id, restored.account_statement_id
+      assert_nil restored.deleted_at
+    ensure
+      ENV["SURE_DOCUMENT_STORE_DIR"] = previous
+      FileUtils.remove_entry(store) if store&.exist?
+    end
 end

@@ -58,7 +58,10 @@ class AccountStatement < ApplicationRecord
   # the statements it reads; CSV/XLSX/OFX rows have none. The viewer and the tag
   # facet read through it (never destroyed with the statement — the link's
   # history outlives the vault row).
-  has_one :archived_document_link, -> { where(source: "statement") }, class_name: "DocumentLink",
+  # A soft-deleted link is history, not the statement's archived copy. Keeping
+  # deleted rows out of this association is what makes `archive_document_link!`
+  # able to restore a document whose copy the duplicate review deleted.
+  has_one :archived_document_link, -> { where(source: "statement", deleted_at: nil) }, class_name: "DocumentLink",
           foreign_key: :account_statement_id, dependent: nil
 
   enum :source, { manual_upload: "manual_upload" }, validate: true, default: "manual_upload"
@@ -223,6 +226,15 @@ class AccountStatement < ApplicationRecord
       )
 
       MetadataDetector.new(statement, content: prepared_upload.content).apply
+
+      # The printed period is known only after metadata detection. Two downloads
+      # of one statement differ in their PDF metadata, so content_sha256 misses
+      # the duplicate; period + account (or the card/account last4) is the
+      # statement's identity. One account cannot have two statements for one
+      # cycle, so a later copy must reuse the existing row.
+      duplicate = semantic_duplicate_for(family, statement)
+      raise DuplicateUploadError, duplicate if duplicate
+
       statement.assign_account_match unless account.present?
       statement.save!
       statement
@@ -345,6 +357,44 @@ class AccountStatement < ApplicationRecord
       legacy_scope = prepared_upload.content_sha256.present? ? scope.where(content_sha256: nil) : scope
       legacy_scope.find_by(checksum: prepared_upload.checksum)
     end
+
+    # The same statement downloaded twice has different bytes (PDF metadata
+    # embeds a timestamp), so the content hashes disagree while the document is
+    # identical. Its identity is the printed period plus the account it belongs
+    # to — or, for an unmatched upload, the card/account last4. One account
+    # cannot have two statements covering one cycle; the later copy reuses the
+    # row (and the caller can restore its document).
+    def semantic_duplicate_for(family, statement)
+      return nil unless statement.period_start_on.present? && statement.period_end_on.present?
+      # Without an account or an account/card identifier the period alone cannot
+      # tell two bank statements apart.
+      return nil if statement.account_id.blank? && statement.account_last4_hint.blank?
+
+      scope = family.account_statements.where(
+        period_start_on: statement.period_start_on,
+        period_end_on: statement.period_end_on
+      )
+      # An unmatched original is still the same statement once the account is
+      # picked, so include it; a different account is a different statement.
+      scope = scope.where(account_id: [ statement.account_id, nil ]) if statement.account_id.present?
+
+      scope.order(:created_at).find do |existing|
+        same_identifier = statement.account_last4_hint.present? &&
+                          existing.account_last4_hint.present? &&
+                          existing.account_last4_hint == statement.account_last4_hint
+        same_identifier || normalized_statement_name(existing.filename) == normalized_statement_name(statement.filename)
+      end
+    end
+
+    # Browser/download copies append "-2", "-3", " (1)" and the like. Strip the
+    # copy suffix, never a date component ("...2026-06-12" is part of the
+    # statement's identity, not a copy number).
+    def normalized_statement_name(filename)
+      name = File.basename(filename.to_s, ".*").squish
+      name = name.sub(/\s*\(\d+\)\z/, "")
+      name = name.sub(/[-_ ]\d{1,2}\z/, "") unless name.match?(/\d{4}[-_]\d{1,2}\z/) || name.match?(/\d{4}[-_]\d{1,2}[-_]\d{1,2}\z/)
+      name.downcase
+    end
   end
 
   def viewable_by?(user)
@@ -450,10 +500,15 @@ class AccountStatement < ApplicationRecord
     closing_balance_record = balance_record_for(period_end_on, statement_currency, balance_lookup)
 
     if opening_balance.present? && opening_balance_record.present?
+      # A statement opens at the CLOSE of its first day, not the start: the
+      # boundary day's transactions belong to the previous statement (the two
+      # share that date). `start_balance` is the balance before those
+      # transactions and reported a false mismatch on every boundary day that
+      # had activity.
       checks << reconciliation_check(
         key: "opening_balance",
         statement_amount: opening_balance,
-        ledger_amount: opening_balance_record.start_balance
+        ledger_amount: opening_balance_record.end_balance
       )
     end
 
@@ -469,7 +524,7 @@ class AccountStatement < ApplicationRecord
       checks << reconciliation_check(
         key: "period_movement",
         statement_amount: closing_balance - opening_balance,
-        ledger_amount: closing_balance_record.end_balance - opening_balance_record.start_balance
+        ledger_amount: closing_balance_record.end_balance - opening_balance_record.end_balance
       )
     end
 

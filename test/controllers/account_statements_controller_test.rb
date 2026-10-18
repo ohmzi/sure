@@ -274,6 +274,43 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_equal I18n.t("account_statements.create.duplicates", count: 1), flash[:alert]
   end
 
+  test "re-uploading a statement whose document was deleted restores the document" do
+    store = Pathname.new(Dir.mktmpdir("statement-link"))
+    previous = ENV["SURE_DOCUMENT_STORE_DIR"]
+    ENV["SURE_DOCUMENT_STORE_DIR"] = store.to_s
+
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family,
+      account: @account,
+      file: uploaded_file(
+        filename: "statement-account-1512-2026-05-09-to-2026-06-08.pdf",
+        content_type: "application/pdf",
+        content: "%PDF-1.4 first"
+      )
+    )
+    statement.archive_document_link!.soft_delete!
+
+    assert_no_difference "AccountStatement.count" do
+      post account_statements_url, params: {
+        account_statement: {
+          account_id: @account.id,
+          files: [ uploaded_file(
+            filename: "statement-account-1512-2026-05-09-to-2026-06-08.pdf",
+            content_type: "application/pdf",
+            content: "%PDF-1.4 second"
+          ) ]
+        }
+      }
+    end
+
+    restored = statement.reload.archived_document_link
+    assert restored.present?
+    assert_nil restored.deleted_at
+  ensure
+    ENV["SURE_DOCUMENT_STORE_DIR"] = previous
+    FileUtils.remove_entry(store) if store&.exist?
+  end
+
   test "continues upload loop after a validation error" do
     invalid_record = AccountStatement.new
     invalid_record.errors.add(:filename, "is invalid")
