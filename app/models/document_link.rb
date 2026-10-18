@@ -149,21 +149,23 @@ class DocumentLink < ApplicationRecord
       held = where(family: family).where.not(failure_message: nil)
       # A tombstone has left the archive, so it can never be "waiting on a
       # person" -- the strip's list and its count both drop it.
-      ready_drafts = ReceiptImport.where(understanding_state: "understood")
+      ready_drafts = ReceiptImport.where(family: family, understanding_state: "understood")
                                   .where.not(status: "complete").select(:document_link_id)
       # A statement the read produced but never resolved to an account: the
-      # "Which account?" tile state. `AccountStatement.unmatched` is exactly
-      # "no account, not rejected", the same line the picker gates on.
-      unmatched_statements = AccountStatement.unmatched.select(:id)
+      # "Which account?" tile state, and one of the shared attention predicates
+      # the vault filter reads too.
+      unmatched_statements = AccountStatement.attention_scope("unmatched", family: family).select(:id)
       # A rejected statement is not waiting on anyone, so its missing metadata
-      # is not an ask.
-      incomplete_statements = AccountStatement.where(family: family)
-                                               .where.not(review_status: "rejected")
-                                               .merge(AccountStatement.incomplete_metadata)
-                                               .select(:id)
+      # is not an ask; a held or unmatched statement is owned by its earlier
+      # ask in the shared precedence.
+      base = AccountStatement.where(family: family)
+      metadata_statements = base
+        .where(id: AccountStatement.attention_scope("missing_period", family: family).select(:id))
+        .or(base.where(id: AccountStatement.attention_scope("missing_identity", family: family).select(:id)))
+        .select(:id)
       held.or(where(family: family, id: ready_drafts))
           .or(where(family: family, account_statement_id: unmatched_statements))
-          .or(where(family: family, account_statement_id: incomplete_statements))
+          .or(where(family: family, account_statement_id: metadata_statements))
           .not_deleted
     end
 

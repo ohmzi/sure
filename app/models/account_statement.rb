@@ -27,6 +27,11 @@ class AccountStatement < ApplicationRecord
 
   MAX_FILE_SIZE = 25.megabytes
   READ_CHUNK_SIZE = 1.megabyte
+  # The data-quality asks the Documents attention strip counts and the vault's
+  # q[attention] filter lists. Precedence order: a held statement owns
+  # "couldn't be read", then an unmatched one owns "needs an account", and only
+  # then do the metadata asks apply.
+  ATTENTION_REASONS = %w[held_or_failed unmatched missing_period missing_identity].freeze
   ALLOWED_EXTENSION_CONTENT_TYPES = {
     ".pdf" => %w[application/pdf],
     ".csv" => %w[text/csv text/plain application/csv application/vnd.ms-excel],
@@ -130,19 +135,34 @@ class AccountStatement < ApplicationRecord
   # and one with no printed identity to match an account by. Both are facts the
   # owner can fix on the statement page, so the attention strip counts them.
   scope :missing_period, -> { where("period_start_on IS NULL OR period_end_on IS NULL") }
+  # The SQL twin of #printed_identity? must agree with it on blank values: a
+  # whitespace-only hint is not an identity, and an array of blank strings is
+  # not a printed number.
   scope :with_printed_identity, -> {
     where(<<~SQL.squish)
-      COALESCE(account_statements.account_last4_hint, '') <> ''
-      OR COALESCE(account_statements.institution_name_hint, '') <> ''
-      OR COALESCE(account_statements.account_name_hint, '') <> ''
-      OR (
-        jsonb_typeof(account_statements.sanitized_parser_output -> 'printed_last4s') = 'array'
-        AND jsonb_array_length(account_statements.sanitized_parser_output -> 'printed_last4s') > 0
+      btrim(COALESCE(account_statements.account_last4_hint, ''), E' \\t\\n\\r') <> ''
+      OR btrim(COALESCE(account_statements.institution_name_hint, ''), E' \\t\\n\\r') <> ''
+      OR btrim(COALESCE(account_statements.account_name_hint, ''), E' \\t\\n\\r') <> ''
+      OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements_text(
+          CASE
+            WHEN jsonb_typeof(account_statements.sanitized_parser_output -> 'printed_last4s') = 'array'
+            THEN account_statements.sanitized_parser_output -> 'printed_last4s'
+            ELSE '[]'::jsonb
+          END
+        ) AS printed_last4(value)
+        WHERE btrim(printed_last4.value, E' \\t\\n\\r') <> ''
       )
     SQL
   }
   scope :missing_printed_identity, -> { where.not(id: with_printed_identity.select(:id)) }
   scope :incomplete_metadata, -> { missing_period.or(missing_printed_identity) }
+  # The per-user vault visibility rule, shared by the statements list and the
+  # attention strip: a count must never include a statement the list hides.
+  scope :visible_to, ->(user) {
+    user ? where(account_id: nil).or(where(account_id: user.accessible_accounts.select(:id))) : all
+  }
   scope :for_month, ->(month) {
     month_start = month.to_date.beginning_of_month
     month_end = month_start.end_of_month
@@ -199,6 +219,19 @@ class AccountStatement < ApplicationRecord
   end
 
   class << self
+    # One authority for the data-quality asks. The Documents attention strip
+    # counts these relations; the vault's q[attention] filter lists exactly the
+    # same rows, so a count and the list its button opens cannot disagree.
+    # Returns nil for an unknown reason (the filter then applies nothing).
+    def attention_scope(reason, family:)
+      case normalize_attention_reason(reason)
+      when "held_or_failed" then family.account_statements.where(id: attention_held_link_ids(family))
+      when "unmatched" then attention_unmatched_scope(family)
+      when "missing_period" then attention_missing_period_scope(family)
+      when "missing_identity" then attention_missing_identity_scope(family)
+      end
+    end
+
     def statement_manager?(user)
       user&.admin? || user&.member?
     end
@@ -418,6 +451,52 @@ class AccountStatement < ApplicationRecord
       name = name.sub(/[-_ ]\d{1,2}\z/, "") unless name.match?(/\d{4}[-_]\d{1,2}\z/) || name.match?(/\d{4}[-_]\d{1,2}[-_]\d{1,2}\z/)
       name.downcase
     end
+
+    private
+
+      def normalize_attention_reason(reason)
+        value = reason.to_s
+        value = "missing_identity" if value == "missing_printed_identity"
+        value = "held_or_failed" if value.in?(%w[couldnt_read held failed])
+        value = "unmatched" if value == "needs_account"
+        value if ATTENTION_REASONS.include?(value)
+      end
+
+      def attention_actionable(family)
+        family.account_statements.where.not(review_status: "rejected")
+      end
+
+      # A live document whose read stopped with a reason. The link's family is
+      # pinned to the statement's family as defense in depth; the strip's
+      # "couldn't read" branch makes the same held-link test.
+      def attention_held_link_ids(family)
+        DocumentLink.where(family: family, deleted_at: nil)
+                    .where.not(failure_message: nil)
+                    .where.not(account_statement_id: nil)
+                    .select(:account_statement_id)
+      end
+
+      def attention_unmatched_scope(family)
+        attention_actionable(family).unmatched
+          .where.not(id: attention_held_link_ids(family))
+      end
+
+      def attention_missing_period_scope(family)
+        attention_actionable(family).missing_period
+          .where.not(id: attention_held_link_ids(family))
+          .where.not(id: attention_unmatched_scope(family).select(:id))
+      end
+
+      def attention_missing_identity_scope(family)
+        actionable = attention_actionable(family)
+        # Build the identity subquery from the family-scoped relation (rather
+        # than the generic scope) so every nested statement query carries the
+        # family predicate too.
+        actionable.where.not(id: actionable.with_printed_identity.select(:id))
+          .where.not(id: attention_held_link_ids(family))
+          .where.not(id: attention_unmatched_scope(family).select(:id))
+          .where.not(id: actionable.missing_period.select(:id))
+      end
   end
 
   def viewable_by?(user)
@@ -460,18 +539,23 @@ class AccountStatement < ApplicationRecord
   # bank name, or the filename hint. With none of these, nothing can match the
   # statement to an account automatically.
   def printed_identity?
+    printed_last4s = sanitized_parser_output.to_h["printed_last4s"]
+
     account_last4_hint.present? ||
       institution_name_hint.present? ||
       account_name_hint.present? ||
-      Array(sanitized_parser_output.to_h["printed_last4s"]).compact_blank.any?
+      (printed_last4s.is_a?(Array) && printed_last4s.compact_blank.any?)
   end
 
   def missing_printed_identity? = !printed_identity?
 
   # The metadata the owner can supply on this page. A rejected statement is not
-  # waiting on anyone, so it is never offered as an ask.
+  # waiting on anyone, and a held/failed read owns the "couldn't be read" ask,
+  # so neither is offered as a details ask (the strip makes the same split).
   def needs_details?
-    !rejected? && (missing_period? || missing_printed_identity?)
+    !rejected? &&
+      archived_document_link&.failure_message.blank? &&
+      (missing_period? || missing_printed_identity?)
   end
 
   # P1.11: a disagreement between the stored period and the filename/printed

@@ -1142,6 +1142,143 @@ class AccountStatementTest < ActiveSupport::TestCase
     assert_not_includes AccountStatement.missing_printed_identity, printed
   end
 
+  test "the printed identity predicate treats blank strings and blank array entries as missing" do
+    blank = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "blank-identity")
+    blank.update_columns(
+      account_last4_hint: "   ", institution_name_hint: "", account_name_hint: nil,
+      sanitized_parser_output: { "printed_last4s" => [ "", "  " ] }
+    )
+
+    assert_not blank.printed_identity?
+    assert_includes AccountStatement.missing_printed_identity, blank
+
+    hinted = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "blank-hinted")
+    hinted.update_columns(
+      account_last4_hint: nil, institution_name_hint: "  ", account_name_hint: nil,
+      sanitized_parser_output: { "printed_last4s" => [ "1234" ] }
+    )
+
+    assert hinted.printed_identity?
+    assert_not_includes AccountStatement.missing_printed_identity, hinted
+
+    # A malformed (non-array) snapshot is not an identity, and must not make
+    # the JSON query raise either.
+    malformed = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "malformed-identity")
+    malformed.update_columns(
+      account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+      sanitized_parser_output: { "printed_last4s" => { "0" => "1234" } }
+    )
+
+    assert_not malformed.printed_identity?
+    assert_includes AccountStatement.missing_printed_identity, malformed
+  end
+
+  test "needs_details? ignores rejected and held/failed statements" do
+    statement = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "needs-details")
+    statement.update_columns(
+      period_start_on: nil, period_end_on: nil,
+      account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+      sanitized_parser_output: {}
+    )
+
+    assert statement.needs_details?
+
+    statement.update_columns(review_status: "rejected")
+    assert_not statement.needs_details?
+
+    statement.update_columns(review_status: "linked")
+    DocumentLink.create!(family: @family, source: "statement", status: "failed",
+                         account_statement: statement, original_filename: statement.filename,
+                         failure_message: "the reader could not open this document")
+
+    assert_not statement.reload.needs_details?, "a held row is counted as couldn't-read, not as missing details"
+  end
+
+  # The documents strip and the statements list both read these predicates.
+  # Each ask owns exactly one statement, in this precedence order, so the
+  # counts are disjoint and add up.
+  test "attention scopes are disjoint and ordered by precedence" do
+    held = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "attention-held")
+    held.update_columns(period_start_on: nil, period_end_on: nil,
+                        account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+                        sanitized_parser_output: {})
+    DocumentLink.create!(family: @family, source: "statement", status: "failed",
+                         account_statement: held, original_filename: held.filename,
+                         failure_message: "the reader could not open this document")
+
+    unmatched = create_statement(account: nil, month: Date.new(2026, 5, 1), content: "attention-unmatched")
+    unmatched.update_columns(period_start_on: nil, period_end_on: nil,
+                             account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+                             sanitized_parser_output: {})
+
+    missing_period = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "attention-period")
+    missing_period.update_columns(period_start_on: nil, period_end_on: nil,
+                                  account_last4_hint: "1234")
+
+    missing_identity = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "attention-identity")
+    missing_identity.update_columns(
+      account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+      sanitized_parser_output: {}
+    )
+
+    complete = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "attention-complete")
+    complete.update_columns(account_last4_hint: "1234")
+
+    owned_by = [
+      [ held, "held_or_failed" ],
+      [ unmatched, "unmatched" ],
+      [ missing_period, "missing_period" ],
+      [ missing_identity, "missing_identity" ]
+    ]
+
+    owned_by.each do |candidate, reason|
+      owned_by.each do |_, other_reason|
+        scope = AccountStatement.attention_scope(other_reason, family: @family)
+        if other_reason == reason
+          assert_includes scope, candidate, "#{candidate.filename} belongs to #{reason}"
+        else
+          assert_not_includes scope, candidate, "#{candidate.filename} must not appear under #{other_reason}"
+        end
+      end
+    end
+
+    AccountStatement::ATTENTION_REASONS.each do |reason|
+      assert_not_includes AccountStatement.attention_scope(reason, family: @family), complete,
+                          "a complete statement is not an ask"
+    end
+  end
+
+  test "attention scopes exclude rejected statements" do
+    rejected = create_statement(account: @account, month: Date.new(2026, 5, 1), content: "attention-rejected")
+    rejected.update_columns(
+      account_id: nil, review_status: "rejected",
+      period_start_on: nil, period_end_on: nil,
+      account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+      sanitized_parser_output: {}
+    )
+
+    AccountStatement::ATTENTION_REASONS.each do |reason|
+      assert_not_includes AccountStatement.attention_scope(reason, family: @family), rejected,
+                          "rejected statements are never waiting on a person (#{reason})"
+    end
+  end
+
+  test "attention scopes stay inside the family" do
+    foreign_family = families(:empty)
+    foreign = AccountStatement.create_from_upload!(
+      family: foreign_family, account: nil,
+      file: uploaded_file(filename: "foreign-attention.pdf", content_type: "application/pdf",
+                          content: "%PDF-1.4 foreign #{SecureRandom.hex(4)}")
+    )
+    foreign.update_columns(period_start_on: nil, period_end_on: nil,
+                           account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+                           sanitized_parser_output: {})
+
+    AccountStatement::ATTENTION_REASONS.each do |reason|
+      assert_not_includes AccountStatement.attention_scope(reason, family: @family), foreign
+    end
+  end
+
   test "a mismatched reconciliation check explains its expected and actual figures" do
     card = accounts(:credit_card)
     statement = card_statement(card, Date.new(2026, 5, 9), 100, 130, [ [ Date.new(2026, 5, 20), 25 ] ])

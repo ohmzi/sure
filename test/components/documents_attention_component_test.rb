@@ -1,0 +1,84 @@
+require "test_helper"
+
+# The strip counts the asks; its buttons open lists. A count that disagrees
+# with the list it links to is a broken promise, so every statement reason is
+# measured against the same AccountStatement::Search relation the vault renders.
+class DocumentsAttentionComponentTest < ActiveSupport::TestCase
+  setup do
+    @family = families(:dylan_family)
+    @user = users(:family_admin)
+    @account = accounts(:depository)
+  end
+
+  test "each statement reason counts exactly the vault list it opens" do
+    held = attention_statement("component_held.csv")
+    DocumentLink.create!(family: @family, source: "statement", status: "failed",
+                         account_statement: held, original_filename: held.filename,
+                         failure_message: "the reader could not open this document")
+
+    attention_statement("component_unmatched.csv", account: nil)
+    attention_statement("component_period.csv", period: false)
+    attention_statement("component_identity.csv", identity: false)
+
+    component = DocumentsAttentionComponent.new(family: @family, user: @user)
+    counts = {
+      "held_or_failed" => component.held_or_failed,
+      "unmatched" => component.unmatched_statements,
+      "missing_period" => component.missing_period,
+      "missing_identity" => component.missing_printed_identity
+    }
+
+    counts.each do |reason, count|
+      list = AccountStatement::Search.new(user: @user, family: @family,
+                                          filters: { attention: reason }).relation
+      assert_equal list.count, count, "the #{reason} count must equal its list"
+    end
+  end
+
+  test "rejected statements are never counted" do
+    before = counts_for_family
+
+    rejected = attention_statement("component_rejected.csv", period: false, identity: false)
+    rejected.update_columns(review_status: "rejected", account_id: nil)
+
+    assert_equal before, counts_for_family
+  end
+
+  test "a statement missing both is counted once, under missing period" do
+    before = counts_for_family
+
+    attention_statement("component_both.csv", period: false, identity: false)
+
+    after = counts_for_family
+    assert_equal before["missing_period"] + 1, after["missing_period"]
+    assert_equal before["missing_identity"], after["missing_identity"],
+                 "the identity ask must not repeat the period ask"
+  end
+
+  private
+    def counts_for_family
+      component = DocumentsAttentionComponent.new(family: @family, user: @user)
+      {
+        "held_or_failed" => component.held_or_failed,
+        "unmatched" => component.unmatched_statements,
+        "missing_period" => component.missing_period,
+        "missing_identity" => component.missing_printed_identity
+      }
+    end
+
+    def attention_statement(filename, account: @account, period: true, identity: true)
+      statement = AccountStatement.create_from_upload!(
+        family: @family, account: account,
+        file: uploaded_file(filename: filename, content_type: "text/csv",
+                            content: "date,amount\n2024-01-01,1\n#{filename}\n")
+      )
+      statement.update_columns(
+        period_start_on: (Date.new(2026, 5, 1) if period),
+        period_end_on: (Date.new(2026, 5, 31) if period),
+        account_last4_hint: (identity ? "1234" : nil),
+        institution_name_hint: nil, account_name_hint: nil,
+        sanitized_parser_output: {}
+      )
+      statement
+    end
+end

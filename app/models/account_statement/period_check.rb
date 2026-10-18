@@ -63,7 +63,9 @@ class AccountStatement::PeriodCheck
     end
 
     def filename_warning
-      period = AccountStatement::MetadataDetector.filename_period(statement.filename)
+      period = AccountStatement::MetadataDetector.filename_period(
+        statement.filename, date_format: statement.family&.date_format
+      )
       return nil unless period
       return nil if filename_matches?(period)
 

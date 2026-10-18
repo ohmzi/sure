@@ -886,6 +886,20 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert import.ai_processed?
   end
 
+  test "a statement read records its printed period as the detected-period witness" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    stub_provider(FakeProvider.new(STATEMENT))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    # The stored dates can be corrected later; the printed period has to stay
+    # recorded independently or the disagreement warning loses its witness.
+    assert_equal(
+      { "start_on" => "2026-09-01", "end_on" => "2026-09-30", "source" => "statement_read" },
+      statement_for(@link).sanitized_parser_output["detected_period"]
+    )
+  end
+
   test "a statement the read could not name still gets a summary, never an empty bank" do
     # institution_name_hint is a hint the model may simply not supply; an empty
     # "()" would be the same class of garbled copy review finding 1 was about.

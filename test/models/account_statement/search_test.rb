@@ -121,7 +121,70 @@ class AccountStatement::SearchTest < ActiveSupport::TestCase
                  "the walk must not pluck every matching id"
   end
 
+  # The strip's buttons and the list they open must agree: both read the one
+  # AccountStatement attention predicate, including its disjoint precedence.
+  test "attention filters return exactly the shared attention scopes" do
+    held = attention_statement("attention_held.csv")
+    DocumentLink.create!(family: @family, source: "statement", status: "failed",
+                         account_statement: held, original_filename: held.filename,
+                         failure_message: "the reader could not open this document")
+
+    attention_statement("attention_unmatched.csv", account: nil)
+    attention_statement("attention_period.csv", period: false)
+    attention_statement("attention_identity.csv", identity: false)
+    attention_statement("attention_complete.csv")
+
+    user = users(:family_admin)
+    %w[held_or_failed unmatched missing_period missing_identity missing_printed_identity].each do |reason|
+      canonical = reason == "missing_printed_identity" ? "missing_identity" : reason
+      expected = AccountStatement.attention_scope(canonical, family: @family)
+                                 .visible_to(user).pluck(:id).sort
+      actual = AccountStatement::Search.new(user: user, family: @family,
+                                            filters: { attention: reason }).relation.pluck(:id).sort
+
+      assert_equal expected, actual, "the #{reason} list must be its shared scope"
+    end
+  end
+
+  test "attention filters never list a rejected statement" do
+    rejected = attention_statement("attention_rejected.csv")
+    rejected.update_columns(review_status: "rejected", account_id: nil,
+                            period_start_on: nil, period_end_on: nil,
+                            account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+                            sanitized_parser_output: {})
+
+    %w[held_or_failed unmatched missing_period missing_identity].each do |reason|
+      assert_not_includes AccountStatement::Search.new(
+        user: users(:family_admin), family: @family, filters: { attention: reason }
+      ).relation, rejected
+    end
+  end
+
+  test "an unknown attention value filters nothing" do
+    expected = AccountStatement::Search.new(user: users(:family_admin), family: @family).relation.count
+
+    assert_equal expected,
+                 AccountStatement::Search.new(user: users(:family_admin), family: @family,
+                                              filters: { attention: "bogus" }).relation.count
+  end
+
   private
+    def attention_statement(filename, account: @account, period: true, identity: true)
+      statement = AccountStatement.create_from_upload!(
+        family: @family, account: account,
+        file: uploaded_file(filename: filename, content_type: "text/csv",
+                            content: "date,amount\n2024-01-01,1\n#{filename}\n")
+      )
+      statement.update_columns(
+        period_start_on: (Date.new(2026, 5, 1) if period),
+        period_end_on: (Date.new(2026, 5, 31) if period),
+        account_last4_hint: (identity ? "1234" : nil),
+        institution_name_hint: nil, account_name_hint: nil,
+        sanitized_parser_output: {}
+      )
+      statement
+    end
+
     def walk_statement(filename, at:)
       @walk_count = (@walk_count || 0) + 1
       content = "date,amount\n#{at.to_date.iso8601},#{@walk_count}\n"

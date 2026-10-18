@@ -9,6 +9,11 @@ class AccountStatement::MetadataDetector
     /(?<![a-z0-9])\d{1,2}[-_\.]\d{1,2}[-_\.]\d{4}(?![a-z0-9])/,
     /(?<![a-z0-9])\d{8}(?![a-z0-9])/
   ].freeze
+  DATE_TOKEN = Regexp.union(*DATE_PATTERNS)
+  # The words (and bare separators) that turn two dates into a period range.
+  # "statement 2026-05-09 downloaded 2026-10-18" is two unrelated facts, not a
+  # range: only an explicit connector may join the boundaries.
+  RANGE_GAP = /\A(?:[\s_-]*(?:to|through|until|thru|and|bis|au|al)[\s_-]*|[\s_-]*-[\s_-]*|[\s_-]*[–—][\s_-]*)\z/i.freeze
 
   MONTH_PATTERN = /
     (?<![a-z0-9])
@@ -98,7 +103,8 @@ class AccountStatement::MetadataDetector
         detected = true
       end
 
-      if (period = self.class.filename_period(statement.filename))
+      if (period = self.class.filename_period(statement.filename,
+                                              date_format: statement.family&.date_format))
         statement.period_start_on ||= period.start_on
         statement.period_end_on ||= period.end_on
         detected = true
@@ -244,22 +250,27 @@ class AccountStatement::MetadataDetector
 
     class << self
       # The date(s) an original filename carries, in the shape each deserves:
-      # two dates are the period boundaries, one date is an anchor, and a
-      # month/year names a month. nil when the filename has no usable date.
-      def filename_period(filename)
+      # an explicit two-date range names the period boundaries, a single date is
+      # an anchor, and a month/year names a month. Multiple dates with no range
+      # connector (a period date plus a download date, say) are unrelated facts
+      # and yield nothing rather than an invented range. nil when the filename
+      # has no usable date.
+      def filename_period(filename, date_format: nil)
         basename = File.basename(filename.to_s, ".*")
         return nil if basename.blank?
 
-        dates = DATE_PATTERNS.flat_map { |pattern| basename.scan(pattern) }
-                             .map { |match| Array(match).first }
-                             .filter_map { |value| parse_date(value) }
-                             .uniq
-                             .sort
+        range = explicit_range(basename, date_format)
+        return range if range
 
-        if dates.size >= 2
-          FilenamePeriod.new(start_on: dates.first, end_on: dates.last,
-                             kind: :range, anchor_on: dates.last)
-        elsif dates.size == 1
+        dates = date_matches(basename)
+                .filter_map { |match| parse_date(match[0], date_format: date_format) }
+                .uniq
+                .sort
+        # Two unrelated dates are not a period. Without an explicit range the
+        # only trustworthy shapes are one anchor or a month name.
+        return nil if dates.size > 1
+
+        if dates.size == 1
           FilenamePeriod.new(start_on: dates.first.beginning_of_month,
                              end_on: dates.first.end_of_month,
                              kind: :date, anchor_on: dates.first)
@@ -270,17 +281,63 @@ class AccountStatement::MetadataDetector
         end
       end
 
-      def parse_date(value)
+      # Ambiguous numeric dates ("05-06-2026") are read in the family's own
+      # order. Without one, only shapings that carry their own order (ISO and
+      # YYYYMMDD) are trusted: guessing day-first invented warnings for US
+      # statements.
+      def parse_date(value, date_format: nil)
         text = value.to_s.tr("_", "-")
         date = if text.match?(/\A\d{8}\z/)
           Date.strptime(text, "%Y%m%d")
+        elsif text.match?(/\A\d{4}[-.\/]\d{1,2}[-.\/]\d{1,2}\z/)
+          separator = text[4]
+          Date.strptime(text, "%Y#{separator}%m#{separator}%d")
         else
-          Date.parse(text)
+          parse_with_format(text, date_format)
         end
 
         reasonable_date?(date) ? date : nil
       rescue Date::Error, ArgumentError
         nil
+      end
+
+      # The family format fixes the field order; the filename fixes the
+      # separator. Both must agree, or the token is left unread.
+      def parse_with_format(text, date_format)
+        return nil if date_format.blank?
+
+        separator = text[/[-.\/]/]
+        return nil if separator.nil?
+
+        format = date_format.tr("/", separator).tr("-", separator).tr(".", separator)
+        Date.strptime(text, format)
+      rescue Date::Error, ArgumentError
+        nil
+      end
+
+      def explicit_range(basename, date_format)
+        date_matches(basename).each_cons(2) do |first, second|
+          gap = basename[first.end(0)...second.begin(0)].to_s
+          next unless gap.match?(RANGE_GAP)
+
+          start_on = parse_date(first[0], date_format: date_format)
+          end_on = parse_date(second[0], date_format: date_format)
+          next if start_on.nil? || end_on.nil?
+
+          start_on, end_on = [ start_on, end_on ].minmax
+          return FilenamePeriod.new(start_on: start_on, end_on: end_on,
+                                    kind: :range, anchor_on: end_on)
+        end
+        nil
+      end
+
+      # Every date token with its position. The range check looks at the text
+      # BETWEEN two adjacent tokens, which is what distinguishes a range from
+      # unrelated dates.
+      def date_matches(basename)
+        matches = []
+        basename.scan(DATE_TOKEN) { matches << Regexp.last_match }
+        matches
       end
 
       def parse_month_from_filename(basename)

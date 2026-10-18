@@ -1081,6 +1081,7 @@ class DocumentUnderstandingJob < ApplicationJob
         period_start_on: understanding.period_start,
         period_end_on: understanding.period_end
       )
+      record_detected_period(statement, understanding)
       # Offer the account suggestion now that the hints are on the row: the
       # vault matcher (AccountStatement::AccountMatcher) reads them, and without
       # this a statement the read could not confidently prefill would show the
@@ -1090,6 +1091,29 @@ class DocumentUnderstandingJob < ApplicationJob
       statement.save! if statement.changed?
       link.update!(account_statement_id: statement.id) unless link.account_statement_id == statement.id
       statement
+    end
+
+    # P1.11: keep the period the read itself saw as an independent witness,
+    # beside the stored dates (which the owner may later correct). An image has
+    # no PDF text layer for MetadataDetector to read, so the first native read
+    # backfills it; a deterministic PDF-text witness already on the row is
+    # stronger and is never overwritten.
+    def record_detected_period(statement, understanding)
+      start_on = understanding.period_start
+      end_on = understanding.period_end
+      return if start_on.blank? || end_on.blank?
+
+      output = statement.sanitized_parser_output.to_h
+      existing = output["detected_period"]
+      return if existing.is_a?(Hash) && existing["start_on"].present? && existing["end_on"].present?
+
+      statement.sanitized_parser_output = output.merge(
+        "detected_period" => {
+          "start_on" => start_on.iso8601,
+          "end_on" => end_on.iso8601,
+          "source" => "statement_read"
+        }
+      )
     end
 
     # The vault's own creator, fed the document's stored bytes: it validates the

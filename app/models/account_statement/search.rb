@@ -29,13 +29,12 @@ class AccountStatement::Search
 
   def relation
     @scope = @family.account_statements
-      .where(account_id: nil)
-      .or(@family.account_statements.where(account_id: @user.accessible_accounts.select(:id)))
+      .visible_to(@user)
       .excluding_tombstones
       .includes(:account, :suggested_account, :archived_document_link)
     @scope = @scope.where(extraction_state: extraction_filters) if extraction_filters.any?
     @scope = @scope.where(review_status: review_filters) if review_filters.any?
-    @scope = @scope.merge(attention_scope) if attention_scope
+    @scope = @scope.where(id: attention_scope.select(:id)) if attention_scope
     @scope = @scope.merge(AccountStatement.search(@filters[:search])) if @filters[:search].present?
     @scope = @scope.where("#{DOCUMENT_DATE_SQL} >= ?", date_from.iso8601) if date_from
     @scope = @scope.where("#{DOCUMENT_DATE_SQL} <= ?", date_to.iso8601) if date_to
@@ -79,16 +78,12 @@ class AccountStatement::Search
     def extraction_filters = Array(@filters[:extraction]) & EXTRACTION_FILTERS
     def review_filters = Array(@filters[:review]) & REVIEW_FILTERS
 
-    # The documents attention strip's actions narrow the vault to the same
-    # statements it counted. A rejected statement is not waiting on anyone.
+    # The documents attention strip's actions narrow the vault to exactly the
+    # statements it counted: one shared predicate, not a second copy. An
+    # unknown value filters nothing.
     def attention_scope
-      case @filters[:attention].to_s
-      when "missing_period" then actionable.missing_period
-      when "missing_identity", "missing_printed_identity" then actionable.missing_printed_identity
-      end
+      AccountStatement.attention_scope(@filters[:attention], family: @family)
     end
-
-    def actionable = AccountStatement.where.not(review_status: "rejected")
 
     # The institution facet (M8 Task 7, locked decision 7): statements have no
     # extracted payee — the "merchant" column is the upload-time institution

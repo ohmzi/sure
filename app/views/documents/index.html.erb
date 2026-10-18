@@ -13,7 +13,7 @@
       <%= render "documents/intake_bar" %>
     <% end %>
     <% browser.with_attention do %>
-      <%= render DocumentsAttentionComponent.new(family: Current.family) %>
+      <%= render DocumentsAttentionComponent.new(family: Current.family, user: Current.user) %>
     <% end %>
   <% end %>
 </div>

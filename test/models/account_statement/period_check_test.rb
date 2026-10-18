@@ -140,9 +140,100 @@ class AccountStatement::PeriodCheckTest < ActiveSupport::TestCase
                  [ statement.period_warning.expected_start_on, statement.period_warning.expected_end_on ]
   end
 
+  test "warns when only the stored end differs from a two-date filename" do
+    statement = statement_with(
+      "statement-2026-05-09-to-2026-06-08.pdf",
+      period_start_on: Date.new(2026, 5, 9),
+      period_end_on: Date.new(2026, 6, 7)
+    )
+
+    assert statement.period_looks_wrong?
+    assert_equal :filename, statement.period_warning.source
+    assert_equal Date.new(2026, 6, 8), statement.period_warning.expected_end_on
+  end
+
+  # Date.parse reads "05-06-2026" day-first, so a US statement downloaded as
+  # 05-06 (May 6) was warned against as if it were June 5. The family's own
+  # date format is the authority for ambiguous numeric tokens.
+  test "reads ambiguous numeric filename dates in the family's US format" do
+    may = statement_with(
+      "statement 05-06-2026.pdf",
+      period_start_on: Date.new(2026, 5, 1),
+      period_end_on: Date.new(2026, 5, 31)
+    )
+    assert_not may.period_looks_wrong?, "05-06-2026 is May 6 in a US family"
+
+    june = statement_with(
+      "statement 05-06-2026.pdf",
+      period_start_on: Date.new(2026, 6, 1),
+      period_end_on: Date.new(2026, 6, 30)
+    )
+    assert june.period_looks_wrong?, "May 6 is outside June"
+  end
+
+  test "uses a day-first family format for ambiguous numeric filename dates" do
+    family = families(:dylan_family)
+    family.update_columns(date_format: "%d-%m-%Y")
+
+    statement = statement_with(
+      "statement 05-06-2026.pdf",
+      period_start_on: Date.new(2026, 6, 1),
+      period_end_on: Date.new(2026, 6, 30),
+      family: family
+    )
+
+    assert_not statement.period_looks_wrong?, "05-06-2026 is June 5 in a day-first family"
+  end
+
+  test "matches a US-format two-date filename range" do
+    statement = statement_with(
+      "statement-04-13-2026-to-05-12-2026.pdf",
+      period_start_on: Date.new(2026, 4, 13),
+      period_end_on: Date.new(2026, 5, 12)
+    )
+
+    assert_not statement.period_looks_wrong?
+  end
+
+  # A download timestamp is not a period boundary. Multiple unrelated dates
+  # must never be read as a range merely because there are two of them.
+  test "does not treat a download date as the period end" do
+    statement = statement_with(
+      "statement-2026-05-09-downloaded-2026-10-18.pdf",
+      period_start_on: Date.new(2026, 5, 9),
+      period_end_on: Date.new(2026, 6, 8)
+    )
+
+    assert_not statement.period_looks_wrong?
+  end
+
+  test "ignores malformed detected periods" do
+    malformed_periods = [
+      "junk",
+      [ "2026-04-01", "2026-04-30" ],
+      { "start_on" => "2026-04-01" },
+      { "start_on" => "not-a-date", "end_on" => "2026-04-30" },
+      { "start_on" => nil, "end_on" => nil }
+    ]
+
+    malformed_periods.each do |detected_period|
+      statement = statement_with(
+        "statement.pdf",
+        period_start_on: Date.new(2026, 5, 1),
+        period_end_on: Date.new(2026, 5, 31),
+        detected_period: detected_period
+      )
+
+      assert_not statement.period_looks_wrong?, "no warning for #{detected_period.inspect}"
+    end
+  end
+
   private
-    def statement_with(filename, period_start_on:, period_end_on:, printed: nil)
-      output = if printed
+    def statement_with(filename, period_start_on:, period_end_on:, printed: nil,
+                       detected_period: nil, family: families(:dylan_family))
+      output = if detected_period
+        { "detected_period" => detected_period }
+      elsif printed
         {
           "detected_period" => {
             "start_on" => printed.first.iso8601,
@@ -155,7 +246,7 @@ class AccountStatement::PeriodCheckTest < ActiveSupport::TestCase
       end
 
       AccountStatement.new(
-        family: families(:dylan_family),
+        family: family,
         filename: filename,
         content_type: "application/pdf",
         period_start_on: period_start_on,

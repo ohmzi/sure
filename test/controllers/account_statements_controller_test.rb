@@ -1277,6 +1277,57 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match complete.filename, response.body
   end
 
+  test "each attention count equals the list its button opens" do
+    held = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "attention_held.csv", content_type: "text/csv",
+                          content: "date,amount\n2024-01-01,1\nheld\n")
+    )
+    DocumentLink.create!(family: @account.family, source: "statement", status: "failed",
+                         account_statement: held, original_filename: held.filename,
+                         failure_message: "the reader could not open this document")
+
+    unmatched = AccountStatement.create_from_upload!(
+      family: @account.family, account: nil,
+      file: uploaded_file(filename: "attention_unmatched.csv", content_type: "text/csv",
+                          content: "date,amount\n2024-01-01,1\nunmatched\n")
+    )
+    unmatched.update_columns(period_start_on: nil, period_end_on: nil,
+                             account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+                             sanitized_parser_output: {})
+
+    missing_period = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "attention_period.csv", content_type: "text/csv",
+                          content: "date,amount\n2024-01-01,1\nperiod\n")
+    )
+    missing_period.update_columns(period_start_on: nil, period_end_on: nil, account_last4_hint: "1234")
+
+    missing_identity = AccountStatement.create_from_upload!(
+      family: @account.family, account: @account,
+      file: uploaded_file(filename: "attention_identity.csv", content_type: "text/csv",
+                          content: "date,amount\n2024-01-01,1\nidentity\n")
+    )
+    missing_identity.update_columns(period_start_on: Date.new(2026, 5, 1), period_end_on: Date.new(2026, 5, 31),
+                                    account_last4_hint: nil, institution_name_hint: nil, account_name_hint: nil,
+                                    sanitized_parser_output: {})
+
+    component = DocumentsAttentionComponent.new(family: @account.family, user: @user)
+    counted = {
+      "held_or_failed" => component.held_or_failed,
+      "unmatched" => component.unmatched_statements,
+      "missing_period" => component.missing_period,
+      "missing_identity" => component.missing_printed_identity
+    }
+
+    counted.each do |reason, count|
+      get account_statements_path(q: { attention: reason })
+      assert_response :success
+      assert_equal count, css_select("div[id^='account_statement_']").size,
+                   "the #{reason} count must equal the rendered list"
+    end
+  end
+
   test "the statement page does not flag normal boundary-day adjacency" do
     first = AccountStatement.create_from_upload!(
       family: @account.family, account: @account,
