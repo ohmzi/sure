@@ -50,39 +50,70 @@ class Settings::LlmUsagesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_includes response.body, I18n.t("settings.llm_usages.show.categorization_quality_empty_title")
+    assert_includes response.body,
+                    ERB::Util.html_escape(I18n.t("settings.llm_usages.show.categorization_quality_empty_description"))
     assert_not_includes response.body, I18n.t("settings.llm_usages.show.categorization_accuracy")
   end
 
-  test "shows a correction rate from the household's automatic assignments" do
-    completed_categorization_run([ [ "Food & Drink", "Food & Drink", true ] ])
-    transaction = transactions(:transaction_entry)
-    transaction.enrich_attribute(:category_id, categories(:income).id, source: "ai")
-    transaction.update!(category_id: categories(:food_and_drink).id)
+  test "ignores another family's completed evaluation" do
+    completed_categorization_run(
+      [ [ "Food & Drink", "Food & Drink", true ] ],
+      family: families(:empty)
+    )
 
     sign_in users(:family_admin)
     get settings_llm_usage_path
 
     assert_response :success
-    assert_includes response.body, I18n.t("settings.llm_usages.show.categorization_correction")
+    assert_includes response.body, I18n.t("settings.llm_usages.show.categorization_quality_empty_title")
+    assert_not_includes response.body, "100.0%"
   end
 
-  test "omits the correction rate when nothing was assigned automatically" do
+  test "suppresses accuracy and annotates a run with errored samples" do
+    completed_categorization_run([
+      [ "Food & Drink", "Food & Drink", true ],
+      [ "Food & Drink", nil, false, "provider outage" ]
+    ])
+
+    sign_in users(:family_admin)
+    get settings_llm_usage_path
+
+    assert_response :success
+    assert_includes response.body, I18n.t("settings.llm_usages.show.categorization_not_reported")
+    assert_includes response.body,
+                    I18n.t("settings.llm_usages.show.categorization_accuracy_errored", errored: 1, total: 2)
+    assert_not_includes response.body, "50.0%", "the stored accuracy counts the errored sample as wrong"
+  end
+
+  test "shows an empty state when the completed run has no results" do
+    completed_categorization_run([])
+
+    sign_in users(:family_admin)
+    get settings_llm_usage_path
+
+    assert_response :success
+    assert_includes response.body, I18n.t("settings.llm_usages.show.categorization_quality_empty_title")
+    assert_not_includes response.body, I18n.t("settings.llm_usages.show.categorization_accuracy")
+  end
+
+  test "does not show a correction rate" do
     completed_categorization_run([ [ "Food & Drink", "Food & Drink", true ] ])
 
     sign_in users(:family_admin)
     get settings_llm_usage_path
 
     assert_response :success
-    assert_not_includes response.body, I18n.t("settings.llm_usages.show.categorization_correction")
+    assert_not_includes response.body, "Correction rate"
   end
 
   private
-    # results: [expected, actual, correct] triples, one per sample.
-    def completed_categorization_run(results)
+    # results: [expected, actual, correct, error] entries; error is optional.
+    def completed_categorization_run(results, family: families(:dylan_family))
       dataset = Eval::Dataset.create!(
         name: "llm_usage_quality_#{SecureRandom.hex(4)}",
         eval_type: "categorization",
-        version: "1.0"
+        version: "1.0",
+        metadata: family ? { "family_id" => family.id } : {}
       )
       run = Eval::Run.create!(
         dataset: dataset,
@@ -92,7 +123,7 @@ class Settings::LlmUsagesControllerTest < ActionDispatch::IntegrationTest
         started_at: 2.minutes.ago
       )
 
-      results.each do |expected, actual, correct|
+      results.each do |expected, actual, correct, error|
         sample = dataset.samples.create!(
           input_data: { "description" => expected.to_s },
           expected_output: { "category_name" => expected },
@@ -101,12 +132,13 @@ class Settings::LlmUsagesControllerTest < ActionDispatch::IntegrationTest
         )
         run.results.create!(
           sample: sample,
-          actual_output: { "category_name" => actual },
+          actual_output: error ? { "error" => error } : { "category_name" => actual },
           correct: correct,
           exact_match: expected == actual,
           hierarchical_match: expected == actual,
           null_expected: expected.nil?,
-          null_returned: actual.nil?
+          null_returned: actual.nil?,
+          metadata: error ? { "error" => error } : {}
         )
       end
 

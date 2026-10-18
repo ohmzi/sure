@@ -79,12 +79,20 @@
       </div>
       <div class="bg-container-inset rounded-lg p-4">
         <%
+          accuracy = @categorization_quality.accuracy
+          accuracy_description = if @categorization_quality.errored?
+            t(".categorization_accuracy_errored",
+              errored: @categorization_quality.samples_errored,
+              total: @categorization_quality.total_results)
+          else
+            t(".categorization_accuracy_description", count: @categorization_quality.samples_processed)
+          end
           quality_stats = [
             {
               icon: "check-circle",
               label: t(".categorization_accuracy"),
-              value: number_to_percentage(@categorization_quality.accuracy, precision: 1),
-              description: t(".categorization_accuracy_description", count: @categorization_quality.samples_processed)
+              value: accuracy ? number_to_percentage(accuracy, precision: 1) : t(".categorization_not_reported"),
+              description: accuracy_description
             },
             {
               icon: "circle-x",
@@ -93,16 +101,8 @@
               description: t(".categorization_abstention_description")
             }
           ]
-          if (correction_rate = @categorization_quality.correction_rate)
-            quality_stats << {
-              icon: "pencil",
-              label: t(".categorization_correction"),
-              value: number_to_percentage(correction_rate, precision: 1),
-              description: t(".categorization_correction_description")
-            }
-          end
         %>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <% quality_stats.each do |stat| %>
             <div>
               <div class="flex items-center gap-2 mb-2">
