@@ -1,4 +1,4 @@
-<%# locals: (account:, title:, subtitle: nil) %>
+<%# locals: (account:, title:, subtitle: nil, switchable_accounts: []) %>
 
 <header class="space-y-4">
   <div class="flex items-center gap-4">
@@ -9,7 +9,53 @@
       <div class="flex items-center gap-2 min-w-0">
         <div class="min-w-0">
           <div class="flex items-center gap-3">
-            <h2 class="font-bold tracking-tight text-xl break-words <%= "animate-pulse" if account.syncing? %>"><%= title %></h2>
+            <%# The title is the account switcher: tapping it lists every
+                account the viewer can open, so a change of account no longer
+                needs a trip through the accounts index. The h2 carries the
+                heading semantics; the popover's trigger is a button. %>
+            <h2 class="sr-only"><%= title %></h2>
+            <%= render DS::Popover.new(variant: "button", placement: "bottom-start", offset: 8, max_width: "24rem") do |popover| %>
+              <% popover.with_button(
+                   type: "button",
+                   class: "flex min-w-0 items-center gap-2 rounded-lg text-left focus-ring",
+                   aria: { label: t(".switch_account_named", account: title) }
+                 ) do %>
+                <span class="font-bold tracking-tight text-xl break-words <%= "animate-pulse" if account.syncing? %>"><%= title %></span>
+                <%= icon("chevron-down", class: "w-4 h-4 shrink-0 text-secondary") %>
+              <% end %>
+
+              <% popover.with_custom_content do %>
+                <div class="px-3 pb-1 pt-2">
+                  <p class="text-xs font-medium uppercase text-secondary"><%= t(".switch_account") %></p>
+                </div>
+                <div class="max-h-[60vh] overflow-y-auto pb-1">
+                  <% switchable_accounts.each do |candidate| %>
+                    <% current = candidate.id == account.id %>
+                    <%= link_to account_path(candidate),
+                                data: { turbo_frame: "_top" },
+                                aria: { current: ("page" if current) },
+                                class: class_names(
+                                  "flex items-center gap-3 px-3 py-2 hover:bg-surface-hover",
+                                  "bg-container-inset" => current
+                                ) do %>
+                      <%= render "accounts/logo", account: candidate, size: "sm" %>
+                      <div class="min-w-0 flex-1">
+                        <p class="truncate text-sm font-medium text-primary"><%= candidate.name %></p>
+                        <p class="truncate text-xs text-secondary"><%= candidate.long_subtype_label %></p>
+                      </div>
+                      <div class="shrink-0 text-right">
+                        <% unless candidate.draft? %>
+                          <p class="text-sm font-medium text-primary privacy-sensitive"><%= format_money(candidate.balance_money) %></p>
+                        <% end %>
+                        <% if current %>
+                          <p class="text-xs text-secondary"><%= t(".current_account") %></p>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  <% end %>
+                </div>
+              <% end %>
+            <% end %>
             <% if account.shared? %>
               <%= icon("users", class: "w-4 h-4 text-secondary", title: account.owned_by?(Current.user) ? nil : account.owner&.display_name) %>
             <% end %>

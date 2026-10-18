@@ -42,6 +42,17 @@ class UI::AccountPage < ApplicationComponent
     account.name
   end
 
+  # Every account the viewer may open, including this one (marked in the
+  # panel), so the title can switch accounts without the accounts index.
+  def switchable_accounts
+    @switchable_accounts ||= Current.user.accessible_accounts
+      .where.not(status: :pending_deletion)
+      .includes(:accountable)
+      .with_attached_logo
+      .order(:name)
+      .to_a
+  end
+
   def subtitle
     return nil unless account.property?
 

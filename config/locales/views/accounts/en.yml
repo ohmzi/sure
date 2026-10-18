@@ -131,6 +131,9 @@ en:
         owed: Amount owed
       header:
         complete_setup: Complete setup
+        switch_account: Switch account
+        switch_account_named: "Switch account from %{account}"
+        current_account: Current account
       menu:
         confirm_accept: Delete "%{name}"
         confirm_body_html: "<p>By deleting this account, you will erase its value
