@@ -37,7 +37,7 @@
         <%# Stretched link rather than a link wrapping the row, because the
             acknowledge control is a button_to — a <form>, which cannot be
             nested inside an <a>. Same idiom as the outflows rows. %>
-        <div class="relative flex items-center mx-3 px-3 py-2.5 rounded-lg gap-3 group/insight">
+        <div class="relative flex items-center mx-3 px-3 py-2.5 rounded-lg gap-3 group/insight hover:bg-container-inset-hover transition-colors">
           <%# Empty body with an aria-label: the visible title is a sibling, and
               passing a name would render it as link text on top of the row. %>
           <%= link_to "", insights_path,

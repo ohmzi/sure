@@ -6,7 +6,8 @@
       text: t("insights.refresh.checking"),
       variant: "outline",
       icon: "loader-circle",
-      disabled: true
+      disabled: true,
+      class: "[&_svg]:animate-spin"
     ) %>
   <% else %>
     <%= render DS::Button.new(

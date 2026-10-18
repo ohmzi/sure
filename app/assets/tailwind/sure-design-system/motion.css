@@ -29,9 +29,15 @@
   to { transform: scale(2.6); opacity: 0; }
 }
 
+@keyframes sure-press {
+  to { scale: 0.97; }
+}
+
+/* Presses in while held. An animation on the `scale` property, not a
+   transition, so it never fights the element's own transition classes
+   (colour, shadow) or its transform. */
 @utility press {
-  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 200ms, background-color 180ms;
-  &:active { transform: scale(0.97); }
+  &:active:not(:disabled, [aria-disabled=true]) { animation: sure-press 120ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
 }
 
 @utility lift {
@@ -42,12 +48,12 @@
 }
 
 @utility rise {
-  animation: sure-rise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: sure-rise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
 /* Each direct child rises a beat after the one before it. */
 @utility rise-children {
-  & > * { animation: sure-rise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  & > * { animation: sure-rise 500ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards; }
   & > :nth-child(2) { animation-delay: 50ms; }
   & > :nth-child(3) { animation-delay: 100ms; }
   & > :nth-child(4) { animation-delay: 150ms; }
@@ -56,19 +62,32 @@
   & > :nth-child(n + 7) { animation-delay: 300ms; }
 }
 
+/* A page's sections fading in one after another. Opacity only: a transform on
+   a section would move any fixed element inside it (the floating +) for the
+   length of the animation. */
+@utility fade-children {
+  & > * { animation: sure-fade 280ms ease-out backwards; }
+  & > :nth-child(2) { animation-delay: 40ms; }
+  & > :nth-child(3) { animation-delay: 80ms; }
+  & > :nth-child(4) { animation-delay: 120ms; }
+  & > :nth-child(n + 5) { animation-delay: 160ms; }
+}
+
 @utility draw-line {
   stroke-dasharray: 1600;
-  animation: sure-draw 1200ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+  animation: sure-draw 1200ms cubic-bezier(0.3, 0.7, 0.2, 1) backwards;
 }
 
 @utility grow-up {
+  transform-box: fill-box;
   transform-origin: bottom;
-  animation: sure-grow-y 700ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: sure-grow-y 700ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
 @utility grow-right {
+  transform-box: fill-box;
   transform-origin: left;
-  animation: sure-grow-x 900ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation: sure-grow-x 900ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
 @utility ping {
@@ -77,7 +96,78 @@
   animation: sure-ping 1800ms ease-out infinite;
 }
 
+@keyframes sure-shimmer {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
+
+@keyframes sure-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sure-pop {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes sure-sweep {
+  from { stroke-dashoffset: var(--sweep-from, 340); }
+}
+
+/* A loading placeholder: a soft light sweeping across, instead of a blank
+   space or a spinner. Give it a size and a radius where it is used. */
+@utility shimmer {
+  background-color: var(--color-surface-inset);
+  background-image: linear-gradient(100deg, transparent 30%, --alpha(var(--color-white) / 55%) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: sure-shimmer 1400ms ease-in-out infinite;
+  [data-theme=dark] & {
+    background-image: linear-gradient(100deg, transparent 30%, --alpha(var(--color-white) / 7%) 50%, transparent 70%);
+  }
+}
+
+@utility fade-in {
+  animation: sure-fade 300ms ease-out backwards;
+}
+
+@utility pop-in {
+  animation: sure-pop 260ms cubic-bezier(0.2, 0.9, 0.25, 1) backwards;
+}
+
+/* A ring slice that sweeps round into place (set --sweep-from to its length). */
+@utility sweep-in {
+  animation: sure-sweep 900ms cubic-bezier(0.3, 0.7, 0.2, 1) backwards;
+}
+
+/* A number that rolls to its value (count_up_controller) keeps its width. */
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* A frame reloading (a period, a filter, a search) dims while it waits, so a
+   tap always shows it was heard. */
+turbo-frame[aria-busy="true"] {
+  opacity: 0.55;
+  transition: opacity 200ms ease-out;
+}
+turbo-frame { transition: opacity 200ms ease-out; }
+
+/* <details> opens and closes smoothly where the browser can size to auto. */
+@supports (interpolate-size: allow-keywords) {
+  :root { interpolate-size: allow-keywords; }
+  details::details-content {
+    height: 0;
+    overflow: clip;
+    transition: height 250ms cubic-bezier(0.2, 0.8, 0.2, 1), content-visibility 250ms allow-discrete;
+  }
+  details[open]::details-content { height: auto; }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .rise, .rise-children > *, .draw-line, .grow-up, .grow-right, .ping { animation: none; }
-  .press:active, .lift:hover { transform: none; }
+  .rise, .rise-children > *, .fade-children > *, .draw-line, .grow-up, .grow-right, .ping, .shimmer, .fade-in, .pop-in, .sweep-in { animation: none; }
+  .press:active { animation: none; }
+  .lift:hover { transform: none; }
+  details::details-content { transition: none; }
 }

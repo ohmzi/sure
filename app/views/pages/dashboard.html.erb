@@ -58,13 +58,18 @@
     render (and its query budget) is unchanged. %>
 <% if accessible_accounts.any? %>
   <%= turbo_frame_tag "dashboard_today", src: dashboard_today_path, target: "_top" do %>
-    <%# Shaped like Today (two cards, then two rows), so the widgets below do
-        not jump when it lands. %>
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6" aria-hidden="true">
-      <div class="h-48 rounded-3xl bg-container-inset animate-pulse"></div>
-      <div class="h-48 rounded-3xl bg-container-inset animate-pulse"></div>
-      <div class="h-28 rounded-2xl bg-container-inset animate-pulse"></div>
-      <div class="h-28 rounded-2xl bg-container-inset animate-pulse"></div>
+    <%# Shaped like Today — the hero, the phone's shortcuts, the month, the
+        three "needs you" cards — so nothing jumps when it lands; a soft
+        shimmer while it loads (the animation pass, 2026-10-18). %>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-5 gap-y-6 mb-6" aria-hidden="true">
+      <div class="h-64 rounded-[30px] shimmer"></div>
+      <div class="lg:hidden grid grid-cols-4 gap-2">
+        <% 4.times do %><div class="mx-auto size-14 rounded-2xl shimmer"></div><% end %>
+      </div>
+      <div class="h-64 rounded-[26px] shimmer"></div>
+      <div class="grid grid-cols-3 gap-2.5">
+        <% 3.times do %><div class="h-32 rounded-[22px] shimmer"></div><% end %>
+      </div>
     </div>
   <% end %>
 <% end %>
@@ -125,10 +130,13 @@
   <% two_column = Current.user.dashboard_two_column? %>
   <div class="grid grid-cols-1 <%= "2xl:grid-cols-2 2xl:items-start 2xl:gap-y-0 2xl:[grid-auto-flow:row_dense] 2xl:[grid-auto-rows:1px]" if two_column %> gap-6 pb-6 lg:pb-12" data-controller="dashboard-sortable dashboard-masonry" data-action="dragover->dashboard-sortable#dragOver drop->dashboard-sortable#drop" role="list" aria-label="<%= t("pages.dashboard.sections_aria_label") %>">
   <% if accessible_accounts.any? %>
-    <% @dashboard_sections.each do |section| %>
+    <%# The widgets fade in one after another as Home opens (the animation pass,
+        2026-10-18): opacity only, since the grid is a draggable masonry, and
+        filled backwards only, so the drag's own opacity still shows after. %>
+    <% @dashboard_sections.each_with_index do |section, section_index| %>
       <section
-        class="bg-container rounded-3xl shadow-border-xs transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-link focus-visible:ring-offset-2<%= " 2xl:col-span-2" if two_column && section[:layout][:col_span] == "full" %>"
-        style="<%= "--dash-widget-h: #{section[:layout][:height_px]}px;" if section[:layout][:grow] %>"
+        class="bg-container rounded-3xl shadow-border-xs transition-all group focus:outline-none focus-visible:ring-2 focus-visible:ring-link focus-visible:ring-offset-2 animate-[sure-fade_320ms_ease-out_backwards] motion-reduce:animate-none<%= " 2xl:col-span-2" if two_column && section[:layout][:col_span] == "full" %>"
+        style="animation-delay: <%= [ section_index, 6 ].min * 60 %>ms;<%= " --dash-widget-h: #{section[:layout][:height_px]}px;" if section[:layout][:grow] %>"
         data-dashboard-sortable-target="section"
         data-section-key="<%= section[:key] %>"
         <%= "autofocus" if @just_shown_section == section[:key] %>
@@ -157,7 +165,7 @@
               data-dashboard-section-target="button"
               aria-label="<%= t("pages.dashboard.toggle_section") %>"
               aria-expanded="<%= !Current.user.dashboard_section_collapsed?(section[:key]) %>">
-              <%= icon("chevron-down", size: "sm", class: "transition-transform", data: { dashboard_section_target: "chevron" }) %>
+              <%= icon("chevron-down", size: "sm", class: "transition-transform duration-200 ease-out", data: { dashboard_section_target: "chevron" }) %>
             </button>
             <h2 class="text-lg font-semibold tracking-tight">
               <%= t(section[:title]) %>
@@ -266,7 +274,8 @@
             </button>
           </div>
         </div>
-        <div class="py-4" data-dashboard-section-target="content">
+        <%# Fades back in each time the section is expanded. %>
+        <div class="py-4 fade-in" data-dashboard-section-target="content">
           <%= render partial: section[:partial], locals: section[:locals] %>
           <% if section[:key] == "cashflow_sankey" && preview_features_enabled? %>
             <%= render "pages/dashboard/cashflow_preview", period: @period, legacy_data: section[:locals][:sankey_data] %>

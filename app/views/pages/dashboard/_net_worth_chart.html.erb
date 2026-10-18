@@ -5,8 +5,16 @@
   <div class="flex justify-between gap-4 px-4">
     <div class="space-y-2">
       <% if series.trend.present? %>
-        <p class="text-primary -space-x-0.5 text-4xl font-bold tracking-tight privacy-sensitive <%= "animate-pulse" if balance_sheet.syncing? %>">
-          <%= series.trend.current.format %>
+        <%# While syncing, a small glowing dot beside the figure rather than the
+            figure itself pulsing (the animation pass, 2026-10-18). %>
+        <p class="text-primary text-4xl font-bold tracking-tight flex items-center gap-3">
+          <span class="privacy-sensitive"><%= series.trend.current.format %></span>
+          <% if balance_sheet.syncing? %>
+            <span class="relative inline-flex size-2.5" aria-hidden="true">
+              <span class="ping absolute inset-0 rounded-full bg-inverse"></span>
+              <span class="relative size-2.5 rounded-full bg-inverse"></span>
+            </span>
+          <% end %>
         </p>
         <%= render partial: "shared/trend_change", locals: { trend: series.trend, comparison_label: period.comparison_label } %>
       <% else %>

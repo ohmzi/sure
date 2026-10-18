@@ -46,7 +46,7 @@
 
           <%# Progress Bar %>
           <div class="mb-3">
-            <div class="h-3 bg-container rounded-full overflow-hidden">
+            <div class="h-3 bg-container rounded-full overflow-hidden grow-right">
               <% bar_width = [budget_item[:percent_used], 100].min %>
               <% bar_color = case budget_item[:status]
                 when :over then "bg-destructive"

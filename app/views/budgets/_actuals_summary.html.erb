@@ -9,16 +9,20 @@
     </span>
 
     <% if budget.income_category_totals.any? %>
-      <div>
-        <div class="flex h-1.5 mb-3 gap-1">
-          <% budget.income_category_totals.each do |category_total| %>
-            <div class="h-full rounded-full" style="background-color: <%= category_total.category.color %>; width: <%= category_total.weight %>%"></div>
+      <%# The bar grows in, and pointing at a part or its legend entry brings
+          it forward (the animation pass, 2026-10-18). %>
+      <div data-controller="segment-highlight">
+        <div class="flex h-1.5 mb-3 gap-1 grow-right">
+          <% budget.income_category_totals.each_with_index do |category_total, index| %>
+            <div class="h-full rounded-full transition-opacity duration-200" style="background-color: <%= category_total.category.color %>; width: <%= category_total.weight %>%"
+                 data-segment-highlight-target="part" data-segment-key="<%= index %>" data-action="pointerenter->segment-highlight#focus pointerleave->segment-highlight#clear focusin->segment-highlight#focus focusout->segment-highlight#clear"></div>
           <% end %>
         </div>
 
         <div class="flex flex-wrap gap-x-2.5 gap-y-1 text-xs">
-          <% budget.income_category_totals.each do |category_total| %>
-            <div class="flex items-center gap-1.5">
+          <% budget.income_category_totals.each_with_index do |category_total, index| %>
+            <div class="flex items-center gap-1.5 rounded-md transition-opacity duration-200 cursor-default"
+                 data-segment-highlight-target="part" data-segment-key="<%= index %>" data-action="pointerenter->segment-highlight#focus pointerleave->segment-highlight#clear focusin->segment-highlight#focus focusout->segment-highlight#clear">
               <div class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: <%= category_total.category.color %>"></div>
               <span class="text-secondary"><%= category_total.category.display_name %></span>
               <span class="text-primary"><%= number_to_percentage(category_total.weight, precision: 0) %></span>
@@ -35,16 +39,20 @@
     <span class="inline-block mb-2 text-xl font-medium text-primary privacy-sensitive"><%= budget.actual_spending_money.format %></span>
 
     <% if budget.expense_category_totals.any? %>
-      <div>
-        <div class="flex h-1.5 mb-3 gap-1">
-          <% budget.expense_category_totals.each do |category_total| %>
-            <div class="h-full rounded-full" style="background-color: <%= category_total.category.color %>; width: <%= category_total.weight %>%"></div>
+      <%# The bar grows in, and pointing at a part or its legend entry brings
+          it forward (the animation pass, 2026-10-18). %>
+      <div data-controller="segment-highlight">
+        <div class="flex h-1.5 mb-3 gap-1 grow-right">
+          <% budget.expense_category_totals.each_with_index do |category_total, index| %>
+            <div class="h-full rounded-full transition-opacity duration-200" style="background-color: <%= category_total.category.color %>; width: <%= category_total.weight %>%"
+                 data-segment-highlight-target="part" data-segment-key="<%= index %>" data-action="pointerenter->segment-highlight#focus pointerleave->segment-highlight#clear focusin->segment-highlight#focus focusout->segment-highlight#clear"></div>
           <% end %>
         </div>
 
         <div class="flex flex-wrap gap-x-2.5 gap-y-1 text-xs">
-          <% budget.expense_category_totals.each do |category_total| %>
-            <div class="flex items-center gap-1.5">
+          <% budget.expense_category_totals.each_with_index do |category_total, index| %>
+            <div class="flex items-center gap-1.5 rounded-md transition-opacity duration-200 cursor-default"
+                 data-segment-highlight-target="part" data-segment-key="<%= index %>" data-action="pointerenter->segment-highlight#focus pointerleave->segment-highlight#clear focusin->segment-highlight#focus focusout->segment-highlight#clear">
               <div class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: <%= category_total.category.color %>"></div>
               <span class="text-secondary"><%= category_total.category.display_name %></span>
               <span class="text-primary"><%= number_to_percentage(category_total.weight, precision: 0) %></span>

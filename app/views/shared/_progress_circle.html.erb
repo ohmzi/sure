@@ -1,4 +1,4 @@
-<%# locals: (progress:, radius: 7, stroke: 2, color: nil) %>
+<%# locals: (progress:, radius: 7, stroke: 2, color: nil, animate: true) %>
 
 <%
   circumference = Math::PI * 2 * radius
@@ -16,10 +16,10 @@
     cy="<%= center %>"
     stroke-width="<%= stroke %>"></circle>
 
-  <!-- Foreground Circle -->
+  <!-- Foreground Circle: sweeps round from empty (the animation pass) -->
   <circle
-    class="fill-transparent"
-    style="stroke: <%= color || "var(--color-blue-500)" %>"
+    class="fill-transparent <%= "sweep-in" if animate %>"
+    style="stroke: <%= color || "var(--color-blue-500)" %>; --sweep-from: <%= circumference %>"
     r="<%= radius %>"
     cx="<%= center %>"
     cy="<%= center %>"

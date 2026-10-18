@@ -55,7 +55,7 @@
   # the page carries the institution and the statement's own title, which is
   # what makes the document recognisable. A centred crop would show its middle.
   thumb = if row.thumb_url.present?
-    image_tag(row.thumb_url, alt: row.title, loading: "lazy", class: "h-full w-full object-cover object-top")
+    image_tag(row.thumb_url, alt: row.title, loading: "lazy", class: "h-full w-full object-cover object-top transition-transform duration-300 group-hover/tile:scale-[1.03]")
   else
     content_tag(:div, icon(row.icon, size: "xl"),
                 class: "flex h-full w-full items-center justify-center text-secondary",
@@ -63,9 +63,13 @@
   end
 %>
 <%# A card (the Quicken Simplifi language, 2026-10-17): the thumbnail inset
-    in a rounded container, the state pill in its corner, the title bold. %>
-<div id="<%= row.key %>" class="flex flex-col gap-2.5 min-w-0 rounded-2xl bg-container p-2 shadow-border-xs transition focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary" data-document-state="<%= state %>">
-  <div class="relative aspect-[4/3] overflow-hidden rounded-xl bg-container-inset<%= " border border-dashed border-secondary" if state == :reading %>">
+    in a rounded container, the state pill in its corner, the title bold.
+    Under a pointer the card's shadow deepens and its picture leans in (the
+    animation pass, 2026-10-18) — shadow, not a lift: the tile holds menus
+    that open as fixed panels, which a transform would displace. A document
+    still being read shimmers where its picture will be. %>
+<div id="<%= row.key %>" class="group/tile flex flex-col gap-2.5 min-w-0 rounded-2xl bg-container p-2 shadow-border-xs transition-shadow duration-200 hover:shadow-border-md focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary" data-document-state="<%= state %>">
+  <div class="relative aspect-[4/3] overflow-hidden rounded-xl <%= state == :reading ? "shimmer" : "bg-container-inset" %>">
     <% if state == :reading %>
       <%# Nothing to show yet — the design's dashed box with the state centred. %>
       <div class="absolute inset-0 flex items-center justify-center">

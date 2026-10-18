@@ -44,7 +44,7 @@
       <div class="border border-subdued rounded-lg divide-y divide-subdued">
         <div class="px-3 py-3 flex flex-col justify-center">
           <p class="text-xs font-medium text-secondary uppercase pb-1"><%= t("bills.detail.history_title") %></p>
-          <%= render DS::Sparkline.new(series: payment_history, aria_label: t("bills.detail.history_aria")) %>
+          <%= render DS::Sparkline.new(series: payment_history, aria_label: t("bills.detail.history_aria"), currency: series.currency) %>
         </div>
 
         <div class="px-3 py-3 space-y-2">

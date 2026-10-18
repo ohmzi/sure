@@ -7,9 +7,13 @@
     <div class="space-y-4 px-4">
       <div class="flex items-center gap-2">
         <h2 class="text-lg font-medium inline-flex items-center gap-1.5">
-          <span class="<%= "animate-pulse" if classification_group.syncing? %>">
-            <%= classification_group.name %>
-          </span>
+          <span><%= classification_group.name %></span>
+          <% if classification_group.syncing? %>
+            <span class="relative inline-flex size-2" aria-hidden="true">
+              <span class="ping absolute inset-0 rounded-full bg-inverse"></span>
+              <span class="relative size-2 rounded-full bg-inverse"></span>
+            </span>
+          <% end %>
 
           <% if classification_group.account_groups.any? %>
             <span class="text-secondary">&middot;</span>
@@ -19,16 +23,24 @@
       </div>
 
       <% if classification_group.account_groups.any? %>
-        <div class="space-y-4">
-          <div class="flex gap-1">
+        <%# The allocation bar fills in as the widget opens, and pointing at a
+            segment or its legend entry lights that group up and dims the rest
+            (the animation pass, 2026-10-18). %>
+        <div class="space-y-4" data-controller="hover-highlight">
+          <div class="flex gap-1 grow-right">
             <% classification_group.account_groups.each do |account_group| %>
-              <div class="h-1.5 rounded-sm" style="width: <%= account_group.weight %>%; background-color: <%= account_group.color %>;"></div>
+              <div class="h-1.5 rounded-sm transition-[opacity,height] duration-200 hover:h-2.5" style="width: <%= account_group.weight %>%; background-color: <%= account_group.color %>;"
+                   data-hover-highlight-target="item" data-key="<%= account_group.key %>"
+                   data-action="pointerenter->hover-highlight#enter pointerleave->hover-highlight#leave"
+                   title="<%= account_group.name %> · <%= number_to_percentage(account_group.weight, precision: 0) %>"></div>
             <% end %>
           </div>
 
           <div class="flex flex-wrap gap-4">
             <% classification_group.account_groups.each do |account_group| %>
-              <div class="flex items-center gap-2 text-sm">
+              <div class="flex items-center gap-2 text-sm rounded-md transition-opacity duration-200 cursor-default"
+                   data-hover-highlight-target="item" data-key="<%= account_group.key %>"
+                   data-action="pointerenter->hover-highlight#enter pointerleave->hover-highlight#leave">
                 <div class="h-2.5 w-2.5 rounded-full" style="background-color: <%= account_group.color %>;"></div>
                 <p class="text-secondary"><%= account_group.name %></p>
                 <p class="text-primary font-mono privacy-sensitive"><%= number_to_percentage(account_group.weight, precision: 0) %></p>
@@ -60,9 +72,9 @@
                 <%= idx == classification_group.account_groups.size - 1 ? "rounded-b-lg" : "" %>
               " data-group-key="<%= account_group.key %>"
               <%= "open" if Current.user.always_expanded_account_group?(account_group.key) %>>
-                <summary class="cursor-pointer p-3 sm:p-4 group-open:bg-container rounded-lg flex items-center justify-between gap-2">
+                <summary class="cursor-pointer p-3 sm:p-4 group-open:bg-container hover:bg-container-hover transition-colors rounded-lg flex items-center justify-between gap-2">
                   <div class="min-w-0 grow flex items-center gap-1">
-                    <%= icon("chevron-right", class: "group-open:rotate-90") %>
+                    <%= icon("chevron-right", class: "group-open:rotate-90 transition-transform duration-150") %>
 
                     <p class="min-w-0 break-words"><%= account_group.name %></p>
                   </div>

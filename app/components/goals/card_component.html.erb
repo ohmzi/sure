@@ -1,4 +1,7 @@
-<div class="group relative bg-container rounded-xl shadow-border-xs hover:bg-container-hover transition-colors p-6 <%= "opacity-75" if goal.paused? || goal.archived? %>"
+<%# Rises in as the grid opens, and again when a filter brings it back; lifts
+    under a pointer and presses under a finger (the animation pass,
+    2026-10-18). Filled backwards only, so a paused card's own opacity holds. %>
+<div class="group relative bg-container rounded-xl shadow-border-xs hover:bg-container-hover lift press animate-[sure-rise_450ms_cubic-bezier(0.2,0.8,0.2,1)_backwards] motion-reduce:animate-none p-6 <%= "opacity-75" if goal.paused? || goal.archived? %>"
      <% if filterable %> data-goals-filter-target="card"<% end %>
      data-goal-name="<%= goal.name %>"
      data-goal-status="<%= goal.display_status %>">

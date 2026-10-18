@@ -43,11 +43,13 @@
         <div class="px-2 py-1"><%= t("date.abbr_day_names")[offset] %></div>
       <% end %>
     </div>
-    <div class="grid grid-cols-7 gap-px bg-alpha-black-100 theme-dark:bg-alpha-white-200 rounded-lg overflow-hidden">
+    <%# One fade for the whole grid, not 42 cells staggering. %>
+    <div class="grid grid-cols-7 gap-px bg-alpha-black-100 theme-dark:bg-alpha-white-200 rounded-lg overflow-hidden fade-in">
       <% (@grid_start..@grid_end).each do |day| %>
         <% in_month = day.between?(@month, @month.end_of_month) %>
         <div class="bg-container min-h-24 p-1.5 space-y-1 <%= "opacity-40" unless in_month %>">
-          <p class="text-xs <%= day == Date.current ? "font-bold text-link" : "text-secondary" %>">
+          <%# Today wears a ring (the animation pass, 2026-10-18). %>
+          <p class="text-xs <%= day == Date.current ? "inline-flex size-6 items-center justify-center rounded-full font-bold text-link ring-1 ring-link" : "text-secondary" %>">
             <%= day.day %>
           </p>
           <% (@by_day[day] || []).sort_by { |occurrence| -occurrence.resolved_expected_amount }.each do |occurrence| %>

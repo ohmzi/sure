@@ -114,7 +114,7 @@
       </div>
 
       <%= link_to transactions_path(q: { types: [ "income" ], status: [ "confirmed" ], start_date: period.date_range.begin, end_date: period.date_range.end, account_ids: drilldown_account_ids }.compact),
-            class: "flex items-center justify-between p-3 border border-secondary rounded-lg hover:bg-container-inset-hover transition-colors group",
+            class: "flex items-center justify-between p-3 border border-secondary rounded-lg hover:bg-container-inset-hover transition-colors group press",
             data: { turbo_frame: "_top" } do %>
         <span class="flex items-center gap-2 text-sm text-primary">
           <span class="w-2.5 h-2.5 rounded-full bg-success"></span>
@@ -126,12 +126,12 @@
             for a hero) and left the amount larger than the label beside it. %>
         <span class="flex items-center gap-2">
           <span class="text-sm font-medium tabular-nums text-success privacy-sensitive"><%= format_money money_flow_data[:income] %></span>
-          <%= icon("chevron-right", size: "sm", class: "text-secondary group-hover:text-primary transition-colors") %>
+          <%= icon("chevron-right", size: "sm", class: "text-secondary group-hover:text-primary group-hover:translate-x-0.5 transition-[color,transform] duration-200") %>
         </span>
       <% end %>
 
       <%= link_to transactions_path(q: { types: [ "expense" ], status: [ "confirmed" ], start_date: period.date_range.begin, end_date: period.date_range.end, account_ids: drilldown_account_ids }.compact),
-            class: "flex items-center justify-between p-3 border border-secondary rounded-lg hover:bg-container-inset-hover transition-colors group",
+            class: "flex items-center justify-between p-3 border border-secondary rounded-lg hover:bg-container-inset-hover transition-colors group press",
             data: { turbo_frame: "_top" } do %>
         <span class="flex items-center gap-2 text-sm text-primary">
           <span class="w-2.5 h-2.5 rounded-full bg-subdued"></span>
@@ -139,7 +139,7 @@
         </span>
         <span class="flex items-center gap-2">
           <span class="text-sm font-medium tabular-nums text-primary privacy-sensitive"><%= format_money money_flow_data[:expense] %></span>
-          <%= icon("chevron-right", size: "sm", class: "text-secondary group-hover:text-primary transition-colors") %>
+          <%= icon("chevron-right", size: "sm", class: "text-secondary group-hover:text-primary group-hover:translate-x-0.5 transition-[color,transform] duration-200") %>
         </span>
       <% end %>
     </div>

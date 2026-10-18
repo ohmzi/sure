@@ -41,8 +41,11 @@
               </tr>
             </thead>
             <tbody class="text-secondary text-sm">
+              <%# Each month carries a small in-versus-out pair of bars that grow in,
+                  scaled to the busiest month (the animation pass, 2026-10-18). %>
+              <% trend_peak = trends_data.map { |trend| [ trend[:income].to_f, trend[:expenses].to_f ].max }.max.to_f %>
               <% trends_data.each_with_index do |trend, idx| %>
-                <tr class="<%= idx < trends_data.size - 1 ? "table-divider" : "" %>">
+                <tr class="transition-colors hover:bg-container-hover <%= idx < trends_data.size - 1 ? "table-divider" : "" %>">
                   <td class="py-3 px-4 lg:px-6">
                     <span class="flex items-center gap-2 <%= trend[:is_current_month] ? "font-medium" : "" %>">
                       <%= trend[:month] %>
@@ -50,6 +53,12 @@
                         <span class="text-xs text-subdued">(<%= t("reports.trends.current") %>)</span>
                       <% end %>
                     </span>
+                    <% if trend_peak.positive? %>
+                      <span class="mt-1.5 flex w-24 flex-col gap-0.5" aria-hidden="true">
+                        <span class="block h-1 rounded-full bg-success grow-right" style="width: <%= (trend[:income].to_f / trend_peak * 100).clamp(0, 100).round(1) %>%; animation-delay: <%= idx * 40 %>ms"></span>
+                        <span class="block h-1 rounded-full bg-destructive/60 grow-right" style="width: <%= (trend[:expenses].to_f / trend_peak * 100).clamp(0, 100).round(1) %>%; animation-delay: <%= idx * 40 + 20 %>ms"></span>
+                      </span>
+                    <% end %>
                   </td>
                   <td class="py-3 px-4 lg:px-6 text-right privacy-sensitive">
                     <%= Money.new(trend[:income], Current.family.currency).format %>

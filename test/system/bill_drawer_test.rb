@@ -92,7 +92,7 @@ class BillDrawerTest < ApplicationSystemTestCase
     page.send_keys(:escape)
     assert_no_selector "dialog[open]"
     click_on I18n.t("layouts.application.nav.activity"), match: :first
-    assert_current_path transactions_path
+    assert_current_path transactions_path(clear_filters: true) # the tab opens Activity fresh
     page.go_back
     assert_selector @row_link
     assert_no_selector "dialog[open]"

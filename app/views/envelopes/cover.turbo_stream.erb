@@ -11,8 +11,10 @@
   <%= render "envelopes/credit_card_group", budget: @budget %>
 <% end %>
 
+<%# Morphed in place, so each row's ring and bar slide to their new fill
+    instead of redrawing from empty (the animation pass, 2026-10-18). %>
 <% [ @from, @to ].each do |budget_category| %>
-  <%= turbo_stream.replace dom_id(budget_category, :envelope) do %>
+  <%= turbo_stream.replace dom_id(budget_category, :envelope), method: :morph do %>
     <%= render "envelopes/envelope_row", budget_category: budget_category.reload, budget: @budget %>
   <% end %>
 <% end %>

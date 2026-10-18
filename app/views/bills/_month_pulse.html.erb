@@ -51,7 +51,7 @@
 
   <%# Progress reports, it does not prompt: a 6px rule, not a centrepiece. %>
   <% if progress[:total].positive? %>
-    <div class="flex h-1.5 rounded-full overflow-hidden bg-surface-inset"
+    <div class="flex h-1.5 rounded-full overflow-hidden bg-surface-inset grow-right"
          role="img"
          aria-label="<%= t(".pulse_bar_aria", percent: progress[:paid_pct].round) %>">
       <% if progress[:paid_pct].positive? %>

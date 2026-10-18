@@ -1,8 +1,11 @@
 <%# locals: (message:, description: nil) %>
 
-<%= tag.div class: "relative flex gap-3 rounded-lg bg-container p-4 group w-full md:max-w-80 shadow-border-xs",
+<%# It pops in, counts down, and fades away; only the countdown's own end
+    (stroke-fill) dismisses it (the animation pass, 2026-10-18). %>
+<%= tag.div class: "relative flex gap-3 rounded-lg bg-container p-4 group w-full md:max-w-80 shadow-border-xs pop-in",
             data: {
               controller: "element-removal",
+              element_removal_animation_value: "stroke-fill",
               action: "animationend->element-removal#remove"
             } do %>
   <div class="h-5 w-5 shrink-0 p-px text-primary">

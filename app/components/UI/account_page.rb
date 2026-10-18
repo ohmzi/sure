@@ -129,7 +129,22 @@ class UI::AccountPage < ApplicationComponent
                     src: helpers.account_path(account, tab: "statements",
                                               statement_year: statement_coverage&.selected_year,
                                               statement_month: statement_month),
-                    loading: :lazy
+                    loading: :lazy do
+      statement_tab_placeholder
+    end
+  end
+
+  # The statements tab while it loads (the animation pass, 2026-10-18): the
+  # month grid it is about to show, shimmering, instead of a blank panel.
+  def statement_tab_placeholder
+    helpers.tag.div(class: "bg-container rounded-3xl shadow-border-xs p-4 space-y-4", aria: { hidden: true }) do
+      helpers.safe_join([
+        helpers.tag.div(class: "h-5 w-32 rounded-full shimmer"),
+        helpers.tag.div(class: "grid grid-cols-4 sm:grid-cols-6 gap-2") do
+          helpers.safe_join(Array.new(12) { helpers.tag.div(class: "h-12 rounded-xl shimmer") })
+        end
+      ])
+    end
   end
 
   def statement_tab_loaded?

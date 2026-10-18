@@ -113,7 +113,7 @@ end %>
     <% end %>
 
     <%# SHARED - Main content %>
-    <%= tag.main id: "main", class: class_names("grow overflow-y-auto px-3 lg:px-10 w-full mx-auto pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0"), data: { app_layout_target: "content", viewport_target: "content", notification_tray_target: "main" } do %>
+    <%= tag.main id: "main", class: class_names("grow overflow-y-auto px-3 lg:px-10 w-full mx-auto pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0 fade-children"), data: { app_layout_target: "content", viewport_target: "content", notification_tray_target: "main" } do %>
       <% unless intro_mode %>
         <%# The page's own large title leads (no breadcrumbs — the owner,
             2026-10-17); the bar carries only the page-wide actions. %>
@@ -161,8 +161,11 @@ end %>
         <%= tag.div id: "chat-container", class: "relative h-full px-4 overflow-y-auto", data: { controller: "chat hotkey", chat_response_timeout_value: Chat.response_timeout_ms, turbo_permanent: true } do %>
           <div class="flex flex-col h-full justify-between shrink-0">
             <%= turbo_frame_tag chat_frame, src: chat_view_path(@chat), loading: "lazy", class: "h-full" do %>
-              <div class="flex justify-center items-center h-full">
-                <%= icon("loader-circle", class: "animate-spin") %>
+              <%# Shaped like the chat list while it loads (the animation pass). %>
+              <div class="space-y-3 pt-14" aria-hidden="true">
+                <div class="h-6 w-24 rounded-full shimmer"></div>
+                <div class="h-16 rounded-2xl shimmer"></div>
+                <div class="h-16 rounded-2xl shimmer"></div>
               </div>
             <% end %>
           </div>

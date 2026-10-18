@@ -1,23 +1,23 @@
 <%# locals: path, direction, title %>
-<%= link_to path, class: "hidden md:flex w-full bg-container hover:bg-container-inset rounded-xl border border-alpha-black-25 shadow-xs p-4 items-center justify-between" do %>
+<%= link_to path, class: "group press hidden md:flex w-full bg-container hover:bg-container-inset transition-colors rounded-xl border border-alpha-black-25 shadow-xs p-4 items-center justify-between" do %>
   <% if direction == 'previous' %>
-    <%= icon("arrow-left") %>
+    <%= icon("arrow-left", class: "transition-transform duration-200 group-hover:-translate-x-0.5") %>
   <% end %>
   <div class="<%= "grow" if direction == "next" %> <%= "text-right" if direction == "previous" %>">
     <span class="block text-sm text-secondary"><%= t(".#{direction}") %></span>
     <span class="block text-sm font-medium text-primary"><%= title %></span>
   </div>
   <% if direction == 'next' %>
-    <%= icon("arrow-right") %>
+    <%= icon("arrow-right", class: "transition-transform duration-200 group-hover:translate-x-0.5") %>
   <% end %>
 <% end %>
 
 <%# Mobile version %>
-<%= link_to path, class: "md:hidden w-full bg-container hover:bg-container-inset rounded-xl border border-alpha-black-25 shadow-xs py-3 px-4" do %>
+<%= link_to path, class: "group press md:hidden w-full bg-container hover:bg-container-inset transition-colors rounded-xl border border-alpha-black-25 shadow-xs py-3 px-4" do %>
   <div class="flex items-center justify-between">
     <% if direction == 'previous' %>
       <div class="flex items-center gap-3">
-        <%= icon("arrow-left") %>
+        <%= icon("arrow-left", class: "transition-transform duration-200 group-hover:-translate-x-0.5") %>
         <span class="text-sm text-secondary"><%= t("settings.settings_nav_link_large.previous") %></span>
       </div>
       <div>
@@ -29,7 +29,7 @@
       </div>
       <div class="flex items-center gap-3">
         <span class="text-sm font-medium text-primary"><%= title %></span>
-        <%= icon("arrow-right") %>
+        <%= icon("arrow-right", class: "transition-transform duration-200 group-hover:translate-x-0.5") %>
       </div>
     <% end %>
   </div>

@@ -320,6 +320,10 @@ export default class extends Controller {
       .datum(savedSeries)
       .attr("fill", `url(#saved-fill-${this._id()})`)
       .attr("clip-path", plotClip)
+      // Entrance (the animation pass, 2026-10-18): the area fades up while
+      // the saved line draws itself; the dashed projections and the dots
+      // follow it in.
+      .attr("class", "fade-in")
       .attr("d", area);
 
     svg
@@ -331,6 +335,9 @@ export default class extends Controller {
       .attr("stroke-linejoin", "round")
       .attr("stroke-linecap", "round")
       .attr("clip-path", plotClip)
+      .attr("pathLength", 1600)
+      .attr("class", "draw-line")
+        .style("animation-duration", "800ms")
       .attr("d", line);
 
     if (requiredSeries.length) {
@@ -346,7 +353,11 @@ export default class extends Controller {
         .attr("stroke-width", 1.2)
         .attr("stroke-linecap", "round")
         .attr("stroke-dasharray", "2 4")
-        .attr("opacity", 0.5)
+        // stroke-opacity, not opacity: the fade-in animates opacity and would
+        // end it at 1.
+        .attr("stroke-opacity", 0.5)
+        .attr("class", "fade-in")
+        .style("animation-delay", "400ms")
         .attr("d", line);
     }
 
@@ -361,6 +372,8 @@ export default class extends Controller {
         .attr("stroke-width", 2)
         .attr("stroke-linecap", "round")
         .attr("stroke-dasharray", "4 4")
+        .attr("class", "fade-in")
+        .style("animation-delay", "500ms")
         .attr("d", line);
 
       svg
@@ -368,6 +381,10 @@ export default class extends Controller {
         .attr("cx", x(target))
         .attr("cy", y(projectionEnd))
         .attr("r", 4)
+        .attr("class", "pop-in")
+        .style("transform-box", "fill-box")
+        .style("transform-origin", "center")
+        .style("animation-delay", "700ms")
         .attr("fill", projColor)
         .attr("stroke", containerBg)
         .attr("stroke-width", 2);
@@ -418,6 +435,10 @@ export default class extends Controller {
       .attr("cx", x(today))
       .attr("cy", y(currentAmount))
       .attr("r", 4)
+      .attr("class", "pop-in")
+      .style("transform-box", "fill-box")
+      .style("transform-origin", "center")
+      .style("animation-delay", "600ms")
       .attr("fill", textPrimary)
       .attr("stroke", containerBg)
       .attr("stroke-width", 2);
@@ -541,7 +562,10 @@ export default class extends Controller {
       .attr("width", innerWidth)
       .attr("height", innerHeight)
       .attr("fill", "transparent")
-      .style("cursor", "crosshair");
+      .style("cursor", "crosshair")
+      // A finger scrubs sideways; a vertical drag still scrolls (the
+      // animation pass, 2026-10-18).
+      .style("touch-action", "pan-y");
 
     const bisectDate = d3.bisector((d) => d.date).left;
     const dateFmt = d3.timeFormat("%b %d, %Y");
@@ -612,11 +636,14 @@ export default class extends Controller {
       tooltip.style.display = "none";
     };
 
-    overlay.on("pointermove", (event) => {
+    overlay.on("pointerdown pointermove", (event) => {
       const [mx, my] = d3.pointer(event);
       showAt(mx, my);
     });
-    overlay.on("pointerleave", hide);
+    // A lifted finger leaves the reading in place until the next touch.
+    overlay.on("pointerleave", (event) => {
+      if (event.pointerType === "mouse") hide();
+    });
   }
 
   _monthsBetween(a, b) {

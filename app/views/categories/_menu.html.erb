@@ -12,8 +12,9 @@
 
   <% popover.with_custom_content do %>
     <%= turbo_frame_tag "category_dropdown", src: category_dropdown_path(category_id: transaction.category_id, transaction_id: transaction.id, grouped: in_split_group), loading: :lazy do %>
-      <div class="p-6 flex items-center justify-center">
-        <p class="text-sm text-secondary animate-pulse"><%= t(".loading") %></p>
+      <div class="p-3 space-y-2" role="status">
+        <p class="sr-only"><%= t(".loading") %></p>
+        <% 4.times do %><div class="h-8 rounded-xl shimmer" aria-hidden="true"></div><% end %>
       </div>
     <% end %>
   <% end %>

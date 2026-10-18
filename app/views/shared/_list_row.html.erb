@@ -2,7 +2,7 @@
 <%# One row of an iOS-style grouped list (Settings, More): a tinted icon tile,
     the label, an optional count, a chevron. %>
 <%= link_to path, data: data, class: class_names(
-      "flex items-center gap-3 pl-3 pr-3.5 min-h-12 py-2 text-base transition-colors focus-ring active:bg-container-inset-hover",
+      "group flex items-center gap-3 pl-3 pr-3.5 min-h-12 py-2 text-base transition-colors focus-ring active:bg-container-inset-hover",
       active ? "button-bg-accent text-link font-semibold" : "text-primary hover:bg-container-hover"
     ), aria: { current: ("page" if active) } do %>
   <%= render DS::FilledIcon.new(icon: icon, hex_color: "var(--color-#{tint}-500)", size: "md") %>
@@ -10,5 +10,6 @@
   <% if badge.to_i.positive? %>
     <span class="inline-flex items-center justify-center min-w-6 h-6 px-2 rounded-full bg-inverse text-inverse text-xs font-bold"><%= badge %></span>
   <% end %>
-  <%= icon("chevron-right", size: "sm") %>
+  <%# The chevron leans the way the row goes, under a pointer. %>
+  <%= icon("chevron-right", size: "sm", class: "transition-transform duration-200 group-hover:translate-x-0.5") %>
 <% end %>

@@ -114,6 +114,8 @@ class DS::Buttonish < DesignSystemComponent
       # click handler surfaces validation errors — a truly disabled default
       # submit would also swallow Enter-key implicit submission).
       "font-medium whitespace-nowrap focus-ring disabled:cursor-not-allowed aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
+      # Every button presses in under a finger (the animation pass, 2026-10-18).
+      "press",
       merged_base_classes,
       full_width ? "w-full justify-center" : nil,
       container_size_classes,

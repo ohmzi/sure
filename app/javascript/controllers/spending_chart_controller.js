@@ -103,6 +103,11 @@ export default class extends Controller {
         .attr("stroke-width", 1.5)
         .attr("stroke-linejoin", "round")
         .attr("stroke-linecap", "round")
+        // Both months draw themselves in on first draw, last month first
+        // (the animation pass, 2026-10-18); hover only adds a guideline.
+        .attr("pathLength", 1600)
+        .attr("class", "draw-line")
+        .style("animation-duration", "800ms")
         .attr("d", line);
     }
 
@@ -115,6 +120,10 @@ export default class extends Controller {
         .attr("stroke-width", 2)
         .attr("stroke-linejoin", "round")
         .attr("stroke-linecap", "round")
+        .attr("pathLength", 1600)
+        .attr("class", "draw-line")
+        .style("animation-duration", "800ms")
+        .style("animation-delay", "150ms")
         .attr("d", line);
 
       // Endpoint dot marks "today" on the in-progress curve.
@@ -124,6 +133,10 @@ export default class extends Controller {
         .attr("cx", x(last.day))
         .attr("cy", y(last.value))
         .attr("r", 3.5)
+        .attr("class", "pop-in")
+        .style("transform-box", "fill-box")
+        .style("transform-origin", "center")
+        .style("animation-delay", "750ms")
         .attr("fill", CURRENT_COLOR);
     }
 
@@ -221,7 +234,11 @@ export default class extends Controller {
       .attr("height", innerHeight)
       .attr("fill", "none")
       .attr("pointer-events", "all")
-      .on("mousemove", (event) => {
+      // Pointer events, so a finger can scrub along the month on a phone; a
+      // horizontal drag scrubs and a vertical one still scrolls the page (the
+      // animation pass, 2026-10-18).
+      .style("touch-action", "pan-y")
+      .on("pointerdown pointermove", (event) => {
         const [xPos] = d3.pointer(event);
         const dayFloat = x.invert(xPos);
         const i = bisectDay(hoverDays, dayFloat);
@@ -272,9 +289,12 @@ export default class extends Controller {
           .style("left", `${adjustedX}px`)
           .style("top", `${event.pageY - 10}px`);
       })
-      .on("mouseout", (event) => {
+      .on("pointerleave", (event) => {
+        // A lifted finger leaves the reading in place until the next touch.
+        if (event.pointerType !== "mouse") return;
+
         const hoveringOnGuideline =
-          event.toElement?.classList.contains("guideline");
+          event.relatedTarget?.classList?.contains("guideline");
 
         if (!hoveringOnGuideline) {
           group.selectAll(".guideline").remove();

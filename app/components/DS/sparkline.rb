@@ -15,14 +15,24 @@ class DS::Sparkline < DesignSystemComponent
   VALUE_HEIGHT = 48
   LABEL_Y = 80
 
-  attr_reader :series, :aria_label, :css, :label_format
+  attr_reader :series, :aria_label, :css, :label_format, :currency
 
-  # series: [ [Date, Numeric], ... ] in display order.
-  def initialize(series:, aria_label:, css: "w-full text-success", label_format: "%b")
+  # series: [ [Date, Numeric], ... ] in display order. currency: the values'
+  # currency, so each dot can name its amount as money.
+  def initialize(series:, aria_label:, css: "w-full text-success", label_format: "%b", currency: nil)
     @series = series
     @aria_label = aria_label
     @css = css
     @label_format = label_format
+    @currency = currency
+  end
+
+  # What a dot reads when pointed at: its month and its amount.
+  def point_titles
+    series.map do |label, value|
+      amount = currency.present? ? Money.new(value, currency).format : ActiveSupport::NumberHelper.number_to_delimited(value.to_d.round(2).to_s("F").sub(/\.0\z/, ""))
+      "#{I18n.l(label, format: "%b %Y")}: #{amount}"
+    end
   end
 
   def points

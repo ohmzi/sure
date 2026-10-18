@@ -14,18 +14,18 @@
 <div class="grid grid-cols-3 divide-x divide-subdued">
   <div class="min-w-0 p-3 md:p-4 space-y-1 md:space-y-2">
     <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.total_transactions") %></p>
-    <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-transactions"><%= totals.count.round(0) %></p>
+    <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-transactions" data-controller="count-up"><%= totals.count.round(0) %></p>
   </div>
   <div class="min-w-0 p-3 md:p-4 space-y-1 md:space-y-2">
     <% if show_transfers %>
       <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.inflow") %></p>
       <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-income">
-        <span class="md:hidden"><%= (totals.income_money + totals.transfer_inflow_money).format(precision: 0) %></span><span class="hidden md:inline"><%= (totals.income_money + totals.transfer_inflow_money).format %></span>
+        <span class="md:hidden" data-controller="count-up"><%= (totals.income_money + totals.transfer_inflow_money).format(precision: 0) %></span><span class="hidden md:inline" data-controller="count-up"><%= (totals.income_money + totals.transfer_inflow_money).format %></span>
       </p>
     <% else %>
       <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.income") %></p>
       <p class="text-success font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-income">
-        <span class="md:hidden"><%= (totals.income_money).format(precision: 0) %></span><span class="hidden md:inline"><%= (totals.income_money).format %></span>
+        <span class="md:hidden" data-controller="count-up"><%= (totals.income_money).format(precision: 0) %></span><span class="hidden md:inline" data-controller="count-up"><%= (totals.income_money).format %></span>
       </p>
     <% end %>
   </div>
@@ -33,12 +33,12 @@
     <% if show_transfers %>
       <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.outflow") %></p>
       <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-expense">
-        <span class="md:hidden"><%= (totals.expense_money + totals.transfer_outflow_money).format(precision: 0) %></span><span class="hidden md:inline"><%= (totals.expense_money + totals.transfer_outflow_money).format %></span>
+        <span class="md:hidden" data-controller="count-up"><%= (totals.expense_money + totals.transfer_outflow_money).format(precision: 0) %></span><span class="hidden md:inline" data-controller="count-up"><%= (totals.expense_money + totals.transfer_outflow_money).format %></span>
       </p>
     <% else %>
       <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.expenses") %></p>
       <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-expense">
-        <span class="md:hidden"><%= (totals.expense_money).format(precision: 0) %></span><span class="hidden md:inline"><%= (totals.expense_money).format %></span>
+        <span class="md:hidden" data-controller="count-up"><%= (totals.expense_money).format(precision: 0) %></span><span class="hidden md:inline" data-controller="count-up"><%= (totals.expense_money).format %></span>
       </p>
     <% end %>
   </div>

@@ -9,7 +9,7 @@
     </span>
 
     <div>
-      <div class="flex h-1.5 mb-3 gap-1">
+      <div class="flex h-1.5 mb-3 gap-1 grow-right">
         <% if budget.remaining_expected_income.negative? %>
           <div class="rounded-md h-1.5 bg-green-500" style="width: <%= 100 - budget.surplus_percent %>%"></div>
           <div class="rounded-md h-1.5 bg-green-500" style="width: <%= budget.surplus_percent %>%"></div>
@@ -39,7 +39,7 @@
     </span>
 
     <div>
-      <div class="flex h-1.5 mb-3 gap-1">
+      <div class="flex h-1.5 mb-3 gap-1 grow-right">
         <% if budget.available_to_spend.negative? %>
           <div class="rounded-md h-1.5 bg-inverse" style="width: <%= 100 - budget.overage_percent %>%"></div>
           <div class="rounded-md h-1.5 bg-destructive" style="width: <%= budget.overage_percent %>%"></div>

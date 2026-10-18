@@ -11,7 +11,7 @@
 %>
 
 <tr data-category="category-<%= item[:category_id] %>"
-    class="text-secondary text-sm group/category-row <%= show_border ? "table-divider" : "" %>">
+    class="text-secondary text-sm group/category-row transition-colors <%= "hover:bg-container-hover" if clickable %> <%= show_border ? "table-divider" : "" %>">
   <td colspan="2" class="py-3 px-4 lg:px-6 <%= is_sub ? "pl-7 lg:pl-9" : "" %>">
     <%
       row_content = capture do
@@ -76,5 +76,10 @@
     <% else %>
       <%= percentage_content %>
     <% end %>
+    <%# The share as a thin bar in the category's colour, growing in (the
+        animation pass, 2026-10-18). %>
+    <div class="ml-auto mt-1 h-1 w-16 rounded-full bg-surface-inset overflow-hidden" aria-hidden="true">
+      <div class="h-full rounded-full grow-right" style="width: <%= percentage.clamp(0, 100) %>%; background-color: <%= item[:category_color] %>"></div>
+    </div>
   </td>
 </tr>

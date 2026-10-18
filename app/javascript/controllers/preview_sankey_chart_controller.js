@@ -366,6 +366,13 @@ export default class extends Controller {
       )
       .attr("stroke", (d, i) => `url(#${this.#gradientId(d, i)})`)
       .attr("stroke-width", (d) => Math.max(1, d.width))
+      // The flows draw from left to right on first draw, a column at a time
+      // (the animation pass, 2026-10-18). Only the dash offset animates, so
+      // hover's opacity dimming is untouched.
+      .attr("pathLength", 1600)
+      .classed("draw-line", true)
+      .style("animation-duration", "700ms")
+      .style("animation-delay", (d) => `${Math.min(d.source.depth, 4) * 90}ms`)
       .style("transition", "opacity 0.3s ease");
   }
 
@@ -377,8 +384,12 @@ export default class extends Controller {
       .join("g")
       .style("transition", "opacity 0.3s ease");
 
+    // Each node's bar fades in with its column; the group's own opacity stays
+    // free for hover.
     nodeGroups
       .append("path")
+      .attr("class", "fade-in")
+      .style("animation-delay", (d) => `${Math.min(d.depth ?? 0, 4) * 90}ms`)
       .attr("d", (d) => this.#nodePath(d))
       .attr("fill", (d) => d.color || this.constructor.DEFAULT_COLOR)
       .attr("stroke", (d) => (d.color ? "none" : "var(--color-gray-500)"));

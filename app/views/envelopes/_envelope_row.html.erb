@@ -3,7 +3,7 @@
     each labelled, so long amounts ("CA$1,234.00") never run together (the
     owner, 2026-10-17); from lg up it is the one-line row, the labels living in
     the figures' alignment. %>
-<div id="<%= dom_id(budget_category, :envelope) %>" class="px-3 py-2 space-y-2 lg:space-y-0 lg:grid lg:grid-cols-12 lg:items-center lg:gap-2">
+<div id="<%= dom_id(budget_category, :envelope) %>" class="px-3 py-2 space-y-2 lg:space-y-0 lg:grid lg:grid-cols-12 lg:items-center lg:gap-2 rounded-xl transition-colors hover:bg-container-hover">
   <div class="lg:col-span-6 flex items-center gap-2 min-w-0">
     <%# A ring that fills in the category's colour, its icon inside (the Alive
         pass, 2026-10-18); red once the envelope is overspent. %>
@@ -13,8 +13,14 @@
     <span class="relative flex size-10 shrink-0 items-center justify-center" style="color: <%= budget_category.category.color %>">
       <svg viewBox="0 0 40 40" class="absolute inset-0 size-10 -rotate-90" aria-hidden="true">
         <circle cx="20" cy="20" r="16" fill="currentColor" fill-opacity="0.12" stroke="currentColor" stroke-opacity="0.18" stroke-width="4"></circle>
-        <circle cx="20" cy="20" r="16" fill="none" stroke="<%= ring_color %>" stroke-width="4" stroke-linecap="round"
-                stroke-dasharray="<%= (ring_pct * 100.53).round(2) %> 100.53"></circle>
+        <%# Sweeps round on first paint; a cover or move morphs the row in place,
+            so the ring then slides from its old fill to the new one (the
+            animation pass, 2026-10-18). %>
+        <% if ring_pct.positive? %>
+          <circle cx="20" cy="20" r="16" fill="none" stroke="<%= ring_color %>" stroke-width="4" stroke-linecap="round"
+                  stroke-dasharray="100.53" class="sweep-in"
+                  style="--sweep-from: 100.53; stroke-dashoffset: <%= ((1 - ring_pct) * 100.53).round(2) %>; transition: stroke-dashoffset 500ms cubic-bezier(0.2, 0.8, 0.2, 1)"></circle>
+        <% end %>
       </svg>
       <%= icon(budget_category.category.lucide_icon.presence || "shapes", size: "sm", color: "current", class: "relative") %>
     </span>
@@ -57,11 +63,13 @@
   <% if budgeted.positive? %>
     <% spent_pct = (budget_category.actual_spending.to_d / budgeted * 100).clamp(0, 100).round %>
     <div class="lg:col-span-12 h-1.5 rounded-full bg-container-inset overflow-hidden" role="presentation">
-      <% if budget_category.available_to_spend.negative? %>
-        <span class="block h-full w-full rounded-full bg-warning"></span>
-      <% else %>
-        <span class="block h-full rounded-full" style="width: <%= spent_pct %>%; background-color: <%= budget_category.category.color %>"></span>
-      <% end %>
+      <div class="grow-right h-full">
+        <% if budget_category.available_to_spend.negative? %>
+          <span class="block h-full w-full rounded-full bg-warning"></span>
+        <% else %>
+          <span class="block h-full rounded-full transition-[width] duration-500 ease-out" style="width: <%= spent_pct %>%; background-color: <%= budget_category.category.color %>"></span>
+        <% end %>
+      </div>
     </div>
   <% end %>
 </div>

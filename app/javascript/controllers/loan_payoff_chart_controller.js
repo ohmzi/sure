@@ -268,7 +268,21 @@ export default class extends Controller {
         .style("stroke-linejoin", "round")
         .style("stroke-dasharray", s.dash || "none");
 
-    for (const s of series) {
+    // Entrance (the animation pass, 2026-10-18): a solid line draws itself
+    // in, a dashed one fades in, each series a beat after the last. The hover
+    // split moves clip rects only, so it never replays this.
+    const enter = (path, s, index) => {
+      const delay = `${index * 120}ms`;
+      if (s.dash) return path.attr("class", "fade-in").style("animation-delay", delay);
+      return path
+        .attr("pathLength", 1600)
+        .attr("class", "draw-line")
+        .style("animation-duration", "800ms")
+        .style("stroke-dasharray", "1600")
+        .style("animation-delay", delay);
+    };
+
+    for (const [index, s] of series.entries()) {
       if (s.key === "actual") {
         svg
           .append("path")
@@ -284,13 +298,21 @@ export default class extends Controller {
           .attr("clip-path", `url(#${id}-future)`)
           .attr("data-series-shadow", s.key)
           .style("opacity", 0.6);
-        stroke(svg.append("path").datum(s.points).attr("d", line), s, s.color)
-          .attr("clip-path", `url(#${id}-past)`)
-          .attr("data-series", s.key);
+        enter(
+          stroke(svg.append("path").datum(s.points).attr("d", line), s, s.color)
+            .attr("clip-path", `url(#${id}-past)`)
+            .attr("data-series", s.key),
+          s,
+          index,
+        );
       } else {
-        stroke(svg.append("path").datum(s.points).attr("d", line), s, s.color)
-          .attr("clip-path", `url(#${plotClip})`)
-          .attr("data-series", s.key);
+        enter(
+          stroke(svg.append("path").datum(s.points).attr("d", line), s, s.color)
+            .attr("clip-path", `url(#${plotClip})`)
+            .attr("data-series", s.key),
+          s,
+          index,
+        );
       }
 
       // Interval markers, thinned to roughly one per 60px so a 360-payment
@@ -309,6 +331,8 @@ export default class extends Controller {
         .attr("cx", (d) => x(d.date))
         .attr("cy", (d) => y(d.balance))
         .attr("r", 2.5)
+        .attr("class", "fade-in")
+        .style("animation-delay", `${300 + index * 120}ms`)
         .style("fill", s.color);
     }
 
@@ -508,12 +532,18 @@ export default class extends Controller {
       .attr("height", Math.max(0, height - margin.top - margin.bottom))
       .style("fill", "transparent")
       .style("cursor", "crosshair")
-      .on("pointermove", (event) => {
+      // A finger scrubs sideways along the schedule; a vertical drag still
+      // scrolls, and a lifted finger leaves the reading in place (the
+      // animation pass, 2026-10-18).
+      .style("touch-action", "pan-y")
+      .on("pointerdown pointermove", (event) => {
         announce(false);
         const [px] = d3.pointer(event);
         showAt(snap(x.invert(px)));
       })
-      .on("pointerleave", hide);
+      .on("pointerleave", (event) => {
+        if (event.pointerType === "mouse") hide();
+      });
 
     // Keyboard traversal: the same stops, stepped with the arrow keys.
     // Arrow keys move, Home/End jump, Escape clears.

@@ -115,7 +115,7 @@
                   <% query[:search] = row.name %>
                 <% end %>
                 <%= link_to transactions_path(q: query),
-                    class: "flex items-center justify-between mx-3 p-3 rounded-lg cursor-pointer group gap-3",
+                    class: "flex items-center justify-between mx-3 p-3 rounded-lg cursor-pointer group gap-3 hover:bg-container-inset-hover transition-colors press",
                     data: {
                       turbo_frame: "_top",
                       turbo_prefetch: false,
@@ -177,7 +177,7 @@
                   <% query[:search] = row.name %>
                 <% end %>
                 <%= link_to transactions_path(q: query),
-                    class: "flex items-center justify-between mx-3 p-3 rounded-lg cursor-pointer group gap-3",
+                    class: "flex items-center justify-between mx-3 p-3 rounded-lg cursor-pointer group gap-3 hover:bg-container-inset-hover transition-colors press",
                     data: { turbo_frame: "_top", turbo_prefetch: false } do %>
                   <%= row_content %>
                 <% end %>

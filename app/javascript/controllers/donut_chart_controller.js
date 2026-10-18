@@ -22,6 +22,11 @@ export default class extends Controller {
   #minSegmentAngle = 0.02; // Minimum angle in radians (~1.15 degrees)
   #padAngle = 0.005; // Spacing between segments (~0.29 degrees)
   #visiblePaths = null;
+  // A tap on a phone previews a slice; a second tap on the same slice opens
+  // it (the animation pass, 2026-10-18).
+  #lastPointerType = "mouse";
+  #touchedSegmentId = null;
+  #tapArmed = false;
   #resizeObserver = null;
   #measureCanvas = null;
   // Largest square inscribed in a circle has side D/√2 ≈ 0.707·D. A single
@@ -154,7 +159,30 @@ export default class extends Controller {
       .attr("data-segment-id", (d) => d.data.id)
       .attr("data-original-color", this.#transformRingColor)
       .attr("fill", this.#transformRingColor)
+      // The hovered slice thickens outward with a stroke in its own colour;
+      // fill and stroke ease between states.
+      .attr("stroke", this.#transformRingColor)
+      .attr("stroke-linejoin", "round")
+      .style("stroke-width", 0)
+      .style("transition", "fill 180ms ease, stroke-width 180ms ease, opacity 180ms ease")
+      .style("cursor", this.enableClickValue ? "pointer" : null)
       .attr("d", mainArc);
+
+    // The slices sweep round into place on first draw, one a beat after the
+    // other (the animation pass, 2026-10-18). Hover only recolours, so it
+    // never interrupts or replays this.
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      segmentArcs
+        .attr("d", (d) => mainArc({ ...d, endAngle: d.startAngle }))
+        .transition()
+        .duration(650)
+        .delay((_d, i) => Math.min(i, 8) * 40)
+        .ease(d3.easeCubicOut)
+        .attrTween("d", (d) => {
+          const endAngle = d3.interpolate(d.startAngle, d.endAngle);
+          return (t) => mainArc({ ...d, endAngle: endAngle(t) });
+        });
+    }
 
     // Disable pointer events on visible paths if extended hover is enabled
     if (this.extendedHoverValue) {
@@ -181,10 +209,19 @@ export default class extends Controller {
           this.#clearSegmentHover();
         }
       })
+      .on("pointerdown", (event, d) => {
+        this.#lastPointerType = event.pointerType;
+        if (event.pointerType === "mouse") return;
+        this.#tapArmed = this.#touchedSegmentId === d.data.id;
+        this.#touchedSegmentId = d.data.id;
+        this.#clearSegmentHover();
+        this.#handleSegmentHover(event);
+      })
       .on("click", (event, d) => {
-        if (this.enableClickValue) {
-          this.#handleClick(d.data);
-        }
+        if (!this.enableClickValue) return;
+        // On touch the first tap only previews the slice.
+        if (this.#lastPointerType !== "mouse" && !this.#tapArmed) return;
+        this.#handleClick(d.data);
       });
   }
 
@@ -221,6 +258,15 @@ export default class extends Controller {
       return "var(--budget-unallocated-fill)";
     });
 
+    const popWidth = this.segmentHeightValue * 0.9;
+    paths
+      .attr("stroke", function () {
+        return this.dataset.segmentId === segmentId ? this.getAttribute("fill") : "none";
+      })
+      .style("stroke-width", function () {
+        return this.dataset.segmentId === segmentId ? popWidth : 0;
+      });
+
     this.defaultContentTarget.classList.add("hidden");
     template.classList.remove("hidden");
 
@@ -240,6 +286,7 @@ export default class extends Controller {
       .attr("fill", function () {
         return this.dataset.originalColor;
       })
+      .style("stroke-width", 0)
       .style("opacity", null); // Clear inline opacity style
 
     for (const child of this.contentContainerTarget.children) {

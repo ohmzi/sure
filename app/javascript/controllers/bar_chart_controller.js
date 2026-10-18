@@ -109,7 +109,7 @@ export default class extends Controller {
       .attr("class", "month")
       .attr("transform", (d) => `translate(${x0(d.label)},0)`);
 
-    monthGroups
+    const bars = monthGroups
       .selectAll("rect")
       .data((d) => series.map((key) => ({ key, value: d[key], month: d })))
       .join("rect")
@@ -118,11 +118,40 @@ export default class extends Controller {
       .attr("width", x1.bandwidth())
       .attr("height", (d) => barHeight(d.value))
       .attr("rx", 3)
+      // Bars grow up from the baseline on first draw, month by month (the
+      // animation pass, 2026-10-18).
+      .attr("class", "grow-up")
+      .style("animation-delay", (d) => `${Math.min(data.indexOf(d.month), 12) * 35}ms`)
       .attr("fill", (d) => seriesColor[d.key])
       // In-progress month (period capped at today) reads as provisional.
       .attr("fill-opacity", (d) => (d.month.partial ? 0.5 : 1))
-      .on("mousemove", (event, d) => showTooltip(event, d.month, d.key))
-      .on("mouseleave", hideTooltip);
+      .style("cursor", "pointer")
+      .style("transition", "opacity 160ms ease");
+
+    // The bar under the pointer stays bright and the rest dim, with its value
+    // beside it (the animation pass, 2026-10-18). Pointer events, so a tap on
+    // a phone does the same; a tap keeps it lit until the next tap elsewhere.
+    const highlight = (target) =>
+      bars.style("opacity", function () {
+        return target && this !== target ? 0.4 : null;
+      });
+
+    bars
+      .on("pointerenter pointermove", (event, d) => {
+        highlight(event.currentTarget);
+        showTooltip(event, d.month, d.key);
+      })
+      .on("pointerleave", (event) => {
+        if (event.pointerType !== "mouse") return;
+        highlight(null);
+        hideTooltip();
+      });
+
+    svg.on("pointerdown", (event) => {
+      if (event.target.tagName === "rect") return;
+      highlight(null);
+      hideTooltip();
+    });
 
     const axisLabels = group
       .append("g")

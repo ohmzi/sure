@@ -39,7 +39,9 @@
   <% if variant == :bare %>
     <%= content %>
   <% else %>
-    <%= tag.div class: body_class.presence do %>
+    <%# The body fades in as the disclosure opens (the animation pass). A
+        caller that asked for a bare body (`body_class: nil`) keeps it bare. %>
+    <%= tag.div class: class_names(body_class.presence, "fade-in" => body_class.present?) do %>
       <%= content %>
     <% end %>
   <% end %>

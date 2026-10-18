@@ -1,7 +1,10 @@
-<%# locals: (holding:, crypto:) %>
+<%# locals: (holding:, crypto:, index: nil) %>
 
 <%= turbo_frame_tag dom_id(holding) do %>
-  <div class="grid grid-cols-12 items-center text-primary text-sm font-medium p-4">
+  <%# The whole row opens the holding (the animation pass, 2026-10-18), with a
+      colour-only hover so a long portfolio stays cheap. %>
+  <div class="grid grid-cols-12 items-center text-primary text-sm font-medium p-4 cursor-pointer transition-colors hover:bg-surface-hover active:bg-surface-inset"
+       data-controller="clickable-row" data-action="click->clickable-row#open">
     <div class="col-span-4 flex items-center gap-4">
       <% if (logo = holding.security.display_logo_url).present? %>
         <%= image_tag logo, class: "w-9 h-9 rounded-full", loading: "lazy" %>
@@ -9,7 +12,7 @@
         <%= render DS::FilledIcon.new(variant: :text, text: holding.name, size: "md", rounded: true) %>
       <% end %>
       <div class="space-y-0.5">
-        <%= link_to holding.name, holding_path(holding), data: { turbo_frame: :drawer }, class: "hover:underline" %>
+        <%= link_to holding.name, holding_path(holding), data: { turbo_frame: :drawer, clickable_row_target: "link" }, class: "hover:underline" %>
 
         <% if holding.amount %>
           <%= tag.p holding.ticker, class: "text-secondary text-xs uppercase" %>
@@ -21,7 +24,9 @@
 
     <div class="col-span-2 flex justify-end items-center gap-2">
       <% if holding.weight %>
-        <%= render "shared/progress_circle", progress: holding.weight %>
+        <%# Only the first rows sweep in: a stroke sweep repaints, so a long
+            portfolio keeps the rest still. %>
+        <%= render "shared/progress_circle", progress: holding.weight, animate: index.nil? || index < 20 %>
         <%= tag.p number_to_percentage(holding.weight, precision: 1) %>
       <% else %>
         <%= tag.p "--", class: "text-secondary mb-5" %>

@@ -66,7 +66,15 @@
             src: bill_path(@series, display: "history"),
             loading: :lazy,
             refresh: :morph,
-            class: "block" %>
+            class: "block" do %>
+        <%# Shaped like the sections on their way, shimmering while they load
+            (the animation pass, 2026-10-18). %>
+        <div class="space-y-3 pt-2" aria-hidden="true">
+          <% 4.times do %>
+            <div class="h-12 rounded-2xl shimmer"></div>
+          <% end %>
+        </div>
+      <% end %>
     </div>
   <% end %>
 <% end %>

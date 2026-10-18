@@ -5,7 +5,7 @@
   <%= render DS::Disclosure.new(align: :left, open: is_open) do |disclosure| %>
     <% disclosure.with_summary_content do %>
       <div class="flex items-center gap-3">
-        <%= icon "chevron-right", class: "group-open:transform group-open:rotate-90" %>
+        <%= icon "chevron-right", class: "motion-safe:transition-transform motion-safe:duration-200 group-open:transform group-open:rotate-90" %>
         <%= tag.span class: class_names("text-sm text-primary font-medium", "animate-pulse" => account_group.syncing?) do %>
           <%= account_group.name %>
         <% end %>
@@ -14,8 +14,8 @@
       <div class="ml-auto text-right grow">
         <%= tag.p format_money(account_group.total_money), class: "text-sm font-medium text-primary privacy-sensitive" %>
         <%= turbo_frame_tag "#{account_group.key}_sparkline", src: accountable_sparkline_path(account_group.key), loading: "lazy", data: { controller: "turbo-frame-timeout", turbo_frame_timeout_timeout_value: 10000 } do %>
-          <div class="flex items-center w-8 h-4 ml-auto">
-            <div class="w-6 h-px bg-loader"></div>
+          <div class="flex items-center w-10 h-4 ml-auto">
+            <div class="w-10 h-2 rounded-full shimmer"></div>
           </div>
         <% end %>
       </div>
@@ -25,7 +25,7 @@
       <% account_group.accounts.each do |account| %>
         <%= link_to account_path(account),
                   class: class_names(
-                    "block flex items-center gap-2 px-3 py-2 rounded-lg",
+                    "press block flex items-center gap-2 px-3 py-2 rounded-lg transition-colors",
                     page_active?(account_path(account)) ? "bg-container" : "hover:bg-surface-hover"
                   ),
                   data: page_active?(account_path(account)) ? { active_account: true } : {},
@@ -45,8 +45,8 @@
           <div class="ml-auto text-right grow h-10">
             <%= tag.p format_money(account.balance_money), class: "text-sm font-medium text-primary whitespace-nowrap privacy-sensitive" %>
             <%= turbo_frame_tag dom_id(account, :sparkline), src: sparkline_account_path(account), loading: "lazy", data: { controller: "turbo-frame-timeout", turbo_frame_timeout_timeout_value: 10000 } do %>
-              <div class="flex items-center w-8 h-4 ml-auto">
-                <div class="w-6 h-px bg-loader"></div>
+              <div class="flex items-center w-10 h-4 ml-auto">
+                <div class="w-10 h-2 rounded-full shimmer"></div>
               </div>
             <% end %>
           </div>

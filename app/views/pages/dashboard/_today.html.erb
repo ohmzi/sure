@@ -28,7 +28,7 @@
     </div>
 
     <% if trend %>
-      <p class="relative text-[44px] leading-none font-extrabold tracking-tight privacy-sensitive"><%= trend.current.format %></p>
+      <p class="relative text-[44px] leading-none font-extrabold tracking-tight tabular privacy-sensitive" data-controller="count-up"><%= trend.current.format %></p>
       <p class="relative">
         <% if trend.value.zero? %>
           <span class="text-sm opacity-85"><%= t(".no_change_in", range: t(".ranges.#{today.range}")) %></span>

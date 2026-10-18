@@ -53,13 +53,15 @@
       </div>
     </div>
 
-    <div>
+    <div data-controller="segment-highlight">
       <%# The breakdown is the bar's legend. A figure with no segment on the bar
           keeps the swatch's space, labels wrap rather than truncate on a phone,
           and each figure sits at its column's foot, so every column lines up. %>
       <div class="grid grid-cols-3 gap-3">
         <% legend.each do |key, label, amount, figure_class| %>
-          <div class="min-w-0 flex flex-col justify-between">
+          <%# Pointing at a figure brings its segment forward (the animation pass). %>
+          <div class="min-w-0 flex flex-col justify-between transition-opacity duration-200"
+               data-segment-highlight-target="part" data-segment-key="<%= key %>" data-action="pointerenter->segment-highlight#focus pointerleave->segment-highlight#clear">
             <p class="flex gap-1.5 text-xs text-secondary">
               <% if segments.key?(key) %>
                 <span class="shrink-0 size-2 mt-1 rounded-full <%= segment_class[key] %>" data-paycheck-legend-swatch aria-hidden="true"></span>
@@ -74,11 +76,12 @@
       </div>
 
       <% if segments.any? %>
-        <div class="flex h-1.5 rounded-full overflow-hidden bg-surface-inset mt-2"
+        <div class="flex h-1.5 rounded-full overflow-hidden bg-surface-inset mt-2 grow-right"
              role="img"
              aria-label="<%= paycheck_allocation_aria(period, currency) %>">
           <% segments.each do |key, percent| %>
-            <div class="<%= segment_class[key] %>" style="width: <%= percent %>%"></div>
+            <div class="<%= segment_class[key] %>" style="width: <%= percent %>%; transition: opacity 200ms"
+                 data-segment-highlight-target="part" data-segment-key="<%= key %>" data-action="pointerenter->segment-highlight#focus pointerleave->segment-highlight#clear"></div>
           <% end %>
         </div>
       <% end %>

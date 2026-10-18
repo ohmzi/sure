@@ -9,7 +9,7 @@
         <% end %>
       </div>
       <div class="flex flex-row gap-2 items-baseline">
-        <%= tag.p view_balance_display, class: "text-primary text-[40px] leading-tight font-extrabold tracking-tight truncate privacy-sensitive" %>
+        <%= tag.p view_balance_display, class: "text-primary text-[40px] leading-tight font-extrabold tracking-tight tabular truncate privacy-sensitive", data: { controller: "count-up" } %>
 
         <% if converted_balance_display %>
           <%= tag.p converted_balance_display, class: "text-sm font-medium text-secondary privacy-sensitive" %>

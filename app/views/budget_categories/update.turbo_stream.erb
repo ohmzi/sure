@@ -1,4 +1,5 @@
-<%= turbo_stream.replace dom_id(@budget, :allocation_progress), partial: "budget_categories/allocation_progress", locals: { budget: @budget } %>
+<%# Morphed, so the allocation bar slides to its new width (the animation pass). %>
+<%= turbo_stream.replace dom_id(@budget, :allocation_progress), method: :morph, partial: "budget_categories/allocation_progress", locals: { budget: @budget } %>
 
 <%= turbo_stream.replace dom_id(@budget, :uncategorized_budget_category_form), partial: "budget_categories/uncategorized_budget_category_form", locals: { budget: @budget } %>
 

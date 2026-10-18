@@ -1,7 +1,16 @@
 <%# locals: (message: nil) %>
-
-<div class="bg-container space-y-4 p-5 shadow-border-xs rounded-xl">
-  <div class="p-5 flex justify-center items-center">
-    <%= tag.p message || t(".loading"), class: "text-secondary animate-pulse text-sm" %>
-  </div>
+<%# A list loading: rows shaped like the ones on their way, shimmering, with
+    the message for a screen reader (the animation pass, 2026-10-18). %>
+<div class="bg-container p-4 shadow-border-xs rounded-3xl space-y-3" role="status">
+  <%= tag.p message || t(".loading"), class: "sr-only" %>
+  <% 3.times do |row| %>
+    <div class="flex items-center gap-3" aria-hidden="true">
+      <div class="size-10 shrink-0 rounded-[14px] shimmer"></div>
+      <div class="grow space-y-2">
+        <div class="h-3 rounded-full shimmer" style="width: <%= [ 55, 40, 48 ][row] %>%"></div>
+        <div class="h-2.5 w-1/4 rounded-full shimmer"></div>
+      </div>
+      <div class="h-3 w-16 rounded-full shimmer"></div>
+    </div>
+  <% end %>
 </div>

@@ -81,3 +81,34 @@ if ('serviceWorker' in navigator) {
       });
   });
 }
+
+// Live updates come in gently (the animation pass, 2026-10-18): what a stream
+// appends or prepends rises in, and what it removes fades out first. Update
+// and replace are left alone, because a chat reply streams through them on
+// every chunk and would flicker.
+document.addEventListener("turbo:before-stream-render", (event) => {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  const stream = event.target;
+  const action = stream.getAttribute("action");
+
+  if (action === "append" || action === "prepend") {
+    const template = stream.querySelector("template");
+    for (const element of template?.content.children ?? []) element.classList.add("rise");
+  } else if (action === "remove") {
+    const targets = [...stream.targetElements].filter((target) => target.animate);
+    if (targets.length === 0) return;
+
+    const render = event.detail.render;
+    event.detail.render = async (streamElement) => {
+      await Promise.all(
+        targets.map((target) =>
+          target
+            .animate([{ opacity: 1 }, { opacity: 0, transform: "scale(0.98)" }], { duration: 180, easing: "ease-in", fill: "forwards" })
+            .finished.catch(() => {}),
+        ),
+      );
+      await render(streamElement);
+    };
+  }
+});

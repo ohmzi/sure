@@ -42,8 +42,10 @@ class EnvelopesController < ApplicationController
         # cannot show -- the ready-to-assign banner and the credit-card
         # payments group -- not only the touched row.
         render turbo_stream: [
+          # Morphed, so the row's ring and bar slide to the new fill.
           turbo_stream.replace(
             dom_id(budget_category, :envelope),
+            method: :morph,
             partial: "envelopes/envelope_row",
             locals: { budget_category: budget_category.reload, budget: @budget }
           ),

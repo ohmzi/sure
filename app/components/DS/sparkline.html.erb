@@ -1,10 +1,15 @@
+<%# The line draws itself in and the dots pop in after it, one by one; each
+    dot grows under a pointer and names its month and amount (the animation
+    pass, 2026-10-18). %>
 <svg viewBox="0 0 <%= DS::Sparkline::WIDTH %> <%= DS::Sparkline::HEIGHT %>" class="<%= css %>" role="img" aria-label="<%= aria_label %>">
-  <polyline points="<%= polyline_points %>"
+  <polyline points="<%= polyline_points %>" pathLength="1600" class="draw-line"
             fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.7" />
-  <% points.each do |x, y, value| %>
+  <% points.zip(point_titles).each_with_index do |((x, y, value), title), index| %>
     <circle cx="<%= x.round(1) %>" cy="<%= y.round(1) %>" r="3"
             fill="<%= value.positive? ? "currentColor" : "none" %>"
-            stroke="currentColor" stroke-width="1.5" />
+            stroke="currentColor" stroke-width="1.5"
+            class="pop-in cursor-pointer transition-[r] duration-150 hover:[r:5]"
+            style="transform-box: fill-box; transform-origin: center; animation-delay: <%= 400 + index * 40 %>ms"><title><%= title %></title></circle>
   <% end %>
   <% labels.each do |x, text| %>
     <text x="<%= x %>" y="<%= DS::Sparkline::LABEL_Y %>" text-anchor="middle"

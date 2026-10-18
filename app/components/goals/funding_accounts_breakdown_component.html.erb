@@ -4,17 +4,21 @@
     <p class="text-xs text-subdued mt-1"><%= t("goals.show.funding_accounts.empty.body") %></p>
   </div>
 <% else %>
-  <div class="space-y-4">
+  <%# The bar fills in, and pointing at an account's row or segment lights that
+      account up and dims the rest (the animation pass, 2026-10-18). %>
+  <div class="space-y-4" data-controller="hover-highlight">
     <h2 class="text-lg font-medium text-primary"><%= t("goals.show.funding_accounts_heading") %></h2>
 
     <%# Distribution bar. proportional weight of each account in this goal.
         Color encoding is shared with the row avatar so the bar reads as a
         legend by itself; no separate dot/name/% strip needed. %>
     <% if rows.size > 1 && total.positive? %>
-      <div class="flex gap-1">
+      <div class="flex gap-1 grow-right">
         <% rows.each do |row| %>
           <% next if row[:backing].to_d.zero? %>
-          <div class="h-1.5 rounded-sm" style="width: <%= percent_for(row[:backing]) %>%; background-color: <%= color_for(row[:account]) %>;"></div>
+          <div class="h-1.5 rounded-sm transition-opacity duration-200" style="width: <%= percent_for(row[:backing]) %>%; background-color: <%= color_for(row[:account]) %>;"
+               data-hover-highlight-target="item" data-key="<%= row[:account].id %>"
+               data-action="pointerenter->hover-highlight#enter pointerleave->hover-highlight#leave"></div>
         <% end %>
       </div>
     <% end %>
@@ -25,7 +29,9 @@
         <% rows.each_with_index do |row, idx| %>
           <% account = row[:account] %>
           <% color = color_for(account) %>
-          <div class="px-4 py-3 grid grid-cols-[24px_minmax(0,1fr)_auto] sm:grid-cols-[24px_minmax(0,1fr)_48px_120px] items-center gap-3">
+          <div class="px-4 py-3 grid grid-cols-[24px_minmax(0,1fr)_auto] sm:grid-cols-[24px_minmax(0,1fr)_48px_120px] items-center gap-3 rounded-lg transition-[opacity,background-color] duration-200 hover:bg-container-hover"
+               data-hover-highlight-target="item" data-key="<%= account.id %>"
+               data-action="pointerenter->hover-highlight#enter pointerleave->hover-highlight#leave">
             <%= render Goals::AvatarComponent.new(name: account.name, color: color, size: "sm") %>
 
             <div class="min-w-0">

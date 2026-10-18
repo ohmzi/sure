@@ -38,7 +38,11 @@
         <% end %>
       <% end %>
     </div>
-    <p data-cash-flow-target="loading" role="status" class="p-4 text-secondary"><%= t("pages.dashboard.cashflow_sankey.loading") %></p>
+    <%# A shimmer the size of the diagram while it loads (the animation pass). %>
+    <div data-cash-flow-target="loading" role="status" class="p-4">
+      <span class="sr-only"><%= t("pages.dashboard.cashflow_sankey.loading") %></span>
+      <div class="h-96 rounded-xl shimmer" aria-hidden="true"></div>
+    </div>
     <div data-cash-flow-target="error" hidden role="alert" class="p-4 space-y-3">
       <p><%= t("pages.dashboard.cashflow_sankey.load_error") %></p>
       <%= render DS::Button.new(text: t("pages.dashboard.cashflow_sankey.retry"), data: { action: "cash-flow#load" }) %>

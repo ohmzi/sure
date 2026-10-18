@@ -15,9 +15,7 @@
            class="relative overflow-hidden rounded-[30px] p-5 space-y-3 text-inverse rise <%= left.negative? ? "bg-destructive shadow-[0_18px_40px_-18px_var(--color-destructive)]" : "bg-success shadow-[0_18px_40px_-18px_var(--color-success)]" %>">
     <span aria-hidden="true" class="pointer-events-none absolute -right-20 -bottom-28 size-56 rounded-full bg-white/10"></span>
     <p class="relative text-sm font-semibold opacity-85"><%= t("envelopes.left_to_spend.title") %></p>
-    <p class="relative text-[44px] leading-none font-extrabold tracking-tight privacy-sensitive">
-      <%= format_money(Money.new(left, budget.currency)) %>
-    </p>
+    <p class="relative text-[44px] leading-none font-extrabold tracking-tight tabular privacy-sensitive" data-controller="count-up"><%= format_money(Money.new(left, budget.currency)) %></p>
     <div class="relative h-3 rounded-full bg-white/25" role="presentation">
       <span class="grow-right absolute inset-y-0 left-0 rounded-full bg-on-accent" style="width: <%= (spent / budgeted * 100).clamp(0, 100).round %>%"></span>
       <% if in_month %>

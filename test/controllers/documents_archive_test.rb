@@ -18,7 +18,7 @@ class DocumentsArchiveTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "#settings-nav-container", count: 0                     # settings layout absent
     assert_select "div[data-controller~='app-layout']"                    # main chrome present
-    assert_select "a[href='#{transactions_path}']"                        # and the main nav with it
+    assert_select "a[href='#{transactions_path(clear_filters: true)}']" # and the main nav with it
     assert_select "h1", text: I18n.t("documents.index.title") # the page owns its title now (one Documents page)
   end
 

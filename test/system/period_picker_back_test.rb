@@ -64,7 +64,7 @@ class PeriodPickerBackTest < ApplicationSystemTestCase
     page.go_back
 
     assert_not has_selector?(any_period_button, wait: 1)
-    assert_current_path transactions_path
+    assert_current_path transactions_path(clear_filters: true)
   end
 
   private

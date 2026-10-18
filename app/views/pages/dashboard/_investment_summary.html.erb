@@ -40,7 +40,7 @@
           </thead>
           <tbody class="font-medium text-sm">
             <% holdings.each_with_index do |holding, idx| %>
-              <tr class="<%= idx < holdings.size - 1 ? "table-divider" : "" %>">
+              <tr class="hover:bg-container-inset-hover transition-colors <%= idx < holdings.size - 1 ? "table-divider" : "" %>">
                 <td class="p-4">
                   <div class="flex items-center gap-3">
                     <% if holding.security.logo_url.present? %>
@@ -59,6 +59,10 @@
 
                 <td class="p-4 text-right text-secondary privacy-sensitive">
                   <%= number_to_percentage(holding.weight || 0, precision: 1) %>
+                  <%# A thin share bar that fills in (the animation pass). %>
+                  <span class="mt-1.5 ml-auto block h-1 w-16 overflow-hidden rounded-full bg-surface-inset" aria-hidden="true">
+                    <span class="grow-right block h-full rounded-full bg-inverse" style="width: <%= (holding.weight || 0).to_f.clamp(0, 100).round(1) %>%; animation-delay: <%= [ idx, 8 ].min * 40 %>ms"></span>
+                  </span>
                 </td>
 
                 <td class="p-4 text-right privacy-sensitive">

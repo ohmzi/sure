@@ -3,9 +3,11 @@
 <div class="h-full flex flex-col justify-center items-center">
   <div class="space-y-6 max-w-lg w-full">
     <% if import.awaiting_ocr? %>
+      <%# A turning loader over a shimmering bar while the import works (the animation pass). %>
       <div class="mx-auto bg-gray-tint-5 h-8 w-8 rounded-full flex items-center justify-center">
-        <%= icon "loader", class: "animate-pulse" %>
+        <%= icon "loader-circle", class: "motion-safe:animate-spin" %>
       </div>
+      <div class="mx-auto h-1.5 w-32 rounded-full shimmer" aria-hidden="true"></div>
       <div class="text-center space-y-2">
         <h1 class="font-bold text-primary text-center text-3xl tracking-tight"><%= t("imports.receipt_import.pending_title") %></h1>
         <p class="text-sm text-secondary"><%= t("imports.receipt_import.pending_description") %></p>
