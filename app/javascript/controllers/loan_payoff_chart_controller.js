@@ -5,6 +5,7 @@ import {
   CHART_TOOLTIP_VALUE_CLASSES,
   createChartTooltip,
 } from "utils/chart_tooltip";
+import { revealOnView } from "utils/reveal_on_view";
 
 // The loan balance chart: three series on one axis.
 //
@@ -36,6 +37,8 @@ export default class extends Controller {
   static values = { data: Object };
 
   connect() {
+    // Shimmers until scrolled into view, then plays its entrance (2026-10-18).
+    this.stopReveal = revealOnView(this.element);
     this._draw = this._draw.bind(this);
     // A window resize also changes the element's box, so the resize listener
     // and the ResizeObserver both fire for one event. Each draw rebuilds the
@@ -59,6 +62,7 @@ export default class extends Controller {
   }
 
   disconnect() {
+    this.stopReveal?.();
     window.removeEventListener("resize", this._scheduleDraw);
     if (this._frame) cancelAnimationFrame(this._frame);
     this._frame = null;
@@ -158,7 +162,10 @@ export default class extends Controller {
       .attr("aria-label", data.aria_description || "")
       // The picture is also a keyboard control: arrow keys step the tooltip
       // through the plotted dates. Say so, since role=img alone would not.
-      .attr("aria-roledescription", data.labels?.interactive_chart || "interactive chart")
+      .attr(
+        "aria-roledescription",
+        data.labels?.interactive_chart || "interactive chart",
+      )
       .attr("aria-keyshortcuts", "ArrowLeft ArrowRight Home End Escape");
     // Clip-path ids must be unique in the document. The mount carries the
     // account's own dom_id, which already is; a counter covers a mount without
@@ -273,7 +280,8 @@ export default class extends Controller {
     // split moves clip rects only, so it never replays this.
     const enter = (path, s, index) => {
       const delay = `${index * 120}ms`;
-      if (s.dash) return path.attr("class", "fade-in").style("animation-delay", delay);
+      if (s.dash)
+        return path.attr("class", "fade-in").style("animation-delay", delay);
       return path
         .attr("pathLength", 1600)
         .attr("class", "draw-line")
@@ -533,17 +541,15 @@ export default class extends Controller {
       .style("fill", "transparent")
       .style("cursor", "crosshair")
       // A finger scrubs sideways along the schedule; a vertical drag still
-      // scrolls, and a lifted finger leaves the reading in place (the
-      // animation pass, 2026-10-18).
+      // scrolls, and a lifted finger clears the reading so it never floats
+      // over the page (the owner, 2026-10-18).
       .style("touch-action", "pan-y")
       .on("pointerdown pointermove", (event) => {
         announce(false);
         const [px] = d3.pointer(event);
         showAt(snap(x.invert(px)));
       })
-      .on("pointerleave", (event) => {
-        if (event.pointerType === "mouse") hide();
-      });
+      .on("pointerleave pointercancel", () => hide());
 
     // Keyboard traversal: the same stops, stepped with the arrow keys.
     // Arrow keys move, Home/End jump, Escape clears.

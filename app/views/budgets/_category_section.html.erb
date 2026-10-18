@@ -11,10 +11,12 @@
   end
 %>
 
-<div class="bg-container-inset rounded-xl p-1" data-budget-filter-target="<%= target %>">
+<%# Flat on its card (2026-10-18): a header line, then the rows on the card
+    itself — no inset well holding a second card. %>
+<div data-budget-filter-target="<%= target %>">
 
   <!-- Section Header -->
-  <div class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-secondary uppercase">
+  <div class="flex items-center gap-1.5 px-2 py-2 text-xs font-semibold text-secondary uppercase">
     <p><%= title %></p>
     <span class="text-subdued">&middot;</span>
     <p><%= count %></p>
@@ -22,7 +24,7 @@
   </div>
 
   <!-- Section Body -->
-  <div class="bg-container py-1 shadow-border-xs rounded-md">
+  <div class="py-1 border-t border-subdued">
 
     <% groups.each_with_index do |group, index| %>
 

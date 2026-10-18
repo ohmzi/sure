@@ -1,40 +1,51 @@
 <div class="space-y-4 pb-6 lg:pb-12">
   <%= render "bills/view_switcher", active: "calendar" %>
 
-  <%# The nav group and a totals line carrying two money values do not share
-      375px, and neither had anywhere to wrap. %>
-  <div class="flex flex-wrap items-center justify-between gap-2">
-    <div class="flex items-center gap-1 min-w-0">
-      <%= render DS::Link.new(
-            icon: "chevron-left",
-            variant: "ghost",
-            href: bills_path(view: "calendar", month: (@month - 1.month).strftime("%Y-%m")),
-            "aria-label": t(".previous_month")
-          ) %>
-      <% unless @at_forward_limit %>
-        <%= render DS::Link.new(
-              icon: "chevron-right",
-              variant: "ghost",
-              href: bills_path(view: "calendar", month: (@month + 1.month).strftime("%Y-%m")),
-              "aria-label": t(".next_month")
-            ) %>
+  <%# The month, as the app's other steppers are (the owner, 2026-10-18): round
+      previous/next buttons, the month in bold, and Today as a pill when you
+      are elsewhere. %>
+  <% step = "press inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-container text-primary shadow-border-xs hover:bg-container-hover transition-colors focus-ring" %>
+  <div class="flex items-center gap-2">
+    <%= link_to bills_path(view: "calendar", month: (@month - 1.month).strftime("%Y-%m")), class: step, aria: { label: t(".previous_month") } do %>
+      <%= icon("chevron-left", size: "sm", color: "current") %>
+    <% end %>
+    <h2 class="min-w-0 grow truncate text-center text-xl font-extrabold tracking-tight text-primary"><%= l(@month, format: "%B %Y") %></h2>
+    <% unless @month == Date.current.beginning_of_month %>
+      <%= link_to t(".today"), bills_path(view: "calendar"),
+            class: "press inline-flex h-8 shrink-0 items-center rounded-full button-bg-accent px-3 text-xs font-bold text-link hover:button-bg-accent-hover focus-ring" %>
+    <% end %>
+    <% if @at_forward_limit %>
+      <span class="size-10 shrink-0" aria-hidden="true"></span>
+    <% else %>
+      <%= link_to bills_path(view: "calendar", month: (@month + 1.month).strftime("%Y-%m")), class: step, aria: { label: t(".next_month") } do %>
+        <%= icon("chevron-right", size: "sm", color: "current") %>
       <% end %>
-      <h2 class="text-lg font-medium text-primary ml-2 truncate"><%= l(@month, format: "%B %Y") %></h2>
-      <% unless @month == Date.current.beginning_of_month %>
-        <%= render DS::Link.new(text: t(".today"), variant: "ghost", href: bills_path(view: "calendar")) %>
-      <% end %>
-    </div>
-    <div class="text-right text-sm">
-      <p class="text-secondary">
-        <%= t(".month_totals",
-              expected: @month_expected ? format_money(@month_expected) : format_money(Money.new(0, Current.family.currency)),
-              paid: @month_paid ? format_money(@month_paid) : format_money(Money.new(0, Current.family.currency))) %>
-      </p>
-      <% if @month_unconvertible.positive? %>
-        <p class="text-xs text-warning"><%= t("bills.index.unconvertible", count: @month_unconvertible) %></p>
-      <% end %>
-    </div>
+    <% end %>
   </div>
+
+  <%# The month in three figures and a bar that fills as it is paid, in place
+      of a sentence. %>
+  <% currency = Current.family.currency %>
+  <% expected = @month_expected || Money.new(0, currency) %>
+  <% paid = @month_paid || Money.new(0, currency) %>
+  <% left = [ expected - paid, Money.new(0, expected.currency) ].max %>
+  <% paid_pct = expected.amount.positive? ? (paid.amount / expected.amount * 100).clamp(0, 100).round : 0 %>
+  <section aria-label="<%= t(".summary_label") %>" class="rounded-3xl bg-container shadow-border-xs p-4 space-y-3 rise">
+    <div class="grid grid-cols-3 gap-2">
+      <% [ [ t(".expected"), expected, "text-primary" ], [ t(".paid"), paid, "text-success" ], [ t(".left"), left, "text-primary" ] ].each do |label, money, tone| %>
+        <div class="min-w-0">
+          <p class="text-xs font-medium text-secondary"><%= label %></p>
+          <p class="truncate text-base font-extrabold tracking-tight tabular privacy-sensitive <%= tone %>"><%= format_money(money) %></p>
+        </div>
+      <% end %>
+    </div>
+    <div class="h-2 overflow-hidden rounded-full bg-surface-inset" role="presentation">
+      <span class="grow-right block h-full rounded-full bg-success" style="width: <%= paid_pct %>%"></span>
+    </div>
+    <% if @month_unconvertible.positive? %>
+      <p class="text-xs text-warning"><%= t("bills.index.unconvertible", count: @month_unconvertible) %></p>
+    <% end %>
+  </section>
 
   <%# Month grid: desktop and tablet. %>
   <div class="hidden md:block bg-container rounded-xl shadow-border-xs p-2">
@@ -60,35 +71,28 @@
     </div>
   </div>
 
-  <div class="flex items-center justify-end gap-3">
-    <%# Minted for THIS member: the feed applies per-account sharing, so each
-        member's URL serves only the bills they can reach in the app. %>
-    <%= link_to t(".subscribe_ical"),
-          bills_feed_path(token: Current.family.bills_feed_token_for(Current.user)),
-          class: "text-xs text-link hover:underline" %>
-    <%= button_to t(".reset_feed"),
-          reset_feed_token_bills_path,
-          class: "text-xs text-secondary hover:underline",
-          data: { turbo_confirm: t("bills.reset_feed_token.confirm") } %>
-  </div>
-
-  <%# Mobile: an agenda list of the month's days that actually have bills,
-      not a shrunken grid. %>
-  <div class="md:hidden space-y-1 rounded-xl bg-surface-inset p-1">
+  <%# Phone: an agenda of the month's days that have bills (the owner,
+      2026-10-18): a date tile beside each day's rows — today's in the brand
+      colour — on one card split by hairlines. %>
+  <div class="md:hidden rounded-3xl bg-container shadow-border-xs overflow-hidden divide-y divide-subdued rise">
     <% month_days = (@month..@month.end_of_month).select { |day| @by_day[day].present? } %>
     <% if month_days.empty? %>
-      <div class="bg-container rounded-lg p-4">
-        <p class="text-sm text-secondary"><%= t(".empty_month") %></p>
-      </div>
+      <p class="p-4 text-sm text-secondary"><%= t(".empty_month") %></p>
     <% else %>
       <% month_days.each do |day| %>
-        <div class="bg-container rounded-lg p-3 space-y-1.5">
-          <p class="text-xs font-medium <%= day == Date.current ? "text-link" : "text-secondary" %> uppercase">
-            <%= l(day, format: :long) %>
-          </p>
-          <% @by_day[day].sort_by { |occurrence| -occurrence.resolved_expected_amount }.each do |occurrence| %>
-            <%= render "bills/calendar_chip", occurrence: occurrence %>
-          <% end %>
+        <% today = day == Date.current %>
+        <div class="flex gap-1 pl-3">
+          <div class="flex w-11 shrink-0 flex-col items-center pt-3.5">
+            <span class="flex h-12 w-11 flex-col items-center justify-center rounded-2xl leading-none <%= today ? "bg-inverse text-inverse" : "bg-surface-inset text-primary" %>">
+              <span class="text-lg font-extrabold"><%= day.day %></span>
+              <span class="text-[10px] font-semibold uppercase <%= today ? "" : "text-secondary" %>"><%= l(day, format: "%a") %></span>
+            </span>
+          </div>
+          <div class="min-w-0 grow divide-y divide-subdued">
+            <% @by_day[day].sort_by { |occurrence| -occurrence.resolved_expected_amount }.each do |occurrence| %>
+              <%= render "bills/agenda_row", occurrence: occurrence %>
+            <% end %>
+          </div>
         </div>
       <% end %>
     <% end %>

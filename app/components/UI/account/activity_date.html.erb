@@ -1,7 +1,9 @@
-<%= tag.div id: id, data: { bulk_select_target: "group" }, class: "bg-container-inset rounded-xl p-1 w-full" do %>
+<%# One day on the account's activity card: the date line, then its rows on the
+    card itself — no inset well holding a second card (the owner, 2026-10-18). %>
+<%= tag.div id: id, data: { bulk_select_target: "group" }, class: "w-full py-2" do %>
   <details class="group">
     <summary>
-      <div class="py-2 px-4 flex items-center justify-between font-medium text-xs text-secondary">
+      <div class="py-2 px-4 flex items-center justify-between font-semibold text-xs text-secondary cursor-pointer rounded-lg hover:bg-container-hover transition-colors">
         <div class="flex pl-0.5 items-center gap-4">
           <%= check_box_tag "#{date}_entries_selection",
                           class: ["checkbox checkbox--light hidden lg:block", "lg:hidden": entries.size == 0],
@@ -23,12 +25,12 @@
             <span class="font-medium privacy-sensitive"><%= end_balance_money.format %></span>
             <%= render DS::Tooltip.new(text: t("UI.account.activity_date.balance_tooltip"), placement: "left", size: "sm", as: :span) %>
           </div>
-          <%= helpers.icon "chevron-down", class: "group-open:rotate-180" %>
+          <%= helpers.icon "chevron-down", class: "group-open:rotate-180 transition-transform duration-200" %>
         </div>
       </div>
     </summary>
 
-    <div class="p-4">
+    <div class="mx-4 mb-2 rounded-xl bg-container-inset p-4">
       <% if balance %>
         <%= render UI::Account::BalanceReconciliation.new(balance: balance, account: account) %>
       <% else %>
@@ -37,7 +39,7 @@
     </div>
   </details>
 
-  <div class="bg-container shadow-border-xs rounded-lg">
+  <div>
     <% if Current.user.show_split_grouped? %>
       <% helpers.group_split_entries(entries, split_parents).each do |item| %>
         <% if item.is_a?(EntriesHelper::SplitGroup) %>

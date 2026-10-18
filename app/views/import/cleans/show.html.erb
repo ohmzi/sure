@@ -43,7 +43,7 @@
   <% end %>
 
   <div class="pb-12">
-    <div class="bg-container-inset rounded-xl p-1 mb-6">
+    <div class="bg-container rounded-2xl shadow-border-xs overflow-hidden mb-6">
       <div class="overflow-x-auto">
         <div style="grid-template-columns: repeat(<%= @import.column_keys.count %>, minmax(150px, 1fr));" class="grid items-center uppercase text-xs font-medium text-secondary py-3">
           <% @import.column_keys.each do |key| %>
@@ -51,7 +51,7 @@
           <% end %>
         </div>
 
-        <div class="bg-container shadow-border-xs rounded-xl divide-y divide-alpha-black-200 theme-dark:divide-alpha-white-200">
+        <div class="border-t border-subdued divide-y divide-subdued">
           <% @rows.each do |row| %>
             <%= render "import/rows/form", row: row %>
           <% end %>

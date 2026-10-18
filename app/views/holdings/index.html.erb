@@ -25,9 +25,11 @@
       </div>
     <% end %>
 
-    <div class="bg-container-inset rounded-xl p-1 overflow-x-auto">
+    <%# The table sits on the holdings card itself (2026-10-18): column labels,
+        a hairline, the rows — no inset well holding a second card. %>
+    <div class="-mx-3 lg:-mx-4 overflow-x-auto">
       <div class="w-max lg:w-full">
-        <div class="grid grid-cols-12 items-center uppercase text-xs font-medium text-secondary px-4 py-2">
+        <div class="grid grid-cols-12 items-center uppercase text-xs font-medium text-secondary px-4 pb-2 border-b border-subdued">
           <%= tag.p t(".name"), class: "col-span-4" %>
           <%= tag.p t(".weight"), class: "col-span-2 justify-self-end" %>
           <%= tag.p t(".average_cost"), class: "col-span-2 justify-self-end" %>
@@ -35,7 +37,7 @@
           <%= tag.p t(".return"), class: "col-span-2 justify-self-end" %>
         </div>
 
-        <div class="bg-container rounded-lg shadow-border-xs">
+        <div>
           <% if @account.cash_balance.to_d > 0 %>
             <%= render "holdings/cash", account: @account %>
             <%= render "shared/ruler" %>

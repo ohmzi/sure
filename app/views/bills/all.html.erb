@@ -1,40 +1,66 @@
 <div class="space-y-4 pb-6 lg:pb-12">
   <%= render "bills/view_switcher", active: "all" %>
 
-  <%# Built with the styled form builder, so each filter sits in the boxed field
-      every form uses, one height with the search box. As bare selects they read
-      as loose words with a chevron, and had no focus ring at all. %>
+  <%# One row (the owner, 2026-10-18): the search across the width and one
+      Filters pill, its count showing what is on, that opens a sheet with
+      status, type and order. The sheet's fields are in the same form, so a
+      change submits as it always did. %>
+  <% active_filters = %i[status bill_type sort].count { |key| params.dig(:q, key).present? } %>
   <%= styled_form_with url: bills_path, method: :get, scope: :q,
         data: { controller: "auto-submit-form" },
-        class: "flex flex-wrap items-center gap-2" do |form| %>
+        class: "flex items-center gap-2" do |form| %>
     <%= hidden_field_tag :view, "all" %>
     <%= render DS::SearchInput.new(
+          variant: :filled,
           name: "q[search]",
           value: params.dig(:q, :search),
           placeholder: t(".search_placeholder"),
-          class: "grow max-w-xs",
+          class: "grow min-w-0",
           data: { "auto-submit-form-target": "auto" }) %>
-    <%= form.select :status,
-          options_for_select(
-            [ [ t(".any_status"), "" ] ] + BillsController::STATUS_FILTERS.map { |status| [ t(".status_filters.#{status}"), status ] },
-            params.dig(:q, :status)
-          ),
-          { container_class: "w-auto py-2.5" },
-          { class: "form-field__input w-auto", "data-auto-submit-form-target": "auto" } %>
-    <%= form.select :bill_type,
-          options_for_select(
-            [ [ t(".any_type"), "" ] ] + RecurringTransaction.bill_types.keys.map { |type| [ t(".types.#{type}"), type ] },
-            params.dig(:q, :bill_type)
-          ),
-          { container_class: "w-auto py-2.5" },
-          { class: "form-field__input w-auto", "data-auto-submit-form-target": "auto" } %>
-    <%= form.select :sort,
-          options_for_select(
-            [ [ t(".sort_due"), "" ], [ t(".sort_name"), "name" ], [ t(".sort_amount"), "amount" ] ],
-            params.dig(:q, :sort)
-          ),
-          { container_class: "w-auto py-2.5" },
-          { class: "form-field__input w-auto", "data-auto-submit-form-target": "auto" } %>
+    <button type="button"
+            class="press relative inline-flex h-11 shrink-0 items-center gap-2 rounded-full bg-container px-4 text-sm font-semibold text-primary shadow-border-xs hover:bg-container-hover transition-colors focus-ring"
+            aria-controls="bills_filter_sheet" aria-haspopup="dialog"
+            aria-label="<%= t(".filters_aria", count: active_filters) %>"
+            data-controller="sheet-opener" data-sheet-opener-sheet-value="bills_filter_sheet" data-action="sheet-opener#open">
+      <%= icon("sliders-horizontal", size: "sm", color: "current") %>
+      <span><%= t(".filters") %></span>
+      <% if active_filters.positive? %>
+        <span class="inline-flex size-5 items-center justify-center rounded-full bg-inverse text-[11px] font-bold text-inverse"><%= active_filters %></span>
+      <% end %>
+    </button>
+
+    <%= render DS::Dialog.new(variant: "sheet", auto_open: false, disable_frame: true, width: "sm", id: "bills_filter_sheet") do |dialog| %>
+      <% dialog.with_body do %>
+        <h2 id="<%= dialog.title_id %>" class="text-2xl font-bold tracking-tight text-primary"><%= t(".filters_title") %></h2>
+        <div class="mt-5 space-y-3">
+          <%= form.select :status,
+                options_for_select(
+                  [ [ t(".any_status"), "" ] ] + BillsController::STATUS_FILTERS.map { |status| [ t(".status_filters.#{status}"), status ] },
+                  params.dig(:q, :status)
+                ),
+                { label: t(".filter_status") },
+                { "data-auto-submit-form-target": "auto" } %>
+          <%= form.select :bill_type,
+                options_for_select(
+                  [ [ t(".any_type"), "" ] ] + RecurringTransaction.bill_types.keys.map { |type| [ t(".types.#{type}"), type ] },
+                  params.dig(:q, :bill_type)
+                ),
+                { label: t(".filter_type") },
+                { "data-auto-submit-form-target": "auto" } %>
+          <%= form.select :sort,
+                options_for_select(
+                  [ [ t(".sort_due"), "" ], [ t(".sort_name"), "name" ], [ t(".sort_amount"), "amount" ] ],
+                  params.dig(:q, :sort)
+                ),
+                { label: t(".filter_sort") },
+                { "data-auto-submit-form-target": "auto" } %>
+        </div>
+        <div class="mt-5">
+          <%= render DS::Button.new(text: t(".filters_done"), variant: :primary, size: :lg, full_width: true,
+                                    type: "button", data: { action: "DS--dialog#close" }) %>
+        </div>
+      <% end %>
+    <% end %>
   <% end %>
 
   <%# What the Subscriptions tab existed to answer. It was a whole destination
@@ -82,30 +108,43 @@
         shell's sidebars can squeeze a desktop window to phone-list widths,
         and a viewport breakpoint cannot see that. %>
     <div class="@container">
-    <div class="@3xl:hidden bg-container rounded-xl shadow-border-xs divide-y divide-subdued">
+    <%# Each bill as one row on one card (the owner, 2026-10-18): its tile, the
+        name on up to two lines, the cadence with how soon the next one is, the
+        amount; a state pill only when it is not simply active. The whole row
+        opens the bill; the ⋯ menu sits beside it. %>
+    <div class="@3xl:hidden bg-container rounded-3xl shadow-border-xs overflow-hidden divide-y divide-subdued rise">
       <% @all_series.each do |series| %>
-        <div class="flex items-center gap-3 p-3">
-          <%= link_to bill_path(series), data: { turbo_frame: "drawer", turbo_prefetch: false }, class: "flex items-center gap-3 min-w-0 flex-1 group" do %>
+        <% next_date = series.next_expected_date %>
+        <% in_days = next_date && (next_date - Date.current).to_i %>
+        <div class="flex items-center gap-1 pr-2 transition-colors hover:bg-container-hover active:bg-surface-inset">
+          <%= link_to bill_path(series), data: { turbo_frame: "drawer", turbo_prefetch: false },
+                class: "flex items-center gap-3 min-w-0 flex-1 py-3 pl-4 focus-ring -outline-offset-2 rounded-lg" do %>
+            <% if series.merchant&.logo_url.present? %>
+              <%= image_tag Setting.transform_brand_fetch_url(series.merchant.logo_url),
+                    class: "size-9 rounded-xl shrink-0 object-cover", loading: "lazy", alt: "" %>
+            <% else %>
+              <%= render DS::FilledIcon.new(variant: :text, text: series.display_name, size: "lg") %>
+            <% end %>
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-primary truncate group-hover:underline"><%= series.display_name %></p>
+              <p class="text-sm font-semibold text-primary line-clamp-2 break-words"><%= series.display_name %></p>
               <p class="text-xs text-secondary truncate">
                 <%= frequency_label(series) %>
-                <% if series.next_expected_date %>
-                  &middot; <%= t(".next_short", date: bills_upcoming_date(series.next_expected_date)) %>
+                <% if in_days && in_days >= 0 %>
+                  &middot; <span class="font-semibold <%= in_days <= 3 ? "text-warning" : "text-primary" %>"><%= t(".in_days", count: in_days) %></span>
+                <% elsif next_date %>
+                  &middot; <%= t(".next_short", date: bills_upcoming_date(next_date)) %>
                 <% end %>
               </p>
+              <% unless series.active? %>
+                <span class="mt-1 inline-flex"><%= render DS::Pill.new(label: t("recurring_transactions.status.#{series.status}"), tone: recurring_status_pill_tone(series.status), marker: false) %></span>
+              <% end %>
             </div>
-            <div class="shrink-0 text-right">
-              <p class="text-sm font-medium text-primary privacy-sensitive">
-                <%= format_money(Money.new(series.amount.abs, series.currency)) %>
-              </p>
-              <p class="text-xs">
-                <%= render DS::Pill.new(label: t("recurring_transactions.status.#{series.status}"), tone: recurring_status_pill_tone(series.status), marker: false) %>
-              </p>
-            </div>
+            <p class="shrink-0 text-sm font-semibold text-primary tabular privacy-sensitive">
+              <%= format_money(Money.new(series.amount.abs, series.currency)) %>
+            </p>
           <% end %>
 
-          <div class="shrink-0">
+          <div class="shrink-0 text-secondary">
             <%= render DS::Menu.new do |menu| %>
               <% menu.with_item(
                   variant: "link",

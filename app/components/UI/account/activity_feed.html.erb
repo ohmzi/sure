@@ -140,7 +140,8 @@
           <%= render "entries/selection_bar" %>
         </div>
 
-        <div class="grid bg-container-inset rounded-xl grid-cols-12 items-center uppercase text-xs font-medium text-secondary px-5 py-3 mb-4">
+        <%# Column labels as a plain line on the card (no inset bar on the card, 2026-10-18). %>
+        <div class="grid grid-cols-12 items-center uppercase text-xs font-medium text-secondary px-4 pb-2 border-b border-subdued">
           <div class="pl-0.5 col-span-8 flex items-center gap-4">
             <%= check_box_tag "selection_entry",
                               class: "checkbox checkbox--light hidden lg:block",
@@ -155,7 +156,7 @@
         </div>
 
         <div>
-          <div class="space-y-4">
+          <div class="divide-y divide-subdued">
             <% activity_dates.each do |activity_date_data| %>
               <%= render UI::Account::ActivityDate.new(
                     account: account,
@@ -164,7 +165,7 @@
             <% end %>
           </div>
 
-          <div class="p-4 bg-container rounded-bl-lg rounded-br-lg">
+          <div class="p-4">
             <%= render "shared/pagination", pagy: pagy %>
           </div>
         </div>

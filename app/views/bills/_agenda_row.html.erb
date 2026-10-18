@@ -1,0 +1,43 @@
+<%# locals: (occurrence:) %>
+<%# One bill in the phone calendar's agenda (the owner, 2026-10-18): the
+    merchant's tile, the name, a state pill only where the state is worth
+    saying, and the amount. It opens the same drawer the month grid's chip
+    does. %>
+<% series = occurrence.recurring_transaction %>
+<%
+  pill =
+    if occurrence.paid?
+      if (occurrence.confirmed_allocated - occurrence.resolved_expected_amount).abs > RecurringOccurrence::CLOSE_EPSILON
+        [ t("bills.agenda_row.paid_different"), "bg-warning/10 text-warning", "check" ]
+      else
+        [ t("bills.agenda_row.paid"), "bg-success/10 text-success", "check" ]
+      end
+    elsif occurrence.skipped? || occurrence.missed?
+      [ t("bills.agenda_row.skipped"), "bg-surface-inset text-subdued", nil ]
+    elsif occurrence.overdue?
+      [ t("bills.agenda_row.overdue"), "bg-destructive/10 text-destructive", "alert-circle" ]
+    elsif series.autopay?
+      [ t("recurring_transactions.pay_action.autopay"), "bg-surface-inset text-secondary", "repeat" ]
+    end
+%>
+<%= link_to recurring_occurrence_path(occurrence),
+      data: { turbo_frame: :drawer },
+      class: "flex items-center gap-3 px-4 py-3 text-primary transition-colors hover:bg-container-hover active:bg-surface-inset focus-ring -outline-offset-2" do %>
+  <% if series.merchant&.logo_url.present? %>
+    <%= image_tag Setting.transform_brand_fetch_url(series.merchant.logo_url),
+          class: "size-9 rounded-xl shrink-0 object-cover", loading: "lazy", alt: "" %>
+  <% else %>
+    <%= render DS::FilledIcon.new(variant: :text, text: series.display_name, size: "lg") %>
+  <% end %>
+
+  <div class="min-w-0 grow">
+    <p class="text-sm font-semibold line-clamp-2 break-words <%= "line-through text-subdued" if occurrence.skipped? || occurrence.missed? %>"><%= series.display_name %></p>
+    <% if pill %>
+      <span class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold <%= pill[1] %>">
+        <%= icon(pill[2], size: "xs", color: "current") if pill[2] %><%= pill[0] %>
+      </span>
+    <% end %>
+  </div>
+
+  <p class="shrink-0 text-sm font-semibold tabular privacy-sensitive"><%= format_money(occurrence.resolved_expected_amount_money) %></p>
+<% end %>

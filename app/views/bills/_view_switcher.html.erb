@@ -27,6 +27,23 @@
       <%# Seeds a chat with the server-owned review prompt into the sidebar
           frame; the audit tool grounds the findings. Needs AI consent plus a
           configured provider, or the item leads to a dead chat. %>
+      <%# The calendar's feed lives here, not as loose links mid-page (the
+          owner, 2026-10-18). Minted for THIS member: the feed applies
+          per-account sharing, so each member's URL serves only the bills they
+          can reach in the app. %>
+      <% if active == "calendar" %>
+        <% menu.with_item(
+             variant: "link",
+             text: t("bills.calendar.subscribe_ical"),
+             icon: "calendar-plus",
+             href: bills_feed_path(token: Current.family.bills_feed_token_for(Current.user))) %>
+        <% menu.with_item(
+             variant: "button",
+             text: t("bills.calendar.reset_feed"),
+             icon: "refresh-ccw",
+             href: reset_feed_token_bills_path,
+             confirm: t("bills.reset_feed_token.confirm")) %>
+      <% end %>
       <% if bills_one_shot_ai_available? %>
         <% menu.with_item(
              variant: "button",

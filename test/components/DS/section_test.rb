@@ -1,14 +1,16 @@
 require "test_helper"
 
 class DS::SectionTest < ViewComponent::TestCase
-  test "heads a card of rows with the title and count, in an inset shell" do
+  # The heading sits on the page above one card of rows (the owner,
+  # 2026-10-18): no inset shell around the card, so it is never a card in a card.
+  test "heads a card of rows with the title and count, with no shell around it" do
     render_inline(DS::Section.new(title: "Needs review", count: 2)) { "<p>Netflix</p>".html_safe }
 
-    assert_selector "section.rounded-xl.bg-surface-inset.p-1 .uppercase.text-secondary", text: /Needs review\s*·\s*2/
+    assert_selector "section .uppercase.text-secondary", text: /Needs review\s*·\s*2/
     assert_selector "h2", text: "Needs review"
     assert_selector "[aria-hidden='true']", text: "·"
-    # Straight in the shell, with nothing padding it narrower than other cards.
-    assert_selector "section.bg-surface-inset.p-1 > div.bg-container.rounded-lg.shadow-border-xs > p", text: "Netflix"
+    assert_no_selector ".bg-surface-inset"
+    assert_selector "section > div.bg-container.rounded-2xl.shadow-border-xs > p", text: "Netflix"
     assert_no_selector "details, svg"
   end
 
@@ -26,7 +28,7 @@ class DS::SectionTest < ViewComponent::TestCase
 
     assert_no_selector ".bg-surface-inset"
     assert_selector "section h2", text: "Later"
-    assert_selector "div.bg-container.rounded-lg > p", text: "Rent"
+    assert_selector "div.bg-container.rounded-2xl > p", text: "Rent"
   end
 
   # With both sidebars open a list is phone-width at a desktop viewport, so
@@ -44,7 +46,7 @@ class DS::SectionTest < ViewComponent::TestCase
       "<p>Hulu</p>".html_safe
     end
 
-    assert_selector "section.bg-surface-inset.p-1 > details[open][data-controller='persisted-disclosure'][data-persisted-disclosure-key-value='bills-suggested']"
+    assert_selector "section > details[open][data-controller='persisted-disclosure'][data-persisted-disclosure-key-value='bills-suggested']"
     assert_selector "summary svg"
     assert_selector "summary h2", text: "Possible new bills"
     assert_selector "summary p", text: "Tap to review"

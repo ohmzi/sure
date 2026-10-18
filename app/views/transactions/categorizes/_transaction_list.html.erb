@@ -1,5 +1,6 @@
 <%= turbo_frame_tag "categorize_transaction_list" do %>
-  <div class="bg-container-inset rounded-xl p-1 space-y-1">
+  <%# Flat on its card (2026-10-18): header line, then hairline-split rows. %>
+  <div>
     <%# Header — same grid template and padding as each row %>
     <div class="hidden lg:grid grid-cols-[1rem_1fr_5rem_6rem_6.5rem] gap-3 px-5 py-2 text-xs font-medium text-secondary uppercase tracking-wide">
       <div></div>
@@ -9,7 +10,7 @@
       <p><%= t("transactions.categorizes.show.col_category") %></p>
     </div>
     <%# Rows %>
-    <div class="shadow-border-xs rounded-lg overflow-hidden">
+    <div class="border-t border-subdued overflow-hidden">
       <div class="max-h-[32rem] overflow-y-auto divide-y divide-alpha-black-200 theme-dark:divide-alpha-white-200 text-sm">
         <% entries.each do |entry| %>
           <%= render partial: "transactions/categorizes/entry_row", locals: { entry: entry, categories: categories } %>

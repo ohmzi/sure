@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus";
 import * as d3 from "d3";
 import { CHART_TOOLTIP_CLASSES } from "utils/chart_tooltip";
+import { revealOnView } from "utils/reveal_on_view";
 
 // Cumulative spending chart for the dashboard "spending" widget: the selected
 // month's running total (green, ending today while the month is in progress)
@@ -22,6 +23,8 @@ export default class extends Controller {
   _resizeObserver = null;
 
   connect() {
+    // Shimmers until scrolled into view, then plays its entrance (2026-10-18).
+    this.stopReveal = revealOnView(this.element);
     this._install();
     document.addEventListener("turbo:load", this._reinstall);
     this._resizeObserver = new ResizeObserver(() => this._reinstall());
@@ -29,6 +32,7 @@ export default class extends Controller {
   }
 
   disconnect() {
+    this.stopReveal?.();
     this._teardown();
     document.removeEventListener("turbo:load", this._reinstall);
     this._resizeObserver?.disconnect();
@@ -290,9 +294,8 @@ export default class extends Controller {
           .style("top", `${event.pageY - 10}px`);
       })
       .on("pointerleave", (event) => {
-        // A lifted finger leaves the reading in place until the next touch.
-        if (event.pointerType !== "mouse") return;
-
+        // A lifted finger clears the reading too, so it never floats over the
+        // page as it scrolls (the owner, 2026-10-18).
         const hoveringOnGuideline =
           event.relatedTarget?.classList?.contains("guideline");
 

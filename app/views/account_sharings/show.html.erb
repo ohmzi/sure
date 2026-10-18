@@ -4,8 +4,8 @@
     <% if @account.owned_by?(Current.user) %>
       <% if @family_members.any? %>
         <%= styled_form_with url: account_sharing_path(@account), method: :patch, class: "space-y-4" do |form| %>
-          <div class="bg-container-inset rounded-xl p-1">
-            <div class="px-4 py-2">
+          <div class="divide-y divide-subdued">
+            <div class="py-2">
               <div class="grid grid-cols-3 gap-4">
                 <p class="uppercase text-xs text-secondary font-medium"><%= t(".member") %></p>
                 <p class="uppercase text-xs text-secondary font-medium"><%= t(".permission") %></p>
@@ -14,7 +14,7 @@
             </div>
             <% @family_members.each_with_index do |member, index| %>
               <% share = @account_shares[member.id] %>
-              <div class="flex items-center bg-container p-4 shadow-border-xs rounded-lg mt-2">
+              <div class="flex items-center py-3">
                 <input type="hidden" name="sharing[members][<%= index %>][user_id]" value="<%= member.id %>">
                 <div class="grid grid-cols-3 gap-4 items-center w-full">
                   <div class="flex items-center gap-2">

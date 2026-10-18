@@ -64,7 +64,7 @@
             </div>
           </div>
 
-          <div class="w-full @2xl:w-2/3 bg-container-inset rounded-xl p-1 space-y-1 overflow-x-auto">
+          <div class="w-full @2xl:w-2/3 space-y-1 overflow-x-auto">
             <div class="px-4 py-2 flex items-center uppercase text-xs font-medium text-secondary">
               <div class="w-16 @2xl:w-40">
                 <p><%= t(".merchants") %><span class="text-subdued mx-1">&middot;</span><%= breakdown.rows.count %></p>
@@ -79,7 +79,7 @@
               </div>
             </div>
 
-            <div class="py-3 shadow-border-xs rounded-lg bg-container font-medium text-sm max-w-full">
+            <div class="py-1 border-t border-subdued font-medium text-sm max-w-full">
               <% breakdown.rows.each_with_index do |row, idx| %>
                 <% row_content = capture do %>
                   <div class="flex items-center gap-3 flex-1 min-w-0">
@@ -141,7 +141,7 @@
               <p><%= t(".net_after_refunds") %>: <span class="text-primary privacy-sensitive"><%= format_money Money.new(breakdown.net_total, breakdown.currency) %></span></p>
             </div>
 
-            <div class="py-3 shadow-border-xs rounded-lg bg-container font-medium text-sm max-w-full">
+            <div class="py-1 border-t border-subdued font-medium text-sm max-w-full">
               <% breakdown.refunds.each_with_index do |row, idx| %>
                 <% row_content = capture do %>
                   <div class="flex items-center gap-3 flex-1 min-w-0">

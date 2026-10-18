@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus";
 import * as d3 from "d3";
 import { CHART_TOOLTIP_CLASSES } from "utils/chart_tooltip";
+import { revealOnView } from "utils/reveal_on_view";
 import { trendSegmentStops } from "utils/trend_segments";
 
 const parseLocalDate = d3.timeParse("%Y-%m-%d");
@@ -36,12 +37,15 @@ export default class extends Controller {
   // as a fraction of the average balance
 
   connect() {
+    // Shimmers until scrolled into view, then plays its entrance (2026-10-18). Sparklines (no tooltip) show at once.
+    if (this.useTooltipValue) this.stopReveal = revealOnView(this.element);
     this._install();
     document.addEventListener("turbo:load", this._reinstall);
     this._setupResizeObserver();
   }
 
   disconnect() {
+    this.stopReveal?.();
     this._teardown();
     document.removeEventListener("turbo:load", this._reinstall);
     this._resizeObserver?.disconnect();
@@ -486,7 +490,28 @@ export default class extends Controller {
 
   _bindTooltipHandlers(selection) {
     selection
+      // A finger scrubs sideways along the line, the way a stock app does,
+      // while an up-and-down swipe still scrolls the page (the owner,
+      // 2026-10-18). The figure above the chart follows the finger, so the
+      // tooltip box stays out from under it.
+      .style("touch-action", "pan-y")
+      .on("pointerdown pointermove", (event) => {
+        if (event.pointerType === "mouse") return;
+        this._lastTouchAt = Date.now();
+        const [xPos] = d3.pointer(event);
+        this._renderTooltipAt(
+          this._nearestDataPointForPixel(xPos),
+          event.pageX,
+          event.pageY,
+          { touch: true },
+        );
+      })
+      .on("pointerup pointercancel", (event) => {
+        if (event.pointerType !== "mouse") this._hideTooltip();
+      })
       .on("mousemove", (event) => {
+        // The mouse events a browser makes up after a tap are not a pointer.
+        if (Date.now() - (this._lastTouchAt ?? 0) < 800) return;
         const [xPos] = d3.pointer(event);
         const datum = this._nearestDataPointForPixel(xPos);
 
@@ -502,7 +527,7 @@ export default class extends Controller {
       });
   }
 
-  _renderTooltipAt(datum, pageX, pageY) {
+  _renderTooltipAt(datum, pageX, pageY, { touch = false } = {}) {
     const estimatedTooltipWidth = 250;
     const pageWidth = document.body.clientWidth;
     const tooltipX = pageX + 10;
@@ -552,6 +577,20 @@ export default class extends Controller {
     // Render tooltip. Optional, to match _hideTooltip: the brush drives this
     // method unconditionally, so a selectable chart with use_tooltip=false has
     // no tooltip node — but it still gets the guideline and circles above.
+    // Tell the page which point is under the pointer, so a headline figure
+    // can follow it (scrub_readout_controller).
+    this.dispatch("scrub", {
+      detail: {
+        value: this._extractFormattedValue(datum.trend.current),
+        date: datum.date_formatted,
+      },
+    });
+
+    if (touch) {
+      this._d3Tooltip?.style("opacity", 0);
+      return;
+    }
+
     this._d3Tooltip
       ?.html(this._tooltipTemplate(datum))
       .style("opacity", 1)
@@ -561,6 +600,7 @@ export default class extends Controller {
   }
 
   _hideTooltip() {
+    this.dispatch("release");
     this._d3Group.selectAll(".guideline").remove();
     this._d3Group.selectAll(".data-point-circle").remove();
     this._d3Tooltip?.style("opacity", 0);

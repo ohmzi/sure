@@ -113,7 +113,7 @@ end %>
     <% end %>
 
     <%# SHARED - Main content %>
-    <%= tag.main id: "main", class: class_names("grow overflow-y-auto px-3 lg:px-10 w-full mx-auto pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0 fade-children"), data: { app_layout_target: "content", viewport_target: "content", notification_tray_target: "main" } do %>
+    <%= tag.main id: "main", class: class_names("grow overflow-y-auto px-3 lg:px-10 w-full mx-auto pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0 fade-children"), data: { app_layout_target: "content", viewport_target: "content", notification_tray_target: "main", controller: "scroll-top" } do %>
       <% unless intro_mode %>
         <%# The page's own large title leads (no breadcrumbs — the owner,
             2026-10-17); the bar carries only the page-wide actions. %>
@@ -146,6 +146,14 @@ end %>
       <% end %>
 
       <%= yield %>
+
+      <%# Back to top, once a long page has been scrolled well down. %>
+      <button type="button" data-scroll-top-target="button" data-action="scroll-top#top" aria-hidden="true" tabindex="-1"
+              class="press fixed left-1/2 z-20 -translate-x-1/2 translate-y-3 opacity-0 pointer-events-none bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-6
+                     inline-flex items-center gap-1.5 rounded-full bg-container/90 px-4 h-10 text-sm font-semibold text-primary shadow-border-md backdrop-blur-xl transition-[opacity,translate] duration-300 focus-ring">
+        <%= icon("arrow-up", size: "sm", color: "current") %>
+        <%= t("layouts.application.back_to_top") %>
+      </button>
     <% end %>
 
     <% if assistant_enabled %>

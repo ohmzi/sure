@@ -64,8 +64,11 @@ class BillsControllerTest < ActionDispatch::IntegrationTest
       assert_empty on_page.map { |node| node["class"] }, "#{url} frames something in container-inset on the page"
     end
 
+    # A section's heading sits on the page above its one card (the owner,
+    # 2026-10-18): no inset shell holding the card.
     get bills_url
-    assert_select "main .bg-surface-inset h2", text: I18n.t("bills.index.this_month")
+    assert_select "main [data-bill-list] > section h2", text: I18n.t("bills.index.this_month")
+    assert_select "main .bg-surface-inset section", count: 0
   end
 
   test "bills page shell is localized in German" do
@@ -544,10 +547,12 @@ class BillsControllerTest < ActionDispatch::IntegrationTest
     assert_match I18n.t("bills.month_pulse.next_up"), body
     assert_match "Amazon Prime", body
 
-    # Next-up items and the calendar link carry the DS focus ring, and the
-    # items no longer bleed past the strip that clips them on phones.
+    # Next-up items and the calendar link carry the DS focus ring. On a phone
+    # the items are a short list, never a sideways strip (the owner,
+    # 2026-10-18).
     assert_select "a.focus-ring", text: I18n.t("bills.month_pulse.view_calendar")
-    assert_select "a.w-36[href^='/bills/']", text: /Amazon Prime/ do |links|
+    assert_select "[data-next-up]:not(.overflow-x-auto)"
+    assert_select "[data-next-up] > a[href^='/bills/']", text: /Amazon Prime/ do |links|
       links.each do |link|
         classes = link["class"].split
         assert_includes classes, "focus-ring"
@@ -1998,32 +2003,36 @@ class BillsControllerTest < ActionDispatch::IntegrationTest
     get bills_url
     assert_response :success
 
-    shells = css_select(".rounded-xl.bg-surface-inset.p-1")
-    headings = shells.flat_map { |shell| css_select(shell, "div.uppercase") }
+    # Every list is a DS::Section: its heading on the page above one card, with
+    # no inset shell around it (the owner, 2026-10-18: no card in a card).
+    sections = css_select("main section").select { |section| css_select(section, "h2").any? }
+    headings = sections.flat_map { |section| css_select(section, "div.uppercase") }
     [ "#{I18n.t("bills.index.notices_heading")} · 3", "#{I18n.t("bills.index.needs_review")} · 1",
       "#{I18n.t("recurring_transactions.suggested.title")} · 1", "#{I18n.t("bills.index.this_month")} · " ].each do |heading|
       assert headings.any? { |node| node.text.squish.start_with?(heading) },
-        "no inset shell heads with #{heading.inspect}: #{headings.map { |node| node.text.squish }.inspect}"
+        "no section heads with #{heading.inspect}: #{headings.map { |node| node.text.squish }.inspect}"
     end
     # One heading row, not copies that drift apart.
     rows = headings.map { |node| node.parent["class"] }.uniq
-    assert_equal 1, rows.size, "the shells' heading rows differ: #{rows.inspect}"
-    # Each card sits straight in its shell, so they all have one width.
-    shells.each do |shell|
-      cards = css_select(shell, ".bg-container.rounded-lg.shadow-border-xs")
-      assert cards.any?, "a shell without its card"
+    assert_equal 1, rows.size, "the sections' heading rows differ: #{rows.inspect}"
+    assert_select "main .bg-surface-inset.p-1", count: 0
+    # Each card sits straight in its section (or its fold), so they all have one width.
+    sections.each do |section|
+      cards = css_select(section, ".bg-container.rounded-2xl.shadow-border-xs")
+      assert cards.any?, "a section without its card"
       cards.each do |card|
-        assert card.parent == shell || card.parent["class"].blank?, "a card is inset by #{card.parent["class"].inspect}"
+        assert card.parent == section || card.parent.name == "details" || card.parent["class"].blank?,
+               "a card is inset by #{card.parent["class"].inspect}"
       end
     end
 
-    # Possible new bills still collapses and remembers it, inside the shell.
-    assert_select ".rounded-xl.bg-surface-inset.p-1 > details[data-controller='persisted-disclosure'][data-persisted-disclosure-key-value='bills-suggested']"
+    # Possible new bills still collapses and remembers it.
+    assert_select "section > details[data-controller='persisted-disclosure'][data-persisted-disclosure-key-value='bills-suggested']"
     # Needs review can't run long, so it doesn't collapse.
     assert_select "details", text: /#{I18n.t("bills.index.needs_review")}/, count: 0
     # The quieter notices fold behind a row of the card, padded like the notices
     # and with no surface of its own: it used to read as a grey box.
-    routine = ".bg-container.rounded-lg > details > summary"
+    routine = ".bg-container.rounded-2xl > details > summary"
     assert_select "#{routine} .px-4.py-2\\.5", text: /#{I18n.t("bills.index.notices_routine", count: 2)}/
     assert_select "#{routine}[class^='bg-'], #{routine}[class*=' bg-']", count: 0
     # One chevron for both folds, not copies that drift apart.
@@ -2060,7 +2069,7 @@ class BillsControllerTest < ActionDispatch::IntegrationTest
     assert_equal order, headings & order
 
     # Late bills open the same list as the month, not a shell of their own.
-    list = css_select("main .bg-surface-inset").find { |shell| css_select(shell, "h2").any? { |h| h.text.squish == I18n.t("bills.index.this_month") } }
+    list = css_select("main [data-bill-list]").find { |stack| css_select(stack, "h2").any? { |h| h.text.squish == I18n.t("bills.index.this_month") } }
     assert_includes css_select(list, "h2").map { |heading| heading.text.squish }, I18n.t("bills.index.needs_attention")
   end
 

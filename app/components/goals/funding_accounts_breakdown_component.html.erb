@@ -24,8 +24,10 @@
     <% end %>
 
     <%# Per-account detail. avatar / name+type / % / last-30d + last-90d %>
-    <div class="bg-container-inset rounded-xl p-1">
-      <div class="rounded-lg bg-container">
+    <%# Rows straight on the goal's card, hairline-split (2026-10-18: no well
+        holding a second card). %>
+    <div>
+      <div class="border-t border-subdued divide-y divide-subdued">
         <% rows.each_with_index do |row, idx| %>
           <% account = row[:account] %>
           <% color = color_for(account) %>

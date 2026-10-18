@@ -3,6 +3,7 @@ import * as d3 from "d3";
 import { sankey } from "d3-sankey";
 import { formatCashFlowCurrency } from "utils/cash_flow_chart_data";
 import { CHART_TOOLTIP_CLASSES } from "utils/chart_tooltip";
+import { revealOnView } from "utils/reveal_on_view";
 import { hiddenSankeyLabels } from "utils/sankey_labels";
 import { sankeyNodeHasChildren, zoomSankeyData } from "utils/sankey_zoom";
 import {
@@ -47,6 +48,8 @@ export default class extends Controller {
   static SORT_EVENT = "cashflow-sankey:sort-changed";
 
   connect() {
+    // Shimmers until scrolled into view, then plays its entrance (2026-10-18).
+    this.stopReveal = revealOnView(this.element);
     this.gradientPrefix ||= `preview-sankey-${++nextChartId}`;
     this.connected = true;
     this.zoomRootId = null;
@@ -73,6 +76,7 @@ export default class extends Controller {
   }
 
   disconnect() {
+    this.stopReveal?.();
     this.connected = false;
     window.removeEventListener(this.constructor.SORT_EVENT, this.onSortChanged);
     this.resizeObserver?.disconnect();
@@ -351,29 +355,34 @@ export default class extends Controller {
   }
 
   #drawLinks(svg, links) {
-    return svg
-      .append("g")
-      .attr("fill", "none")
-      .selectAll("path")
-      .data(links)
-      .join("path")
-      .attr("class", "sankey-link")
-      .attr("d", (d) =>
-        d3.linkHorizontal()({
-          source: [d.source.x1, d.y0],
-          target: [d.target.x0, d.y1],
-        }),
-      )
-      .attr("stroke", (d, i) => `url(#${this.#gradientId(d, i)})`)
-      .attr("stroke-width", (d) => Math.max(1, d.width))
-      // The flows draw from left to right on first draw, a column at a time
-      // (the animation pass, 2026-10-18). Only the dash offset animates, so
-      // hover's opacity dimming is untouched.
-      .attr("pathLength", 1600)
-      .classed("draw-line", true)
-      .style("animation-duration", "700ms")
-      .style("animation-delay", (d) => `${Math.min(d.source.depth, 4) * 90}ms`)
-      .style("transition", "opacity 0.3s ease");
+    return (
+      svg
+        .append("g")
+        .attr("fill", "none")
+        .selectAll("path")
+        .data(links)
+        .join("path")
+        .attr("class", "sankey-link")
+        .attr("d", (d) =>
+          d3.linkHorizontal()({
+            source: [d.source.x1, d.y0],
+            target: [d.target.x0, d.y1],
+          }),
+        )
+        .attr("stroke", (d, i) => `url(#${this.#gradientId(d, i)})`)
+        .attr("stroke-width", (d) => Math.max(1, d.width))
+        // The flows draw from left to right on first draw, a column at a time
+        // (the animation pass, 2026-10-18). Only the dash offset animates, so
+        // hover's opacity dimming is untouched.
+        .attr("pathLength", 1600)
+        .classed("draw-line", true)
+        .style("animation-duration", "700ms")
+        .style(
+          "animation-delay",
+          (d) => `${Math.min(d.source.depth, 4) * 90}ms`,
+        )
+        .style("transition", "opacity 0.3s ease")
+    );
   }
 
   #drawNodes(svg, nodes, width) {

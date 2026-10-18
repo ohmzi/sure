@@ -4,6 +4,7 @@ en:
     application:
       insights: Insights
       privacy_mode: Toggle privacy mode
+      back_to_top: Back to top
       resize_left_sidebar: Resize the accounts sidebar
       resize_right_sidebar: Resize the assistant sidebar
       skip_to_main: Skip to main content

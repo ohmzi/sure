@@ -49,7 +49,7 @@
   <% tallest = list.map { |month| month.spent.amount }.max.to_d %>
   <% q = params[:q] || {} %>
   <% picked = list.find { |month| q[:start_date] == month.start_date.iso8601 && q[:end_date] == month.end_date.iso8601 } %>
-  <nav aria-label="<%= t("transactions.summary.months") %>" class="grid grid-cols-6 gap-2 border-t border-subdued px-2.5 pt-3 pb-2 mt-1">
+  <nav aria-label="<%= t("transactions.summary.months") %>" data-controller="reveal" class="grid grid-cols-6 gap-2 border-t border-subdued px-2.5 pt-3 pb-2 mt-1">
     <% list.each_with_index do |month, index| %>
       <% on = picked ? picked == month : month == list.last %>
       <% height = tallest.positive? ? (month.spent.amount / tallest * 100).round : 0 %>

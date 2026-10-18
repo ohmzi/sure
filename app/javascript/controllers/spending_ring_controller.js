@@ -10,14 +10,22 @@ export default class extends Controller {
     const item = event.currentTarget;
     const picked = item.getAttribute("aria-pressed") !== "true";
 
-    for (const other of this.itemTargets) other.setAttribute("aria-pressed", "false");
+    for (const other of this.itemTargets)
+      other.setAttribute("aria-pressed", "false");
     item.setAttribute("aria-pressed", picked ? "true" : "false");
 
     for (const slice of this.sliceTargets) {
-      slice.setAttribute("stroke-width", picked && slice.dataset.index === item.dataset.index ? "22" : "16");
+      slice.setAttribute(
+        "stroke-width",
+        picked && slice.dataset.index === item.dataset.index ? "22" : "16",
+      );
     }
 
-    this.valueTarget.textContent = picked ? item.dataset.value : this.valueTarget.dataset.default;
-    this.labelTarget.textContent = picked ? item.dataset.name : this.labelTarget.dataset.default;
+    this.valueTarget.textContent = picked
+      ? item.dataset.value
+      : this.valueTarget.dataset.default;
+    this.labelTarget.textContent = picked
+      ? item.dataset.name
+      : this.labelTarget.dataset.default;
   }
 }

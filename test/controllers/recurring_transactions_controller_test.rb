@@ -1153,9 +1153,11 @@ class RecurringTransactionsControllerTest < ActionDispatch::IntegrationTest
     get recurring_transactions_url
     assert_response :success
 
-    assert_select ".bg-surface-inset > details[data-persisted-disclosure-key-value='bills-suggested']" do
+    # No grey shell any more (2026-10-18): the heading sits on the page above
+    # one card of rows.
+    assert_select "section > details[data-persisted-disclosure-key-value='bills-suggested']" do
       assert_select "summary div.uppercase", text: /#{I18n.t("recurring_transactions.suggested.title")}\s*·\s*1/
-      assert_select ".bg-container.rounded-lg", text: /Maybe A Bill/
+      assert_select ".bg-container.rounded-2xl", text: /Maybe A Bill/
       assert_select "a", text: I18n.t("recurring_transactions.suggested.confirm")
     end
   end

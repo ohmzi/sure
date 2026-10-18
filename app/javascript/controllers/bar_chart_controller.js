@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus";
 import * as d3 from "d3";
 import { CHART_TOOLTIP_CLASSES } from "utils/chart_tooltip";
+import { revealOnView } from "utils/reveal_on_view";
 
 // Grouped bar chart used by the dashboard "money flow" widget — each month
 // shows an expense bar (red) and an income bar (green) side by side.
@@ -22,6 +23,8 @@ export default class extends Controller {
   _resizeObserver = null;
 
   connect() {
+    // Shimmers until scrolled into view, then plays its entrance (2026-10-18).
+    this.stopReveal = revealOnView(this.element);
     this._install();
     document.addEventListener("turbo:load", this._reinstall);
     this._resizeObserver = new ResizeObserver(() => this._reinstall());
@@ -29,6 +32,7 @@ export default class extends Controller {
   }
 
   disconnect() {
+    this.stopReveal?.();
     this._teardown();
     document.removeEventListener("turbo:load", this._reinstall);
     this._resizeObserver?.disconnect();
@@ -66,7 +70,10 @@ export default class extends Controller {
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
     const series = ["income", "expense"];
-    const seriesColor = { expense: "var(--color-gray-400)", income: "var(--color-success)" };
+    const seriesColor = {
+      expense: "var(--color-gray-400)",
+      income: "var(--color-success)",
+    };
 
     const x0 = d3
       .scaleBand()
@@ -74,10 +81,17 @@ export default class extends Controller {
       .range([0, innerWidth])
       .padding(0.3);
 
-    const x1 = d3.scaleBand().domain(series).range([0, x0.bandwidth()]).padding(0.15);
+    const x1 = d3
+      .scaleBand()
+      .domain(series)
+      .range([0, x0.bandwidth()])
+      .padding(0.15);
 
     const maxValue = d3.max(data, (d) => Math.max(d.income, d.expense)) || 1;
-    const y = d3.scaleLinear().domain([0, maxValue * 1.1]).range([innerHeight, 0]);
+    const y = d3
+      .scaleLinear()
+      .domain([0, maxValue * 1.1])
+      .range([innerHeight, 0]);
     // Floor tiny-but-nonzero bars (e.g. an in-progress month) at 2px so they stay visible.
     const barHeight = (v) => (v > 0 ? Math.max(2, innerHeight - y(v)) : 0);
 
@@ -121,7 +135,10 @@ export default class extends Controller {
       // Bars grow up from the baseline on first draw, month by month (the
       // animation pass, 2026-10-18).
       .attr("class", "grow-up")
-      .style("animation-delay", (d) => `${Math.min(data.indexOf(d.month), 12) * 35}ms`)
+      .style(
+        "animation-delay",
+        (d) => `${Math.min(data.indexOf(d.month), 12) * 35}ms`,
+      )
       .attr("fill", (d) => seriesColor[d.key])
       // In-progress month (period capped at today) reads as provisional.
       .attr("fill-opacity", (d) => (d.month.partial ? 0.5 : 1))
@@ -130,7 +147,8 @@ export default class extends Controller {
 
     // The bar under the pointer stays bright and the rest dim, with its value
     // beside it (the animation pass, 2026-10-18). Pointer events, so a tap on
-    // a phone does the same; a tap keeps it lit until the next tap elsewhere.
+    // a phone does the same while the finger is down, and lifting it clears
+    // the reading so no tooltip floats over the page (the owner, 2026-10-18).
     const highlight = (target) =>
       bars.style("opacity", function () {
         return target && this !== target ? 0.4 : null;
@@ -141,8 +159,7 @@ export default class extends Controller {
         highlight(event.currentTarget);
         showTooltip(event, d.month, d.key);
       })
-      .on("pointerleave", (event) => {
-        if (event.pointerType !== "mouse") return;
+      .on("pointerleave pointercancel", () => {
         highlight(null);
         hideTooltip();
       });
@@ -159,7 +176,11 @@ export default class extends Controller {
       .call(d3.axisBottom(x0).tickSize(0))
       .call((g) => g.select(".domain").remove())
       .selectAll("text")
-      .attr("class", (_d, i) => (data[i].highlighted ? "text-primary fill-current" : "text-secondary fill-current"))
+      .attr("class", (_d, i) =>
+        data[i].highlighted
+          ? "text-primary fill-current"
+          : "text-secondary fill-current",
+      )
       .style("font-size", "12px")
       .style("font-weight", (_d, i) => (data[i].highlighted ? 600 : 500));
 
@@ -174,7 +195,8 @@ export default class extends Controller {
   _fitAxisLabels(labels, data, step) {
     if (labels.empty()) return;
 
-    const widest = () => d3.max(labels.nodes(), (node) => node.getComputedTextLength()) || 0;
+    const widest = () =>
+      d3.max(labels.nodes(), (node) => node.getComputedTextLength()) || 0;
     const fits = () => widest() <= step - LABEL_GAP_PX;
 
     if (fits()) return;
@@ -194,9 +216,11 @@ export default class extends Controller {
   }
 
   _tooltipTemplate(month, key) {
-    const label = key === "income" ? this.incomeLabelValue : this.expenseLabelValue;
+    const label =
+      key === "income" ? this.incomeLabelValue : this.expenseLabelValue;
     // Match the bar/legend palette — expenses render gray, not destructive red.
-    const color = key === "income" ? "var(--color-success)" : "var(--color-gray-400)";
+    const color =
+      key === "income" ? "var(--color-success)" : "var(--color-gray-400)";
 
     return `
       <div class="text-xs text-secondary mb-1">${month.label}</div>

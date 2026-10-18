@@ -8,7 +8,7 @@ import HwComboboxController from "controllers/hw_combobox_controller";
 // (e.g. "AAPL"). We abort the previous in-flight request whenever a new one fires,
 // so stale Turbo Stream responses never reach the DOM.
 const originalFilterAsync = HwComboboxController.prototype._filterAsync;
-HwComboboxController.prototype._filterAsync = async function(inputType) {
+HwComboboxController.prototype._filterAsync = async function (inputType) {
   if (this._searchAbortController) {
     this._searchAbortController.abort();
   }
@@ -18,7 +18,7 @@ HwComboboxController.prototype._filterAsync = async function(inputType) {
     q: this._fullQuery,
     input_type: inputType,
     for_id: this.element.dataset.asyncId,
-    callback_id: this._enqueueCallback()
+    callback_id: this._enqueueCallback(),
   };
 
   const url = new URL(this.asyncSrcValue, window.location.origin);
@@ -29,12 +29,13 @@ HwComboboxController.prototype._filterAsync = async function(inputType) {
   try {
     const response = await fetch(url.toString(), {
       headers: {
-        "Accept": "text/vnd.turbo-stream.html, text/html, application/xhtml+xml",
+        Accept: "text/vnd.turbo-stream.html, text/html, application/xhtml+xml",
         "X-Requested-With": "XMLHttpRequest",
-        "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]')?.content
+        "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]')
+          ?.content,
       },
       signal: this._searchAbortController.signal,
-      credentials: "same-origin"
+      credentials: "same-origin",
     });
 
     if (response.ok) {
@@ -70,14 +71,18 @@ Turbo.StreamActions.redirect = function () {
 };
 
 // Register service worker for PWA offline support
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker')
-      .then(registration => {
-        console.log('Service Worker registered with scope:', registration.scope);
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/service-worker")
+      .then((registration) => {
+        console.log(
+          "Service Worker registered with scope:",
+          registration.scope,
+        );
       })
-      .catch(error => {
-        console.log('Service Worker registration failed:', error);
+      .catch((error) => {
+        console.log("Service Worker registration failed:", error);
       });
   });
 }
@@ -94,9 +99,12 @@ document.addEventListener("turbo:before-stream-render", (event) => {
 
   if (action === "append" || action === "prepend") {
     const template = stream.querySelector("template");
-    for (const element of template?.content.children ?? []) element.classList.add("rise");
+    for (const element of template?.content.children ?? [])
+      element.classList.add("rise");
   } else if (action === "remove") {
-    const targets = [...stream.targetElements].filter((target) => target.animate);
+    const targets = [...stream.targetElements].filter(
+      (target) => target.animate,
+    );
     if (targets.length === 0) return;
 
     const render = event.detail.render;
@@ -104,7 +112,10 @@ document.addEventListener("turbo:before-stream-render", (event) => {
       await Promise.all(
         targets.map((target) =>
           target
-            .animate([{ opacity: 1 }, { opacity: 0, transform: "scale(0.98)" }], { duration: 180, easing: "ease-in", fill: "forwards" })
+            .animate(
+              [{ opacity: 1 }, { opacity: 0, transform: "scale(0.98)" }],
+              { duration: 180, easing: "ease-in", fill: "forwards" },
+            )
             .finished.catch(() => {}),
         ),
       );

@@ -85,23 +85,25 @@
             ) %>
       </div>
 
-      <%# A horizontal strip where there is room, a scrollable one where there
-          is not. Four columns at 375px would be four unreadable slivers. %>
-      <div class="flex gap-2 overflow-x-auto no-scrollbar sm:grid sm:grid-cols-2 sm:overflow-visible lg:grid-cols-4">
+      <%# Never a sideways scroll (the owner, 2026-10-18): on a phone a short
+          list — date and name on the left, the amount on the right — and a
+          grid where there is room. %>
+      <div class="divide-y divide-subdued sm:divide-y-0 sm:grid sm:grid-cols-2 sm:gap-2 lg:grid-cols-4" data-next-up>
         <% @next_up.each do |occurrence| %>
           <% series = occurrence.recurring_transaction %>
-          <%# Inset ring: on phones the scroll strip clips an outline drawn outside the item. %>
           <%= link_to bill_path(series, display: "drawer", occurrence: occurrence.id),
                 data: { turbo_frame: "drawer", turbo_prefetch: false },
-                class: "shrink-0 w-36 sm:w-auto rounded-lg px-2 py-1.5 hover:bg-surface-hover focus-ring -outline-offset-2" do %>
-            <p class="text-xs text-secondary truncate">
-              <%= bills_next_up_date(occurrence) %>
-              <% if series.autopay? %>
-                &middot; <%= t("recurring_transactions.pay_action.autopay") %>
-              <% end %>
-            </p>
-            <p class="text-sm text-primary truncate"><%= series.display_name %></p>
-            <p class="text-sm font-medium text-primary privacy-sensitive">
+                class: "flex items-center justify-between gap-3 min-w-0 rounded-lg px-2 py-2.5 sm:block sm:py-1.5 transition-colors hover:bg-surface-hover focus-ring -outline-offset-2" do %>
+            <div class="min-w-0">
+              <p class="text-xs text-secondary truncate">
+                <%= bills_next_up_date(occurrence) %>
+                <% if series.autopay? %>
+                  &middot; <%= t("recurring_transactions.pay_action.autopay") %>
+                <% end %>
+              </p>
+              <p class="text-sm text-primary truncate"><%= series.display_name %></p>
+            </div>
+            <p class="shrink-0 text-sm font-medium text-primary privacy-sensitive">
               <% if occurrence.partially_paid? %>
                 <%= format_money(occurrence.remaining_amount_money) %>
                 <span class="text-xs font-normal text-secondary"><%= t("bills.remaining_label") %></span>

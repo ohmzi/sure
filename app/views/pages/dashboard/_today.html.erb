@@ -9,12 +9,27 @@
 <% trend = series.trend %>
 <% points = today.net_worth_points %>
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-5 gap-y-6 mb-6 rise-children">
-  <section aria-label="<%= t(".net_worth") %>" class="relative overflow-hidden rounded-[30px] bg-inverse text-inverse px-5 pt-5 flex flex-col gap-2 shadow-[0_18px_40px_-18px_var(--color-link)]">
+  <%# The range switch reloads only this card (the owner, 2026-10-18: the
+      reload should be nice): its frame stays put, the figure rolls from the
+      old range's value to the new one and the line draws in again, while the
+      rest of Today stays still. %>
+  <%= turbo_frame_tag "today_net_worth", class: "block", data: {
+        controller: "range-roll",
+        action: "turbo:before-frame-render->range-roll#remember turbo:frame-render->range-roll#roll"
+      } do %>
+  <%# Hold and slide along the line, like a stock app (the owner, 2026-10-18):
+      the figure rolls to each day's net worth and the label shows its date. %>
+  <% scrub_points = series.values.each_with_index.map do |point, index| %>
+    <% value = point.value %>
+    <% { label: l(point.date, format: :long), value: (value.respond_to?(:format) ? value.format : value.to_s) } %>
+  <% end %>
+  <section aria-label="<%= t(".net_worth") %>" class="relative overflow-hidden rounded-[30px] bg-inverse text-inverse px-5 pt-5 flex flex-col gap-2 shadow-[0_18px_40px_-18px_var(--color-link)]"
+           data-controller="hero-scrub" data-hero-scrub-points-value="<%= scrub_points.to_json %>">
     <span aria-hidden="true" class="pointer-events-none absolute -right-24 -top-28 size-60 rounded-full bg-white/10"></span>
     <span aria-hidden="true" class="pointer-events-none absolute right-10 -top-16 size-36 rounded-full bg-white/5"></span>
 
     <div class="relative flex items-center justify-between gap-3">
-      <p class="text-sm font-semibold opacity-85"><%= t(".net_worth") %></p>
+      <p class="text-sm font-semibold opacity-85" data-hero-scrub-target="label"><%= t(".net_worth") %></p>
       <nav aria-label="<%= t(".range") %>" class="flex gap-0.5 rounded-full bg-black/20 p-1">
         <% Dashboard::Today::RANGES.each_key do |key| %>
           <% on = key == today.range %>
@@ -22,13 +37,13 @@
                 class: class_names("press min-w-11 h-7 px-2 rounded-full text-xs font-bold flex items-center justify-center focus-ring",
                                    on ? "bg-on-accent text-brand-600" : "text-inverse hover:bg-white/10"),
                 aria: { current: (on ? "true" : nil) },
-                data: { turbo_frame: "dashboard_today", turbo_action: "replace" } %>
+                data: { turbo_frame: "today_net_worth" } %>
         <% end %>
       </nav>
     </div>
 
     <% if trend %>
-      <p class="relative text-[44px] leading-none font-extrabold tracking-tight tabular privacy-sensitive" data-controller="count-up"><%= trend.current.format %></p>
+      <p class="relative text-[44px] leading-none font-extrabold tracking-tight tabular privacy-sensitive" <%= "data-controller=count-up" unless params[:range] %> data-hero-scrub-target="value"><%= trend.current.format %></p>
       <p class="relative">
         <% if trend.value.zero? %>
           <span class="text-sm opacity-85"><%= t(".no_change_in", range: t(".ranges.#{today.range}")) %></span>
@@ -50,7 +65,11 @@
       <% span = (max - min).zero? ? 1 : (max - min) %>
       <% xy = points.each_with_index.map { |v, i| [ (i * 100.0 / (points.size - 1)).round(2), (36 - (v - min) / span * 30).round(2) ] } %>
       <% line = "M#{xy.first.join(" ")}" + xy.each_cons(2).map { |(x0, y0), (x1, y1)| mid = ((x0 + x1) / 2).round(2); " C#{mid} #{y0} #{mid} #{y1} #{x1} #{y1}" }.join %>
-      <div class="relative -mx-5 mt-1 h-24">
+      <div class="relative -mx-5 mt-1 h-24 touch-pan-y cursor-crosshair"
+           data-controller="reveal"
+           data-hero-scrub-target="track"
+           data-ys="<%= xy.map(&:last).to_json %>"
+           data-action="pointerdown->hero-scrub#move pointermove->hero-scrub#move pointerup->hero-scrub#lift pointercancel->hero-scrub#end pointerleave->hero-scrub#end">
         <svg viewBox="0 0 100 40" preserveAspectRatio="none" class="absolute inset-0 size-full" aria-hidden="true">
           <defs>
             <linearGradient id="today-net-worth-fill" x1="0" x2="0" y1="0" y2="1">
@@ -59,9 +78,11 @@
             </linearGradient>
           </defs>
           <path d="<%= line %> L100 40 L0 40 Z" fill="url(#today-net-worth-fill)"></path>
-          <path d="<%= line %>" class="draw-line" fill="none" stroke="currentColor" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></path>
+          <path d="<%= line %>" class="draw-line" pathLength="1600" fill="none" stroke="currentColor" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></path>
         </svg>
-        <span aria-hidden="true" class="absolute right-1 size-2.5 -translate-y-1/2 rounded-full bg-on-accent" style="top: <%= (xy.last.last / 40 * 100).round(2) %>%">
+        <span aria-hidden="true" class="pointer-events-none absolute inset-y-0 w-px bg-white/50 hidden" data-hero-scrub-target="guide"></span>
+        <span aria-hidden="true" class="pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-on-accent transition-[top] duration-75"
+              style="left: calc(100% - 9px); top: <%= (xy.last.last / 40 * 100).round(2) %>%" data-hero-scrub-target="dot">
           <span class="ping absolute inset-0 rounded-full bg-on-accent"></span>
         </span>
       </div>
@@ -69,6 +90,7 @@
       <div class="h-4"></div>
     <% end %>
   </section>
+  <% end %>
 
   <%# Quick actions, a phone's shortcuts under the hero; a computer has the
       page's New button. %>
@@ -108,7 +130,7 @@
         <h2 class="text-xl font-extrabold tracking-tight text-primary"><%= l(Date.current, format: "%B") %></h2>
         <%= link_to t(".open_plan"), budgets_path, class: "text-sm font-semibold text-link hover:underline focus-ring rounded" %>
       </div>
-      <div class="flex items-center gap-5">
+      <div class="flex items-center gap-5" data-controller="reveal">
         <svg viewBox="0 0 132 132" class="size-32 shrink-0" role="img"
              aria-label="<%= t(".percent_spent", percent: today.percent_spent.round) %>">
           <circle cx="66" cy="66" r="54" fill="none" stroke="currentColor" stroke-opacity="0.14" class="text-secondary" stroke-width="16"></circle>
@@ -182,9 +204,11 @@
           <% in_days = (bill.next_expected_date - Date.current).to_i %>
           <% soon = in_days <= 3 %>
           <li class="flex items-center gap-3 px-4 py-3">
-            <span class="flex h-12 w-11 shrink-0 flex-col items-center justify-center rounded-2xl leading-none <%= soon ? "bg-warning/10 text-warning" : "button-bg-accent text-link" %>">
-              <span class="text-[10px] font-bold uppercase tracking-wide"><%= l(bill.next_expected_date, format: "%b") %></span>
-              <span class="text-lg font-extrabold"><%= bill.next_expected_date.day %></span>
+            <%# A little calendar page (the owner, 2026-10-18: nicer, never cut
+                off): the month on a coloured band, the day large beneath it. %>
+            <span class="flex h-14 w-12 shrink-0 flex-col overflow-hidden rounded-2xl bg-container-inset text-center shadow-border-xs" aria-hidden="true">
+              <span class="py-1 text-[10px] font-bold uppercase leading-none tracking-wider text-inverse <%= soon ? "bg-warning" : "bg-inverse" %>"><%= l(bill.next_expected_date, format: "%b") %></span>
+              <span class="flex grow items-center justify-center text-xl font-extrabold leading-none tabular text-primary"><%= bill.next_expected_date.day %></span>
             </span>
             <div class="min-w-0 grow">
               <p class="text-[15px] font-bold text-primary break-words"><%= bill.display_name %></p>

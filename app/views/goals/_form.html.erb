@@ -117,7 +117,7 @@
       <%# Its own controller, not goal-form: that one is already at 10 targets
           against the 7 the project guidelines suggest, and this needs none of
           its state. Three targets here. %>
-      <div class="bg-container-inset rounded-lg p-1"
+      <div class="rounded-xl border border-secondary overflow-hidden"
            data-controller="goal-earmark"
            data-goal-earmark-currency-value="<%= goal.currency.presence || Current.family.primary_currency_code %>"
            <%# The APPLICATION locale, not the browser's. `Intl.NumberFormat`
@@ -134,8 +134,8 @@
         <% linked_allocation_by_account = goal.goal_accounts.index_by(&:account_id) %>
         <% grouped = linkable_accounts.group_by { |a| a.subtype.to_s.presence || "other" } %>
         <% grouped.each_with_index do |(subtype, accts), group_idx| %>
-          <div class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-secondary"><%= t("goals.form.subtypes.#{subtype}", default: subtype.titleize) %></div>
-          <div class="bg-container rounded-md <%= "mb-1" if group_idx < grouped.size - 1 %>">
+          <div class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-secondary <%= "border-t border-subdued" if group_idx.positive? %>"><%= t("goals.form.subtypes.#{subtype}", default: subtype.titleize) %></div>
+          <div class="border-t border-subdued">
             <% accts.each_with_index do |account, idx| %>
               <% linked_ga = linked_allocation_by_account[account.id] %>
               <div class="px-3 py-2.5 hover:bg-surface-hover <%= "border-t border-subdued" if idx > 0 %>"

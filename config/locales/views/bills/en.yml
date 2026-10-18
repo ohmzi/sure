@@ -215,15 +215,39 @@ en:
     reset_feed_token:
       done: Feed link reset. Calendar apps using the old link will stop updating; resubscribe with the new one.
       confirm: Reset the calendar feed link? Every previously shared link stops working.
+    # One bill in the phone calendar's agenda: a pill only where the state is
+    # worth saying.
+    agenda_row:
+      paid: Paid
+      paid_different: Paid, different amount
+      skipped: Skipped
+      overdue: Overdue
     calendar:
       subscribe_ical: Subscribe (iCal)
       reset_feed: Reset link
       previous_month: Previous month
       next_month: Next month
       today: Today
-      month_totals: "%{expected} expected · %{paid} paid"
+      summary_label: This month's bills
+      expected: Expected
+      paid: Paid
+      left: Left
       empty_month: No bills due this month.
     all:
+      filters: Filters
+      filters_title: Filter bills
+      filters_done: Done
+      filters_aria:
+        zero: Filters
+        one: Filters, 1 on
+        other: "Filters, %{count} on"
+      filter_status: Status
+      filter_type: Type
+      filter_sort: Order
+      in_days:
+        zero: due today
+        one: due tomorrow
+        other: "in %{count} days"
       search_placeholder: Search bills
       any_status: Any status
       status_filters:

@@ -41,12 +41,12 @@
                 "data-auto-submit-form-target": "auto" %>
         <% end %>
       <% end %>
-      <div class="bg-container-inset rounded-xl p-1">
-        <div class="px-4 py-2">
+      <div class="divide-y divide-subdued">
+        <div class="py-2">
           <p class="uppercase text-xs text-secondary font-medium"><%= Current.family.name %> &middot; <%= Current.family.users.size %></p>
         </div>
         <% @users.each do |user| %>
-          <div class="flex gap-2 mt-2 items-center bg-container p-4 shadow-border-xs rounded-lg">
+          <div class="flex gap-2 items-center py-3">
             <div class="w-9 h-9 shrink-0">
               <%= render "settings/user_avatar", avatar_url: user.profile_image&.variant(:small)&.url, initials: user.initials %>
             </div>
@@ -67,7 +67,7 @@
         <% end %>
         <% if @pending_invitations.any? %>
           <% @pending_invitations.each do |invitation| %>
-            <div class="flex gap-2 items-center justify-between bg-container p-4 shadow-border-xs rounded-lg">
+            <div class="flex gap-2 items-center justify-between py-3">
               <div class="flex gap-2 items-center">
                 <div class="w-9 h-9 shrink-0">
                   <div class="text-inverse w-full h-full bg-surface-inset rounded-full flex items-center justify-center text-lg uppercase"><%= invitation.email[0] %></div>

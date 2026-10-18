@@ -123,7 +123,8 @@
   background-size: 200% 100%;
   animation: sure-shimmer 1400ms ease-in-out infinite;
   [data-theme=dark] & {
-    background-image: linear-gradient(100deg, transparent 30%, --alpha(var(--color-white) / 7%) 50%, transparent 70%);
+    background-color: var(--color-container-inset);
+    background-image: linear-gradient(100deg, transparent 30%, --alpha(var(--color-white) / 10%) 50%, transparent 70%);
   }
 }
 
@@ -153,6 +154,28 @@ turbo-frame[aria-busy="true"] {
   transition: opacity 200ms ease-out;
 }
 turbo-frame { transition: opacity 200ms ease-out; }
+
+/* A chart not yet scrolled into view (utils/reveal_on_view.js): every
+   entrance is held at its start, and a shimmer of the chart's own box lies
+   over it. The chart stays rendered beneath (readable to assistive tech and
+   tests), only covered. */
+.reveal-pending * { animation-play-state: paused !important; }
+.reveal-pending::after {
+  content: "";
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  border-radius: 1rem;
+  pointer-events: none;
+  background-color: var(--color-surface-inset);
+  background-image: linear-gradient(100deg, transparent 30%, --alpha(var(--color-white) / 55%) 50%, transparent 70%);
+  background-size: 200% 100%;
+  animation: sure-shimmer 1400ms ease-in-out infinite;
+}
+[data-theme=dark] .reveal-pending::after {
+  background-color: var(--color-container-inset);
+  background-image: linear-gradient(100deg, transparent 30%, --alpha(var(--color-white) / 10%) 50%, transparent 70%);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .rise, .rise-children > *, .fade-children > *, .draw-line, .grow-up, .grow-right, .ping, .shimmer, .fade-in, .pop-in, .sweep-in { animation: none; }

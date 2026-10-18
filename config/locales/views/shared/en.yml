@@ -4,6 +4,15 @@ en:
     self_hostable:
       redis_configured: "Redis is now configured properly! You can now setup your Sure application."
   shared:
+    # The page changer (shared/_pagination, 2026-10-18).
+    pagination:
+      label: Pages
+      previous: Previous page
+      next: Next page
+      page: "Page %{page}"
+      showing: "%{from}–%{to} of %{count}"
+      page_size: Rows per page
+      per_page: "%{count} per page"
     plan_switch:
       title: Plan
       budget: Budget

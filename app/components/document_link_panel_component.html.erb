@@ -1,6 +1,6 @@
-<%= render DS::Card.new do %>
+<%# Straight in the drawer's Documents section (2026-10-18): no card inside the
+    drawer, and no second "Documents" heading under the section's own. %>
   <div id="document-link-panel" class="space-y-2">
-    <h4 class="text-sm text-primary"><%= t("document_link_panel.title") %></h4>
     <% if source_document %>
       <%# The document this transaction was read from — its source, not a link
           to undo. %>
@@ -47,4 +47,3 @@
       <p class="text-secondary text-sm"><%= t("document_link_panel.empty") %></p>
     <% end %>
   </div>
-<% end %>

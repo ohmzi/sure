@@ -14,10 +14,10 @@
     <span class="font-medium text-secondary <%= color_class %> privacy-sensitive"> <%= Money.new(total, Current.family.currency).format %></span>
   </div>
 
-  <div class="bg-container-inset rounded-xl p-1 overflow-x-auto">
-    <div class="rounded-lg shadow-border-xs bg-container overflow-hidden">
+  <div class="overflow-x-auto">
+    <div class="overflow-hidden">
     <table class="w-full">
-      <thead class="bg-container-inset">
+      <thead class="border-b border-subdued">
         <tr class="uppercase text-xs font-medium text-secondary">
           <th class="px-4 py-2 text-left font-medium" colspan="2"><%= t("reports.transactions_breakdown.table.category") %></th>
           <th class="px-4 py-2 text-right font-medium">

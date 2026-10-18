@@ -27,10 +27,11 @@
 
     <% holdings = investment_statement.top_holdings(limit: 5) %>
     <% if holdings.any? %>
-      <div class="bg-container-inset rounded-xl p-1 mx-4 overflow-x-auto">
-        <div class="rounded-lg shadow-border-xs bg-container overflow-hidden">
+      <div class="mx-4 overflow-x-auto">
+        <%# Flat on the section: a header line and hairline rows (2026-10-18). %>
+        <div class="overflow-hidden">
         <table class="w-full">
-          <thead class="bg-container-inset">
+          <thead class="border-b border-subdued">
             <tr class="uppercase text-xs font-medium text-secondary">
               <th class="px-4 py-2 text-left font-medium"><%= t(".holding") %></th>
               <th class="px-4 py-2 text-right font-medium"><%= t(".weight") %></th>
@@ -40,7 +41,7 @@
           </thead>
           <tbody class="font-medium text-sm">
             <% holdings.each_with_index do |holding, idx| %>
-              <tr class="hover:bg-container-inset-hover transition-colors <%= idx < holdings.size - 1 ? "table-divider" : "" %>">
+              <tr class="hover:bg-container-hover transition-colors <%= idx < holdings.size - 1 ? "table-divider" : "" %>">
                 <td class="p-4">
                   <div class="flex items-center gap-3">
                     <% if holding.security.logo_url.present? %>
@@ -89,11 +90,11 @@
     <%# Investment Activity Summary %>
     <% totals = investment_statement.totals(period: period) %>
     <% if totals.trades_count > 0 || totals.contributions.to_f > 0 || totals.withdrawals.to_f > 0 %>
-      <div class="bg-container-inset rounded-xl p-1 mx-4">
+      <div class="mx-4">
         <div class="px-4 py-2 flex items-center uppercase text-xs font-medium text-secondary">
           <%= t(".period_activity", period: period.label) %>
         </div>
-        <div class="shadow-border-xs rounded-lg bg-container font-medium text-sm">
+        <div class="border-t border-subdued font-medium text-sm">
             <div class="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div class="flex items-center gap-2">
                 <div class="w-8 h-8 p-1.5 rounded-full bg-green-500/10 flex items-center justify-center">

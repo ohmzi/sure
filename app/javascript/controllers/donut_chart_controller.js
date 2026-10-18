@@ -1,10 +1,16 @@
 import { Controller } from "@hotwired/stimulus";
 import * as d3 from "d3";
+import { revealOnView, whenRevealed } from "utils/reveal_on_view";
 import { buildCategoryTransactionsUrl } from "utils/transactions_filter_url";
 
 // Connects to data-controller="donut-chart"
 export default class extends Controller {
-  static targets = ["chartContainer", "contentContainer", "defaultContent", "amount"];
+  static targets = [
+    "chartContainer",
+    "contentContainer",
+    "defaultContent",
+    "amount",
+  ];
   static values = {
     segments: { type: Array, default: [] },
     unusedSegmentId: { type: String, default: "unused" },
@@ -38,11 +44,16 @@ export default class extends Controller {
   #minAmountFontSizePx = 14;
 
   connect() {
+    // Shimmers until scrolled into view, then plays its entrance (2026-10-18).
+    this.stopReveal = revealOnView(this.element);
     this.#draw();
     this.#fitAmountTargets();
     document.addEventListener("turbo:load", this.#redraw);
     this.element.addEventListener("mouseleave", this.#clearSegmentHover);
-    this.contentContainerTarget.addEventListener("mouseleave", this.#clearSegmentHover);
+    this.contentContainerTarget.addEventListener(
+      "mouseleave",
+      this.#clearSegmentHover,
+    );
 
     if (typeof ResizeObserver !== "undefined" && this.hasChartContainerTarget) {
       this.#resizeObserver = new ResizeObserver(() => this.#fitAmountTargets());
@@ -51,10 +62,14 @@ export default class extends Controller {
   }
 
   disconnect() {
+    this.stopReveal?.();
     this.#teardown();
     document.removeEventListener("turbo:load", this.#redraw);
     this.element.removeEventListener("mouseleave", this.#clearSegmentHover);
-    this.contentContainerTarget.removeEventListener("mouseleave", this.#clearSegmentHover);
+    this.contentContainerTarget.removeEventListener(
+      "mouseleave",
+      this.#clearSegmentHover,
+    );
 
     if (this.#resizeObserver) {
       this.#resizeObserver.disconnect();
@@ -139,7 +154,11 @@ export default class extends Controller {
     if (this.extendedHoverValue) {
       const hoverArc = d3
         .arc()
-        .innerRadius(this.#viewBoxSize / 2 - this.segmentHeightValue - this.hoverExtensionValue)
+        .innerRadius(
+          this.#viewBoxSize / 2 -
+            this.segmentHeightValue -
+            this.hoverExtensionValue,
+        )
         .outerRadius(this.#viewBoxSize / 2 + this.hoverExtensionValue)
         .padAngle(this.#padAngle);
 
@@ -164,7 +183,10 @@ export default class extends Controller {
       .attr("stroke", this.#transformRingColor)
       .attr("stroke-linejoin", "round")
       .style("stroke-width", 0)
-      .style("transition", "fill 180ms ease, stroke-width 180ms ease, opacity 180ms ease")
+      .style(
+        "transition",
+        "fill 180ms ease, stroke-width 180ms ease, opacity 180ms ease",
+      )
       .style("cursor", this.enableClickValue ? "pointer" : null)
       .attr("d", mainArc);
 
@@ -172,16 +194,19 @@ export default class extends Controller {
     // other (the animation pass, 2026-10-18). Hover only recolours, so it
     // never interrupts or replays this.
     if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      segmentArcs
-        .attr("d", (d) => mainArc({ ...d, endAngle: d.startAngle }))
-        .transition()
-        .duration(650)
-        .delay((_d, i) => Math.min(i, 8) * 40)
-        .ease(d3.easeCubicOut)
-        .attrTween("d", (d) => {
-          const endAngle = d3.interpolate(d.startAngle, d.endAngle);
-          return (t) => mainArc({ ...d, endAngle: endAngle(t) });
-        });
+      segmentArcs.attr("d", (d) => mainArc({ ...d, endAngle: d.startAngle }));
+      // Off screen, the sweep waits until the donut is scrolled to.
+      whenRevealed(this.element, () => {
+        segmentArcs
+          .transition()
+          .duration(650)
+          .delay((_d, i) => Math.min(i, 8) * 40)
+          .ease(d3.easeCubicOut)
+          .attrTween("d", (d) => {
+            const endAngle = d3.interpolate(d.startAngle, d.endAngle);
+            return (t) => mainArc({ ...d, endAngle: endAngle(t) });
+          });
+      });
     }
 
     // Disable pointer events on visible paths if extended hover is enabled
@@ -190,7 +215,9 @@ export default class extends Controller {
     }
 
     // Cache the visible paths selection for performance
-    this.#visiblePaths = d3.select(this.chartContainerTarget).selectAll("path.visible-path");
+    this.#visiblePaths = d3
+      .select(this.chartContainerTarget)
+      .selectAll("path.visible-path");
 
     // Ensures that user can click on default content without triggering hover on a segment if that is their intent
     let hoverTimeout = null;
@@ -205,7 +232,10 @@ export default class extends Controller {
       .on("mouseleave", (event, d) => {
         clearTimeout(hoverTimeout);
         const leavingUnused = d.data.id === this.unusedSegmentIdValue;
-        if (leavingUnused || !this.contentContainerTarget.contains(event.relatedTarget)) {
+        if (
+          leavingUnused ||
+          !this.contentContainerTarget.contains(event.relatedTarget)
+        ) {
           this.#clearSegmentHover();
         }
       })
@@ -244,7 +274,9 @@ export default class extends Controller {
     if (!template) return;
 
     // Use cached selection if available for better performance
-    const paths = this.#visiblePaths || d3.select(this.chartContainerTarget).selectAll("path.visible-path");
+    const paths =
+      this.#visiblePaths ||
+      d3.select(this.chartContainerTarget).selectAll("path.visible-path");
 
     paths.attr("fill", function () {
       if (this.dataset.segmentId === segmentId) {
@@ -261,7 +293,9 @@ export default class extends Controller {
     const popWidth = this.segmentHeightValue * 0.9;
     paths
       .attr("stroke", function () {
-        return this.dataset.segmentId === segmentId ? this.getAttribute("fill") : "none";
+        return this.dataset.segmentId === segmentId
+          ? this.getAttribute("fill")
+          : "none";
       })
       .style("stroke-width", function () {
         return this.dataset.segmentId === segmentId ? popWidth : 0;
@@ -280,7 +314,9 @@ export default class extends Controller {
     this.defaultContentTarget.classList.remove("hidden");
 
     // Use cached selection if available for better performance
-    const paths = this.#visiblePaths || d3.select(this.chartContainerTarget).selectAll("path.visible-path");
+    const paths =
+      this.#visiblePaths ||
+      d3.select(this.chartContainerTarget).selectAll("path.visible-path");
 
     paths
       .attr("fill", function () {
@@ -314,16 +350,20 @@ export default class extends Controller {
     const segmentId = event.currentTarget.dataset.categoryId;
 
     // Use cached selection if available for better performance
-    const paths = this.#visiblePaths || d3.select(this.chartContainerTarget).selectAll("path.visible-path");
+    const paths =
+      this.#visiblePaths ||
+      d3.select(this.chartContainerTarget).selectAll("path.visible-path");
 
-    paths.style("opacity", function() {
+    paths.style("opacity", function () {
       return this.dataset.segmentId === segmentId ? 1 : 0.3;
     });
   }
 
   unhighlightSegment() {
     // Use cached selection if available for better performance
-    const paths = this.#visiblePaths || d3.select(this.chartContainerTarget).selectAll("path.visible-path");
+    const paths =
+      this.#visiblePaths ||
+      d3.select(this.chartContainerTarget).selectAll("path.visible-path");
 
     paths.style("opacity", null); // Clear inline opacity style
   }
@@ -346,7 +386,8 @@ export default class extends Controller {
 
     const innerDiameterRatio =
       (this.#viewBoxSize - 2 * this.segmentHeightValue) / this.#viewBoxSize;
-    const availableWidth = containerSize * innerDiameterRatio * this.#innerRingTextWidthRatio;
+    const availableWidth =
+      containerSize * innerDiameterRatio * this.#innerRingTextWidthRatio;
     if (availableWidth <= 0) return;
 
     const targets = scope

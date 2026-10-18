@@ -8,7 +8,7 @@
       <% if trends_data.any? %>
         <%# On a phone each month is one row of a list, so nothing scrolls
             sideways; from sm up it is the table. %>
-        <ul class="sm:hidden rounded-2xl bg-container shadow-border-xs divide-y divide-subdued">
+        <ul class="sm:hidden divide-y divide-subdued border-y border-subdued">
           <% trends_data.each do |trend| %>
             <% savings_rate = trend[:income] > 0 ? ((trend[:net].to_f / trend[:income].to_f) * 100).round(1) : 0 %>
             <li class="px-4 py-3 space-y-1">
@@ -27,11 +27,11 @@
             </li>
           <% end %>
         </ul>
-        <div class="hidden sm:block bg-container-inset rounded-xl p-1 overflow-x-auto">
+        <div class="hidden sm:block overflow-x-auto">
           <div class="w-max sm:w-full">
-          <div class="rounded-lg shadow-border-xs bg-container overflow-hidden">
+          <div class="overflow-hidden">
           <table class="w-full">
-            <thead class="bg-container-inset">
+            <thead class="border-b border-subdued">
               <tr class="uppercase text-xs font-medium text-secondary">
                 <th class="px-4 py-2 text-left font-medium"><%= t("reports.trends.month") %></th>
                 <th class="px-4 py-2 text-right font-medium"><%= t("reports.trends.income") %></th>

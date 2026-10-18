@@ -80,7 +80,7 @@
         notices, a screen down from the pulse that totals it. %>
     <%# The section says how much is at stake, not just how many rows: a
         count alone is alarming without being informative. %>
-    <div class="rounded-xl bg-surface-inset space-y-1 p-1">
+    <div class="space-y-4" data-bill-list>
       <%= render "bills/occurrence_section",
                  title: t(".needs_attention"),
                  occurrences: @overdue,

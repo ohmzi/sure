@@ -1,15 +1,19 @@
-<div id="<%= dom_id(account, :chart) %>" class="bg-container shadow-border-xs rounded-[26px] space-y-2 overflow-hidden rise">
+<%# Scrubbing the chart moves the balance and its label to the point under
+    the finger (the owner, 2026-10-18). %>
+<div id="<%= dom_id(account, :chart) %>" class="bg-container shadow-border-xs rounded-[26px] space-y-2 overflow-hidden rise"
+     data-controller="scrub-readout"
+     data-action="time-series-chart:scrub->scrub-readout#show time-series-chart:release->scrub-readout#reset">
   <div class="flex justify-between flex-col-reverse lg:flex-row gap-2 px-4 pt-4 mb-2">
     <div class="space-y-2 w-full">
       <div class="flex items-center gap-1">
-        <%= tag.p title, class: "text-sm font-medium text-secondary" %>
+        <%= tag.p title, class: "text-sm font-medium text-secondary", data: { scrub_readout_target: "label" } %>
 
         <% if account.supports_trades? %>
           <%= render "investments/value_tooltip", balance: account.balance_money, holdings: holdings_value_money, cash: account.cash_balance_money %>
         <% end %>
       </div>
       <div class="flex flex-row gap-2 items-baseline">
-        <%= tag.p view_balance_display, class: "text-primary text-[40px] leading-tight font-extrabold tracking-tight tabular truncate privacy-sensitive", data: { controller: "count-up" } %>
+        <%= tag.p view_balance_display, class: "text-primary text-[40px] leading-tight font-extrabold tracking-tight tabular truncate privacy-sensitive", data: { controller: "count-up", scrub_readout_target: "value" } %>
 
         <% if converted_balance_display %>
           <%= tag.p converted_balance_display, class: "text-sm font-medium text-secondary privacy-sensitive" %>

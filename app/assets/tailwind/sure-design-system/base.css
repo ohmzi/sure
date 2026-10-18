@@ -56,4 +56,11 @@
       @apply border-gray-600 bg-gray-700 checked:bg-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800;
     }
   }
+
+  /* Scrollbars, modernised (the owner, 2026-10-18): thin and rounded, a soft
+     thumb that does not fight the content, in both themes. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: --alpha(var(--color-gray-500) / 35%) transparent;
+  }
 }
