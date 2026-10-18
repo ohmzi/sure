@@ -1,6 +1,6 @@
 # A small, high-emphasis link shaped as a pill. The "needs you" strip repeats
-# this action four times; it is a primitive so the shape (and its touch target)
-# has one definition rather than four copies.
+# this action five times; it is a primitive so the shape (and its touch target)
+# has one definition rather than five copies.
 #
 # It is a link, not a badge: use DS::Pill for status and category labels.
 class DS::PillLink < DesignSystemComponent

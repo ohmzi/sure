@@ -170,8 +170,8 @@ class AccountStatement < ApplicationRecord
   }
 
   # The M1 native statement route stages its own DocumentLink and adopts the
-  # vault row onto it. The vault's OWN upload paths (the account tab's
-  # statement form, the vault inbox, the OFX import) create only the statement
+  # vault row onto it. The other upload paths (the account tab's statement
+  # form, the Documents dropzone, the OFX import) create only the statement
   # row — so without this the statement is invisible on the unified Documents
   # page, which reads DocumentLink. Mirror the stored bytes into a settled link
   # (Milestone B Task 3, Step 7), so DocumentLink is genuinely the spine every

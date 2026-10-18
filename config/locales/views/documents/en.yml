@@ -183,7 +183,9 @@ en:
         open: Open
         open_document: "Open %{title}"
         fix: Fix details
+        fix_document: "Fix details for %{title}"
         delete: Delete
+        delete_document: "Delete %{title}"
       # The unread state's two ways forward: let the app read it, or key it in
       # yourself. Never a dead end. "Set up a provider" names its destination —
       # the owner's report (2026-10-13) was that the key fields had no findable

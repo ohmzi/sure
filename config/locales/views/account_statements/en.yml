@@ -118,6 +118,8 @@ en:
       metadata_title: Statement metadata
       no_suggestion: No account suggestion yet.
       no_suggestion_description: Choose an account below, or leave the statement unmatched until you know which one it belongs to.
+      not_linked: Not linked to an account
+      not_linked_description: This statement is not linked to an account.
       imported_state:
         one: 1 imported row
         other: "%{count} imported rows"

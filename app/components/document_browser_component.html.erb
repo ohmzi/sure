@@ -38,7 +38,7 @@
     <%# RB1: the append target must exist even when the page is empty — the
         first drop lands here, and the grid is already the shape it grows into. %>
     <div id="documents_grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"></div>
-    <%= render "document_browser/empty", filtered: active_filters?, duplicates: duplicates_filter?, url: url, documents: true %>
+    <%= render "document_browser/empty", filtered: active_filters?, duplicates: duplicate_review_clear?, url: url, documents: true %>
   <% else %>
     <%= render "document_browser/empty", filtered: active_filters?, url: url, documents: false %>
   <% end %>

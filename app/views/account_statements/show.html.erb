@@ -177,12 +177,24 @@
               </div>
             <% end %>
           <% else %>
-            <%= render DS::EmptyState.new(
-                  icon: "link-2-off",
-                  title: t(".no_suggestion"),
-                  description: t(".no_suggestion_description"),
-                  icon_size: "lg"
-                ) %>
+            <%# The "choose below" instruction is only true when the assign form
+                actually renders: a rejected statement is not waiting on anyone,
+                and a viewer who cannot manage the statement has no control. %>
+            <% if @can_manage_statement && @statement.needs_account? %>
+              <%= render DS::EmptyState.new(
+                    icon: "link-2-off",
+                    title: t(".no_suggestion"),
+                    description: t(".no_suggestion_description"),
+                    icon_size: "lg"
+                  ) %>
+            <% else %>
+              <%= render DS::EmptyState.new(
+                    icon: "link-2-off",
+                    title: t(".not_linked"),
+                    description: t(".not_linked_description"),
+                    icon_size: "lg"
+                  ) %>
+            <% end %>
           <% end %>
 
           <%# The account affordance (the owner's "I can't select which account

@@ -38,9 +38,13 @@ class DocumentBrowserComponent < ApplicationComponent
 
   # The duplicate review is a review that empties itself: once every group is
   # reduced to one document, the filtered page has no rows and should say so
-  # rather than showing the generic "nothing matches" state.
-  def duplicates_filter?
-    filters[:duplicates].present?
+  # rather than showing the generic "nothing matches" state. Ask whether the
+  # duplicate groups themselves are gone, never whether the filtered relation
+  # is empty: a type or search filter can also empty the page while groups
+  # still exist, and that must not claim the review is clear.
+  def duplicate_review_clear?
+    filters[:duplicates].present? && Current.family.present? &&
+      DocumentLink.duplicate_representative_ids(Current.family).empty?
   end
 
   # The chips and the badge count (the Documents redesign). Amounts read in the

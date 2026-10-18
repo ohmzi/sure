@@ -192,13 +192,15 @@
               <%= render DS::Link.new(text: t(".duplicates.open"), href: viewer_document_path(document), frame: :modal, variant: "outline", size: :sm,
                                       aria: { label: t(".duplicates.open_document", title: document.title.presence || document.original_filename) }) %>
               <% if statement.present? %>
-                <%= render DS::Link.new(text: t(".duplicates.fix"), href: account_statement_path(statement), variant: "outline", size: :sm) %>
+                <%= render DS::Link.new(text: t(".duplicates.fix"), href: account_statement_path(statement), variant: "outline", size: :sm,
+                                        aria: { label: t(".duplicates.fix_document", title: document.title.presence || document.original_filename) }) %>
               <% end %>
               <% if document.deletable? %>
                 <%= render DS::Button.new(text: t(".duplicates.delete"),
                                           href: document_path(document, return_to: documents_path(q: { duplicates: 1 })),
                                           method: :delete, variant: "outline_destructive", size: :sm,
-                                          confirm: CustomConfirm.for_resource_deletion("document")) %>
+                                          confirm: CustomConfirm.for_resource_deletion("document"),
+                                          aria: { label: t(".duplicates.delete_document", title: document.title.presence || document.original_filename) }) %>
               <% end %>
             </div>
           </div>

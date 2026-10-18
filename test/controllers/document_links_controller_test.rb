@@ -793,12 +793,36 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the duplicate review says it is clear once every group is reduced to one" do
+    assert_empty DocumentLink.duplicate_representative_ids(@family), "no fixture forms a duplicate group"
+
     get documents_path(q: { duplicates: 1 })
 
     assert_response :success
     assert_includes response.body, I18n.t("document_browser.empty.duplicates_title")
     assert_includes response.body, I18n.t("document_browser.empty.duplicates_description")
     assert_not_includes response.body, I18n.t("document_browser.empty.title")
+  end
+
+  test "the duplicate review does not claim every group is clear when a type filter empties the page" do
+    create_duplicate_group
+
+    get documents_path(q: { duplicates: 1, type: [ "receipt" ] })
+
+    assert_response :success
+    assert_not_empty DocumentLink.duplicate_representative_ids(@family)
+    assert_includes response.body, I18n.t("document_browser.empty.title")
+    assert_not_includes response.body, I18n.t("document_browser.empty.duplicates_title")
+  end
+
+  test "the duplicate review does not claim every group is clear when a search empties the page" do
+    create_duplicate_group
+
+    get documents_path(q: { duplicates: 1, search: "no-document-answers-to-this-name" })
+
+    assert_response :success
+    assert_not_empty DocumentLink.duplicate_representative_ids(@family)
+    assert_includes response.body, I18n.t("document_browser.empty.title")
+    assert_not_includes response.body, I18n.t("document_browser.empty.duplicates_title")
   end
 
   test "index rows link into the viewer carrying the page's filters" do
@@ -992,6 +1016,15 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
                     "a soft-deleted document must not appear in the Documents grid"
   end
   private
+    # Two live statement documents for one account and printed period: the
+    # duplicate review's own identity, independent of any page filter.
+    def create_duplicate_group
+      period = [ Date.new(2026, 6, 1), Date.new(2026, 6, 30) ]
+      2.times do
+        document_link_for(statement_for_period(*period, opening: 100, closing: 200))
+      end
+    end
+
     def statement_import_reading(name, amount)
       statement = AccountStatement.create_from_upload!(
         family: @family, account: accounts(:depository),

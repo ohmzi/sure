@@ -7,6 +7,11 @@ class StatementCoverageTest < ApplicationSystemTestCase
   setup do
     sign_in @user = users(:family_admin)
     @account = accounts(:depository)
+    # The "what's new" dialog opens on the first keydown and takes focus. A
+    # focus-navigation test must not race it, so mark this release seen.
+    if (tag = ReleaseHighlights.pending_tag_for(@user))
+      @user.mark_release_seen!(tag)
+    end
   end
 
   test "arrow keys move focus across the labelled month grid" do
@@ -19,27 +24,32 @@ class StatementCoverageTest < ApplicationSystemTestCase
     links = grid.all("a[href]")
     assert_operator links.size, :>=, 2, "the coverage year must render at least two months"
 
-    press_key(links.first, "ArrowRight")
-    assert_equal links[1]["aria-label"],
-                 page.evaluate_script("document.activeElement.getAttribute('aria-label')"),
+    assert_equal links[1]["aria-label"], press_key(links.first, "ArrowRight"),
                  "ArrowRight should move focus to the next month"
 
-    press_key(links[1], "ArrowLeft")
-    assert_equal links.first["aria-label"],
-                 page.evaluate_script("document.activeElement.getAttribute('aria-label')"),
+    assert_equal links.first["aria-label"], press_key(links[1], "ArrowLeft"),
                  "ArrowLeft should move focus back to the first month"
+
+    assert_equal links.last["aria-label"], press_key(links[1], "End"),
+                 "End should move focus to the last month"
+
+    assert_equal links.first["aria-label"], press_key(links.last, "Home"),
+                 "Home should move focus back to the first month"
   end
 
   private
-    # W3C keyboard events, dispatched from the focused cell. Selenium's
-    # send_keys also moves through the browser's own shortcuts, which makes a
-    # focus assertion depend on the page's search box; the grid's contract is
-    # just the keydown handler.
+    # W3C keyboard events, dispatched from the focused cell. The focused label
+    # is read in the same script: the account page's lazy dropdown frames
+    # connect list-filter controllers that focus their own search inputs at
+    # unpredictable times, and a separate round trip could let one land
+    # between the dispatch and the assertion. Selenium's send_keys also moves
+    # through the browser's own shortcuts, so the grid's contract is just the
+    # keydown handler.
     def press_key(element, key)
-      page.execute_script("arguments[0].focus()", element.native)
-      page.execute_script(
-        "arguments[0].dispatchEvent(new KeyboardEvent('keydown', { key: arguments[1], bubbles: true }))",
-        element.native, key
-      )
+      page.execute_script(<<~JS, element.native, key)
+        arguments[0].focus();
+        arguments[0].dispatchEvent(new KeyboardEvent("keydown", { key: arguments[1], bubbles: true }));
+        return document.activeElement.getAttribute("aria-label");
+      JS
     end
 end

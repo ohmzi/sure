@@ -45,9 +45,29 @@ export default class extends Controller {
   }
 
   // The grid is responsive (2, 3 or 6 columns), so the row stride comes from
-  // what the browser actually rendered rather than a hard-coded count.
+  // what the browser actually rendered rather than a hard-coded count. The
+  // computed value is whitespace-separated, but a track function can carry
+  // spaces of its own ("minmax(0px, 1fr)"), so count only top-level tracks.
+  // `none` (a grid with no explicit columns) falls back to one.
   get columnCount() {
-    const columns = getComputedStyle(this.element).gridTemplateColumns;
-    return columns.split(" ").filter(Boolean).length || 1;
+    const columns = getComputedStyle(this.element).gridTemplateColumns.trim();
+    if (!columns || columns === "none") return 1;
+
+    let depth = 0;
+    let count = 0;
+    let inTrack = false;
+    for (const character of columns) {
+      if (character === "(") depth += 1;
+      if (character === ")") depth = Math.max(depth - 1, 0);
+
+      if (/\s/.test(character) && depth === 0) {
+        inTrack = false;
+      } else if (!inTrack) {
+        count += 1;
+        inTrack = true;
+      }
+    }
+
+    return count || 1;
   }
 }

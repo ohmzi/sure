@@ -593,6 +593,43 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_nil statement.suggested_account
   end
 
+  test "a rejected statement never points at an account picker it does not render" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family,
+      account: nil,
+      file: uploaded_file(filename: "rejected.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    statement.update!(suggested_account: @account, match_confidence: 0.9)
+    statement.reject_match!
+
+    get account_statement_url(statement)
+
+    assert_response :success
+    assert_includes response.body, I18n.t("account_statements.show.not_linked")
+    assert_not_includes response.body, I18n.t("account_statements.show.no_suggestion_description")
+    assert_select "form[action='#{link_account_statement_path(statement)}'] select[name='account_id']", count: 0
+  end
+
+  test "a viewer who cannot manage the statement sees neutral unlinked copy, not a missing control's instructions" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family,
+      account: nil,
+      file: uploaded_file(filename: "unmanaged.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    # For an unlinked statement, viewable? and manageable? coincide today, so
+    # the template gate is exercised directly: a future viewer role that can
+    # see the statement but not edit it must not be told to use a control the
+    # page does not render.
+    AccountStatement.any_instance.stubs(:manageable_by?).returns(false)
+
+    get account_statement_url(statement)
+
+    assert_response :success
+    assert_includes response.body, I18n.t("account_statements.show.not_linked")
+    assert_not_includes response.body, I18n.t("account_statements.show.no_suggestion_description")
+    assert_select "form[action='#{link_account_statement_path(statement)}'] select[name='account_id']", count: 0
+  end
+
   test "updates metadata" do
     statement = AccountStatement.create_from_upload!(
       family: @account.family,
