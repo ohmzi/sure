@@ -95,7 +95,7 @@ class RuleApplication < ApplicationRecord
       restored = false
 
       self.class.transaction do
-        transaction = family.transactions.lock.includes(:entry).find_by(id: transaction_id)
+        transaction = family.transactions.lock.includes(:entry, :tags).find_by(id: transaction_id)
         next if transaction.nil? || transaction.entry.nil?
 
         transaction.entry.lock!

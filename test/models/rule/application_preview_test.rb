@@ -226,6 +226,92 @@ class Rule::ApplicationPreviewTest < ActiveSupport::TestCase
       "preview queries grew with transaction count: #{small.size} -> #{large.size}"
   end
 
+  test "the preview loads only transactions the rules match" do
+    create_rule(
+      name: "Groceries",
+      match: "Whole Foods",
+      actions: [ [ "set_transaction_category", @groceries.id.to_s ] ]
+    )
+    30.times { |index| create_transaction(account: @account, name: "Unrelated merchant #{index}", amount: 5) }
+    2.times { |index| create_transaction(account: @account, name: "Whole Foods #{index}", amount: 10) }
+
+    preview = Rule::ApplicationPreview.new(@family)
+    preview.changes
+
+    assert_equal 2, preview.send(:states).size,
+      "the preview should load the rule's matches, not every family transaction"
+    assert_equal 2, preview.send(:transactions_by_id).size
+  end
+
+  test "a lower transaction_type rule no longer matches a transaction the transfer action converted" do
+    target_account = @family.accounts.create!(name: "Savings", balance: 0, currency: "USD", accountable: Depository.new)
+    create_rule(
+      name: "Move to savings",
+      match: "Whole Foods",
+      actions: [ [ "set_as_transfer_or_payment", target_account.id.to_s ] ]
+    )
+    type_rule = @family.rules.create!(
+      name: "Still expenses",
+      resource_type: "transaction",
+      active: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_type", operator: "=", value: "expense") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: @dining.id.to_s) ]
+    )
+    create_transaction(account: @account, name: "Whole Foods", amount: 10)
+
+    changes = Rule::ApplicationPreview.new(@family).changes
+
+    assert_nil changes.find { |change| change.rule == type_rule },
+      "the converted transaction and its counter-leg are not expenses"
+  end
+
+  test "a lower rule matches the counter-leg the transfer action creates" do
+    income_category = @family.categories.create!(name: "Income")
+    target_account = @family.accounts.create!(name: "Savings", balance: 0, currency: "USD", accountable: Depository.new)
+    create_rule(
+      name: "Move to savings",
+      match: "Whole Foods",
+      actions: [ [ "set_as_transfer_or_payment", target_account.id.to_s ] ]
+    )
+    income_rule = @family.rules.create!(
+      name: "Categorize the counter-leg",
+      resource_type: "transaction",
+      active: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_account", operator: "=", value: target_account.id) ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: income_category.id.to_s) ]
+    )
+    create_transaction(account: @account, name: "Whole Foods", amount: 10)
+
+    changes = Rule::ApplicationPreview.new(@family).changes
+    change = changes.find { |candidate| candidate.rule == income_rule }
+
+    assert change, "the counter-leg sits on the target account and is matched by lower rules"
+    assert_equal 1, change.total
+    assert_equal income_category.name, change.groups.sole.to
+  end
+
+  test "a lower transaction_type=transfer rule matches both transfer legs" do
+    target_account = @family.accounts.create!(name: "Savings", balance: 0, currency: "USD", accountable: Depository.new)
+    create_rule(
+      name: "Move to savings",
+      match: "Whole Foods",
+      actions: [ [ "set_as_transfer_or_payment", target_account.id.to_s ] ]
+    )
+    type_rule = @family.rules.create!(
+      name: "See transfers",
+      resource_type: "transaction",
+      active: true,
+      conditions: [ Rule::Condition.new(condition_type: "transaction_type", operator: "=", value: "transfer") ],
+      actions: [ Rule::Action.new(action_type: "set_transaction_category", value: @dining.id.to_s) ]
+    )
+    create_transaction(account: @account, name: "Whole Foods", amount: 10)
+
+    change = Rule::ApplicationPreview.new(@family).changes.find { |candidate| candidate.rule == type_rule }
+
+    assert change
+    assert_equal 2, change.total
+  end
+
   private
     def create_rule(name:, match:, actions:)
       @family.rules.create!(
