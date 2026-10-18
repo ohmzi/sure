@@ -4,24 +4,24 @@
 # transactions, so an existing (or user-locked) category is never overwritten.
 class Category::MerchantCategorizer
   PATTERNS = [
-    [ "Subscriptions", /amazon\s*(prime|channels|music|video)|apple\.com\/bill|netflix|spotify|disney\+|crave|youtube|google\s*\*|adobe|microsoft|github|cursor|anthropic|openai|claude|chatgpt/i ],
+    [ "Subscriptions", /amazon.*(prime|channels|music|video)|apple\.com\/bill|netflix|spotify|disney\+|crave|youtube|google\s*\*|adobe|microsoft|github|cursor|anthropic|openai|claude|chatgpt/i ],
     [ "Groceries", /sobeys|loblaws|no\s+frills|freshco|food\s+basics|metro\s+\d|super\s*c|longo|whole\s*foods|costco|bulk\s*barn|foodland|provigo|safeway|save-on|farm\s*boy/i ],
     [ "Home Improvement", /home\s*depot|rona\b|ikea|home\s*hardware/i ],
-    [ "Transportation", /esso|petro-canada|shell|sunoco|wawa|couche-tard|onroute|ultramar|exxon|mobil|circle\s*k|husky|pioneer|parking|parkedin|u-haul|hertz|(?:^|[^a-z])avis(?:[^a-z]|$)|(?:canadian|cdn)\s*tire\s*(?:gas|gasbar)/i ],
-    [ "Food & Drink", /tim\s*hortons|second\s*cup|starbucks|mcdonald|subway|domino|kfc|taco|pizza|burger|restaurant|cafe|coffee|bakery|bistro|grill|deli|sushi/i ],
+    [ "Transportation", /(?:^|[^a-z])esso(?:[^a-z]|$)|petro-canada|(?:^|[^a-z])shell(?:[^a-z]|$)|sunoco|(?:^|[^a-z])wawa(?:[^a-z]|$)|couche-tard|onroute|ultramar|exxon|(?:^|[^a-z])mobil(?:[^a-z]|$)|circle\s*k|husky|pioneer|parking|parkedin|u-haul|hertz|(?:^|[^a-z])avis(?:[^a-z]|$)|(?:canadian|cdn)\s*tire\s*(?:gas|gasbar)/i ],
+    [ "Food & Drink", /tim\s*hortons|second\s*cup|starbucks|mcdonald|subway|domino|kfc|taco|pizza|burger|restaurant|cafe|coffee|bakery|bistro|grill|(?:^|[^a-z])deli(?:[^a-z]|$)|sushi/i ],
     [ "Healthcare", /pharmaprix|shoppers\s*drug\s*mart|cvs\/pharmacy|walgreens|rexall|pharmacy|dental|clinic|hospital|medical/i ],
     [ "Entertainment", /cineplex|cinema|theatre|museum|ticketmaster|playstation|xbox|nintendo|steam\s*games|steamgames/i ],
     [ "Travel", /holiday\s*inn|marriott|hilton|hotel|airbnb|booking\.com|expedia|air\s*canada|westjet|porter|via\s*rail/i ],
     [ "Pet", /pet\s*smart|petland|pet\s*foods/i ],
-    [ "Personal Care", /barber|salon|(?:^|[^a-z])spa(?:[^a-z]|$)|hair|beauty/i ],
+    [ "Personal Care", /barber|salon|(?:^|[^a-z])spa(?:[^a-z]|$)|(?:^|[^a-z])hair(?:[^a-z]|$)|beauty/i ],
     [ "Sports & Fitness", /fitness|(?:^|[^a-z])gym(?:[^a-z]|$)|goodlife|ymca|sport\s*chek|decathlon/i ],
     [ "Insurance", /insurance|belair|aviva/i ],
     [ "Taxes", /revenue\s*canada|(?:^|[^a-z])tax(?:[^a-z]|$)/i ],
     [ "Gifts & Donations", /donation|foundation|charity|church|mosque|temple|unicef|red\s*cross/i ],
-    [ "Fees", /dhl|customs|nsf|service\s*charge|interest\s*charge|bank\s*fee|monthly\s*fee/i ],
+    [ "Fees", /dhl|customs|(?:^|[^a-z])nsf(?:[^a-z]|$)|service\s*charge|interest\s*charge|bank\s*fee|monthly\s*fee/i ],
     [ "Cash Withdrawal", /(?:^|[^a-z])atm(?:[^a-z]|$)|cash\s*withdrawal/i ],
     [ "Cash Deposited", /cash\s*deposit/i ],
-    [ "Shopping", /amazon|amzn|ebay|etsy|aliexpress|winners|tj\s*maxx|carters|adidas|dollarama|staples|officemax|best\s*buy|walmart|canadian\s+tire|wayfair|apple\.com\/ca|apple\s+store|costco/i ]
+    [ "Shopping", /amazon|amzn|ebay|etsy|aliexpress|winners|tj\s*maxx|carters|adidas|dollarama|staples|officemax|best\s*buy|walmart|(?:canadian|cdn)\s*tire(?!\s+bank)|wayfair|apple\.com\/ca|apple\s+store|costco/i ]
   ].freeze
 
   Result = Data.define(:category, :rule, :updated)

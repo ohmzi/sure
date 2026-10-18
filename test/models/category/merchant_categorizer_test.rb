@@ -11,11 +11,19 @@ class Category::MerchantCategorizerTest < ActiveSupport::TestCase
     @food = @family.categories.create!(name: "Food & Drink")
     @home = @family.categories.create!(name: "Home Improvement")
     @subscriptions = @family.categories.create!(name: "Subscriptions")
+    @fees = @family.categories.create!(name: "Fees")
+    @personal = @family.categories.create!(name: "Personal Care")
 
     transaction(100, "AMZN Mktp CA SAMPLE ON")
     transaction(30, "TIM HORTONS #0000 SAMPLE ON")
     transaction(40, "THE HOME DEPOT #0000 SAMPLE ON")
     transaction(15, "Amazon Channels SAMPLE ON", category: @subscriptions)
+    transaction(45, "NSF item fee 1 @ $45.00")
+    transaction(50, "Online Transfer to Deposit Account-0000")
+    transaction(20, "KOODO MOBILE SAMPLE ON")
+    transaction(10, "CHAIR SAMPLE ON")
+    transaction(12, "Amazon.ca Prime Member SAMPLE ON")
+    transaction(100, "e-Transfer Request Fulfilled Canadian Tire Bank SAMPLE")
   end
 
   test "fills uncategorized merchants from the known patterns" do
@@ -30,6 +38,22 @@ class Category::MerchantCategorizerTest < ActiveSupport::TestCase
     Category::MerchantCategorizer.new(@family).call
 
     assert_equal @subscriptions.id, category_for("Amazon Channels SAMPLE ON")
+  end
+
+  test "short patterns do not match inside other words" do
+    Category::MerchantCategorizer.new(@family).call
+
+    assert_nil category_for("Online Transfer to Deposit Account-0000")
+    assert_nil category_for("KOODO MOBILE SAMPLE ON")
+    assert_nil category_for("CHAIR SAMPLE ON")
+    assert_equal @fees.id, category_for("NSF item fee 1 @ $45.00")
+  end
+
+  test "Amazon Prime is a subscription and the card bank is not a store" do
+    Category::MerchantCategorizer.new(@family).call
+
+    assert_equal @subscriptions.id, category_for("Amazon.ca Prime Member SAMPLE ON")
+    assert_nil category_for("e-Transfer Request Fulfilled Canadian Tire Bank SAMPLE")
   end
 
   test "creates one rule per category and is idempotent" do
