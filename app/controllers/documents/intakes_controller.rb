@@ -35,16 +35,22 @@ class Documents::IntakesController < ApplicationController
   private
     def render_row(link)
       row = DocumentBrowser::Row.for_document_link(link, viewer_url: viewer_document_path(link))
-      render turbo_stream: turbo_stream.append(
-        "documents_grid", partial: "document_browser/tile", locals: { row: row }
-      ), status: :ok
+      streams = [ turbo_stream.append("documents_grid", partial: "document_browser/tile", locals: { row: row }) ]
+      # A page with no grid (Home's Scan) hears back as a toast instead.
+      if notify?
+        streams << turbo_stream.append("notification-tray", partial: "shared/notifications/notice",
+                                       locals: { message: t(".received"), description: row.title })
+      end
+      render turbo_stream: streams, status: :ok
     end
 
     def render_error(message)
-      render turbo_stream: turbo_stream.update(
-        "documents_intake_status", html: message.to_s
-      ), status: :unprocessable_content
+      streams = [ turbo_stream.update("documents_intake_status", html: message.to_s) ]
+      streams << turbo_stream.append("notification-tray", partial: "shared/notifications/alert", locals: { message: message.to_s }) if notify?
+      render turbo_stream: streams, status: :unprocessable_content
     end
+
+    def notify? = params[:notify].present?
 
     def import_destination(result)
       result.kind == :ofx ? import_upload_path(result.record) : import_configuration_path(result.record)

@@ -74,10 +74,14 @@
       page's New button. %>
   <nav aria-label="<%= t(".quick_actions") %>" class="lg:hidden grid grid-cols-4 gap-2">
     <% [ [ "plus", t(".actions.add"), new_transaction_path, { turbo_frame: :modal }, true ],
-         [ "scan-line", t(".actions.scan"), documents_path(add: 1), {}, false, "var(--color-brand-600)" ],
+         [ "scan-line", t(".actions.scan"), nil, { controller: "sheet-opener", sheet_opener_sheet_value: "document_add_sheet", action: "sheet-opener#open" }, false, "var(--color-brand-600)" ],
          [ "arrow-left-right", t(".actions.transfer"), new_transfer_path, { turbo_frame: :modal }, false, "var(--color-blue-600)" ],
          [ "message-circle", t(".actions.ask"), chats_path, {}, false, "var(--color-green-600)" ] ].each do |icon_key, label, path, data, solid, tint| %>
-      <%= link_to path, data: data, class: "press flex flex-col items-center gap-2 rounded-2xl py-1 focus-ring" do %>
+      <%# Scan opens the Add sheet over Home, which stays where it is (the
+          owner, 2026-10-18); the rest go to their own screens. %>
+      <%= content_tag(path ? :a : :button, href: path, type: (path ? nil : "button"), data: data,
+            aria: (path ? nil : { controls: "document_add_sheet", haspopup: "dialog" }),
+            class: "press flex flex-col items-center gap-2 rounded-2xl py-1 focus-ring") do %>
         <% if solid %>
           <span class="flex size-14 items-center justify-center rounded-2xl bg-inverse text-inverse shadow-[0_10px_20px_-10px_var(--color-link)]">
             <%= icon(icon_key, size: "lg", color: "current") %>

@@ -990,6 +990,16 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "#outflows-donut-section", text: /Donut First Card/, count: 0
   end
 
+  # Scan on Home opens the Add sheet over Home (the owner, 2026-10-18): the
+  # sheet is on the page, Scan opens it, and the page is no drop target.
+  test "home hosts the add-document sheet that Scan opens" do
+    get dashboard_today_url
+    assert_select "button[data-sheet-opener-sheet-value='document_add_sheet']", text: /#{I18n.t("pages.dashboard.today.actions.scan")}/
+
+    get root_url
+    assert_select "[data-controller='document-dropzone'][data-document-dropzone-drop-anywhere-value='false'][data-document-dropzone-notify-value='true'] #document_add_sheet"
+  end
+
   private
     def money_flow_bars
       JSON.parse(css_select("[data-controller='bar-chart']").first["data-bar-chart-data-value"])

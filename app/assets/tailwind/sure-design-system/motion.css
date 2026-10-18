@@ -154,20 +154,8 @@ turbo-frame[aria-busy="true"] {
 }
 turbo-frame { transition: opacity 200ms ease-out; }
 
-/* <details> opens and closes smoothly where the browser can size to auto. */
-@supports (interpolate-size: allow-keywords) {
-  :root { interpolate-size: allow-keywords; }
-  details::details-content {
-    height: 0;
-    overflow: clip;
-    transition: height 250ms cubic-bezier(0.2, 0.8, 0.2, 1), content-visibility 250ms allow-discrete;
-  }
-  details[open]::details-content { height: auto; }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .rise, .rise-children > *, .fade-children > *, .draw-line, .grow-up, .grow-right, .ping, .shimmer, .fade-in, .pop-in, .sweep-in { animation: none; }
   .press:active { animation: none; }
   .lift:hover { transform: none; }
-  details::details-content { transition: none; }
 }

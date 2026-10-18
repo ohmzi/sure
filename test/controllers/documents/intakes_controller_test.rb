@@ -25,6 +25,28 @@ class Documents::IntakesControllerTest < ActionDispatch::IntegrationTest
     assert_match I18n.t("document_browser.tile.states.reading"), body
   end
 
+  # Home's Scan uploads from a page with no grid (the owner, 2026-10-18): it
+  # asks to hear back, and the answer carries a toast as well as the tile.
+  test "an upload from a page with no grid is confirmed with a toast" do
+    post documents_intake_path,
+         params: { notify: "1", document: Rack::Test::UploadedFile.new(StringIO.new("PNGDATA"), "image/png",
+                                                                       original_filename: "shot.png") }
+
+    assert_response :success
+    body = response.body.force_encoding("UTF-8")
+    assert_match 'target="notification-tray"', body
+    assert_match I18n.t("documents.intakes.create.received"), body
+  end
+
+  test "a refusal from a page with no grid is a toast too" do
+    post documents_intake_path,
+         params: { notify: "1", document: Rack::Test::UploadedFile.new(StringIO.new("\x00\x01"), "application/octet-stream",
+                                                                       original_filename: "thing.bin") }
+
+    assert_response :unprocessable_content
+    assert_match 'target="notification-tray"', response.body
+  end
+
   test "a rejected file says why on the bar" do
     post documents_intake_path,
          params: { document: Rack::Test::UploadedFile.new(StringIO.new("\x00\x01"), "application/octet-stream",

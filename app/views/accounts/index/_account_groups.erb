@@ -1,4 +1,9 @@
-<%# locals: (accounts:) %>
+<%# locals: (accounts:, standalone: false) %>
+<%# The accounts of one kind under a plain heading — its name, how many, its
+    total — then the rows on one surface split by hairlines (the owner,
+    2026-10-18: no card in a card in a card). `standalone` makes that surface
+    a card of its own, for the accounts list's top level; inside a
+    connection's card the rows sit on the card itself. %>
 
 <% if accounts.any? %>
   <% ActiveRecord::Associations::Preloader.new(
@@ -14,23 +19,19 @@
      ).call %>
 <% end %>
 <% accounts.group_by(&:accountable_type).sort_by { |group, _| group }.each do |group, accounts| %>
-  <div class="bg-container-inset p-1 rounded-xl">
-    <div class="flex items-center px-4 py-2 text-xs font-medium text-secondary">
-      <p><%= Accountable.from_type(group).display_name %></p>
-      <span class="text-subdued mx-2">&middot;</span>
-      <p><%= accounts.count %></p>
+  <section class="<%= standalone ? "space-y-2" : "space-y-1" %>">
+    <div class="flex items-baseline gap-2 px-1">
+      <h3 class="<%= standalone ? "text-lg font-extrabold tracking-tight text-primary" : "text-xs font-semibold uppercase tracking-wide text-secondary" %>"><%= Accountable.from_type(group).display_name %></h3>
+      <span class="text-xs font-medium text-secondary"><%= accounts.count %></span>
 
       <% unless accounts.any?(&:syncing?) %>
-        <p class="ml-auto privacy-sensitive"><%= totals_by_currency(collection: accounts, money_method: :balance_money) %></p>
+        <p class="ml-auto text-sm font-semibold text-secondary tabular privacy-sensitive"><%= totals_by_currency(collection: accounts, money_method: :balance_money) %></p>
       <% end %>
     </div>
-    <div class="bg-container rounded-lg shadow-border-xs overflow-hidden">
-      <% accounts.each_with_index do |account, index| %>
+    <div class="<%= standalone ? "bg-container rounded-3xl shadow-border-xs" : "" %> overflow-hidden divide-y divide-subdued">
+      <% accounts.each do |account| %>
         <%= render "accounts/account", account: account %>
-        <% unless index == accounts.count - 1 %>
-          <%= render "shared/ruler" %>
-        <% end %>
       <% end %>
     </div>
-  </div>
+  </section>
 <% end %>

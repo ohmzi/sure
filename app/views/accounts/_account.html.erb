@@ -3,7 +3,7 @@
 <% is_default = Current.user&.default_account_id == account.id %>
 
 <%= turbo_frame_tag dom_id(account) do %>
-  <div class="relative p-4 flex items-center justify-between gap-3 group/account transition-colors hover:bg-surface-hover active:bg-surface-inset"
+  <div class="relative px-4 py-3.5 flex items-center justify-between gap-3 group/account transition-colors hover:bg-surface-hover active:bg-surface-inset"
        <% unless account.pending_deletion? %>
          data-controller="clickable-row"
          data-action="click->clickable-row#open"
@@ -12,7 +12,7 @@
         ending in "…" rather than wrapping the row taller (the owner,
         2026-10-17). %>
     <div class="flex items-center gap-3 min-w-0 grow">
-      <%= render "accounts/logo", account: account, size: "md" %>
+      <%= render "accounts/logo", account: account, size: "lg" %>
 
       <div class="min-w-0">
         <% if account.pending_deletion? %>
@@ -26,7 +26,7 @@
           </p>
         <% else %>
           <div class="flex items-center gap-1.5 min-w-0">
-            <%= link_to account.name, account, title: account.name, class: [(account.active? ? "text-primary" : "text-subdued"), "min-w-0 truncate text-sm font-medium hover:underline"], data: { turbo_frame: "_top", clickable_row_target: "link" } %>
+            <%= link_to account.name, account, title: account.name, class: [(account.active? ? "text-primary" : "text-subdued"), "min-w-0 truncate text-[15px] font-semibold hover:underline"], data: { turbo_frame: "_top", clickable_row_target: "link" } %>
 
             <% if account.exclude_from_reports? %>
               <%= render DS::Tooltip.new(text: t("accounts.account.excluded_from_reports_indicator"), as: :span) do %>
@@ -34,16 +34,19 @@
               <% end %>
             <% end %>
 
-            <% if account.shared? %>
-              <%= icon("users", class: "w-3.5 h-3.5 shrink-0 text-secondary", title: account.owned_by?(Current.user) ? nil : account.owner&.display_name) %>
-            <% end %>
-
             <% if account.institution_name.present? %>
               <span class="hidden sm:inline shrink-0 text-secondary">• <%= account.institution_name %></span>
             <% end %>
           </div>
-          <% if account.long_subtype_label %>
-            <p class="text-sm text-secondary truncate"><%= account.long_subtype_label %></p>
+          <%# Shared sits beside the type, so the name keeps its room (the owner,
+              2026-10-18). %>
+          <% if account.long_subtype_label || account.shared? %>
+            <p class="flex min-w-0 items-center gap-1.5 text-sm text-secondary">
+              <span class="truncate"><%= account.long_subtype_label %></span>
+              <% if account.shared? %>
+                <%= icon("users", class: "w-3.5 h-3.5 shrink-0", title: account.owned_by?(Current.user) ? nil : account.owner&.display_name) %>
+              <% end %>
+            </p>
           <% end %>
           <% if account.supports_default? && is_default %>
             <p class="text-xs text-secondary opacity-50"><%= t("accounts.account.default_label") %></p>
@@ -54,13 +57,13 @@
         <% end %>
       </div>
     </div>
-    <div class="flex items-center gap-4 shrink-0">
+    <div class="flex items-center gap-2 shrink-0">
       <% if account.draft? %>
         <!-- Balance hidden for draft accounts -->
       <% elsif account.syncing? %>
         <div class="w-16 h-6 rounded-full shimmer"></div>
       <% else %>
-        <p class="text-sm font-medium whitespace-nowrap privacy-sensitive <%= account.active? ? "text-primary" : "text-subdued" %>">
+        <p class="text-[15px] font-semibold tabular whitespace-nowrap privacy-sensitive <%= account.active? ? "text-primary" : "text-subdued" %>">
           <%= format_money account.balance_money %>
         </p>
       <% end %>

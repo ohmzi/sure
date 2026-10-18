@@ -1,4 +1,4 @@
-<%# locals: (totals:, week: nil) %>
+<%# locals: (totals:, months: nil) %>
 <%# Show Inflow/Outflow labels only when the result set contains exclusively transfers
     (income and expense are both $0). For mixed filters (e.g. Expense+Transfer),
     we keep Income/Expenses labels — transfer amounts aren't included in the summary
@@ -8,8 +8,9 @@
 <%# One compact row on every width (the polish pass, 2026-10-17): on a phone the
     three figures used to stack into three tall rows above the list, and its
     amounts are whole units so each fits one line. %>
-<%# The Alive pass (2026-10-18): one card — the figures, then the last seven
-    days as bars, each a tap away from that day's list. %>
+<%# The Alive pass (2026-10-18): one card — the figures, then the last six
+    months as bars (the owner: months, not days), each a tap away from that
+    month's list. %>
 <section class="bg-container rounded-[26px] shadow-border-xs p-1.5 md:p-2 flex flex-col">
 <div class="grid grid-cols-3 divide-x divide-subdued">
   <div class="min-w-0 p-3 md:p-4 space-y-1 md:space-y-2">
@@ -43,20 +44,23 @@
     <% end %>
   </div>
 </div>
-<% if week %>
-  <% days = week.days %>
-  <% tallest = days.map { |day| day.spent.amount }.max.to_d %>
-  <% picked = params.dig(:q, :start_date).presence if params.dig(:q, :start_date) == params.dig(:q, :end_date) %>
-  <nav aria-label="<%= t("transactions.summary.week") %>" class="grid grid-cols-7 gap-2 border-t border-subdued px-2.5 pt-3 pb-2 mt-1">
-    <% days.each_with_index do |day, index| %>
-      <% on = picked == day.date.iso8601 %>
-      <% height = tallest.positive? ? (day.spent.amount / tallest * 100).round : 0 %>
-      <%= link_to transactions_path(q: { start_date: day.date.iso8601, end_date: day.date.iso8601 }),
-            class: "press group flex h-20 flex-col items-center justify-end gap-1.5 rounded-xl focus-ring",
-            aria: { label: t("transactions.summary.day_spent", day: l(day.date, format: :long), amount: day.spent.format(precision: 0)), current: ("date" if on) } do %>
-        <span class="grow-up block w-full min-h-1 rounded-lg transition-colors <%= on || (picked.nil? && day.date == Date.current) ? "bg-inverse" : "bg-link/30 group-hover:bg-link/45" %>"
-              style="height: <%= [ height, 6 ].max %>%; animation-delay: <%= index * 40 %>ms"></span>
-        <span class="text-[11px] <%= on ? "font-extrabold text-link" : "font-semibold text-secondary" %>"><%= l(day.date, format: "%a").first(2) %></span>
+<% if months %>
+  <% list = months.months %>
+  <% tallest = list.map { |month| month.spent.amount }.max.to_d %>
+  <% q = params[:q] || {} %>
+  <% picked = list.find { |month| q[:start_date] == month.start_date.iso8601 && q[:end_date] == month.end_date.iso8601 } %>
+  <nav aria-label="<%= t("transactions.summary.months") %>" class="grid grid-cols-6 gap-2 border-t border-subdued px-2.5 pt-3 pb-2 mt-1">
+    <% list.each_with_index do |month, index| %>
+      <% on = picked ? picked == month : month == list.last %>
+      <% height = tallest.positive? ? (month.spent.amount / tallest * 100).round : 0 %>
+      <%= link_to transactions_path(q: { start_date: month.start_date.iso8601, end_date: month.end_date.iso8601 }),
+            class: "press group flex h-24 flex-col items-center justify-end gap-1.5 rounded-xl focus-ring",
+            aria: { label: t("transactions.summary.month_spent", month: l(month.start_date, format: "%B %Y"), amount: month.spent.format(precision: 0)),
+                    current: ("date" if picked == month) } do %>
+        <span class="text-[10px] font-semibold tabular privacy-sensitive <%= on ? "text-link" : "text-secondary opacity-0 group-hover:opacity-100 transition-opacity" %>"><%= month.spent.format(precision: 0) %></span>
+        <span class="grow-up block w-full min-h-1 rounded-lg transition-colors <%= on ? "bg-inverse" : "bg-link/30 group-hover:bg-link/45" %>"
+              style="height: <%= [ height, 6 ].max %>%; animation-delay: <%= index * 50 %>ms"></span>
+        <span class="text-[11px] <%= on ? "font-extrabold text-link" : "font-semibold text-secondary" %>"><%= l(month.start_date, format: "%b") %></span>
       <% end %>
     <% end %>
   </nav>

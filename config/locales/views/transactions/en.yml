@@ -208,8 +208,8 @@ en:
       confirm_title: "Merge with posted transaction (%{posted_amount})"
       reject_title: Keep as separate transactions
     summary:
-      week: Last 7 days
-      day_spent: "%{day}: %{amount} spent"
+      months: Last 6 months
+      month_spent: "%{month}: %{amount} spent"
       total_transactions: Total transactions
       income: Income
       expenses: Expenses

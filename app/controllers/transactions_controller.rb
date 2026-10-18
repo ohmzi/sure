@@ -28,8 +28,8 @@ class TransactionsController < ApplicationController
     @q = search_params
     @accessible_account_ids = Current.user.accessible_accounts.pluck(:id)
     @search = Transaction::Search.new(Current.family, filters: @q, accessible_account_ids: @accessible_account_ids)
-    # The last seven days over the list (the Alive pass, 2026-10-18).
-    @week = Transaction::Week.new(family: Current.family, accessible_account_ids: @accessible_account_ids)
+    # The last six months over the list, each a tap away (the owner, 2026-10-18).
+    @months = Transaction::Months.new(family: Current.family, accessible_account_ids: @accessible_account_ids)
 
     base_scope = @search.transactions_scope
                        .reverse_chronological

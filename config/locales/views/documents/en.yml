@@ -29,6 +29,7 @@ en:
     intakes:
       create:
         duplicate: This document is already in your archive.
+        received: Got it. Reading it now.
         invalid_file: That file could not be uploaded.
     create:
       queued: Document queued for processing.

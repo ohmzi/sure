@@ -290,3 +290,15 @@
   <% end %>
   </div>
 <% end %>
+
+<%# Home's Scan opens the Add sheet right here (the owner, 2026-10-18): a
+    chosen file uploads in place and a toast confirms it, and Home never moves.
+    Only the sheet catches files: the page is not a drop target. %>
+<div data-controller="document-dropzone"
+     data-document-dropzone-url-value="<%= documents_intake_path %>"
+     data-document-dropzone-failure-value="<%= t("documents.intake_bar.upload_failed") %>"
+     data-document-dropzone-drop-anywhere-value="false"
+     data-document-dropzone-notify-value="true">
+  <p id="documents_intake_status" role="status" aria-live="polite" class="sr-only" data-document-dropzone-target="status"></p>
+  <%= render "documents/add_sheet" %>
+</div>

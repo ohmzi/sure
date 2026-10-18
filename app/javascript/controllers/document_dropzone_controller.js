@@ -6,9 +6,18 @@ import { Controller } from "@hotwired/stimulus";
 // settling. No wizard, no navigation, no second screen.
 export default class extends Controller {
   static targets = ["status", "currency"];
-  static values = { url: String, failure: { type: String, default: "" } };
+  // `dropAnywhere` off keeps the page itself from catching drops (Home only
+  // hosts the Add sheet); `notify` asks the server to confirm with a toast,
+  // for a page with no grid to show the new tile in.
+  static values = {
+    url: String,
+    failure: { type: String, default: "" },
+    dropAnywhere: { type: Boolean, default: true },
+    notify: { type: Boolean, default: false },
+  };
 
   connect() {
+    if (!this.dropAnywhereValue) return;
     this.onDragOver = (event) => this.showOverlay(event);
     this.onDragLeave = (event) => this.maybeHideOverlay(event);
     this.onDrop = (event) => this.drop(event);
@@ -18,6 +27,7 @@ export default class extends Controller {
   }
 
   disconnect() {
+    if (!this.onDragOver) return;
     document.removeEventListener("dragover", this.onDragOver);
     document.removeEventListener("dragleave", this.onDragLeave);
     document.removeEventListener("drop", this.onDrop);
@@ -61,6 +71,7 @@ export default class extends Controller {
       // keeps it only when it is a real code.
       if (this.hasCurrencyTarget)
         body.append("currency", this.currencyTarget.value);
+      if (this.notifyValue) body.append("notify", "1");
       fetch(this.urlValue, {
         method: "POST",
         body,
