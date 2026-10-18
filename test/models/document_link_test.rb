@@ -241,6 +241,20 @@ class DocumentLinkTest < ActiveSupport::TestCase
     assert_equal [ first.id ], DocumentLink.duplicate_representative_ids(@family)
   end
 
+  test "duplicate_counts matches the per-row count across several duplicate groups" do
+    first_group = 3.times.map { document_link_for(statement_for_period(Date.new(2026, 6, 12), Date.new(2026, 7, 10))) }
+    second_group = 2.times.map { document_link_for(statement_for_period(Date.new(2026, 8, 12), Date.new(2026, 9, 10))) }
+    lone = document_link_for(statement_for_period(Date.new(2026, 10, 12), Date.new(2026, 11, 10)))
+    links = [ *first_group, *second_group, lone ]
+
+    expected = links.to_h { |link| [ link.id, link.duplicate_documents.count ] }
+
+    assert_equal expected, DocumentLink.duplicate_counts(links)
+    assert_equal({ first_group.first.id => 2, second_group.first.id => 1, lone.id => 0 },
+                 DocumentLink.duplicate_counts([ first_group.first, second_group.first, lone ]))
+    assert_equal({}, DocumentLink.duplicate_counts([]))
+  end
+
   test "a stale transition on an already-moved row is refused" do
     link = document_links(:linked_receipt)
     assert_not link.transition!(from: "processing", to: "failed")

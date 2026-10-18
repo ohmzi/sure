@@ -12,6 +12,8 @@ class DocumentLink::PageImage < DocumentLink::Thumbnail
 
   # How many pages there are to show: the count the read recorded, else
   # pdfinfo's, never more than MAX_PAGES. 0 when it is not a readable PDF.
+  # pdfinfo runs at most once per document and request, and a successful count
+  # is recorded on the row so later requests do not shell out at all (P1.12).
   def self.count(link)
     return 0 unless pdf?(link)
 
@@ -21,13 +23,23 @@ class DocumentLink::PageImage < DocumentLink::Thumbnail
     source = DocumentLink::Staging.resolve!(link.stored_path) if link.stored_path.present?
     return 0 unless source&.file?
 
-    output, status = Open3.capture2("pdfinfo", source.to_s)
-    return 0 unless status.success?
+    pages = DocumentLink::RequestCache.fetch([ link.id, source.to_s, fingerprint(link, source) ]) do
+      output, status = Open3.capture2("pdfinfo", source.to_s)
+      next 0 unless status.success?
 
-    [ output[/^Pages:\s+(\d+)/, 1].to_i, MAX_PAGES ].min
+      count = output[/^Pages:\s+(\d+)/, 1].to_i
+      link.update_columns(page_count: count) if count.positive?
+      count
+    end
+    [ pages, MAX_PAGES ].min
   rescue ArgumentError, Errno::ENOENT
     0
   end
+
+  def self.fingerprint(link, source)
+    link.content_sha256.presence || "#{source.size}-#{source.mtime.to_i}"
+  end
+  private_class_method :fingerprint
 
   def initialize(link, page:)
     super(link)

@@ -55,7 +55,7 @@ class DocumentBrowser::Row
   end
 
   class << self
-    def for_document_link(link, viewer_url: nil)
+    def for_document_link(link, viewer_url: nil, duplicates_count: nil)
       routes = Rails.application.routes.url_helpers
       draft = link.receipt_imports.max_by(&:created_at)
       ready = link.stored_path.present?
@@ -91,7 +91,9 @@ class DocumentBrowser::Row
         details_url: routes.document_path(link),
         actions: document_actions(link, draft, routes),
         failure_message: link.failure_message,
-        duplicates_count: link.duplicate_documents.count
+        # The index batches this for its whole page (DocumentLink.duplicate_counts);
+        # a standalone row still computes its own.
+        duplicates_count: duplicates_count.nil? ? link.duplicate_documents.count : duplicates_count
       )
     end
 

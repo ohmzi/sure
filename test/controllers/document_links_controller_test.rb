@@ -640,6 +640,41 @@ class DocumentLinksControllerTest < ActionDispatch::IntegrationTest
 
   # -- the viewer modal (M8 Task 4) -------------------------------------------
 
+  test "the documents grid shows each duplicate group's count from one batched query" do
+    statement_for = lambda do |period_end_on|
+      content = file_fixture("imports/sample_bank_statement.pdf").binread
+      AccountStatement.new(
+        family: @family, account: accounts(:depository),
+        filename: "dupe-#{SecureRandom.hex(4)}.pdf", content_type: "application/pdf",
+        checksum: SecureRandom.hex, content_sha256: SecureRandom.hex(32), byte_size: content.bytesize,
+        period_start_on: Date.new(2026, 6, 1), period_end_on: period_end_on
+      ).tap do |statement|
+        statement.original_file.attach(io: StringIO.new(content), filename: "dupe.pdf",
+                                       content_type: "application/pdf")
+        statement.save!
+      end
+    end
+    copies = 3.times.map { statement_for.call(Date.new(2026, 6, 30)) } +
+             2.times.map { statement_for.call(Date.new(2026, 7, 31)) }
+    copies.each do |statement|
+      DocumentLink.create!(family: @family, source: "statement", status: "unlinked",
+                           original_filename: "dupe.pdf", content_type: "application/pdf",
+                           account_statement: statement)
+    end
+
+    queries = capture_sql_queries { get documents_path }
+
+    assert_response :success
+    assert_equal 3, response.body.scan("2 duplicates").size
+    assert_equal 2, response.body.scan(/\b1 duplicate\b/).size
+    grouped_counts = queries.select do |sql|
+      sql.include?('GROUP BY "account_statements"."account_id"') && !sql.include?("HAVING")
+    end
+    assert_equal 1, grouped_counts.size, "duplicate counts are one grouped query for the page"
+    assert_empty queries.grep(/"document_links"\."id" !=/),
+                 "no per-row duplicate COUNT"
+  end
+
   test "index rows link into the viewer carrying the page's filters" do
     get documents_path(source: "bill")
 

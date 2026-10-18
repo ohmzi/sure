@@ -45,6 +45,11 @@ class DocumentLink::Search
       ORDER BY ri.created_at DESC LIMIT 1)
   SQL
 
+  # The name sort's expression, shared by the ORDER BY and the viewer's walk.
+  # COALESCE keeps a row with no title and no filename sortable ('' first)
+  # instead of NULL, so the keyset's equality/inequality predicates are total.
+  NAME_SQL = "LOWER(COALESCE(NULLIF(document_links.title, ''), document_links.original_filename, ''))"
+
   def initialize(family:, filters: {}, sources: nil)
     @family = family
     @filters = filters.symbolize_keys
@@ -70,6 +75,34 @@ class DocumentLink::Search
     @scope = amount_between(@filters[:amount_min], @filters[:amount_max])
     @scope = @scope.where("tags && ARRAY[?]::text[]", tag_filters) if tag_filters.any?
     @scope.order(order_clause)
+  end
+
+  # Every sort ends in the unique id, so equal timestamps or names have one
+  # deterministic list order; the viewer's walk can neither skip nor repeat.
+  def ordering
+    case sort_key
+    when "oldest"
+      [ { sql: "document_links.created_at", direction: :asc }, { sql: "document_links.id", direction: :asc } ]
+    when "document_date"
+      [
+        { sql: DOCUMENT_DATE_SQL, direction: :desc },
+        { sql: "document_links.created_at", direction: :desc },
+        { sql: "document_links.id", direction: :desc }
+      ]
+    when "name"
+      [
+        { sql: NAME_SQL, direction: :asc },
+        { sql: "document_links.created_at", direction: :desc },
+        { sql: "document_links.id", direction: :desc }
+      ]
+    else
+      [ { sql: "document_links.created_at", direction: :desc }, { sql: "document_links.id", direction: :desc } ]
+    end
+  end
+
+  # [previous, next] over this same filtered order, without loading the list.
+  def neighbours(link)
+    DocumentBrowser::Neighbours.call(relation, link, ordering)
   end
 
   private
@@ -153,11 +186,6 @@ class DocumentLink::Search
     def sort_key = @filters[:sort].to_s.presence_in(SORTS) || "newest"
 
     def order_clause
-      case sort_key
-      when "oldest" then { created_at: :asc }
-      when "document_date" then Arel.sql("#{DOCUMENT_DATE_SQL} DESC, document_links.created_at DESC")
-      when "name" then Arel.sql("LOWER(COALESCE(NULLIF(document_links.title, ''), document_links.original_filename)) ASC, document_links.created_at DESC")
-      else { created_at: :desc }
-      end
+      Arel.sql(ordering.map { |key| "#{key.fetch(:sql)} #{key.fetch(:direction).to_s.upcase}" }.join(", "))
     end
 end

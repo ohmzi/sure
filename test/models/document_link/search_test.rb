@@ -211,7 +211,64 @@ class DocumentLink::SearchTest < ActiveSupport::TestCase
                  DocumentLink::Search.new(family: @family, filters: { attention: "" }).relation.pluck(:id)
   end
 
+  # -- the viewer's walk (P1.12): two LIMIT 1 keyset queries ------------------
+
+  test "the walk returns first, middle and last neighbours over the filtered order" do
+    base = Time.zone.parse("2026-09-01 12:00")
+    newest = neighbour_link("Neighbour A", created_at: base + 3.hours)
+    middle = neighbour_link("Neighbour B", created_at: base + 2.hours)
+    oldest = neighbour_link("Neighbour C", created_at: base + 1.hour)
+    # A document between them in time but outside the filter is skipped.
+    neighbour_link("Interloper", created_at: base + 2.hours + 30.minutes)
+
+    { "newest" => [ newest, middle, oldest ],
+      "oldest" => [ oldest, middle, newest ],
+      "name" => [ newest, middle, oldest ],
+      "document_date" => [ newest, middle, oldest ] }.each do |sort, ordered|
+      search = DocumentLink::Search.new(family: @family, filters: { search: "Neighbour", sort: sort })
+
+      assert_equal ordered.map(&:id), search.relation.pluck(:id), "order for #{sort}"
+      assert_equal [ nil, ordered[1] ], search.neighbours(ordered[0]), "first for #{sort}"
+      assert_equal [ ordered[0], ordered[2] ], search.neighbours(ordered[1]), "middle for #{sort}"
+      assert_equal [ ordered[1], nil ], search.neighbours(ordered[2]), "last for #{sort}"
+    end
+  end
+
+  test "a single matching document has no neighbours in either direction" do
+    only = neighbour_link("Only Neighbour", created_at: Time.zone.parse("2026-09-01 12:00"))
+
+    assert_equal [ nil, nil ],
+                 DocumentLink::Search.new(family: @family, filters: { search: "Only Neighbour" }).neighbours(only)
+  end
+
+  test "a document outside the filtered relation has no neighbours" do
+    outside = neighbour_link("Outside", created_at: Time.zone.parse("2026-09-01 12:00"))
+    neighbour_link("Neighbour A", created_at: Time.zone.parse("2026-09-01 12:01"))
+
+    assert_equal [ nil, nil ],
+                 DocumentLink::Search.new(family: @family, filters: { search: "Neighbour" }).neighbours(outside)
+  end
+
+  test "equal timestamps tie-break by id in the list and the walk" do
+    at = Time.zone.parse("2026-09-01 12:00")
+    lower = neighbour_link("Neighbour low", created_at: at, id: "00000000-0000-4000-8000-000000000001")
+    upper = neighbour_link("Neighbour high", created_at: at, id: "00000000-0000-4000-8000-000000000002")
+    search = DocumentLink::Search.new(family: @family, filters: { search: "Neighbour" })
+
+    assert_equal [ upper.id, lower.id ], search.relation.pluck(:id)
+    assert_equal [ nil, lower ], search.neighbours(upper)
+    assert_equal [ upper, nil ], search.neighbours(lower)
+  end
+
   private
+    def neighbour_link(title, created_at:, id: nil)
+      attributes = { family: @family, source: "other", status: "unlinked", title: title,
+                     original_filename: "#{title.parameterize}.png", content_type: "image/png",
+                     created_at: created_at }
+      attributes[:id] = id if id
+      DocumentLink.create!(attributes)
+    end
+
     # The expression the range/sort SQL evaluates — the display must equal it,
     # never merely "look plausible" (Ruling M8-C3).
     def document_date_sql(link)

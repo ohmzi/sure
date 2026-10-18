@@ -54,4 +54,19 @@ class DocumentLink::PageImageTest < ActiveSupport::TestCase
       assert_nil DocumentLink::PageImage.new(@link, page: 0).path
     end
   end
+
+  # -- pdfinfo runs once, not on every viewer open (P1.12) -------------------
+
+  test "a page count is read once per request and recorded on the document" do
+    with_env_overrides(@env) do
+      stage(TWO_PAGE_PDF)
+      DocumentLink::RequestCache.reset
+      status = mock("pdfinfo status")
+      status.stubs(:success?).returns(true)
+      Open3.expects(:capture2).with("pdfinfo", anything).once.returns([ "Pages:           2\n", status ])
+
+      2.times { assert_equal 2, DocumentLink::PageImage.count(@link) }
+      assert_equal 2, @link.reload.page_count
+    end
+  end
 end

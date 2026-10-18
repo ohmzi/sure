@@ -355,6 +355,42 @@ class DocumentLink < ApplicationRecord
     end
   end
 
+  # The duplicate count for each link, in one grouped query (P1.12). Same
+  # identity and scope as #duplicate_documents — another live document for the
+  # same account and printed period — so a page full of rows no longer runs a
+  # COUNT per row. Keys are link ids; links outside any group count 0.
+  def self.duplicate_counts(links)
+    links = Array(links)
+    return {} if links.empty?
+
+    identities = links.filter_map { |link| duplicate_identity(link) }.uniq
+    return links.to_h { |link| [ link.id, 0 ] } if identities.empty?
+
+    conditions = identities.map do
+      "(account_statements.account_id = ? AND account_statements.period_start_on = ? " \
+        "AND account_statements.period_end_on = ?)"
+    end
+    totals = not_deleted
+             .joins(:account_statement)
+             .where(conditions.join(" OR "), *identities.flatten(1))
+             .group("account_statements.account_id", "account_statements.period_start_on",
+                    "account_statements.period_end_on")
+             .count
+
+    links.to_h do |link|
+      identity = duplicate_identity(link)
+      [ link.id, identity ? [ totals.fetch(identity, 0) - 1, 0 ].max : 0 ]
+    end
+  end
+
+  def self.duplicate_identity(link)
+    statement = link.account_statement
+    return unless statement&.account_id && statement.period_start_on && statement.period_end_on
+
+    [ statement.account_id, statement.period_start_on, statement.period_end_on ]
+  end
+  private_class_method :duplicate_identity
+
   # The transaction-index filters that show this statement's rows: its account
   # and the period the statement prints (the whole cycle, not just one day).
   # A receipt/bill returns nil — its linked entry is the better target — and so
@@ -530,6 +566,7 @@ class DocumentLink < ApplicationRecord
     # longer holds.
     DocumentLink::Thumbnail.delete(self)
     DocumentLink::OcrCache.delete(self)
+    DocumentLink::TextLayer.delete(self)
     DocumentLink::Staging.delete(stored_path)
     self.class.where(id: id).update_all(stored_path: nil, updated_at: Time.current)
   end

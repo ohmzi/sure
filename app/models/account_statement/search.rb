@@ -43,6 +43,35 @@ class AccountStatement::Search
     @scope.order(order_clause)
   end
 
+  # Every sort ends in the unique id, so equal timestamps or names have one
+  # deterministic list order; the viewer's walk can neither skip nor repeat.
+  def ordering
+    case sort_key
+    when "oldest"
+      [ { sql: "account_statements.created_at", direction: :asc }, { sql: "account_statements.id", direction: :asc } ]
+    when "document_date"
+      [
+        { sql: DOCUMENT_DATE_SQL, direction: :desc },
+        { sql: "account_statements.created_at", direction: :desc },
+        { sql: "account_statements.id", direction: :desc }
+      ]
+    when "name"
+      [
+        { sql: "LOWER(account_statements.filename)", direction: :asc },
+        { sql: "account_statements.created_at", direction: :desc },
+        { sql: "account_statements.id", direction: :desc }
+      ]
+    else
+      [ { sql: "account_statements.created_at", direction: :desc }, { sql: "account_statements.id", direction: :desc } ]
+    end
+  end
+
+  # [previous, next] over this same filtered visible order, without loading
+  # the list.
+  def neighbours(statement)
+    DocumentBrowser::Neighbours.call(relation, statement, ordering)
+  end
+
   private
     attr_reader :scope
 
@@ -87,11 +116,6 @@ class AccountStatement::Search
     def sort_key = @filters[:sort].to_s.presence_in(SORTS) || "newest"
 
     def order_clause
-      case sort_key
-      when "oldest" then { created_at: :asc }
-      when "document_date" then Arel.sql("#{DOCUMENT_DATE_SQL} DESC, account_statements.created_at DESC")
-      when "name" then Arel.sql("LOWER(account_statements.filename) ASC, account_statements.created_at DESC")
-      else { created_at: :desc }
-      end
+      Arel.sql(ordering.map { |key| "#{key.fetch(:sql)} #{key.fetch(:direction).to_s.upcase}" }.join(", "))
     end
 end

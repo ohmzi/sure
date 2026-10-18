@@ -39,7 +39,16 @@ class DocumentLinksController < ApplicationController
     @pagy, @links = pagy(document_browser_search.relation, limit: safe_per_page(20))
     # The viewer URL carries the page's query string (M8 locked decision 3), so
     # the modal's prev/next recompute over the same filtered list.
-    @rows = @links.map { |link| DocumentBrowser::Row.for_document_link(link, viewer_url: viewer_document_path(link, document_browser_viewer_params)) }
+    # Duplicate review is (account, printed period); one grouped query answers
+    # it for the whole page instead of one COUNT per rendered row (P1.12).
+    duplicate_counts = DocumentLink.duplicate_counts(@links)
+    @rows = @links.map do |link|
+      DocumentBrowser::Row.for_document_link(
+        link,
+        viewer_url: viewer_document_path(link, document_browser_viewer_params),
+        duplicates_count: duplicate_counts.fetch(link.id, 0)
+      )
+    end
     # The tag facet's choices come from the stored snapshot (M8 Task 6), never
     # a live external call.
     @tag_choices = DocumentLink.tag_snapshot_names(Current.family.document_links.not_deleted)
@@ -272,14 +281,7 @@ class DocumentLinksController < ApplicationController
     # index listed (M8 locked decision 3): pagination can never desync it. A
     # stale URL whose row is not in the relation renders no neighbours.
     def document_browser_neighbours(link)
-      ids = document_browser_search.relation.pluck(:id)
-      position = ids.index(link.id)
-      return [ nil, nil ] unless position
-
-      [
-        (Current.family.document_links.find(ids[position - 1]) if position.positive?),
-        (Current.family.document_links.find(ids[position + 1]) if ids[position + 1])
-      ]
+      document_browser_search.neighbours(link)
     end
 
     def link_display_title(link) = link.title.presence || link.original_filename

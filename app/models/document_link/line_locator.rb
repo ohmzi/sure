@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require "open3"
 require "cgi"
 
 # Where on its page a statement line sits (the owner, 2026-10-17): opened from
@@ -73,8 +72,7 @@ class DocumentLink::LineLocator
     end
 
     def text_layer(source)
-      output, status = Open3.capture2("pdftotext", "-bbox", "-l", DocumentLink::PageImage::MAX_PAGES.to_s, source.to_s, "-")
-      status.success? ? output : ""
+      DocumentLink::TextLayer.fetch(@link, source)
     end
 
     def parse(html)

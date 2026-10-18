@@ -58,4 +58,58 @@ class DocumentLink::LineLocatorTest < ActiveSupport::TestCase
   test "a document that is not a PDF has no lines to find" do
     assert_nil DocumentLink::LineLocator.new(document_links(:understood_receipt_link)).locate(name: "x", amount: 1)
   end
+
+  # -- the text layer is extracted once, not once per viewer open (P1.12) -----
+
+  BBOX_HTML = '<html><body><page width="612.000000" height="792.000000">' \
+              '<word xMin="10.000000" yMin="10.000000" xMax="80.000000" yMax="20.000000">1,500.00</word>' \
+              "</page></body></html>"
+
+  test "the same document in one request runs pdftotext once" do
+    with_env_overrides(@env) do
+      stage_statement
+      DocumentLink::RequestCache.reset
+      status = mock("pdftotext status")
+      status.stubs(:success?).returns(true)
+      Open3.expects(:capture2).once.returns([ BBOX_HTML, status ])
+
+      2.times do
+        mark = DocumentLink::LineLocator.new(@link).locate(name: "", amount: BigDecimal("1500"))
+        assert_equal 1, mark.page
+      end
+    end
+  end
+
+  test "a repeat request reads the cached text layer instead of shelling out" do
+    with_env_overrides(@env) do
+      stage_statement
+      DocumentLink::RequestCache.reset
+      status = mock("pdftotext status")
+      status.stubs(:success?).returns(true)
+      Open3.expects(:capture2).once.returns([ BBOX_HTML, status ])
+
+      DocumentLink::LineLocator.new(@link).locate(name: "", amount: BigDecimal("1500"))
+
+      DocumentLink::RequestCache.reset # a later request, same document
+      mark = DocumentLink::LineLocator.new(@link).locate(name: "", amount: BigDecimal("1500"))
+      assert_equal 1, mark.page
+    end
+  end
+
+  test "the cached text layer leaves with the document's bytes" do
+    with_env_overrides(@env) do
+      stage_statement
+      DocumentLink::RequestCache.reset
+      status = mock("pdftotext status")
+      status.stubs(:success?).returns(true)
+      Open3.expects(:capture2).once.returns([ BBOX_HTML, status ])
+
+      DocumentLink::LineLocator.new(@link).locate(name: "", amount: BigDecimal("1500"))
+      cache = DocumentLink::TextLayer.path_for(@link)
+      assert cache.file?
+
+      assert @link.soft_delete!
+      assert_not cache.file?, "a tombstone must not keep a text layer derived from bytes it no longer holds"
+    end
+  end
 end

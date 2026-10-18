@@ -71,4 +71,46 @@ class AccountStatement::SearchTest < ActiveSupport::TestCase
     assert_equal unfiltered,
                  AccountStatement::Search.new(user: users(:family_admin), family: @family, filters: { amount_min: "10", amount_max: "15" }).relation.count
   end
+
+  # -- the viewer's walk (P1.12): two LIMIT 1 keyset queries ------------------
+
+  test "the walk returns first, middle and last neighbours over the filtered order" do
+    base = Time.zone.parse("2026-09-01 12:00")
+    walk_statement("walk_newest.csv", at: base + 3.hours)
+    walk_statement("walk_middle.csv", at: base + 2.hours)
+    walk_statement("walk_oldest.csv", at: base + 1.hour)
+    # A statement between them in time but outside the filter is skipped.
+    walk_statement("interloper.csv", at: base + 2.hours + 30.minutes)
+
+    %w[newest oldest name document_date].each do |sort|
+      search = AccountStatement::Search.new(user: users(:family_admin), family: @family,
+                                            filters: { search: "walk_", sort: sort })
+      ordered = search.relation.to_a
+      assert_equal 3, ordered.size, "filtered list for #{sort}"
+      assert_equal [ nil, ordered[1] ], search.neighbours(ordered[0]), "first for #{sort}"
+      assert_equal [ ordered[0], ordered[2] ], search.neighbours(ordered[1]), "middle for #{sort}"
+      assert_equal [ ordered[1], nil ], search.neighbours(ordered[2]), "last for #{sort}"
+    end
+  end
+
+  test "a single matching statement has no neighbours, nor does one outside the filter" do
+    only = walk_statement("alone.csv", at: Time.zone.parse("2026-09-01 12:00"))
+    outside = walk_statement("outside.csv", at: Time.zone.parse("2026-09-01 12:00"))
+    search = AccountStatement::Search.new(user: users(:family_admin), family: @family, filters: { search: "alone" })
+
+    assert_equal [ nil, nil ], search.neighbours(only)
+    assert_equal [ nil, nil ], search.neighbours(outside)
+  end
+
+  private
+    def walk_statement(filename, at:)
+      @walk_count = (@walk_count || 0) + 1
+      content = "date,amount\n#{at.to_date.iso8601},#{@walk_count}\n"
+      statement = AccountStatement.create_from_upload!(
+        family: @family, account: @account,
+        file: Rack::Test::UploadedFile.new(StringIO.new(content), "text/csv", original_filename: filename)
+      )
+      statement.update_columns(created_at: at)
+      statement
+    end
 end

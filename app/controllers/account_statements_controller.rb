@@ -250,14 +250,7 @@ class AccountStatementsController < ApplicationController
     # relation the index listed (M8 locked decision 3): pagination can never
     # desync it. A stale URL whose row is not visible renders no neighbours.
     def document_browser_neighbours(statement)
-      ids = account_statement_search.relation.pluck(:id)
-      position = ids.index(statement.id)
-      return [ nil, nil ] unless position
-
-      [
-        (Current.family.account_statements.find(ids[position - 1]) if position.positive?),
-        (Current.family.account_statements.find(ids[position + 1]) if ids[position + 1])
-      ]
+      account_statement_search.neighbours(statement)
     end
 
     def statement_display_title(statement) = statement.filename
