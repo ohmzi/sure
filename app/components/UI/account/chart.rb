@@ -277,8 +277,7 @@ class UI::Account::Chart < ApplicationComponent
       transfer_ids = Transaction.where(kind: Transaction::TRANSFER_KINDS).select(:id)
       # A pending auto-match has no transfer kind yet, but it is still a move
       # between the household's own accounts.
-      linked_ids = Transfer.select(:inflow_transaction_id)
-                           .union(Transfer.select(:outflow_transaction_id))
+      linked_ids = Transfer.pluck(:inflow_transaction_id, :outflow_transaction_id).flatten
       period_transaction_entries.where.not(entryable_id: transfer_ids)
                                 .where.not(entryable_id: linked_ids)
     end
