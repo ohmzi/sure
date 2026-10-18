@@ -431,6 +431,7 @@ class Category < ApplicationRecord
     def reassign_transactions_to_nothing
       affected_count = Transaction.reassign_category!(transactions, nil)
       record_bulk_recategorization!(nil, affected_count) if affected_count.positive?
+      affected_count
     end
 
     # One summary row for the bulk change, written inside the caller's

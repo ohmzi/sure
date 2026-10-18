@@ -81,11 +81,16 @@ module Auditable
     # The trail write is therefore best-effort (see AuditLog) — a failure is
     # logged and never turns a successful edit into a 500.
     def record_auditable_change
-      target = audit_target
-      family = audit_family
       changes = @audited_changes || {}
       clear_auditable_changes
-      return if target.nil? || family.nil? || changes.empty?
+      # Return before resolving the target: on Entry that loads `entryable`
+      # and can cache a pre-update inverse on the transaction, which a later
+      # mark_user_modified! would leave stale for the response.
+      return if changes.empty?
+
+      target = audit_target
+      family = audit_family
+      return if target.nil? || family.nil?
 
       AuditLog.record_best_effort!(
         auditable: target,
