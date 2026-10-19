@@ -2,16 +2,13 @@
 <%# The page changer, modernised (the owner, 2026-10-18), everywhere a list
     pages: round previous/next buttons either side of the page numbers in one
     pill track (the current page in brand colour), what is showing ("51–100 of
-    1,302"), and the page size as a pill. On a phone the numbers keep the
-    first, current and last page (PaginationHelper#pagination_mobile_plan);
-    the track scrolls rather than wraps if a column is too narrow even for
-    those. Every link visits the whole page. Given an anchor (the id of the
-    list, or of what sits just above it), the next page lands there rather
-    than at the top, so a summary or chart above the list is not scrolled
-    past again on every page (the owner, 2026-10-18). %>
+    1,302"), and the page size as a pill. The numbers are five from the
+    current page, then the last (PaginationHelper#pagination_window).
+    Every link visits the whole page. Given an anchor (the id of the list,
+    or of what sits just above it), the next page lands there rather than at
+    the top, so a summary or chart above the list is not scrolled past again
+    on every page (the owner, 2026-10-18). %>
 <% page_url = ->(page) { [ pagy_url_for(pagy, page), anchor.presence ].compact.join("#") } %>
-<% series = pagy.series %>
-<% mobile_plan = pagination_mobile_plan(series) %>
 <% step_classes = "press inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-container text-primary shadow-border-xs hover:bg-container-hover transition-colors focus-ring" %>
 <%# Room below on a phone, so the floating + never sits on the page size. %>
 <nav aria-label="<%= t("shared.pagination.label") %>" class="flex w-full flex-col gap-3 pb-20 lg:pb-0 sm:flex-row sm:items-center sm:justify-between">
@@ -25,25 +22,19 @@
     <% end %>
 
     <div class="flex min-w-0 max-w-full flex-nowrap items-center gap-0.5 overflow-x-auto no-scrollbar rounded-full bg-surface-inset p-1">
-      <% series.each_with_index do |series_item, index| %>
-        <% mobile_state = mobile_plan[index] %>
-        <%# Stands in for the run of pages hidden from here on a phone. %>
-        <% if mobile_state == :collapsed %>
-          <span class="inline-flex sm:hidden h-8 shrink-0 items-center px-1.5 text-sm font-semibold text-subdued" aria-hidden="true">…</span>
-        <% end %>
-        <% if series_item.is_a?(Integer) %>
-          <%= link_to series_item, page_url.(series_item),
+      <% pagination_window(page: pagy.page, pages: pagy.pages).each do |item| %>
+        <% if item == :gap %>
+          <span class="inline-flex h-8 shrink-0 items-center px-1 text-sm font-semibold text-subdued" aria-hidden="true">…</span>
+        <% elsif item == pagy.page %>
+          <%= link_to item, page_url.(item),
                 data: { turbo_frame: :_top },
-                aria: { label: t("shared.pagination.page", page: series_item) },
-                class: class_names("press h-8 min-w-8 shrink-0 items-center justify-center rounded-full px-2.5 text-sm font-semibold tabular text-secondary hover:bg-container hover:text-primary transition-colors focus-ring",
-                                   mobile_state == :visible ? "inline-flex" : "hidden sm:inline-flex") %>
-        <% elsif series_item.is_a?(String) %>
-          <%= link_to series_item, page_url.(series_item),
-                data: { turbo_frame: :_top },
-                aria: { current: "page", label: t("shared.pagination.page", page: series_item) },
+                aria: { current: "page", label: t("shared.pagination.page", page: item) },
                 class: "inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full bg-inverse px-2.5 text-sm font-bold tabular text-inverse shadow-[0_6px_14px_-8px_var(--color-link)] focus-ring" %>
-        <% elsif series_item == :gap %>
-          <span class="inline-flex h-8 shrink-0 items-center px-1.5 text-sm font-semibold text-subdued">…</span>
+        <% else %>
+          <%= link_to item, page_url.(item),
+                data: { turbo_frame: :_top },
+                aria: { label: t("shared.pagination.page", page: item) },
+                class: "press inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full px-2 text-sm font-semibold tabular text-secondary hover:bg-container hover:text-primary transition-colors focus-ring" %>
         <% end %>
       <% end %>
     </div>
