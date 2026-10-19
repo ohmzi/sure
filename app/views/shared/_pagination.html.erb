@@ -11,8 +11,10 @@
 <% page_url = ->(page) { [ pagy_url_for(pagy, page), anchor.presence ].compact.join("#") } %>
 <% step_classes = "press inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-container text-primary shadow-border-xs hover:bg-container-hover transition-colors focus-ring" %>
 <%# Room below on a phone, so the floating + never sits on the page size. %>
+<%# On a phone the page changer sits in the middle of the screen, over what is
+    showing and the page size (the owner, 2026-10-18). %>
 <nav aria-label="<%= t("shared.pagination.label") %>" class="flex w-full flex-col gap-3 pb-20 lg:pb-0 sm:flex-row sm:items-center sm:justify-between">
-  <div class="flex min-w-0 items-center gap-2">
+  <div class="flex min-w-0 items-center justify-center gap-2 sm:justify-start">
     <% if pagy.prev %>
       <%= link_to page_url.(pagy.prev), data: { turbo_frame: :_top }, class: step_classes, aria: { label: t("shared.pagination.previous") } do %>
         <%= icon("chevron-left", color: "current") %>

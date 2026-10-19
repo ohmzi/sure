@@ -2,6 +2,7 @@ import { Controller } from "@hotwired/stimulus";
 import * as d3 from "d3";
 import { CHART_TOOLTIP_CLASSES } from "utils/chart_tooltip";
 import { revealOnView } from "utils/reveal_on_view";
+import { scrubIntent } from "utils/scrub_intent";
 
 // Grouped bar chart used by the dashboard "money flow" widget — each month
 // shows an expense bar (red) and an income bar (green) side by side.
@@ -145,20 +146,75 @@ export default class extends Controller {
       .style("cursor", "pointer")
       .style("transition", "opacity 160ms ease");
 
+    const axisLabels = group
+      .append("g")
+      .attr("transform", `translate(0,${innerHeight})`)
+      .call(d3.axisBottom(x0).tickSize(0))
+      .call((g) => g.select(".domain").remove())
+      .selectAll("text")
+      .style("font-size", "12px")
+      .style("transition", "font-weight 120ms ease");
+
     // The month under the pointer stays bright and the rest dim (the
     // animation pass, 2026-10-18). A finger slides across the months, the
     // way a stock app scrubs, and the summary beside the chart follows the
     // month under it (scrub_readout_controller); a mouse also gets the
-    // value of the bar it is on. Lifting the finger clears it all, so no
-    // reading floats over the page (the owner, 2026-10-18). Phones read
+    // value of the bar it is on. A soft band sits behind the month and
+    // glides to the next, and its label turns bold (the owner, 2026-10-18:
+    // press and hold should feel clean). A touch scrubs once held or moved
+    // sideways, so a page scroll starting here shows nothing
+    // (scrub_intent); lifting the finger clears it all. Phones read
     // touch-action from the chart's own box, not from shapes in its SVG.
     d3.select(this.element)
       .style("touch-action", "pan-y")
       .style("user-select", "none")
       .style("-webkit-touch-callout", "none");
 
-    const highlight = (month) =>
-      bars.style("opacity", (d) => (month && d.month !== month ? 0.4 : null));
+    const band = group
+      .insert("rect", ":first-child")
+      .attr("class", "text-primary")
+      .attr("fill", "currentColor")
+      .attr("rx", 10)
+      .attr("y", -6)
+      .attr("width", x0.step())
+      .attr("height", innerHeight + margin.bottom + 4)
+      .style("opacity", 0)
+      .style("pointer-events", "none")
+      .style(
+        "transition",
+        "x 160ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease",
+      );
+
+    const bandX = (month) => x0(month.label) - (x0.step() - x0.bandwidth()) / 2;
+
+    const highlight = (month) => {
+      bars.style("opacity", (d) => (month && d.month !== month ? 0.35 : null));
+      axisLabels
+        .attr("class", (_d, i) =>
+          (month ? data[i] === month : data[i].highlighted)
+            ? "text-primary fill-current"
+            : "text-secondary fill-current",
+        )
+        .style("font-weight", (_d, i) =>
+          (month ? data[i] === month : data[i].highlighted) ? 700 : 500,
+        );
+      if (month) {
+        // The band appears where it is, then glides from month to month.
+        if (band.style("opacity") === "0")
+          band.style("transition", "none").style("x", `${bandX(month)}px`);
+        band.node().getBoundingClientRect();
+        band
+          .style(
+            "transition",
+            "x 160ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 160ms ease",
+          )
+          .style("x", `${bandX(month)}px`)
+          .style("opacity", 0.07);
+      } else {
+        band.style("opacity", 0);
+      }
+    };
+    highlight(null);
 
     const monthAt = (event) => {
       const [xPos] = d3.pointer(event, group.node());
@@ -171,15 +227,16 @@ export default class extends Controller {
     let scrubbed = null;
     const scrub = (event) => {
       const month = monthAt(event);
-      highlight(month);
       if (event.pointerType === "mouse" && event.target.tagName === "rect") {
         const d = d3.select(event.target).datum();
-        showTooltip(event, d.month, d.key);
+        if (d?.month) showTooltip(event, d.month, d.key);
+        else hideTooltip();
       } else {
         hideTooltip();
       }
       if (month === scrubbed) return;
       scrubbed = month;
+      highlight(month);
       const balance = month.income - month.expense;
       this.dispatch("scrub", {
         detail: {
@@ -197,7 +254,11 @@ export default class extends Controller {
       });
     };
 
+    const intent = scrubIntent({ onStart: scrub });
+
     const release = () => {
+      intent.end();
+      if (scrubbed === null) return;
       scrubbed = null;
       highlight(null);
       hideTooltip();
@@ -205,25 +266,16 @@ export default class extends Controller {
     };
 
     svg
-      .on("pointerdown pointermove", scrub)
+      .on("pointerdown", (event) => {
+        if (intent.down(event)) scrub(event);
+      })
+      .on("pointermove", (event) => {
+        if (intent.move(event)) scrub(event);
+      })
       .on("pointerleave pointercancel", release)
       .on("pointerup", (event) => {
         if (event.pointerType !== "mouse") release();
       });
-
-    const axisLabels = group
-      .append("g")
-      .attr("transform", `translate(0,${innerHeight})`)
-      .call(d3.axisBottom(x0).tickSize(0))
-      .call((g) => g.select(".domain").remove())
-      .selectAll("text")
-      .attr("class", (_d, i) =>
-        data[i].highlighted
-          ? "text-primary fill-current"
-          : "text-secondary fill-current",
-      )
-      .style("font-size", "12px")
-      .style("font-weight", (_d, i) => (data[i].highlighted ? 600 : 500));
 
     this._fitAxisLabels(axisLabels, data, x0.step());
   }

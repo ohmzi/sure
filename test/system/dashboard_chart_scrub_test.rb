@@ -32,6 +32,32 @@ class DashboardChartScrubTest < ApplicationSystemTestCase
     assert_scrubs "#money-flow-section", "[data-controller~='bar-chart']", from: 0.05, to: 0.5
   end
 
+  # Press and hold, cleaned up (the owner, 2026-10-18): a swipe up the page
+  # that starts on a chart is a scroll, and flashes no reading.
+  test "a vertical swipe starting on a chart leaves the figures alone" do
+    chart = "[data-controller~='bar-chart']"
+    assert_selector "#{chart} svg"
+    page.execute_script("document.querySelector(#{chart.to_json}).scrollIntoView({ block: 'center' })")
+    sleep 0.3
+    label = find("#money-flow-section [data-scrub-readout-target='label']")
+    resting = label.text
+    box = page.evaluate_script(<<~JS)
+      (() => { const r = document.querySelector(#{chart.to_json}).getBoundingClientRect();
+               return { x: r.left + r.width * 0.2, y: r.top + r.height / 2 }; })()
+    JS
+
+    seen = []
+    touch("touchStart", box["x"], box["y"])
+    seen << label.text
+    4.times do |step|
+      touch("touchMove", box["x"], box["y"] - (step + 1) * 12)
+      seen << label.text
+    end
+    touch("touchEnd")
+
+    assert_equal [ resting ], seen.uniq
+  end
+
   private
     def assert_scrubs(section, chart, from: 0.05, to: 0.95)
       assert_selector "#{chart} svg"

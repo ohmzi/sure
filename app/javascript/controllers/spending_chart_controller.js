@@ -2,6 +2,7 @@ import { Controller } from "@hotwired/stimulus";
 import * as d3 from "d3";
 import { CHART_TOOLTIP_CLASSES } from "utils/chart_tooltip";
 import { revealOnView } from "utils/reveal_on_view";
+import { scrubIntent } from "utils/scrub_intent";
 
 // Cumulative spending chart for the dashboard "spending" widget: the selected
 // month's running total (green, ending today while the month is in progress)
@@ -249,89 +250,103 @@ export default class extends Controller {
       this.dispatch("release");
     };
 
-    group
+    const overlayNode = () => overlay.node();
+    const scrub = (event) => {
+      const [xPos] = d3.pointer(event, overlayNode());
+      const dayFloat = x.invert(xPos);
+      const i = bisectDay(hoverDays, dayFloat);
+      const day = hoverDays[Math.max(0, Math.min(i, hoverDays.length - 1))];
+
+      const currentPoint = currentByDay.get(day);
+      const previousPoint = previousByDay.get(day);
+      const labelPoint = currentPoint || previousPoint;
+
+      const estimatedTooltipWidth = 220;
+      const pageWidth = document.body.clientWidth;
+      const tooltipX = event.pageX + 10;
+      const overflowX = tooltipX + estimatedTooltipWidth - pageWidth;
+      const adjustedX = overflowX > 0 ? event.pageX - overflowX - 20 : tooltipX;
+
+      group.selectAll(".guideline").remove();
+      group.selectAll(".data-point-circle").remove();
+
+      group
+        .append("line")
+        .attr("class", "guideline text-subdued")
+        .attr("x1", x(day))
+        .attr("y1", 0)
+        .attr("x2", x(day))
+        .attr("y2", innerHeight)
+        .attr("stroke", "currentColor")
+        .attr("stroke-dasharray", "4, 4");
+
+      for (const [point, color] of [
+        [currentPoint, CURRENT_COLOR],
+        [previousPoint, PREVIOUS_COLOR],
+      ]) {
+        if (!point) continue;
+        group
+          .append("circle")
+          .attr("class", "data-point-circle")
+          .attr("cx", x(day))
+          .attr("cy", y(point.value))
+          .attr("r", 4)
+          .attr("fill", color)
+          .attr("pointer-events", "none");
+      }
+
+      // The figures above follow the point (scrub_readout_controller), so
+      // a finger reads them there rather than from a box under it (the
+      // owner, 2026-10-18).
+      this.dispatch("scrub", {
+        detail: {
+          value: currentPoint && this._formatCurrency(currentPoint.value),
+          compare: previousPoint && this._formatCurrency(previousPoint.value),
+          date: labelPoint.date_formatted,
+        },
+      });
+
+      if (event.pointerType !== "mouse") {
+        tooltip.style("opacity", 0);
+        return;
+      }
+
+      tooltip
+        .html(this._tooltipTemplate(labelPoint, currentPoint, previousPoint))
+        .style("opacity", 1)
+        .style("left", `${adjustedX}px`)
+        .style("top", `${event.pageY - 10}px`);
+    };
+    // A touch scrubs once held or moved sideways; one that starts a page
+    // scroll shows nothing (scrub_intent, the owner, 2026-10-18).
+    const intent = scrubIntent({ onStart: scrub });
+
+    const overlay = group
       .append("rect")
       .attr("width", innerWidth)
       .attr("height", innerHeight)
       .attr("fill", "none")
       .attr("pointer-events", "all")
-      .on("pointerdown pointermove", (event) => {
-        const [xPos] = d3.pointer(event);
-        const dayFloat = x.invert(xPos);
-        const i = bisectDay(hoverDays, dayFloat);
-        const day = hoverDays[Math.max(0, Math.min(i, hoverDays.length - 1))];
-
-        const currentPoint = currentByDay.get(day);
-        const previousPoint = previousByDay.get(day);
-        const labelPoint = currentPoint || previousPoint;
-
-        const estimatedTooltipWidth = 220;
-        const pageWidth = document.body.clientWidth;
-        const tooltipX = event.pageX + 10;
-        const overflowX = tooltipX + estimatedTooltipWidth - pageWidth;
-        const adjustedX =
-          overflowX > 0 ? event.pageX - overflowX - 20 : tooltipX;
-
-        group.selectAll(".guideline").remove();
-        group.selectAll(".data-point-circle").remove();
-
-        group
-          .append("line")
-          .attr("class", "guideline text-subdued")
-          .attr("x1", x(day))
-          .attr("y1", 0)
-          .attr("x2", x(day))
-          .attr("y2", innerHeight)
-          .attr("stroke", "currentColor")
-          .attr("stroke-dasharray", "4, 4");
-
-        for (const [point, color] of [
-          [currentPoint, CURRENT_COLOR],
-          [previousPoint, PREVIOUS_COLOR],
-        ]) {
-          if (!point) continue;
-          group
-            .append("circle")
-            .attr("class", "data-point-circle")
-            .attr("cx", x(day))
-            .attr("cy", y(point.value))
-            .attr("r", 4)
-            .attr("fill", color)
-            .attr("pointer-events", "none");
-        }
-
-        // The figures above follow the point (scrub_readout_controller), so
-        // a finger reads them there rather than from a box under it (the
-        // owner, 2026-10-18).
-        this.dispatch("scrub", {
-          detail: {
-            value: currentPoint && this._formatCurrency(currentPoint.value),
-            compare: previousPoint && this._formatCurrency(previousPoint.value),
-            date: labelPoint.date_formatted,
-          },
-        });
-
-        if (event.pointerType !== "mouse") {
-          tooltip.style("opacity", 0);
-          return;
-        }
-
-        tooltip
-          .html(this._tooltipTemplate(labelPoint, currentPoint, previousPoint))
-          .style("opacity", 1)
-          .style("left", `${adjustedX}px`)
-          .style("top", `${event.pageY - 10}px`);
+      .on("pointerdown", (event) => {
+        if (intent.down(event)) scrub(event);
+      })
+      .on("pointermove", (event) => {
+        if (intent.move(event)) scrub(event);
       })
       // A lifted finger clears the reading too, so it never floats over the
       // page as it scrolls (the owner, 2026-10-18).
       .on("pointerup pointercancel", (event) => {
+        intent.end();
         if (event.pointerType !== "mouse") clear();
       })
       .on("pointerleave", (event) => {
         const hoveringOnGuideline =
           event.relatedTarget?.classList?.contains("guideline");
 
-        if (!hoveringOnGuideline) clear();
+        if (!hoveringOnGuideline) {
+          intent.end();
+          clear();
+        }
       });
   }
 

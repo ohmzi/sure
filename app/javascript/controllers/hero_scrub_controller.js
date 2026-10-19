@@ -1,11 +1,12 @@
 import { Controller } from "@hotwired/stimulus";
 import { rollText } from "utils/roll_number";
+import { scrubIntent } from "utils/scrub_intent";
 
 // Home's net worth line, scrubbed like a stock app (the owner, 2026-10-18):
 // hold and slide along it — or move a pointer over it — and the figure rolls
 // to that day's net worth, the label shows the day, and a dot and guide follow
 // the line. Letting go rolls back to today. A vertical swipe still scrolls the
-// page (touch-action: pan-y on the track).
+// page (touch-action: pan-y on the track), and shows nothing (scrub_intent).
 export default class extends Controller {
   static targets = ["track", "dot", "guide", "value", "label"];
   static values = { points: Array };
@@ -20,12 +21,54 @@ export default class extends Controller {
     this.restingDot = this.hasDotTarget
       ? { left: this.dotTarget.style.left, top: this.dotTarget.style.top }
       : null;
+    this.intent = scrubIntent({ onStart: (event) => this.#scrubTo(event) });
   }
 
   move(event) {
     if (!this.hasTrackTarget || this.pointsValue.length < 2) return;
-    if (event.pointerType === "mouse" && event.type === "pointerdown") return;
+    if (event.type === "pointerdown") {
+      // A mouse press is not a scrub; it hovers already.
+      if (event.pointerType !== "mouse" && this.intent.down(event))
+        this.#scrubTo(event);
+      return;
+    }
+    if (this.intent.move(event)) this.#scrubTo(event);
+  }
 
+  // A finger lifting ends the scrub; a mouse button does not (it hovers on).
+  lift(event) {
+    if (event.pointerType !== "mouse") this.end();
+  }
+
+  end() {
+    this.intent.end();
+    if (!this.scrubbing) return;
+    this.scrubbing = false;
+
+    // Today's point comes back where it lives, with a small pop, rather than
+    // sliding there from wherever the finger let go (the owner, 2026-10-18:
+    // it "moves from above down").
+    if (this.hasDotTarget && this.restingDot) {
+      const dot = this.dotTarget;
+      dot.style.transition = "none";
+      Object.assign(dot.style, this.restingDot);
+      dot.getBoundingClientRect();
+      dot.style.transition = "";
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+        dot.animate(
+          [
+            { scale: "0.3", opacity: 0 },
+            { scale: "1", opacity: 1 },
+          ],
+          { duration: 220, easing: "cubic-bezier(0.2, 0.9, 0.25, 1)" },
+        );
+    }
+    if (this.hasGuideTarget) this.guideTarget.classList.add("hidden");
+    if (this.hasValueTarget) rollText(this.valueTarget, this.restingValue);
+    if (this.hasLabelTarget) this.labelTarget.textContent = this.restingLabel;
+  }
+
+  #scrubTo(event) {
     const ys = JSON.parse(this.trackTarget.dataset.ys || "[]");
     const rect = this.trackTarget.getBoundingClientRect();
     const fraction = Math.min(
@@ -50,21 +93,5 @@ export default class extends Controller {
     if (this.hasLabelTarget && point?.label)
       this.labelTarget.textContent = point.label;
     this.scrubbing = true;
-  }
-
-  // A finger lifting ends the scrub; a mouse button does not (it hovers on).
-  lift(event) {
-    if (event.pointerType !== "mouse") this.end();
-  }
-
-  end() {
-    if (!this.scrubbing) return;
-    this.scrubbing = false;
-
-    if (this.hasDotTarget && this.restingDot)
-      Object.assign(this.dotTarget.style, this.restingDot);
-    if (this.hasGuideTarget) this.guideTarget.classList.add("hidden");
-    if (this.hasValueTarget) rollText(this.valueTarget, this.restingValue);
-    if (this.hasLabelTarget) this.labelTarget.textContent = this.restingLabel;
   }
 }

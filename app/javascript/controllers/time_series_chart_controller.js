@@ -2,6 +2,7 @@ import { Controller } from "@hotwired/stimulus";
 import * as d3 from "d3";
 import { CHART_TOOLTIP_CLASSES } from "utils/chart_tooltip";
 import { revealOnView } from "utils/reveal_on_view";
+import { scrubIntent } from "utils/scrub_intent";
 import { trendSegmentStops } from "utils/trend_segments";
 
 const parseLocalDate = d3.timeParse("%Y-%m-%d");
@@ -500,20 +501,34 @@ export default class extends Controller {
       .style("user-select", "none")
       .style("-webkit-touch-callout", "none");
 
+    // A touch scrubs once held or moved sideways; one that starts a page
+    // scroll shows nothing (scrub_intent, the owner, 2026-10-18).
+    const node = selection.node();
+    const touchScrub = (event) => {
+      const [xPos] = d3.pointer(event, node);
+      this._renderTooltipAt(
+        this._nearestDataPointForPixel(xPos),
+        event.pageX,
+        event.pageY,
+        { touch: true },
+      );
+    };
+    const intent = scrubIntent({ onStart: touchScrub });
+
     selection
-      .on("pointerdown pointermove", (event) => {
+      .on("pointerdown", (event) => {
         if (event.pointerType === "mouse") return;
         this._lastTouchAt = Date.now();
-        const [xPos] = d3.pointer(event);
-        this._renderTooltipAt(
-          this._nearestDataPointForPixel(xPos),
-          event.pageX,
-          event.pageY,
-          { touch: true },
-        );
+        if (intent.down(event)) touchScrub(event);
+      })
+      .on("pointermove", (event) => {
+        if (event.pointerType === "mouse") return;
+        this._lastTouchAt = Date.now();
+        if (intent.move(event)) touchScrub(event);
       })
       .on("pointerup pointercancel", (event) => {
-        if (event.pointerType !== "mouse") this._hideTooltip();
+        if (event.pointerType === "mouse") return;
+        if (intent.end()) this._hideTooltip();
       })
       .on("mousemove", (event) => {
         // The mouse events a browser makes up after a tap are not a pointer.
