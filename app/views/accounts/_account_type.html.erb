@@ -1,7 +1,7 @@
 <%# locals: (accountable:) %>
 
 <%= link_to new_polymorphic_path(accountable, step: "method_select", return_to: params[:return_to]),
-            class: "group flex items-center gap-4 w-full text-center focus:outline-hidden hover:bg-surface-hover focus:bg-surface-hover text-primary border border-transparent block px-2 rounded-lg p-2" do %>
+            class: "press group flex items-center gap-3 w-full px-3 py-2.5 text-left text-base text-primary hover:bg-container-inset-hover focus:bg-container-inset-hover focus:outline-hidden transition-colors" do %>
   <%= render DS::FilledIcon.new(
     icon: accountable.icon,
     hex_color: accountable.color,

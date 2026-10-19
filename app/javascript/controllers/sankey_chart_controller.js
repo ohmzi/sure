@@ -3,6 +3,7 @@ import * as d3 from "d3";
 import { sankey } from "d3-sankey";
 import { CHART_TOOLTIP_CLASSES } from "utils/chart_tooltip";
 import { revealOnView } from "utils/reveal_on_view";
+import { overlappingSankeyLabels } from "utils/sankey_labels";
 import { sankeyNodeHasChildren, zoomSankeyData } from "utils/sankey_zoom";
 import {
   buildCategoryTransactionsUrl,
@@ -398,6 +399,44 @@ export default class extends Controller {
           .style("font-size", "0.65rem")
           .text(controller.#formatCurrency(d.value));
       });
+
+    // Spacing labels within a column cannot see the next column, and on a
+    // phone a middle column's label ran into the next column's ("Cash Flow"
+    // over "Transportation"; the owner, 2026-10-19). Measure what was drawn
+    // and hide whichever label belongs to the smaller flow, or runs under
+    // another column's bar; hovering a node still shows it.
+    const svg = nodeGroups.node()?.ownerSVGElement;
+    if (svg) {
+      const origin = svg.getBoundingClientRect();
+      const labels = [];
+      nodeGroups.select("text").each(function (d) {
+        const r = this.getBoundingClientRect();
+        labels.push({
+          index: d.index,
+          value: d.value,
+          box: {
+            x: r.left - origin.left,
+            y: r.top - origin.top,
+            width: r.width,
+            height: r.height,
+          },
+        });
+      });
+      const obstacles = nodes.map((d) => ({
+        x: d.x0,
+        y: d.y0,
+        width: d.x1 - d.x0,
+        height: d.y1 - d.y0,
+      }));
+      for (const index of overlappingSankeyLabels(labels, {
+        alreadyHidden: hiddenLabels,
+        obstacles,
+      }))
+        hiddenLabels.add(index);
+      nodeGroups
+        .select("text")
+        .style("opacity", (d) => (hiddenLabels.has(d.index) ? 0 : 1));
+    }
 
     return hiddenLabels;
   }

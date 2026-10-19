@@ -74,6 +74,8 @@ en:
       # per-type rows, and its own per-type copy, are deleted.
       document: Add a document
       import_accounts: Import accounts
+      assets_heading: What you own
+      liabilities_heading: What you owe
       container:
         select: Select
         navigate: Navigate

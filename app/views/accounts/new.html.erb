@@ -15,40 +15,45 @@
     <%# Opened from the Accounts tab, the sheet offers only accounts — the
         document row lives on the Documents tab (the owner, 2026-10-17). %>
     <% unless params[:return_to] == accounts_path %>
+    <div class="mb-1 overflow-hidden rounded-2xl bg-container-inset">
     <%= link_to documents_path,
                 data: { turbo_frame: :_top },
-                class: "group flex items-center gap-4 w-full text-center focus:outline-hidden hover:bg-surface-hover focus:bg-surface-hover text-primary border border-transparent block px-2 rounded-lg p-2" do %>
+                class: "press group flex items-center gap-3 w-full px-3 py-2.5 text-left text-base text-primary hover:bg-container-inset-hover focus:bg-container-inset-hover focus:outline-hidden transition-colors" do %>
       <%= render DS::FilledIcon.new(icon: "receipt-text", hex_color: "#12B76A") %>
       <%= t("accounts.new.document") %>
       <%= icon("chevron-right", size: "sm", class: "ml-auto shrink-0 text-subdued transition-colors group-hover:text-secondary") %>
     <% end %>
+    </div>
     <% end %>
 
+    <%# Grouped as iOS lists (2026-10-19): what you own, then what you owe,
+        each one card of rows split by hairlines. %>
     <% unless params[:classification] == "liability" %>
-      <%= render "account_type", accountable: Depository.new %>
-      <%= render "account_type", accountable: Investment.new %>
-      <%= render "account_type", accountable: Crypto.new %>
-      <%= render "account_type", accountable: Property.new %>
-      <%= render "account_type", accountable: Vehicle.new %>
+      <h3 class="px-3 pt-3 pb-1.5 text-xs font-medium uppercase tracking-wide text-secondary"><%= t("accounts.new.assets_heading") %></h3>
+      <div class="overflow-hidden rounded-2xl bg-container-inset divide-y divide-subdued">
+        <%= render "account_type", accountable: Depository.new %>
+        <%= render "account_type", accountable: Investment.new %>
+        <%= render "account_type", accountable: Crypto.new %>
+        <%= render "account_type", accountable: Property.new %>
+        <%= render "account_type", accountable: Vehicle.new %>
+        <%= render "account_type", accountable: OtherAsset.new %>
+      </div>
     <% end %>
 
     <% unless params[:classification] == "asset" %>
-      <%= render "account_type", accountable: CreditCard.new %>
-      <%= render "account_type", accountable: Loan.new %>
-    <% end %>
-
-    <% unless params[:classification] == "liability" %>
-      <%= render "account_type", accountable: OtherAsset.new %>
-    <% end %>
-
-    <% unless params[:classification] == "asset" %>
-      <%= render "account_type", accountable: OtherLiability.new %>
+      <h3 class="px-3 pt-3 pb-1.5 text-xs font-medium uppercase tracking-wide text-secondary"><%= t("accounts.new.liabilities_heading") %></h3>
+      <div class="overflow-hidden rounded-2xl bg-container-inset divide-y divide-subdued">
+        <%= render "account_type", accountable: CreditCard.new %>
+        <%= render "account_type", accountable: Loan.new %>
+        <%= render "account_type", accountable: OtherLiability.new %>
+      </div>
     <% end %>
 
     <% unless params[:return_to].present? %>
+      <div class="mt-3 overflow-hidden rounded-2xl bg-container-inset">
       <%= button_to imports_path(import: { type: "AccountImport" }),
               data: { turbo_frame: :_top },
-            class: "flex items-center gap-4 w-full text-center focus:outline-hidden hover:bg-surface-hover focus:bg-surface-hover text-primary border border-transparent block px-2 rounded-lg p-2" do %>
+            class: "press flex items-center gap-3 w-full px-3 py-2.5 text-left text-base text-primary hover:bg-container-inset-hover focus:bg-container-inset-hover focus:outline-hidden transition-colors" do %>
         <%= render DS::FilledIcon.new(
           icon: "download",
           hex_color: "#F79009",
@@ -56,6 +61,7 @@
 
         <%= t("accounts.new.import_accounts") %>
       <% end %>
+      </div>
     <% end %>
   </div>
 <% end %>

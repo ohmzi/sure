@@ -1,0 +1,57 @@
+/*
+  Forms in sheets and dialogs, as iOS draws them (the owner, 2026-10-19:
+  "redesign these bottom sheets"). A field is a filled, rounded well rather
+  than an outlined box; a run of fields in one section is one grouped card,
+  its rows split by hairlines; the field being edited gets a link-coloured
+  line. Unlayered, so it wins over the fields' own utility classes.
+*/
+dialog .form-field {
+  border-width: 0;
+  border-radius: 1rem;
+  background: var(--color-container-inset);
+  box-shadow: none;
+  padding: 0.7rem 1rem;
+  transition: box-shadow 200ms ease;
+}
+
+dialog .form-field:focus-within {
+  box-shadow: inset 0 -2px 0 var(--color-link);
+  --tw-ring-shadow: 0 0 #0000;
+}
+
+dialog .form-field .form-field__input,
+dialog .form-field select,
+dialog .form-field input {
+  background-color: transparent;
+}
+
+dialog .form-field .form-field__label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+/* A section of fields becomes one card. */
+dialog :is(section, div).space-y-2:has(> .form-field) {
+  border-radius: 1rem;
+  background: var(--color-container-inset);
+  overflow: visible;
+}
+
+dialog :is(section, div).space-y-2:has(> .form-field) > * {
+  margin-block: 0;
+}
+
+dialog :is(section, div).space-y-2:has(> .form-field) .form-field {
+  border-radius: 0;
+  background: transparent;
+}
+
+dialog :is(section, div).space-y-2:has(> .form-field) > * + :not(.hidden, [hidden], input[type="hidden"]) {
+  border-top: 1px solid var(--utility-border-subdued);
+}
+
+dialog :is(section, div).space-y-2:has(> .form-field) > :first-child .form-field,
+dialog :is(section, div).space-y-2:has(> .form-field) > .form-field:first-child {
+  border-top-left-radius: 1rem;
+  border-top-right-radius: 1rem;
+}

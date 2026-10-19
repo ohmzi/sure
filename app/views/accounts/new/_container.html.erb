@@ -2,7 +2,9 @@
 
 <%= render DS::Dialog.new do |dialog| %>
   <div class="flex flex-col relative" data-controller="list-keyboard-navigation">
-    <div class="border-b border-tertiary md:border-alpha-black-25 px-4 pb-4 text-primary flex items-center justify-between gap-2">
+    <%# The sheet's header matches every other sheet's (2026-10-19): a
+        semibold title and a round close button, no rule under it. %>
+    <div class="px-4 pb-3 text-primary flex items-center justify-between gap-2">
       <div class="flex items-center gap-2">
         <% if back_path %>
           <%= render DS::Link.new(
@@ -13,13 +15,16 @@
         ) %>
         <% end %>
 
-        <span class="text-primary"><%= title %></span>
+        <span class="text-lg font-semibold tracking-tight text-primary"><%= title %></span>
       </div>
 
-      <%= icon("x", as_button: true, size: "md", data: { action: "DS--dialog#close" }) %>
+      <button type="button" data-action="DS--dialog#close" aria-label="<%= t("ds.dialog.close") %>"
+              class="press flex size-9 items-center justify-center rounded-full bg-container-inset text-secondary hover:bg-container-inset-hover hover:text-primary transition-colors focus-ring">
+        <%= icon("x", size: "sm", color: "current") %>
+      </button>
     </div>
 
-    <div class="p-2 text-subdued">
+    <div class="px-3 pb-2 text-subdued">
       <button hidden data-controller="hotkey" data-hotkey="k,K,ArrowUp,ArrowLeft" data-action="list-keyboard-navigation#focusPrevious"><%= t(".previous") %></button>
       <button hidden data-controller="hotkey" data-hotkey="j,J,ArrowDown,ArrowRight" data-action="list-keyboard-navigation#focusNext"><%= t(".next") %></button>
 

@@ -38,7 +38,9 @@
     </div>
 
     <div class="mt-5">
-      <%= render DS::Button.new(text: t("documents.intake_bar.cancel"), variant: :secondary, size: :lg, full_width: true,
+      <%# A quiet Cancel (2026-10-19): the sheet also drags down or closes on
+          its backdrop, so the way out need not be the loudest thing on it. %>
+      <%= render DS::Button.new(text: t("documents.intake_bar.cancel"), variant: :ghost, size: :lg, full_width: true,
                                 type: "button", data: { action: "DS--dialog#close" }) %>
     </div>
     <p class="mt-3 text-center text-xs text-secondary"><%= t("documents.intake_bar.footnote") %></p>
