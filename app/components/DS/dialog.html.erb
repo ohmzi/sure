@@ -22,7 +22,7 @@
       <%= tag.div class: dialog_inner_classes, data: { DS__dialog_target: "content" } do %>
         <%# The grabber: drag any dialog down by it to dismiss (phones only —
             every dialog is a bottom sheet there). %>
-        <div class="lg:hidden flex justify-center pt-2 pb-1 cursor-grab touch-none shrink-0"
+        <div class="lg:hidden flex justify-center pt-2.5 pb-2 cursor-grab touch-none shrink-0"
              data-DS--dialog-target="grabber"
              data-action="pointerdown->DS--dialog#dragStart">
           <span class="h-1.5 w-9 rounded-full bg-surface-inset-hover"></span>

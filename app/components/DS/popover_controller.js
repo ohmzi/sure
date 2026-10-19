@@ -6,7 +6,12 @@ import {
   shift,
 } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
-import { ensureBackdrop, placeAsSheet } from "utils/mobile_sheet";
+import {
+  bindSheetDrag,
+  dismissSheet,
+  ensureBackdrop,
+  placeAsSheet,
+} from "utils/mobile_sheet";
 
 /**
  * Positioned panel for mixed content (forms, pickers, account menus).
@@ -77,21 +82,24 @@ export default class extends Controller {
   };
 
   toggle = () => {
-    const nextShow = !this.show;
-    this.contentTarget.classList.toggle("hidden", !nextShow);
-    this.buttonTarget.setAttribute("aria-expanded", nextShow.toString());
-    if (nextShow) {
-      this.update();
-      this.focusFirstElement();
-    } else {
-      this.element.querySelector(":scope > [data-sheet-backdrop]")?.classList.add("hidden");
+    if (this.show) {
+      this.close();
+      return;
     }
+    this.contentTarget.classList.remove("hidden");
+    this.buttonTarget.setAttribute("aria-expanded", "true");
+    this.update();
+    this.focusFirstElement();
   };
 
+  // On a phone the sheet slides away before it hides (mobile_sheet).
   close() {
-    this.contentTarget.classList.add("hidden");
     this.buttonTarget.setAttribute("aria-expanded", "false");
-    this.element.querySelector(":scope > [data-sheet-backdrop]")?.classList.add("hidden");
+    const backdrop = this.element.querySelector(":scope > [data-sheet-backdrop]");
+    dismissSheet(this.contentTarget, backdrop, () => {
+      this.contentTarget.classList.add("hidden");
+      backdrop?.classList.add("hidden");
+    });
   }
 
   focusFirstElement() {
@@ -128,7 +136,10 @@ export default class extends Controller {
     // The backdrop is made on first use, not written into every popover (a
     // page of transactions carries one per row).
     const backdrop = this.show ? ensureBackdrop(this.element, () => this.close()) : null;
-    if (placeAsSheet(this.contentTarget, backdrop, this.show)) return;
+    if (placeAsSheet(this.contentTarget, backdrop, this.show)) {
+      bindSheetDrag(this.contentTarget, backdrop, () => this.close());
+      return;
+    }
 
     computePosition(this.buttonTarget, this.contentTarget, {
       placement: this.placementValue,

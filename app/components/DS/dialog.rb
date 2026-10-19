@@ -1,12 +1,14 @@
 class DS::Dialog < DesignSystemComponent
   renders_one :header, ->(title: nil, subtitle: nil, custom_header: false, **opts, &block) do
-    content_tag(:header, class: "px-4 flex flex-col gap-2", **opts) do
+    # On a phone the title row drags the sheet down as the grabber does.
+    header_data = { action: "pointerdown->DS--dialog#dragStart" }.merge(opts[:data] || {})
+    content_tag(:header, class: "px-4 flex flex-col gap-2", **opts, data: header_data) do
       title_div = content_tag(:div, class: "flex items-center justify-between gap-2") do
         # `id: title_id` lets the host `<dialog>` reference the title via
         # `aria-labelledby` so AT users hear the title when focus lands
         # in the dialog. `content_tag("h#{heading_level}", ...)` builds an
         # h2/h3/etc based on the caller's `heading_level:`.
-        title = content_tag("h#{heading_level}", title, id: title_id, class: class_names("font-medium text-primary", drawer? ? "text-lg" : "")) if title
+        title = content_tag("h#{heading_level}", title, id: title_id, class: class_names("font-semibold tracking-tight text-primary", drawer? ? "text-lg" : "max-lg:text-lg")) if title
         close_icon = close_button unless custom_header
         safe_join([ title, close_icon ].compact)
       end
@@ -122,6 +124,10 @@ class DS::Dialog < DesignSystemComponent
   def dialog_classes
     class_names(
       "w-full h-full bg-transparent text-primary backdrop:bg-overlay backdrop:backdrop-blur-sm pt-[env(safe-area-inset-top)]",
+      # The backdrop fades in with the sheet, lightens as it is dragged down
+      # and fades out as it leaves (--sheet-backdrop, set by the controller;
+      # the owner, 2026-10-19).
+      "backdrop:opacity-(--sheet-backdrop,1) backdrop:transition-opacity backdrop:duration-300 backdrop:starting:opacity-0 motion-reduce:backdrop:transition-none",
       (drawer? || responsive? || sheet?) ? "lg:p-3" : "lg:p-1"
     )
   end
@@ -155,9 +161,9 @@ class DS::Dialog < DesignSystemComponent
     class_names(
       "flex flex-col w-full max-h-[92dvh] bg-container shadow-border-xs",
       "rounded-t-3xl lg:rounded-2xl pb-[env(safe-area-inset-bottom)] lg:pb-0",
-      # Below lg it rises on open (`starting:`); a sheet also fades up as a
-      # panel from lg.
-      "transition-[transform,opacity] duration-300 ease-out motion-reduce:transition-none",
+      # Below lg it rises on open (`starting:`) on the curve iOS sheets use,
+      # settling rather than stopping; a sheet also fades up as a panel from lg.
+      "transition-[transform,opacity] duration-300 ease-out max-lg:duration-[420ms] max-lg:ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
       "max-lg:starting:translate-y-full",
       variant_classes,
       content_class
@@ -204,7 +210,8 @@ class DS::Dialog < DesignSystemComponent
   end
 
   def close_button
-    classes = responsive? ? "ml-auto hidden lg:flex" : "ml-auto"
+    # A round, filled close button, easy to find and to hit (2026-10-19).
+    classes = class_names("rounded-full bg-container-inset hover:bg-container-inset-hover", responsive? ? "ml-auto hidden lg:flex" : "ml-auto")
     render DS::Button.new(
       variant: "icon",
       size: :sm,

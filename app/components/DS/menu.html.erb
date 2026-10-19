@@ -7,10 +7,10 @@
 
   <%# Below lg a full-width menu is a bottom sheet (the owner's rule,
       2026-10-17: every popup on a phone is the same sheet) over this backdrop. %>
-  <div data-DS--menu-target="backdrop" data-action="click->DS--menu#close" class="hidden fixed inset-0 z-40 bg-overlay backdrop-blur-sm transition-opacity duration-200 starting:opacity-0" aria-hidden="true"></div>
+  <div data-DS--menu-target="backdrop" data-action="click->DS--menu#close" class="hidden fixed inset-0 z-40 bg-overlay backdrop-blur-sm transition-opacity duration-300 starting:opacity-0 motion-reduce:transition-none" aria-hidden="true"></div>
   <div id="<%= menu_id %>" data-DS--menu-target="content" class="group fixed px-2 lg:px-0 max-w-full hidden z-50" role="menu">
-    <%= tag.div class: "mx-auto min-w-[200px] shadow-border-lg bg-container rounded-lg group-data-[sheet]:rounded-b-none group-data-[sheet]:rounded-t-3xl group-data-[sheet]:pt-2 group-data-[sheet]:pb-[calc(env(safe-area-inset-bottom)+0.5rem)] origin-top transition-[transform,opacity] duration-200 ease-out starting:opacity-0 starting:scale-95 group-data-[sheet]:duration-300 group-data-[sheet]:starting:opacity-100 group-data-[sheet]:starting:scale-100 group-data-[sheet]:starting:translate-y-full motion-reduce:transition-none", style: ("max-width: #{max_width}" if max_width) do %>
-      <div class="hidden group-data-[sheet]:flex justify-center pb-2" aria-hidden="true">
+    <%= tag.div class: "mx-auto min-w-[200px] shadow-border-lg bg-container rounded-lg group-data-[sheet]:rounded-b-none group-data-[sheet]:rounded-t-3xl group-data-[sheet]:pt-2 group-data-[sheet]:pb-[calc(env(safe-area-inset-bottom)+0.5rem)] origin-top transition-[transform,opacity] duration-200 ease-out starting:opacity-0 starting:scale-95 group-data-[sheet]:duration-[420ms] group-data-[sheet]:ease-[cubic-bezier(0.32,0.72,0,1)] group-data-[sheet]:starting:opacity-100 group-data-[sheet]:starting:scale-100 group-data-[sheet]:starting:translate-y-full motion-reduce:transition-none", style: ("max-width: #{max_width}" if max_width) do %>
+      <div data-sheet-grabber class="hidden group-data-[sheet]:flex justify-center pt-1 pb-3 -mt-1 cursor-grab touch-none" aria-hidden="true">
         <span class="h-1.5 w-9 rounded-full bg-surface-inset-hover"></span>
       </div>
       <%= tag.div class: class_names("py-1" => !no_padding, "overflow-y-auto" => max_height), style: ("max-height: #{max_height}" if max_height) do %>

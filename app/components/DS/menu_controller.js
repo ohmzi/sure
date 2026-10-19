@@ -6,7 +6,7 @@ import {
   shift,
 } from "@floating-ui/dom";
 import { Controller } from "@hotwired/stimulus";
-import { placeAsSheet } from "utils/mobile_sheet";
+import { bindSheetDrag, dismissSheet, placeAsSheet } from "utils/mobile_sheet";
 
 /**
  * Strict action-list menu. Container is `role="menu"`, items are
@@ -116,21 +116,23 @@ export default class extends Controller {
   };
 
   toggle = () => {
-    const nextShow = !this.show;
-    this.contentTarget.classList.toggle("hidden", !nextShow);
-    this.buttonTarget.setAttribute("aria-expanded", nextShow.toString());
-    if (nextShow) {
-      this.update();
-      this.#focusFirstMenuItem();
-    } else {
-      this.#hideBackdrop();
+    if (this.show) {
+      this.close();
+      return;
     }
+    this.contentTarget.classList.remove("hidden");
+    this.buttonTarget.setAttribute("aria-expanded", "true");
+    this.update();
+    this.#focusFirstMenuItem();
   };
 
+  // On a phone the sheet slides away before it hides (mobile_sheet).
   close() {
-    this.contentTarget.classList.add("hidden");
     this.buttonTarget.setAttribute("aria-expanded", "false");
-    this.#hideBackdrop();
+    dismissSheet(this.contentTarget, this.backdropTarget, () => {
+      this.contentTarget.classList.add("hidden");
+      this.#hideBackdrop();
+    });
   }
 
   #hideBackdrop() {
@@ -177,7 +179,10 @@ export default class extends Controller {
 
     // A phone gets the bottom sheet every popup shares, whatever the menu's
     // mobile_fullwidth (the owner: "every popup should be bottom sheet").
-    if (placeAsSheet(this.contentTarget, this.backdropTarget, this.show)) return;
+    if (placeAsSheet(this.contentTarget, this.backdropTarget, this.show)) {
+      bindSheetDrag(this.contentTarget, this.backdropTarget, () => this.close());
+      return;
+    }
 
     computePosition(this.buttonTarget, this.contentTarget, {
       placement: this.placementValue,

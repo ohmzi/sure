@@ -97,36 +97,53 @@ export default class extends Controller {
     this.#finishClose();
   }
 
-  // Drag the grabber down: the sheet follows the finger; let go far enough
-  // (or with a flick) and it leaves, otherwise it springs back.
+  // Drag the grabber, or the title row, down: the sheet follows the finger
+  // and the backdrop lightens with it; let go far enough (or with a flick)
+  // and it leaves, otherwise it springs back (the owner, 2026-10-19).
   dragStart(event) {
     if (!this.#sheetLike() || !this.hasContentTarget) return;
+    if (event.target.closest("button, a, input, select, textarea, label"))
+      return;
+    const handle = event.currentTarget;
     const content = this.contentTarget;
     const startY = event.clientY;
-    const startTime = performance.now();
+    let lastY = startY;
+    let lastTime = performance.now();
+    let velocity = 0;
     let offset = 0;
     content.style.transition = "none";
-    this.grabberTarget.setPointerCapture?.(event.pointerId);
+    handle.setPointerCapture?.(event.pointerId);
 
     const move = (moveEvent) => {
-      offset = Math.max(0, moveEvent.clientY - startY);
+      const now = performance.now();
+      velocity = (moveEvent.clientY - lastY) / Math.max(1, now - lastTime);
+      lastY = moveEvent.clientY;
+      lastTime = now;
+      const pulled = moveEvent.clientY - startY;
+      // Dragged up, it gives a little and resists, as iOS does.
+      offset = pulled >= 0 ? pulled : -Math.sqrt(-pulled) * 2;
       content.style.transform = `translateY(${offset}px)`;
+      const progress = Math.max(0, offset) / content.offsetHeight;
+      this.element.style.setProperty(
+        "--sheet-backdrop",
+        String(Math.max(0, 1 - progress * 1.4)),
+      );
     };
     const end = () => {
-      this.grabberTarget.removeEventListener("pointermove", move);
-      this.grabberTarget.removeEventListener("pointerup", end);
-      this.grabberTarget.removeEventListener("pointercancel", end);
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
       content.style.transition = "";
-      const velocity = offset / Math.max(1, performance.now() - startTime);
-      if (offset > content.offsetHeight * 0.25 || velocity > 0.6) {
+      if (offset > content.offsetHeight * 0.25 || velocity > 0.5) {
         this.close();
       } else {
+        this.element.style.removeProperty("--sheet-backdrop");
         content.style.transform = "";
       }
     };
-    this.grabberTarget.addEventListener("pointermove", move);
-    this.grabberTarget.addEventListener("pointerup", end);
-    this.grabberTarget.addEventListener("pointercancel", end);
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
   }
 
   #finishClose() {
@@ -195,10 +212,15 @@ export default class extends Controller {
     };
     content.addEventListener("transitionend", finish);
     setTimeout(finish, 350);
+    // Leaving is quicker than arriving and speeds up as it goes; the
+    // backdrop fades out with it.
+    this.element.style.setProperty("--sheet-backdrop", "0");
     if (window.matchMedia("(min-width: 1024px)").matches) {
       content.style.opacity = "0";
       content.style.transform = "scale(0.95)";
     } else {
+      content.style.transition =
+        "transform 260ms cubic-bezier(0.4, 0, 1, 1), opacity 260ms ease-in";
       content.style.transform = "translateY(100%)";
     }
   }
@@ -209,6 +231,7 @@ export default class extends Controller {
     content.style.transform = "";
     content.style.opacity = "";
     content.style.transition = "";
+    this.element.style.removeProperty("--sheet-backdrop");
   }
 
   // Escape on a sheet slides it away instead of snapping it shut.
