@@ -1,0 +1,14 @@
+<%# locals: (import:) %>
+<%# The phone row's actions, the same ones `_row_actions` lays out as icons
+    in the desktop table. %>
+<%= render DS::Menu.new do |menu| %>
+  <% menu.with_item(variant: "link", text: t("imports.table.row.actions.view"), icon: "eye", href: import_path(import)) %>
+  <% if import.complete? || import.revert_failed? %>
+    <% menu.with_item(variant: "button", text: t("imports.table.row.actions.revert"), icon: "rotate-ccw", href: revert_import_path(import), method: :put, destructive: true, confirm: t("imports.table.row.actions.confirm_revert")) %>
+  <% else %>
+    <% if import.presumed_lost? %>
+      <% menu.with_item(variant: "button", text: t("imports.table.row.actions.mark_failed"), icon: "circle-x", href: cancel_import_path(import), method: :post, confirm: t("imports.table.row.actions.confirm_mark_failed")) %>
+    <% end %>
+    <% menu.with_item(variant: "button", text: t("imports.table.row.actions.delete"), icon: "trash-2", href: import_path(import), method: :delete, destructive: true, confirm: CustomConfirm.for_resource_deletion("import")) %>
+  <% end %>
+<% end %>

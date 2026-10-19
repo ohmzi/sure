@@ -1,4 +1,23 @@
 module ImportsHelper
+  IMPORT_TYPE_ICONS = {
+    "TransactionImport" => "receipt-text",
+    "TradeImport" => "trending-up",
+    "AccountImport" => "wallet",
+    "CategoryImport" => "shapes",
+    "MerchantImport" => "store",
+    "RuleImport" => "workflow",
+    "PdfImport" => "file-text",
+    "ReceiptImport" => "receipt",
+    "OfxImport" => "landmark",
+    "QifImport" => "landmark"
+  }.freeze
+
+  # The icon on an import's tile in the phone list: what it brought in, or a
+  # plain file for the whole-app imports (Mint, YNAB, Actual, Sure).
+  def import_type_icon(import)
+    IMPORT_TYPE_ICONS.fetch(import.type.to_s, "file")
+  end
+
   def mapping_label(mapping_class)
     {
       "Import::AccountTypeMapping" => I18n.t("imports.mapping_labels.account_type"),

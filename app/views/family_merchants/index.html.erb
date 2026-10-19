@@ -54,10 +54,12 @@
           <div>
             <div class="bg-container rounded-2xl shadow-border-xs overflow-x-auto">
               <table class="w-full">
-                <thead>
-                  <tr class="text-xs uppercase font-medium text-secondary border-b border-divider">
-                    <th scope="col" class="text-left py-3 px-4"><%= t(".table.merchant") %></th>
-                    <th scope="col" class="text-right py-3 px-4"><%= t(".table.actions") %></th>
+                <%# "Merchant / Actions" says nothing the rows don't, so it is
+                    there for screen readers only (2026-10-19). %>
+                <thead class="sr-only">
+                  <tr>
+                    <th scope="col"><%= t(".table.merchant") %></th>
+                    <th scope="col"><%= t(".table.actions") %></th>
                   </tr>
                 </thead>
                 <tbody>

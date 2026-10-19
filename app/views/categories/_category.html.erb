@@ -1,15 +1,25 @@
 <%# locals: (category:, subcategories: [], has_transactions: false) %>
 
-<div id="<%= dom_id(category) %>" class="flex items-center gap-3 px-4 pb-4 <%= "pt-4" unless category.parent_id.present? %> bg-container">
-  <div class="flex min-w-0 flex-1 items-center gap-2.5" data-testid="category-content">
-    <% if category.parent_id.present? %>
-      <span style="color: <%= category.color %>">
-        <%= icon "corner-down-right", size: "sm", color: "current", class: "ml-2" %>
-      </span>
-    <% end %>
-
-    <%= render partial: "categories/badge", locals: { category: category } %>
-  </div>
+<%# An iOS list row (the owner, 2026-10-19: "more beautiful versions"): the
+    category's icon in its colour on a tile tinted with it, its name, and the
+    actions menu. Tapping the row opens it for editing; a subcategory sits
+    indented under its parent on a smaller tile. Rows after the first get an inset hairline
+    that starts where the name does. %>
+<% sub = category.parent_id.present? %>
+<div id="<%= dom_id(category) %>"
+     class="<%= class_names("relative flex items-center gap-2 min-h-[3.25rem] pr-2 bg-container",
+                            sub ? "pl-12" : "pl-4",
+                            "not-first:before:absolute not-first:before:top-0 not-first:before:right-0 not-first:before:border-t not-first:before:border-subdued",
+                            sub ? "not-first:before:left-[5.25rem]" : "not-first:before:left-[3.75rem]") %>">
+  <%= link_to edit_category_path(category),
+        class: "flex min-w-0 flex-1 items-center gap-3 py-2 rounded-lg focus-ring",
+        data: { turbo_frame: :modal, testid: "category-content" } do %>
+    <span class="<%= class_names("flex shrink-0 items-center justify-center", sub ? "size-7 rounded-lg" : "size-8 rounded-[9px]") %>"
+          style="background-color: color-mix(in oklab, <%= category.color %> 18%, transparent); color: <%= category.color %>" aria-hidden="true">
+      <%= icon(category.lucide_icon.presence || "shapes", size: sub ? "xs" : "sm", color: "current") %>
+    </span>
+    <span class="truncate text-base text-primary" data-testid="category-name"><%= category.name %></span>
+  <% end %>
 
   <div class="shrink-0" data-testid="category-actions">
     <%= render DS::Menu.new do |menu| %>

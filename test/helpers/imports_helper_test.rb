@@ -2,6 +2,14 @@ require "test_helper"
 require "ostruct"
 
 class ImportsHelperTest < ActionView::TestCase
+  # The phone's import rows lead with a tile for the import's kind (2026-10-19).
+  test "an import's tile shows what it brought in" do
+    assert_equal "receipt-text", import_type_icon(TransactionImport.new)
+    assert_equal "trending-up", import_type_icon(TradeImport.new)
+    assert_equal "file-text", import_type_icon(PdfImport.new)
+    assert_equal "file", import_type_icon(SureImport.new)
+  end
+
   test "dry run resource labels come from locale keys" do
     %i[
       transactions balances accounts categories tags rules merchants
