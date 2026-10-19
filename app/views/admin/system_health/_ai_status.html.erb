@@ -49,6 +49,44 @@
     ) %>
   </div>
 
+  <%# The local model, when "Local" is the provider (the owner, 2026-10-19:
+      nothing here could fix it): load it in the background, then see how it
+      went — with the one command to run on the machine when the server is
+      down or lacks the model. %>
+  <% if LocalLlm::WarmUp.available? %>
+    <% warm_up = LocalLlm::WarmUp.last %>
+    <% warm_up_status = warm_up&.dig(:status) %>
+    <%= render DS::Card.new(class: "gap-3", data: { testid: "local-model" }) do %>
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0">
+          <h2 class="text-lg font-semibold text-primary"><%= t("admin.system_health.show.ai.local_model.title") %></h2>
+          <p class="mt-1 text-sm text-secondary break-words"><%= t("admin.system_health.show.ai.local_model.description", model: Setting.local_llm_model, endpoint: AiHealth.redact_endpoint(Setting.local_llm_base_url.presence || Setting::LOCAL_LLM_DEFAULT_BASE_URL)) %></p>
+        </div>
+        <%= render DS::Button.new(
+          href: warm_up_local_llm_admin_system_health_path(locale: locale_from_param),
+          method: :post,
+          variant: :outline,
+          size: :sm,
+          icon: "zap",
+          text: t("admin.system_health.show.ai.local_model.button"),
+          data: { turbo_action: "replace" }
+        ) %>
+      </div>
+      <p class="text-sm <%= %w[unreachable missing_model failed].include?(warm_up_status) ? "text-destructive" : "text-secondary" %>">
+        <% if warm_up_status %>
+          <%= t("admin.system_health.show.ai.local_model.statuses.#{warm_up_status}", time_ago: time_ago_in_words(warm_up[:at] || Time.current)) %>
+        <% else %>
+          <%= t("admin.system_health.show.ai.local_model.never") %>
+        <% end %>
+      </p>
+      <% if warm_up_status == "unreachable" %>
+        <code class="block rounded-xl bg-container-inset px-3 py-2 font-mono text-sm text-primary">sudo systemctl start ollama</code>
+      <% elsif warm_up_status == "missing_model" %>
+        <code class="block rounded-xl bg-container-inset px-3 py-2 font-mono text-sm text-primary break-all">ollama pull <%= Setting.local_llm_model %></code>
+      <% end %>
+    <% end %>
+  <% end %>
+
   <% if ai_health.llm_status == :failing && ai_health.llm_probe.failure_code == :model_not_available %>
     <%= render DS::Alert.new(
       title: t("admin.system_health.show.ai.alerts.llm_model_not_available.title"),

@@ -1102,6 +1102,7 @@ Rails.application.routes.draw do
       get :ai_status
       get :hosted_usage
       post :verify_worker_ai
+      post :warm_up_local_llm
       post :send_test_push
     end
   end

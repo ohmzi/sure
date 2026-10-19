@@ -101,6 +101,30 @@ class AiHealthTest < ActiveSupport::TestCase
     end
   end
 
+  # The owner (2026-10-19): with "Local" chosen, System health said every AI
+  # check failed — it was probing OpenAI's cloud with a stale key while the
+  # local model sat ready. The checks must ask the model the app actually uses.
+  test "with Local selected the live checks probe the local endpoint and model" do
+    Setting.stubs(:llm_provider).returns("local")
+    Setting.stubs(:openai_access_token).returns("stale-cloud-key")
+    Setting.stubs(:local_llm_model).returns("qwen2.5vl:7b")
+    Setting.stubs(:local_llm_base_url).returns("http://host.docker.internal:11434/v1")
+    Setting.stubs(:local_llm_token).returns(nil)
+
+    AiHealth::Probe.any_instance.stubs(:function_calling).returns(result(:passing))
+    AiHealth::Probe.any_instance.stubs(:pdf_text_extraction).returns(result(:passing))
+    AiHealth::Probe.any_instance.stubs(:pdf_vision_processing).returns(result(:passing))
+    AiHealth::Probe.any_instance.expects(:llm)
+                   .with(has_entries(endpoint: "http://host.docker.internal:11434/v1", model: "qwen2.5vl:7b", access_token: Setting::LOCAL_LLM_PLACEHOLDER_TOKEN, openai_compatible: true))
+                   .returns(result(:passing))
+
+    health = ClimateControl.modify(AI_ENVIRONMENT) { AiHealth.new }
+
+    assert_equal :ollama, health.effective_llm_provider
+    assert_equal "qwen2.5vl:7b", health.llm_model
+    assert_equal "http://host.docker.internal:11434/v1", health.llm_endpoint
+  end
+
   test "function calling is only checked alongside the other live probes" do
     with_openai_endpoint("https://openrouter.ai/api/v1") do |health|
       assert_equal :not_checked, health.function_calling_status

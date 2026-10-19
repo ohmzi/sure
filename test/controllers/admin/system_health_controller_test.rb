@@ -777,6 +777,32 @@ class Admin::SystemHealthControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Worker check queued/, response.body)
   end
 
+  # The owner (2026-10-19): with "Local" selected the AI tab offers to load
+  # the local model, and loading runs in the background.
+  test "with Local selected the AI tab offers to load the local model" do
+    sign_in users(:sure_support_staff)
+    Setting.stubs(:llm_provider).returns("local")
+    Setting.stubs(:local_llm_model).returns("qwen2.5vl:7b")
+    Setting.stubs(:local_llm_base_url).returns("http://host.docker.internal:11434/v1")
+
+    with_ai_environment { get ai_status_admin_system_health_url }
+
+    assert_select "[data-testid='local-model'] form[action=?]", warm_up_local_llm_admin_system_health_path
+
+    assert_enqueued_with(job: LocalLlmWarmUpJob) do
+      post warm_up_local_llm_admin_system_health_url
+    end
+    assert_redirected_to admin_system_health_path(tab: "ai")
+  end
+
+  test "non super admin cannot load the local model" do
+    sign_in users(:family_admin)
+
+    assert_no_enqueued_jobs only: LocalLlmWarmUpJob do
+      post warm_up_local_llm_admin_system_health_url
+    end
+  end
+
   test "non super admin cannot queue a worker check" do
     sign_in users(:family_admin)
 

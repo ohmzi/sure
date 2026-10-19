@@ -105,6 +105,8 @@ en:
         body: "This is a test push notification for your Sure account."
       verify_worker_ai:
         queued: "Worker check queued. It will appear below once a worker process picks it up, usually within a few seconds."
+      warm_up_local_llm:
+        queued: "Loading the local model. This can take a minute; then run the checks again."
       show:
         title: System health
         tabs:
@@ -140,6 +142,18 @@ en:
           no_queues: "No queues are registered. The worker may not be running."
         ai:
           run_checks: Run checks again
+          local_model:
+            title: Local model
+            description: "%{model} at %{endpoint}. Loading it now means the next read or check doesn't wait for it."
+            button: Load local model
+            never: Not loaded from here yet.
+            statuses:
+              loading: Loading…
+              loaded: "Loaded %{time_ago} ago."
+              busy: "Another model is using the GPU (%{time_ago} ago). Try again when it's done."
+              unreachable: "Couldn't reach the server %{time_ago} ago. Start Ollama on the machine running it:"
+              missing_model: "The server doesn't have this model (%{time_ago} ago). Download it on that machine:"
+              failed: "Loading failed %{time_ago} ago. Details are in Settings › Debug logs."
           last_checked: "Live checks completed %{time_ago} ago. Results are cached briefly."
           not_checked_help: Open the AI status URL directly or run the checks to verify service liveness.
           loading: "Running live checks…"

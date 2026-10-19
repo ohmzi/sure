@@ -52,6 +52,13 @@ module Admin
       redirect_to admin_system_health_path(tab: "ai", locale: locale_from_param), notice: t(".queued")
     end
 
+    # Loads the local model in the background (LocalLlm::WarmUp); the AI tab
+    # shows how it went and the checks can be run again once it has.
+    def warm_up_local_llm
+      LocalLlm::WarmUp.request!
+      redirect_to admin_system_health_path(tab: "ai", locale: locale_from_param), notice: t(".queued")
+    end
+
     def send_test_push
       result = PushNotificationTest.new(Current.user).request!
       flash[result == :queued ? :notice : :alert] = t("admin.system_health.push_notifications.messages.#{result}")

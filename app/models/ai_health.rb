@@ -198,6 +198,31 @@ class AiHealth
       @openai_endpoint = redact_endpoint(openai_uri_base.presence || OPENAI_DEFAULT_ENDPOINT)
       @llm_access_token = access_token(@effective_llm_protocol)
       @llm_raw_endpoint = raw_endpoint(@effective_llm_protocol).presence || default_endpoint(@effective_llm_protocol)
+
+      load_local_llm_status if local_llm_selected?
+    end
+
+    # "Local" is the OpenAI protocol pointed at the user's own model, with its
+    # own URL, model and token (Provider::Registry#local_openai). The checks
+    # must ask that model, not the cloud settings beside it (the owner,
+    # 2026-10-19: every check "failed" against OpenAI while the local model
+    # sat ready).
+    def load_local_llm_status
+      @llm_raw_endpoint = Setting.local_llm_base_url.presence || Setting::LOCAL_LLM_DEFAULT_BASE_URL
+      @llm_endpoint = redact_endpoint(@llm_raw_endpoint)
+      @llm_model = Setting.local_llm_model.presence
+      @llm_access_token = Setting.local_llm_token.presence || Setting::LOCAL_LLM_PLACEHOLDER_TOKEN
+      @openai_custom_endpoint = true
+      @selected_llm_provider = :openai_compatible
+      @effective_llm_provider = openai_compatible_provider_name(@llm_raw_endpoint)
+      @openai_uses_responses_endpoint = false
+      @pdf_processing_capable = safely(false) { @llm_provider&.supports_pdf_processing?(model: @llm_model) }
+      @pdf_text_extraction_capable = @pdf_processing_capable
+      @pdf_vision_processing_capable = @pdf_processing_capable
+    end
+
+    def local_llm_selected?
+      Setting.llm_provider.to_s == "local"
     end
 
     def load_vector_store_status
