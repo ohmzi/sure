@@ -2,6 +2,9 @@
 import "@hotwired/turbo-rails";
 import "controllers";
 import HwComboboxController from "controllers/hw_combobox_controller";
+import { handleFrameErrors } from "utils/frame_errors";
+
+handleFrameErrors();
 
 // Fix hotwire_combobox race condition: when typing quickly, a slow response for
 // an early query (e.g. "A") can overwrite the correct results for the final query

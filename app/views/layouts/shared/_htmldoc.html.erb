@@ -33,6 +33,31 @@
       <%= turbo_frame_tag "drawer" %>
     <% end %>
 
+    <%# Shown in place of a part of the page that could not load — the
+        server restarting mid-deploy, a dropped connection — instead of
+        Turbo's bare "Content missing" (the owner, 2026-10-19). Try again
+        reloads just that part (utils/frame_errors). %>
+    <template id="frame-load-error">
+      <div role="alert" class="fade-in flex flex-col items-center gap-3 rounded-2xl bg-container px-5 py-6 text-center shadow-border-xs">
+        <span class="flex size-11 items-center justify-center rounded-full bg-warning/10 text-warning">
+          <%= icon("cloud-off", color: "current") %>
+        </span>
+        <div class="space-y-1">
+          <p class="text-sm font-semibold text-primary"><%= t("layouts.application.frame_error.title") %></p>
+          <p class="text-xs text-secondary"><%= t("layouts.application.frame_error.body") %></p>
+        </div>
+        <div class="flex flex-wrap items-center justify-center gap-2">
+          <button type="button" data-frame-retry class="press inline-flex h-10 items-center gap-2 rounded-full bg-inverse px-4 text-sm font-semibold text-inverse focus-ring">
+            <%= icon("rotate-ccw", size: "sm", color: "current") %>
+            <%= t("layouts.application.frame_error.retry") %>
+          </button>
+          <button type="button" data-frame-reload-page class="press inline-flex h-10 items-center rounded-full bg-container-inset px-4 text-sm font-semibold text-primary hover:bg-container-inset-hover transition-colors focus-ring">
+            <%= t("layouts.application.frame_error.reload") %>
+          </button>
+        </div>
+      </div>
+    </template>
+
     <%# Custom overrides for browser's confirm API  %>
     <%= render "layouts/shared/confirm_dialog" %>
 
