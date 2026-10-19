@@ -5,7 +5,7 @@
   data-bulk-select-plural-label-value="<%= t(".transactions") %>"
   data-bulk-select-selected-label-value="<%= t("transactions.selection_bar.selected") %>"
   data-bulk-select-edit-label-value="<%= t("transactions.selection_bar.edit") %>"
-  class="flex flex-col gap-1 relative group">
+  class="flex flex-col gap-1 relative group scroll-mt-3">
 
   <%= form_with url: imports_path, method: :post, class: "hidden", data: { drag_and_drop_import_target: "form", turbo: false } do |f| %>
     <%= f.hidden_field "import[type]", value: "TransactionImport" %>
@@ -65,6 +65,6 @@
   <% end %>
 
   <div class="pt-4">
-    <%= render "shared/pagination", pagy: @pagy %>
+    <%= render "shared/pagination", pagy: @pagy, anchor: "transactions" %>
   </div>
 </div>

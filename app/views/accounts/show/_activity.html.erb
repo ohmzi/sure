@@ -95,7 +95,7 @@
           </div>
 
           <div class="p-4 bg-container rounded-bl-lg rounded-br-lg">
-            <%= render "shared/pagination", pagy: @pagy %>
+            <%= render "shared/pagination", pagy: @pagy, anchor: dom_id(@account, "entries") %>
           </div>
         </div>
       <% end %>

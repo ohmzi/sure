@@ -166,7 +166,7 @@
           </div>
 
           <div class="p-4">
-            <%= render "shared/pagination", pagy: pagy %>
+            <%= render "shared/pagination", pagy: pagy, anchor: dom_id(account, "entries") %>
           </div>
         </div>
       <% end %>

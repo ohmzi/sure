@@ -34,6 +34,17 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href*='types%5D%5B%5D=income']", text: I18n.t("transactions.index.quick_filters.income")
   end
 
+  # Paging lands on the list, its search and filters at the top, not back at
+  # the summary above it (the owner, 2026-10-18).
+  test "the page changer lands on the list" do
+    11.times { create_transaction }
+
+    get transactions_url(per_page: 10)
+
+    assert_response :success
+    assert_select "nav[aria-label='#{I18n.t("shared.pagination.label")}'] a[href$='#transactions'][href*='page=2']", minimum: 1
+  end
+
   # The Activity tab opens a fresh list every time (the owner, 2026-10-18): the
   # filters left on from last time are not brought back by the tab.
   test "the activity tab opens with the filters reset" do
