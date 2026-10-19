@@ -4,8 +4,12 @@
     translucent and blurred, with a soft fade under it, so the page scrolls
     beneath it rather than being cut off at a hard edge; the page's own large
     title comes next. --app-toolbar-h on the scrolling area is its height,
-    for sticky headers and scrolled-to anchors to sit under it. %>
-<nav class="lg:hidden fixed inset-x-0 top-0 z-30 flex justify-between items-center p-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] bg-surface/70 backdrop-blur-xl backdrop-saturate-150">
+    for sticky headers and scrolled-to anchors to sit under it. The blur is
+    on a layer behind the content, not on the bar: a filter on the bar would
+    make it the box its fixed children are placed in, and the account menu's
+    bottom sheet would open above the screen instead of at its foot. %>
+<nav class="lg:hidden fixed inset-x-0 top-0 z-30 flex justify-between items-center p-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0 -z-10 bg-surface/70 backdrop-blur-xl backdrop-saturate-150"></div>
   <% if intro_mode %>
   <% else %>
     <div class="flex items-center gap-1">
