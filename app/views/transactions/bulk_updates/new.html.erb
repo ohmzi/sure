@@ -1,27 +1,54 @@
+<%# Field labels inside the rows use full keys: a block rendered by the row
+    partial resolves a short ".key" against the partial, not this view. %>
+<%# The bulk edit sheet, as the owner designed it (2026-10-19, "Bottom Sheet
+    Redesign"): what it does under the title, one card of rows for the
+    transaction's fields and one for its tags and note, each row lighting up
+    with "Will change" once filled in, and a footer that counts the changes
+    over Cancel and Update. %>
 <%= render DS::Dialog.new(variant: "drawer", frame: "bulk_transaction_edit_drawer") do |dialog| %>
-  <% dialog.with_header(title: t(".header_title"), data: { bulk_select_target: "bulkEditDrawerHeader" }) %>
+  <% dialog.with_header(title: t(".header_title"), subtitle: t(".subtitle"), data: { bulk_select_target: "bulkEditDrawerHeader" }) %>
 
   <% dialog.with_body do %>
-    <%= styled_form_with url: transactions_bulk_update_path, scope: "bulk_update", class: "h-full flex flex-col justify-between gap-4", data: { turbo_frame: "_top" } do |form| %>
-      <div class="space-y-4">
-        <%= render DS::Disclosure.new(title: t(".overview"), open: true) do %>
-          <%= form.date_field :date, label: t(".date_label"), max: Date.current %>
+    <%= styled_form_with url: transactions_bulk_update_path, scope: "bulk_update",
+          class: "flex min-h-full flex-col gap-4",
+          data: {
+            turbo_frame: "_top",
+            controller: "bulk-edit-summary",
+            action: "input->bulk-edit-summary#refresh change->bulk-edit-summary#refresh click->bulk-edit-summary#refreshSoon submit->bulk-edit-summary#keepTagsUnlessPicked",
+            bulk_edit_summary_none_value: t(".summary_zero"),
+            bulk_edit_summary_one_value: t(".summary_one"),
+            bulk_edit_summary_other_value: t(".summary_other", count: "%{count}")
+          } do |form| %>
+      <div class="sheet-rows overflow-visible rounded-[1.25rem] bg-container shadow-border-xs">
+        <%= render "transactions/bulk_updates/row", icon: "calendar" do %>
+          <%= form.date_field :date, label: t("transactions.bulk_updates.new.date_label"), max: Date.current %>
         <% end %>
-
-        <%= render DS::Disclosure.new(title: t(".transactions_section"), open: true) do %>
-          <div class="space-y-2">
-            <%= form.text_field :name, label: t(".name_label"), placeholder: t(".name_placeholder") %>
-            <%= form.collection_select :category_id, Current.family.categories.alphabetically_by_hierarchy, :id, :name, { prompt: t(".category_prompt"), label: t(".category_label"), class: "text-subdued", variant: :badge, searchable: true } %>
-            <%= form.collection_select :merchant_id, Current.family.available_merchants_for(Current.user).alphabetically, :id, :name, { prompt: t(".merchant_prompt"), label: t(".merchant_label"), class: "text-subdued" } %>
-            <%= form.select :tag_ids, Current.family.tags.alphabetically.pluck(:name, :id), { include_blank: t(".none"), multiple: true, label: t(".tags_label"), include_hidden: false } %>
-            <%= form.text_area :notes, label: t(".notes_label"), placeholder: t(".notes_placeholder"), rows: 5 %>
-          </div>
+        <%= render "transactions/bulk_updates/row", icon: "type" do %>
+          <%= form.text_field :name, label: t("transactions.bulk_updates.new.name_label"), placeholder: t("transactions.bulk_updates.new.name_placeholder") %>
+        <% end %>
+        <%= render "transactions/bulk_updates/row", icon: "shapes" do %>
+          <%= form.collection_select :category_id, Current.family.categories.alphabetically_by_hierarchy, :id, :name, { prompt: t("transactions.bulk_updates.new.category_prompt"), label: t("transactions.bulk_updates.new.category_label"), class: "text-subdued", variant: :badge, searchable: true } %>
+        <% end %>
+        <%= render "transactions/bulk_updates/row", icon: "store" do %>
+          <%= form.collection_select :merchant_id, Current.family.available_merchants_for(Current.user).alphabetically, :id, :name, { prompt: t("transactions.bulk_updates.new.merchant_prompt"), label: t("transactions.bulk_updates.new.merchant_label"), class: "text-subdued" } %>
         <% end %>
       </div>
 
-      <div class="flex justify-end gap-2 mt-auto">
-        <%= render DS::Button.new(text: t(".cancel"), variant: "ghost", data: { action: "click->DS--dialog#close" }) %>
-        <%= render DS::Button.new(text: t(".save"), type: :submit, data: { bulk_select_scope_param: "bulk_update", action: "bulk-select#submitBulkRequest" }) %>
+      <div class="sheet-rows overflow-visible rounded-[1.25rem] bg-container shadow-border-xs">
+        <%= render "transactions/bulk_updates/row", icon: "tag" do %>
+          <%= render DS::TagSelect.new(form: form, tags: Current.family.tags.alphabetically, selected_ids: [], label: t("transactions.bulk_updates.new.tags_label")) %>
+        <% end %>
+        <%= render "transactions/bulk_updates/row", icon: "notebook-pen" do %>
+          <%= form.text_area :notes, label: t("transactions.bulk_updates.new.notes_label"), placeholder: t("transactions.bulk_updates.new.notes_placeholder"), rows: 2 %>
+        <% end %>
+      </div>
+
+      <div class="sheet-footer sticky -bottom-4 z-10 -mx-4 mt-auto space-y-3 border-t border-subdued bg-container px-5 pt-3.5 pb-4">
+        <p class="text-center text-[13px] text-secondary" data-bulk-edit-summary-target="summary"><%= t(".summary_zero") %></p>
+        <div class="flex gap-3">
+          <%= render DS::Button.new(text: t(".cancel"), variant: "outline", class: "flex-1 justify-center h-[52px] rounded-2xl text-base", data: { action: "click->DS--dialog#close" }) %>
+          <%= render DS::Button.new(text: t(".save"), type: :submit, class: "flex-[2] justify-center h-[52px] rounded-2xl text-base", data: { bulk_select_scope_param: "bulk_update", action: "bulk-select#submitBulkRequest" }) %>
+        </div>
       </div>
     <% end %>
   <% end %>

@@ -5,20 +5,22 @@ en:
       new:
         cancel: Cancel
         category_label: Category
-        category_prompt: Select a category
+        category_prompt: Keep current categories
         date_label: Date
         header_title: Edit transactions
         merchant_label: Merchant
-        merchant_prompt: Select a merchant
+        merchant_prompt: Keep current merchants
         name_label: Name
-        name_placeholder: Enter a name that will be applied to selected transactions
-        none: "(none)"
-        notes_label: Notes
-        notes_placeholder: Enter a note that will be applied to selected transactions
-        overview: Overview
-        save: Save
+        name_placeholder: Rename all selected
+        notes_label: Note
+        notes_placeholder: Add a note to all selected
+        save: Update transactions
+        subtitle: Only the fields you fill in will change.
+        summary_one: 1 field will change
+        summary_other: "%{count} fields will change"
+        summary_zero: Fill in a field to change it
         tags_label: Tags
-        transactions_section: Transactions
+        will_change: Will change
     unknown_name: Unknown transaction
     selection_bar:
       duplicate: Duplicate
@@ -399,12 +401,21 @@ en:
           pending: Pending
           needs_confirmation: Needs confirmation
       menu:
+        # The phone sheet's header and footer (the owner, 2026-10-19).
+        title: Filters
+        close: Close
+        clear: Clear
+        apply_count: "Apply (%{count})"
+        select_all: Select all
+        search_accounts: Search accounts
+        accounts_count:
+          one: "%{count} account"
+          other: "%{count} accounts"
         account_filter: Account
         amount_filter: Amount
         apply: Apply
         cancel: Cancel
         category_filter: Category
-        clear_filters: Clear filters
         date_filter: Date
         merchant_filter: Merchant
         status_filter: Status

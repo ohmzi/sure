@@ -1,26 +1,40 @@
 <%# locals: (form:) %>
 
+<%# The owner's design (2026-10-19): on a phone the Filters sheet has its own header, the filter types as one row of chips that scrolls sideways, and a footer whose Apply counts what is checked; a computer keeps the list down the side with Cancel and Apply. %>
 <%= render DS::Tabs.new(
   variant: :unstyled,
   active_tab: get_default_transaction_search_filter[:key],
-  active_btn_classes: "bg-inverse text-inverse md:bg-surface md:text-primary",
-  inactive_btn_classes: "bg-container-inset text-secondary md:bg-transparent hover:bg-container-inset-hover md:hover:bg-container-inset"
+  active_btn_classes: "bg-inverse text-inverse font-semibold md:bg-surface md:text-primary md:font-medium",
+  inactive_btn_classes: "bg-container text-primary font-medium shadow-border-xs hover:bg-container-hover md:bg-transparent md:text-secondary md:shadow-none md:hover:bg-container-inset"
 ) do |tabs| %>
-  <%# On a phone the filters are chips that wrap, the picked one filled, over
-      its options (the owner, 2026-10-19: the single scrolling row cut its
-      first and last tabs off); a computer keeps the list down the side. %>
-  <div id="transaction-filters-menu" class="flex flex-col md:flex-row h-[70dvh] lg:max-h-auto z-10 md:h-80 w-full md:w-[540px] top-12 right-0 overflow-hidden">
-    <%= tabs.with_nav(classes: "shrink-0 flex flex-wrap md:flex-nowrap w-full md:w-44 flex-row md:flex-col items-start gap-1.5 md:gap-0 px-3 pb-3 md:p-3 text-sm font-medium text-secondary border-b md:border-b-0 md:border-r border-secondary md:overflow-y-auto") do |nav| %>
+  <div id="transaction-filters-menu"
+       data-controller="transaction-filter-menu"
+       data-action="change->transaction-filter-menu#update"
+       data-transaction-filter-menu-label-value="<%= t(".apply") %>"
+       data-transaction-filter-menu-count-label-value="<%= t(".apply_count", count: "%{count}") %>"
+       class="group-data-[sheet]:-mx-4 group-data-[sheet]:w-[calc(100%+2rem)] group-data-[sheet]:-mb-[calc(env(safe-area-inset-bottom)+1rem)] flex flex-col md:flex-row h-[70dvh] lg:max-h-auto z-10 md:h-80 w-full md:w-[540px] top-12 right-0 overflow-hidden">
+    <div class="hidden group-data-[sheet]:flex shrink-0 items-center justify-between gap-3 px-4 pt-1 pb-3">
+      <h2 class="text-2xl font-extrabold tracking-tight text-primary"><%= t(".title") %></h2>
+      <button type="button"
+              aria-label="<%= t(".close") %>"
+              data-action="DS--popover#close"
+              class="press flex size-11 shrink-0 items-center justify-center rounded-full bg-container text-primary shadow-border-xs focus-ring">
+        <%= icon("x", color: "current") %>
+      </button>
+    </div>
+
+    <%# The chips scroll sideways on a phone and fade out on the right; a computer stacks them down the side. %>
+    <%= tabs.with_nav(classes: "shrink-0 flex flex-nowrap overflow-x-auto md:overflow-y-auto md:flex-col items-center md:items-stretch gap-2 md:gap-0 px-4 pb-3 md:p-3 md:w-44 md:border-r md:border-secondary [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_88%,transparent)] md:[mask-image:none]") do |nav| %>
       <% transaction_search_filters.each do |filter| %>
-        <%= nav.with_btn(id: filter[:key], label: filter[:label], classes: "press md:w-full px-3 py-1.5 md:py-2 flex gap-1.5 md:gap-2 items-center rounded-full md:rounded-md transition-colors") do %>
+        <%= nav.with_btn(id: filter[:key], label: filter[:label], classes: "press flex h-11 md:h-auto shrink-0 md:w-full items-center gap-2 px-4 md:px-3 md:py-2 rounded-full md:rounded-md text-[15px] md:text-sm transition-colors focus-ring") do %>
           <%= icon(filter[:icon], size: "sm", color: "current") %>
-          <%= tag.span(filter[:label], class: "text-sm font-medium") %>
+          <span class="whitespace-nowrap"><%= filter[:label] %></span>
         <% end %>
       <% end %>
     <% end %>
 
-    <div class="flex flex-col grow overflow-y-auto">
-      <div class="grow p-3 border-b border-secondary overflow-y-auto">
+    <div class="flex flex-col grow min-h-0">
+      <div class="grow min-h-0 overflow-y-auto px-4 pt-1 pb-4 md:p-3">
         <% transaction_search_filters.each do |filter| %>
           <%= tabs.with_panel(tab_id: filter[:key]) do %>
             <%= render partial: get_transaction_search_filter_partial_path(filter), locals: { form: form } %>
@@ -28,22 +42,21 @@
         <% end %>
       </div>
 
-      <div class="flex justify-between items-center gap-2 bg-container p-3 shrink-0">
-        <div>
-          <% if @q.present? %>
-            <%= render DS::Link.new(
-              text: t(".clear_filters"),
-              variant: "outline",
-              icon: "x",
-              href: transactions_path(clear_filters: true)
-            ) %>
-          <% end %>
+      <div class="flex shrink-0 items-center gap-3 border-t border-subdued bg-container px-5 pt-3.5 pb-[calc(env(safe-area-inset-bottom)+1rem)] md:px-3 md:py-3 md:pb-3">
+        <%= link_to t(".clear"),
+                    transactions_path(clear_filters: true),
+                    class: class_names("press rounded-md px-1 text-[15px] md:text-sm font-semibold focus-ring", "text-link" => @q.present?, "text-secondary" => @q.blank?) %>
+
+        <div class="hidden md:block">
+          <%= render DS::Button.new(text: t(".cancel"), type: "button", variant: "ghost", data: { action: "DS--popover#close" }) %>
         </div>
 
-        <div>
-          <%= render DS::Button.new(text: t(".cancel"), type: "button", variant: "ghost", data: { action: "DS--popover#close" }) %>
-          <%= render DS::Button.new(text: t(".apply"), type: :submit) %>
-        </div>
+        <%= render DS::Button.new(
+              text: t(".apply"),
+              type: :submit,
+              class: "min-w-0 flex-1 md:flex-none justify-center h-13 md:h-auto rounded-2xl text-[17px] md:text-sm",
+              data: { transaction_filter_menu_target: "submit" }
+            ) %>
       </div>
     </div>
   </div>

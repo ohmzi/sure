@@ -200,3 +200,36 @@ dialog .overflow-hidden.rounded-2xl.bg-container-inset {
   border-radius: 1.25rem;
   background: var(--color-container);
 }
+
+/* The bulk edit sheet (the owner's design, 2026-10-19): each field sits
+   bare in its row of the card, the row tinted while it is edited and once
+   it holds a change (bulk_edit_summary_controller sets data-changed). The
+   card stays overflow-visible for its pickers, so its end rows round
+   themselves. */
+dialog .sheet-row .form-field,
+dialog .sheet-row .form-field:focus-within {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+dialog .sheet-row:focus-within,
+dialog .sheet-row[data-changed] {
+  background: color-mix(in oklab, var(--color-link) 5%, var(--color-container));
+}
+
+dialog .sheet-row[data-changed] .form-field__label {
+  color: var(--color-link);
+  font-weight: 600;
+}
+
+dialog .sheet-rows > .sheet-row:first-child {
+  border-top-left-radius: 1.25rem;
+  border-top-right-radius: 1.25rem;
+}
+
+dialog .sheet-rows > .sheet-row:last-child {
+  border-bottom-left-radius: 1.25rem;
+  border-bottom-right-radius: 1.25rem;
+}

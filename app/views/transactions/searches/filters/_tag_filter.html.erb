@@ -9,9 +9,10 @@
           action: "input->list-filter#filter"
         }
       ) %>
-  <div class="my-2" id="list" data-list-filter-target="list">
+  <%# The owner's design (2026-10-19): one white card of rows, the checkbox on the right. %>
+  <div class="my-2 overflow-hidden rounded-[1.25rem] bg-container shadow-border-xs" id="list" data-list-filter-target="list">
     <% ([ Tag.untagged ] + Current.family.tags.alphabetically).each do |tag| %>
-      <div class="filterable-item flex items-center gap-2 p-2" data-filter-name="<%= tag.name %>">
+      <div class="filterable-item relative flex flex-row-reverse items-center justify-between gap-3 min-h-14 px-4 py-2.5 has-[:checked]:bg-link/5 after:absolute after:inset-x-4 after:bottom-0 after:border-t after:border-subdued last:after:hidden" data-filter-name="<%= tag.name %>">
         <%= form.check_box :tags,
                            {
                              multiple: true,

@@ -23,7 +23,8 @@
                           "data-auto-submit-form-target": "auto" %>
     </label>
 
-    <%= render DS::Popover.new(variant: "button", no_padding: true) do |popover| %>
+    <%# The filter sheet lays out its own white cards (the account list, the footer), so the sheet keeps its lavender ground. %>
+    <%= render DS::Popover.new(variant: "button", no_padding: true, sheet_card: false) do |popover| %>
       <% popover.with_button(id: "transaction-filters-button", type: "button", class: pill_classes,
                              aria: { label: active_filters.positive? ? t(".active_filters", count: active_filters) : t(".filter") }) do %>
         <%= icon("list-filter", size: "sm", color: "current") %>
