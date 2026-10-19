@@ -4,11 +4,26 @@
   than an outlined box; a run of fields in one section is one grouped card,
   its rows split by hairlines; the field being edited gets a link-coloured
   line. Unlayered, so it wins over the fields' own utility classes.
+
+  A sheet is iOS's grouped ground (the owner, 2026-10-19: "more beautiful
+  versions"): the sheet is the page's lavender, its cards and fields white,
+  and the wells inside it (segmented controls, inset boxes) a shade darker
+  than the sheet, so the same markup reads as cards on a ground.
 */
+.app-scroller {
+  --field-fill: var(--color-container-inset);
+}
+
+dialog {
+  --field-fill: var(--color-container);
+  --color-container-inset: var(--color-surface-inset);
+  --color-container-inset-hover: var(--color-surface-inset-hover);
+}
+
 :is(dialog, .app-scroller) .form-field {
   border-width: 0;
   border-radius: 1rem;
-  background: var(--color-container-inset);
+  background: var(--field-fill);
   box-shadow: none;
   padding: 0.7rem 1rem;
   transition: box-shadow 200ms ease;
@@ -33,7 +48,7 @@
 /* A section of fields becomes one card. */
 :is(dialog, .app-scroller) :is(section, div).space-y-2:has(> .form-field) {
   border-radius: 1rem;
-  background: var(--color-container-inset);
+  background: var(--field-fill);
   overflow: visible;
 }
 
@@ -60,6 +75,74 @@
 :is(dialog, .app-scroller) :is(section, div).space-y-2:has(> .form-field) > p:not(.hidden) {
   border-top: 0;
   padding: 0 1rem 0.75rem;
+}
+
+/* Fields that follow one another in a sheet join into one card, whatever
+   wraps them. */
+dialog .form-field:has(+ .form-field) {
+  margin-block-end: 0;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+dialog .form-field + .form-field {
+  border-top: 1px solid var(--utility-border-subdued);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+/* A grouped list in a sheet (the add-account picker's) is a white card on
+   the sheet, like its fields. */
+dialog .overflow-hidden.rounded-2xl.bg-container-inset {
+  background: var(--color-container);
+}
+
+/* The sheet's header: one round, filled close button everywhere, whatever
+   the markup drew (a ringed circle, a bare cross). */
+dialog header button[data-action~="DS--dialog#close"] {
+  width: 1.875rem;
+  height: 1.875rem;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  box-shadow: none;
+  background: var(--color-surface-inset);
+  color: var(--utility-text-secondary);
+}
+
+dialog header button[data-action~="DS--dialog#close"]:hover {
+  background: var(--color-surface-inset-hover);
+}
+
+/* A sheet's main button: full width, tall and rounded like iOS's, and kept
+   in reach at the foot of a long form while it scrolls. */
+dialog [type="submit"].w-full {
+  position: sticky;
+  bottom: 0.5rem;
+  z-index: 1;
+  min-height: 3.25rem;
+  border-radius: 1rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+/* A fold-out ("More options", "Details") is a row of its own card, not a
+   small grey caption. */
+dialog details > summary.min-h-11.bg-surface {
+  min-height: 3.125rem;
+  border-radius: 1rem;
+  background: var(--color-container);
+  padding: 0 0.875rem 0 1rem;
+}
+
+dialog details > summary.min-h-11.bg-surface span.text-xs.uppercase {
+  font-size: 1rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--utility-text-primary);
 }
 
 /* Inside a settings section card a field stays a row (settings.css): no fill,

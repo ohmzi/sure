@@ -4,7 +4,7 @@
       <div class="w-fit m-auto mb-4">
         <%= render partial: "shared/color_badge", locals: { name: tag.name, color: tag.color } %>
       </div>
-      <div class="flex gap-2 items-center justify-center">
+      <div class="flex gap-2 items-center justify-between rounded-2xl bg-container px-4 py-3.5">
         <% Tag::COLORS.each do |color| %>
           <label class="relative">
             <%= f.radio_button :color, color, class: "sr-only peer", data: { action: "change->color-badge#handleColorChange" } %>
@@ -12,9 +12,7 @@
           </label>
         <% end %>
       </div>
-      <div class="relative flex items-center border border-secondary rounded-lg text-subdued">
-        <%= f.text_field :name, placeholder: t(".placeholder"), autofocus: true, required: true, data: { action: "input->color-badge#handleNameChange" } %>
-      </div>
+      <%= f.text_field :name, placeholder: t(".placeholder"), autofocus: true, required: true, data: { action: "input->color-badge#handleNameChange" } %>
     </section>
 
     <section>

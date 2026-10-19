@@ -8,7 +8,7 @@ class DS::Dialog < DesignSystemComponent
         # `aria-labelledby` so AT users hear the title when focus lands
         # in the dialog. `content_tag("h#{heading_level}", ...)` builds an
         # h2/h3/etc based on the caller's `heading_level:`.
-        title = content_tag("h#{heading_level}", title, id: title_id, class: class_names("font-semibold tracking-tight text-primary", drawer? ? "text-lg" : "max-lg:text-lg")) if title
+        title = content_tag("h#{heading_level}", title, id: title_id, class: class_names("font-bold tracking-tight text-primary", drawer? ? "text-[22px] leading-7" : "text-[22px] leading-7 lg:text-xl")) if title
         close_icon = close_button unless custom_header
         safe_join([ title, close_icon ].compact)
       end
@@ -159,7 +159,7 @@ class DS::Dialog < DesignSystemComponent
     end
 
     class_names(
-      "flex flex-col w-full max-h-[92dvh] bg-container shadow-border-xs",
+      "flex flex-col w-full max-h-[92dvh] bg-surface shadow-border-xs",
       "rounded-t-3xl lg:rounded-2xl pb-[env(safe-area-inset-bottom)] lg:pb-0",
       # Below lg it rises on open (`starting:`) on the curve iOS sheets use,
       # settling rather than stopping; a sheet also fades up as a panel from lg.

@@ -1,8 +1,9 @@
 <%# locals: (category:) %>
+<%# A large rounded tile, the way iOS shows the icon being chosen (2026-10-19). %>
 
 <span
       data-color-icon-picker-target="avatar"
-      class="w-14 h-14 flex items-center justify-center rounded-full"
-      style="--avatar-color: <%= category.color %>; background-color: color-mix(in oklab, var(--avatar-color) 10%, transparent); color: var(--avatar-color)">
+      class="w-[76px] h-[76px] flex items-center justify-center rounded-[22px]"
+      style="--avatar-color: <%= category.color %>; background-color: color-mix(in oklab, var(--avatar-color) 16%, transparent); color: var(--avatar-color)">
   <%= icon(category.lucide_icon, size: "2xl", color: "current") %>
 </span>

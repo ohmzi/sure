@@ -168,10 +168,15 @@ export default class extends Controller {
 
   // Move focus to the first focusable child unless the dialog already
   // declared one via the autofocus attribute. Native `<dialog>.showModal()`
-  // is supposed to do this but the behavior varies across engines.
+  // is supposed to do this but the behavior varies across engines. Opening
+  // is not a keyboard move, so the first control (usually Close) takes focus
+  // without the keyboard ring; Tab brings the ring back.
   #focusInitial() {
     if (this.element.querySelector("[autofocus]")) return;
-    this.#focusables()[0]?.focus();
+    const first = this.#focusables()[0];
+    if (!first) return;
+    first.blur();
+    first.focus({ focusVisible: false });
   }
 
   // Tab/Shift+Tab wrap inside the dialog so focus can't leak to the page

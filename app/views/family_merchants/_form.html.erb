@@ -7,10 +7,10 @@
         <%= render "shared/form_errors", model: family_merchant %>
       <% end %>
 
-      <div class="w-fit m-auto mb-4">
+      <div class="w-fit m-auto mb-2 [&>span]:w-[76px] [&>span]:h-[76px] [&>span]:text-3xl [&>span]:font-semibold">
         <%= render partial: "shared/color_avatar", locals: { name: family_merchant.name, color: family_merchant.color } %>
       </div>
-      <div class="flex gap-2 items-center justify-center">
+      <div class="flex gap-2 items-center justify-between rounded-2xl bg-container px-4 py-3.5">
         <% FamilyMerchant::COLORS.each do |color| %>
           <label class="relative">
             <%= f.radio_button :color, color, class: "sr-only peer", data: { action: "change->color-avatar#handleColorChange" } %>
@@ -18,13 +18,11 @@
           </label>
         <% end %>
       </div>
-      <div class="relative flex items-center border border-secondary rounded-lg text-subdued">
+      <div class="space-y-2">
         <%= f.text_field :name, placeholder: t(".name_placeholder"), autofocus: true, required: true, data: { color_avatar_target: "name" } %>
-      </div>
-      <div class="relative flex items-center border border-secondary rounded-lg text-subdued">
         <%= f.text_field :website_url, placeholder: t(".website_placeholder") %>
+        <p class="text-xs text-subdued pt-2"><%= t(".website_hint") %></p>
       </div>
-      <p class="text-xs text-subdued"><%= t(".website_hint") %></p>
     </section>
 
     <section>
