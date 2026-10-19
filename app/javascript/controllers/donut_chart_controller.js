@@ -420,6 +420,17 @@ export default class extends Controller {
       return "var(--budget-unallocated-fill)";
     });
 
+    // The emphasised slice is drawn last, so its wider outline lies over
+    // its neighbours instead of under the next one, which cut off one of its
+    // round ends (the owner, 2026-10-19).
+    paths
+      .filter(function () {
+        return this.dataset.segmentId === segmentId;
+      })
+      .each(function () {
+        d3.select(this.parentNode).raise();
+      });
+
     const popWidth = this.segmentHeightValue * 0.9;
     paths
       .attr("stroke", function () {

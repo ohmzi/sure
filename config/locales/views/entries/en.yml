@@ -1,6 +1,9 @@
 ---
 en:
   entries:
+    day:
+      today: Today
+      yesterday: Yesterday
     create:
       success: Entry created
     destroy:

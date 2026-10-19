@@ -27,7 +27,13 @@ module EntriesHelper
   # first, or :sequence to keep the entries' own order (a list sorted by
   # amount), where each run of one day gets its own header (the owner,
   # 2026-10-18).
-  def entries_by_date(entries, totals: false, order: :desc)
+  #
+  # With `months: true` (Activity, the owner, 2026-10-19) the days of a month
+  # sit together in one card under the month's name, each opened by a slim
+  # line naming the day, instead of a card per day — most days hold one
+  # transaction, and a header and a card each read as clutter. A list sorted
+  # by amount sits in a single card.
+  def entries_by_date(entries, totals: false, order: :desc, months: false)
     transfer_groups = entries.group_by do |entry|
       # Only check for transfer if it's a transaction
       next nil unless entry.entryable_type == "Transaction"
@@ -55,15 +61,35 @@ module EntriesHelper
       deduped_entries.group_by(&:date).sort.reverse_each.map { |date, run| [ date, run, date ] }
     end
 
-    groups.map do |date, grouped_entries, key|
+    rendered = groups.filter_map do |date, grouped_entries, key|
       content = capture do
         yield grouped_entries
       end
 
       next if content.blank?
 
-      render partial: "entries/entry_group", locals: { date:, entries: grouped_entries, content:, totals:, key: }
-    end.compact.join.html_safe
+      [ date, grouped_entries, render(partial: "entries/entry_group", locals: { date:, entries: grouped_entries, content:, totals:, key:, nested: months }) ]
+    end
+    return rendered.map(&:last).join.html_safe unless months
+
+    chunks = order == :sequence ? [ rendered ] : rendered.chunk_while { |a, b| a.first.beginning_of_month == b.first.beginning_of_month }
+    chunks.reject(&:empty?).map do |chunk|
+      render partial: "entries/month_group", locals: {
+        month: (chunk.first.first.beginning_of_month unless order == :sequence),
+        entries: chunk.flat_map(&:second),
+        content: safe_join(chunk.map(&:last)),
+        totals:
+      }
+    end.join.html_safe
+  end
+
+  # A day as its line in a month's card names it: "Today", "Yesterday", or
+  # "Mon, Sep 21".
+  def entry_day_label(date)
+    return t("entries.day.today") if date == Date.current
+    return t("entries.day.yesterday") if date == Date.current - 1.day
+
+    "#{l(date, format: "%a")}, #{l(date, format: :short)}"
   end
 
   def entry_name_detailed(entry)

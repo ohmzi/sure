@@ -86,6 +86,18 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "#transaction-search-filters li", text: /#{account.id}/, count: 0
   end
 
+  # The owner (2026-10-19): Activity is a card per month, each day a slim
+  # line inside it, not a card per day.
+  test "activity groups its days inside one card per month" do
+    create_transaction(name: "Month check", amount: 12, date: Date.current)
+
+    get transactions_url
+
+    month = I18n.l(Date.current.beginning_of_month, format: :month_year)
+    assert_select "section[aria-label='#{month}'] h3", text: /#{month}/i
+    assert_select "section[aria-label='#{month}'] #entry-group-#{Date.current}", text: /#{I18n.t("entries.day.today")}/
+  end
+
   # The Activity tab opens a fresh list every time (the owner, 2026-10-18): the
   # filters left on from last time are not brought back by the tab.
   test "the activity tab opens with the filters reset" do

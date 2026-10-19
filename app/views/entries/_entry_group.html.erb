@@ -1,5 +1,30 @@
-<%# locals: (date:, entries:, content:, totals: false, key: date) %>
+<%# locals: (date:, entries:, content:, totals: false, key: date, nested: false) %>
 
+<% if nested %>
+  <%# A day inside its month's card (Activity, the owner, 2026-10-19): a slim
+      line naming the day and its total, then its rows on the card. %>
+  <div id="entry-group-<%= key %>" class="border-t border-subdued first:border-t-0" data-bulk-select-target="group">
+    <div class="flex items-center justify-between gap-3 px-3 lg:px-4 pt-3 pb-1 text-xs font-semibold text-secondary">
+      <div class="flex items-center gap-3 pl-0.5">
+        <%= check_box_tag "#{key}_entries_selection",
+                          class: ["checkbox checkbox--light hidden lg:block", "lg:hidden": entries.size == 0],
+                          id: "selection_entry_#{key}",
+                          data: {
+                            action: "bulk-select#toggleGroupSelection",
+                            checkbox_toggle_target: "selectionEntry"
+                          } %>
+        <p><%= entry_day_label(date) %></p>
+      </div>
+
+      <% if totals %>
+        <div id="entry-group-<%= key %>-totals" class="privacy-sensitive tabular">
+          <%= totals_by_currency(collection: entries, money_method: :amount_money, negate: true) %>
+        </div>
+      <% end %>
+    </div>
+    <%= content %>
+  </div>
+<% else %>
 <%# A day of activity as an iOS list (2026-10-17): the date and the day's
     total above one rounded card of rows. %>
 <div id="entry-group-<%= key %>" class="w-full mb-3" data-bulk-select-target="group">
@@ -30,3 +55,4 @@
     <%= content %>
   </div>
 </div>
+<% end %>

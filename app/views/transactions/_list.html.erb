@@ -35,7 +35,9 @@
   </div>
 
   <% if @pagy.count > 0 || (@projected_recurring.any? && @q.blank?) %>
-    <div class="grow overflow-y-auto">
+    <%# No scroll box of its own, so a month's name can stay at the top of the
+        page while its days scroll past. %>
+    <div class="grow">
       <% if @transactions.any? %>
         <%# Column headings help a computer's wide rows; a phone's day lists
             need none (2026-10-17). %>
@@ -56,8 +58,8 @@
         </div>
       <% end %>
 
-      <div class="space-y-6">
-        <%= entries_by_date(@transactions.map(&:entry), totals: true,
+      <div class="space-y-5">
+        <%= entries_by_date(@transactions.map(&:entry), totals: true, months: true,
                             order: { "oldest" => :asc, "largest" => :sequence, "smallest" => :sequence }.fetch(@sort, :desc)) do |entries| %>
           <% if Current.user.show_split_grouped? %>
             <% group_split_entries(entries, @split_parents).each do |item| %>

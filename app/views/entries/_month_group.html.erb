@@ -1,0 +1,18 @@
+<%# locals: (month:, entries:, content:, totals: false) %>
+<%# A month of activity (Activity, the owner, 2026-10-19): its name and total
+    stay at the top while its days scroll past, over one card holding every
+    day of it, each opened by a slim line. A list sorted by amount has no
+    month (`month` is nil) and is a single card. %>
+<section class="space-y-2"<% if month %> aria-label="<%= l(month, format: :month_year) %>"<% end %>>
+  <% if month %>
+    <div class="sticky top-0 z-[4] -mx-1 flex items-baseline justify-between gap-3 rounded-xl bg-surface/90 px-2 py-2 backdrop-blur-md">
+      <h3 class="text-base font-bold tracking-tight text-primary capitalize"><%= l(month, format: :month_year) %></h3>
+      <% if totals %>
+        <p class="text-sm font-semibold text-secondary privacy-sensitive tabular"><%= totals_by_currency(collection: entries, money_method: :amount_money, negate: true) %></p>
+      <% end %>
+    </div>
+  <% end %>
+  <div class="bg-container shadow-border-xs rounded-2xl overflow-hidden pb-1">
+    <%= content %>
+  </div>
+</section>
