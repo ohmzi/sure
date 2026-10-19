@@ -71,6 +71,46 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href='#{transactions_path(q: query)}']", text: /6/
   end
 
+  # The owner (2026-10-18): refunds follow the selection — a picked merchant
+  # shows its own refunds, apart from its purchases and as money back.
+  test "a merchant preview shows that merchant's refunds apart from its purchases" do
+    shopping = @family.categories.find_or_create_by!(name: "Shopping")
+    amazon = @family.merchants.find_or_create_by!(name: "Amazon") { |merchant| merchant.type = "FamilyMerchant" }
+    create_transaction(account: accounts(:depository), amount: 80, name: "Amazon order",
+                       category: shopping, merchant: amazon, date: Date.current)
+    create_transaction(account: accounts(:depository), amount: -25, name: "Amazon return",
+                       category: shopping, merchant: amazon, date: Date.current)
+    query = { categories: [ "Shopping" ], merchants: [ "Amazon" ],
+              start_date: Date.current.beginning_of_month.iso8601, end_date: Date.current.iso8601 }
+
+    get dashboard_merchant_transactions_path(q: query)
+
+    assert_select "[data-merchant-preview-row]", count: 1, text: /Amazon order/
+    assert_select "[data-merchant-preview-refund]", count: 1 do
+      assert_select "*", text: /Amazon return/
+      assert_select ".text-success", text: /\+.*25\.00/
+    end
+    assert_select "[data-merchant-preview-net]", text: /55\.00/
+  end
+
+  test "the category's refunds sit in the merchant list, as money back" do
+    shopping = @family.categories.find_or_create_by!(name: "Shopping")
+    store = @family.merchants.find_or_create_by!(name: "Corner Store") { |merchant| merchant.type = "FamilyMerchant" }
+    amazon = @family.merchants.find_or_create_by!(name: "Amazon") { |merchant| merchant.type = "FamilyMerchant" }
+    create_transaction(account: accounts(:depository), amount: 100, name: "Groceries",
+                       category: shopping, merchant: store, date: Date.current)
+    create_transaction(account: accounts(:depository), amount: -30, name: "Amazon return",
+                       category: shopping, merchant: amazon, date: Date.current)
+
+    get dashboard_merchant_breakdown_path(category_id: shopping.id,
+                                          start_date: Date.current.beginning_of_month, end_date: Date.current)
+
+    assert_select "[data-breakdown-focus-target='list'] [data-refund-row][data-preview-url]", count: 1 do
+      assert_select ".text-success", text: /\+.*30\.00/
+    end
+    assert_select ".bg-container-inset [data-refund-row]", count: 0
+  end
+
   test "a merchant preview that fits has no more link" do
     create_transaction(account: accounts(:depository), amount: 40, name: "Netflix",
                        category: categories(:food_and_drink), merchant: merchants(:netflix), date: Date.current)

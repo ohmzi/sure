@@ -1,11 +1,12 @@
-<%# locals: (transactions:, count:, query:) %>
+<%# locals: (transactions:, refunds:, net:, count:, query:) %>
 <%# The latest transactions of the merchant picked on the merchants donut,
     flat rows on the card like the merchant list they stand in for, and a
     link to all of them in Activity when they do not all fit (the owner,
-    2026-10-18). Amounts read as the list's do: spending plain, money back
-    with a minus. %>
+    2026-10-18). The merchant's own refunds follow its purchases as money
+    back — green, with a plus — and the net closes the list when there are
+    both. %>
 <%= turbo_frame_tag "merchant_breakdown_transactions" do %>
-  <% if transactions.empty? %>
+  <% if transactions.empty? && refunds.empty? %>
     <p class="px-4 py-6 text-center text-sm text-secondary"><%= t(".empty") %></p>
   <% else %>
     <div class="divide-y divide-subdued font-medium text-sm">
@@ -16,14 +17,38 @@
             <p class="truncate text-primary"><%= entry.name %></p>
             <p class="text-xs text-secondary"><%= l(entry.date, format: :long) %></p>
           </div>
-          <span class="shrink-0 whitespace-nowrap text-primary privacy-sensitive tabular">
-            <%= "-" if entry.amount.negative? %><%= format_money entry.amount_money.abs %>
-          </span>
+          <span class="shrink-0 whitespace-nowrap text-primary privacy-sensitive tabular"><%= format_money entry.amount_money %></span>
         </div>
       <% end %>
     </div>
 
-    <% if count > transactions.size %>
+    <% if refunds.any? %>
+      <p class="mt-3 flex items-center gap-1.5 px-4 py-2 text-xs font-medium uppercase text-secondary">
+        <%= icon("undo-2", size: "xs", color: "current") %>
+        <%= t("pages.dashboard.merchant_breakdown.refunds") %>
+      </p>
+      <div class="divide-y divide-subdued font-medium text-sm">
+        <% refunds.each do |transaction| %>
+          <% entry = transaction.entry %>
+          <div class="flex items-center justify-between gap-3 mx-3 p-3" data-merchant-preview-refund>
+            <div class="min-w-0">
+              <p class="truncate text-primary"><%= entry.name %></p>
+              <p class="text-xs text-secondary"><%= l(entry.date, format: :long) %></p>
+            </div>
+            <span class="shrink-0 whitespace-nowrap text-success privacy-sensitive tabular">+<%= format_money entry.amount_money.abs %></span>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+
+    <% if net && transactions.any? && refunds.any? %>
+      <div class="mx-3 mt-1 flex items-center justify-between gap-3 border-t border-primary p-3 text-sm" data-merchant-preview-net>
+        <span class="text-secondary"><%= t("pages.dashboard.merchant_breakdown.net_after_refunds") %></span>
+        <span class="font-semibold text-primary privacy-sensitive tabular"><%= format_money net %></span>
+      </div>
+    <% end %>
+
+    <% if count > transactions.size + refunds.size %>
       <div class="px-3 pt-3">
         <%= link_to t(".see_all", count: count), transactions_path(q: query),
               data: { turbo_frame: "_top", turbo_prefetch: false },

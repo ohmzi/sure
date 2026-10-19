@@ -84,8 +84,18 @@ class PagesController < ApplicationController
     scope = Transaction::Search.new(Current.family, filters: query,
                                     accessible_account_ids: Current.user.accessible_accounts.pluck(:id)).transactions_scope
 
+    # Purchases and the merchant's own refunds apart, so money back reads as
+    # money back (the owner, 2026-10-18).
+    purchases = scope.where("entries.amount > 0")
+    refunds = scope.where("entries.amount < 0")
+    # A net only adds up in one currency; mixed ones show no net line.
+    currencies = scope.distinct.pluck("entries.currency")
+    net = Money.new(scope.sum("entries.amount"), currencies.first) if currencies.one?
+
     render partial: "pages/dashboard/merchant_transactions",
-           locals: { transactions: scope.reverse_chronological.includes(:entry).limit(MERCHANT_PREVIEW_LIMIT),
+           locals: { transactions: purchases.reverse_chronological.includes(:entry).limit(MERCHANT_PREVIEW_LIMIT),
+                     refunds: refunds.reverse_chronological.includes(:entry).limit(MERCHANT_PREVIEW_LIMIT),
+                     net: net,
                      count: scope.count, query: query }
   end
 
