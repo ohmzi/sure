@@ -175,6 +175,9 @@ en:
         add_account: "Add account"
       outflows_donut:
         show_all_categories: "Show all categories"
+        category_count:
+          one: "%{count} category"
+          other: "%{count} categories"
         title: "Outflows"
         card_title: "Card charges"
         card_label: "Credit card"
@@ -199,6 +202,9 @@ en:
         net_after_refunds: "Net after refunds"
         empty: "No merchant activity in this category for this period."
         show_all_merchants: "Show all merchants"
+        merchant_count:
+          one: "%{count} merchant"
+          other: "%{count} merchants"
       merchant_transactions:
         latest: "Latest"
         empty: "No transactions for this merchant in this period."

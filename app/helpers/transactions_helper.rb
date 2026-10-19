@@ -1,4 +1,13 @@
 module TransactionsHelper
+  # A filter chip's date written out ("October 19, 2021") rather than as the
+  # ISO value the filter keeps (the owner, 2026-10-18); anything unreadable
+  # shows as it came.
+  def filter_date_label(value)
+    l(Date.iso8601(value.to_s), format: :long)
+  rescue Date::Error
+    value
+  end
+
   # @return [Array<Hash>] the filters offered above the transaction list, each
   #   with the key its partial is named for, a translated label and an icon
   def transaction_search_filters

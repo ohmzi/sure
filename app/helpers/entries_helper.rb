@@ -23,7 +23,11 @@ module EntriesHelper
     result
   end
 
-  def entries_by_date(entries, totals: false)
+  # Days run newest first unless `order` says otherwise: :asc for oldest
+  # first, or :sequence to keep the entries' own order (a list sorted by
+  # amount), where each run of one day gets its own header (the owner,
+  # 2026-10-18).
+  def entries_by_date(entries, totals: false, order: :desc)
     transfer_groups = entries.group_by do |entry|
       # Only check for transfer if it's a transaction
       next nil unless entry.entryable_type == "Transaction"
@@ -42,14 +46,23 @@ module EntriesHelper
       end
     end
 
-    deduped_entries.group_by(&:date).sort.reverse_each.map do |date, grouped_entries|
+    groups = case order
+    when :sequence
+      deduped_entries.chunk_while { |a, b| a.date == b.date }.each_with_index.map { |run, i| [ run.first.date, run, "#{run.first.date}-#{i}" ] }
+    when :asc
+      deduped_entries.group_by(&:date).sort.map { |date, run| [ date, run, date ] }
+    else
+      deduped_entries.group_by(&:date).sort.reverse_each.map { |date, run| [ date, run, date ] }
+    end
+
+    groups.map do |date, grouped_entries, key|
       content = capture do
         yield grouped_entries
       end
 
       next if content.blank?
 
-      render partial: "entries/entry_group", locals: { date:, entries: grouped_entries, content:, totals: }
+      render partial: "entries/entry_group", locals: { date:, entries: grouped_entries, content:, totals:, key: }
     end.compact.join.html_safe
   end
 

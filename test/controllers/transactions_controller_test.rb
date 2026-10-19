@@ -45,6 +45,34 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "nav[aria-label='#{I18n.t("shared.pagination.label")}'] a[href$='#transactions'][href*='page=2']", minimum: 1
   end
 
+  # Sorting Activity (the owner, 2026-10-18): newest first by default, or
+  # oldest first, or by size either way, kept through a search.
+  test "activity sorts by amount and by date when asked" do
+    create_transaction(name: "Sortcheck small", amount: 5, date: Date.current - 1.day)
+    create_transaction(name: "Sortcheck big", amount: 500, date: Date.current - 3.days)
+    create_transaction(name: "Sortcheck mid", amount: 50, date: Date.current - 2.days)
+
+    order_of = ->(sort) do
+      get transactions_url(q: { search: "Sortcheck" }, sort: sort)
+      assert_response :success
+      %w[small big mid].sort_by { |name| response.body.index("Sortcheck #{name}") }
+    end
+
+    assert_equal %w[small mid big], order_of.(nil)
+    assert_equal %w[big mid small], order_of.("oldest")
+    assert_equal %w[big mid small], order_of.("largest")
+    assert_equal %w[small mid big], order_of.("smallest")
+    assert_select "input[type=hidden][name=sort][value=smallest]"
+    assert_select "[role=menuitemradio][aria-checked=true]", text: I18n.t("transactions.searches.sort.options.smallest")
+  end
+
+  test "an unknown sort falls back to newest first" do
+    get transactions_url(sort: "bogus")
+
+    assert_response :success
+    assert_select "[role=menuitemradio][aria-checked=true]", text: I18n.t("transactions.searches.sort.options.newest")
+  end
+
   # The Activity tab opens a fresh list every time (the owner, 2026-10-18): the
   # filters left on from last time are not brought back by the tab.
   test "the activity tab opens with the filters reset" do

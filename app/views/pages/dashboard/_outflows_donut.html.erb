@@ -40,22 +40,25 @@
           <div data-donut-chart-target="chartContainer" class="absolute inset-0 pointer-events-none"></div>
 
           <div data-donut-chart-target="contentContainer" class="flex justify-center items-center h-full">
-            <div data-donut-chart-target="defaultContent" class="flex flex-col items-center">
-              <div class="text-secondary text-sm mb-2">
-                <span><%= selected_card ? t("pages.dashboard.outflows_donut.total_charges") : t("pages.dashboard.outflows_donut.total_outflows") %></span>
-              </div>
+            <%# The same three lines as a picked slice's (name, amount, share),
+                so the label and amount hold still when one is picked (the
+                owner, 2026-10-18). %>
+            <div data-donut-chart-target="defaultContent" class="flex flex-col gap-2 items-center">
+              <p class="text-sm text-secondary"><%= selected_card ? t("pages.dashboard.outflows_donut.total_charges") : t("pages.dashboard.outflows_donut.total_outflows") %></p>
 
-              <div data-donut-chart-target="amount" class="text-3xl font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
+              <p data-donut-chart-target="amount" class="text-3xl h-9 leading-9 font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
                 <%= format_money Money.new(outflows_data[:total], outflows_data[:currency]) %>
-              </div>
+              </p>
+
+              <p class="text-sm text-secondary"><%= t("pages.dashboard.outflows_donut.category_count", count: outflows_data[:categories].count) %></p>
             </div>
 
             <% outflows_data[:categories].each do |category| %>
               <div id="segment_<%= category[:id] %>" class="hidden">
                 <div class="flex flex-col gap-2 items-center">
-                  <p class="text-sm text-secondary"><%= category[:name] %></p>
+                  <p class="max-w-44 truncate text-center text-sm text-secondary" title="<%= category[:name] %>"><%= category[:name] %></p>
 
-                  <p data-donut-chart-target="amount" class="text-3xl font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
+                  <p data-donut-chart-target="amount" class="text-3xl h-9 leading-9 font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
                     <%= format_money Money.new(category[:amount], outflows_data[:currency]) %>
                   </p>
 

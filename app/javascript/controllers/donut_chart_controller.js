@@ -40,6 +40,8 @@ export default class extends Controller {
   // (donut-chart:select / :clear) so a list can follow it, until reset()
   // (the owner, 2026-10-18).
   #selectedSegmentId = null;
+  #ringScrub = null;
+  #arcs = [];
   #resizeObserver = null;
   #measureCanvas = null;
   // Largest square inscribed in a circle has side D/√2 ≈ 0.707·D. A single
@@ -126,7 +128,10 @@ export default class extends Controller {
       .append("svg")
       .attr("viewBox", `0 0 ${this.#viewBoxSize} ${this.#viewBoxSize}`) // Square aspect ratio
       .attr("preserveAspectRatio", "xMidYMid meet")
-      .attr("class", "w-full h-full");
+      .attr("class", "w-full h-full")
+      // A picked slice thickens outward past the ring's box; let it show
+      // rather than be sliced flat at the edge (the owner, 2026-10-19).
+      .style("overflow", "visible");
 
     const pie = d3
       .pie()
@@ -147,9 +152,12 @@ export default class extends Controller {
         `translate(${this.#viewBoxSize / 2}, ${this.#viewBoxSize / 2})`,
       );
 
+    this.#arcs = pie(this.#data);
+    if (this.selectableValue) this.#bindRingScrub(svg);
+
     const segmentGroups = g
       .selectAll("arc")
-      .data(pie(this.#data))
+      .data(this.#arcs)
       .enter()
       .append("g")
       .attr("class", "arc pointer-events-auto");
@@ -263,7 +271,11 @@ export default class extends Controller {
         this.#touchedSegmentId = d.data.id;
         this.#clearSegmentHover();
         this.#handleSegmentHover(event);
-        this.#select(d.data.id);
+        if (this.selectableValue) {
+          this.#ringScrub = { id: d.data.id, moved: false };
+        } else {
+          this.#select(d.data.id);
+        }
       })
       .on("click", (event, d) => {
         if (this.#lastPointerType === "mouse") this.#select(d.data.id);
@@ -287,6 +299,52 @@ export default class extends Controller {
   // Highlights segment and shows segment specific content (all other segments are grayed out)
   // Picking the picked slice again lets it go (the owner, 2026-10-18: "a
   // way to deselect"), as "All …" beside the list does.
+  // A finger slid round the ring follows it slice by slice, the middle
+  // naming each as it passes, and lifting picks the one under it (the
+  // owner, 2026-10-18: "live update" while running a finger over the
+  // merchants). A tap without sliding picks, or lets go of, its slice as
+  // before. The ring itself takes the finger (touch-action: none on its
+  // box); a swipe that starts in the middle or outside still scrolls.
+  #bindRingScrub(svg) {
+    this.chartContainerTarget.style.touchAction = "none";
+    const node = svg.node();
+
+    const segmentAt = (event) => {
+      const box = node.getBoundingClientRect();
+      const dx = event.clientX - (box.left + box.width / 2);
+      const dy = event.clientY - (box.top + box.height / 2);
+      let angle = Math.atan2(dx, -dy);
+      if (angle < 0) angle += 2 * Math.PI;
+      return this.#arcs.find(
+        (arc) => angle >= arc.startAngle && angle < arc.endAngle,
+      )?.data.id;
+    };
+
+    svg
+      .on("pointermove.ring", (event) => {
+        if (!this.#ringScrub || event.pointerType === "mouse") return;
+        const id = segmentAt(event);
+        if (!id || id === this.#ringScrub.id) return;
+        this.#ringScrub.id = id;
+        this.#ringScrub.moved = true;
+        this.#clearSegmentHover();
+        this.#showSegment(id);
+        navigator.vibrate?.(4);
+      })
+      .on("pointerup.ring", () => {
+        const scrub = this.#ringScrub;
+        this.#ringScrub = null;
+        if (!scrub) return;
+        if (scrub.moved && scrub.id === this.#selectedSegmentId) return;
+        this.#select(scrub.id);
+      })
+      .on("pointercancel.ring", () => {
+        this.#ringScrub = null;
+        this.#clearSegmentHover();
+        if (this.#selectedSegmentId) this.#showSegment(this.#selectedSegmentId);
+      });
+  }
+
   #select(segmentId) {
     if (!this.selectableValue) return;
     if (segmentId === this.#selectedSegmentId) {

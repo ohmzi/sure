@@ -54,6 +54,60 @@ class MerchantBreakdownFocusTest < ApplicationSystemTestCase
     end
   end
 
+  # The owner (2026-10-18): a finger run round the ring updates it live, and
+  # lifting picks the merchant under it.
+  test "a finger slid round the ring follows each merchant and picks the last" do
+    family = users(:family_admin).family
+    shopping = family.categories.find_or_create_by!(name: "Shopping")
+    { "Amazon" => 60, "Corner Store" => 30, "Bookshop" => 10 }.each do |name, amount|
+      merchant = family.merchants.find_or_create_by!(name: name) { |m| m.type = "FamilyMerchant" }
+      create_transaction(account: accounts(:depository), amount: amount, name: "#{name} buy",
+                         category: shopping, merchant: merchant, date: Date.current)
+    end
+
+    browser = page.driver.browser
+    browser.manage.window.resize_to(390, 844)
+    browser.execute_cdp("Emulation.setDeviceMetricsOverride", width: 390, height: 844, deviceScaleFactor: 1, mobile: true)
+    browser.execute_cdp("Emulation.setTouchEmulationEnabled", enabled: true, maxTouchPoints: 1)
+    sign_in users(:family_admin)
+    visit root_path
+
+    within "#merchant-breakdown-section" do
+      find("select[name='category_id']").find("option", text: "Shopping").select_option
+      assert_text "Bookshop"
+    end
+    ring = page.evaluate_script(<<~JS)
+      (() => { const svg = document.querySelector("#merchant-breakdown-section [data-donut-chart-target=chartContainer] svg");
+               svg.scrollIntoView({ block: "center" });
+               const r = svg.getBoundingClientRect();
+               return { x: r.left + r.width / 2, y: r.top + r.height / 2, r: Math.min(r.width, r.height) / 2 * 0.95 }; })()
+    JS
+    on_ring = ->(degrees) do
+      radians = degrees * Math::PI / 180
+      { x: ring["x"] + ring["r"] * Math.sin(radians), y: ring["y"] - ring["r"] * Math.cos(radians) }
+    end
+    middle = -> { page.evaluate_script(<<~JS) }
+      [...document.querySelectorAll("#merchant-breakdown-section [data-donut-chart-target=contentContainer] > div")].find(e => !e.classList.contains("hidden")).innerText
+    JS
+
+    touch("touchStart", on_ring.(30))   # Amazon: the first 60% of the ring
+    seen = [ middle.() ]
+    [ 120, 200, 250, 300, 340 ].each do |degrees|
+      touch("touchMove", on_ring.(degrees))
+      sleep 0.05
+      seen << middle.()
+    end
+    touch("touchEnd")
+
+    assert seen.first.include?("Amazon"), seen.inspect
+    assert seen.any? { |text| text.include?("Corner Store") }, seen.inspect
+    assert seen.last.include?("Bookshop"), seen.inspect
+    within("#merchant-breakdown-section") { assert_selector "[data-merchant-preview-row]", text: "Bookshop buy" }
+  ensure
+    page.driver.browser.execute_cdp("Emulation.setTouchEmulationEnabled", enabled: false)
+    page.driver.browser.execute_cdp("Emulation.clearDeviceMetricsOverride")
+  end
+
   # Card charges (the owner, 2026-10-18): a category picked on the ring or in
   # the list previews its charges instead of leaving for Activity.
   test "card charges preview a category picked on the ring or in the list" do
@@ -75,6 +129,11 @@ class MerchantBreakdownFocusTest < ApplicationSystemTestCase
   end
 
   private
+    def touch(type, point = nil)
+      points = point ? [ point ] : []
+      page.driver.browser.execute_cdp("Input.dispatchTouchEvent", type: type, touchPoints: points)
+    end
+
     # The middle of a slice's box is the ring's centre, under the amount, so
     # click a point on the slice's own outline instead.
     def click_on_ring_slice(section = "#merchant-breakdown-section")

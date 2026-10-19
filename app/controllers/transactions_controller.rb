@@ -1,4 +1,6 @@
 class TransactionsController < ApplicationController
+  SORTS = %w[newest oldest largest smallest].freeze
+
   include EntryableResource
 
   before_action :set_entry_for_unlock, only: :unlock
@@ -31,8 +33,8 @@ class TransactionsController < ApplicationController
     # The last six months over the list, each a tap away (the owner, 2026-10-18).
     @months = Transaction::Months.new(family: Current.family, accessible_account_ids: @accessible_account_ids)
 
-    base_scope = @search.transactions_scope
-                       .reverse_chronological
+    @sort = params[:sort].presence_in(SORTS) || SORTS.first
+    base_scope = sorted(@search.transactions_scope)
                        .includes(
                          # Provenance reads, per row (spec N13): the entry's import
                          # and its document_link, and the entry's own
@@ -759,6 +761,18 @@ class TransactionsController < ApplicationController
 
     # Permitted search filters from the q param, with blank values and
     # unsupported ai_status / attachment_status values dropped.
+    # How Activity orders its list (the owner, 2026-10-18): newest first by
+    # default, oldest first, or by size either way. By size, the newest of
+    # equal amounts comes first.
+    def sorted(scope)
+      case @sort
+      when "oldest" then scope.order(Arel.sql("entries.date ASC, entries.created_at ASC, entries.id ASC"))
+      when "largest" then scope.order(Arel.sql("ABS(entries.amount) DESC, entries.date DESC, entries.id DESC"))
+      when "smallest" then scope.order(Arel.sql("ABS(entries.amount) ASC, entries.date DESC, entries.id DESC"))
+      else scope.reverse_chronological
+      end
+    end
+
     def search_params
       cleaned_params = params.fetch(:q, {})
               .permit(

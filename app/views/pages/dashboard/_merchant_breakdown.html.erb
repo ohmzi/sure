@@ -42,22 +42,25 @@
               <div data-donut-chart-target="chartContainer" class="absolute inset-0 pointer-events-none"></div>
 
               <div data-donut-chart-target="contentContainer" class="flex justify-center items-center h-full">
-                <div data-donut-chart-target="defaultContent" class="flex flex-col items-center">
-                  <div class="text-secondary text-sm mb-2">
-                    <span><%= t(".net_#{breakdown.direction}") %></span>
-                  </div>
+                <%# The same three lines as a picked slice's (name, amount,
+                    share), so the label and amount hold still when one is
+                    picked (the owner, 2026-10-18). %>
+                <div data-donut-chart-target="defaultContent" class="flex flex-col gap-2 items-center">
+                  <p class="text-sm text-secondary"><%= t(".net_#{breakdown.direction}") %></p>
 
-                  <div data-donut-chart-target="amount" class="text-3xl font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
+                  <p data-donut-chart-target="amount" class="text-3xl h-9 leading-9 font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
                     <%= format_money Money.new(breakdown.net_total, breakdown.currency) %>
-                  </div>
+                  </p>
+
+                  <p class="text-sm text-secondary"><%= t(".merchant_count", count: breakdown.rows.count) %></p>
                 </div>
 
                 <% all_rows.each do |row| %>
                   <div id="segment_<%= row.id %>" class="hidden">
                     <div class="flex flex-col gap-2 items-center">
-                      <p class="text-sm text-secondary"><%= row.negative ? t(".refund_label", name: row.name) : row.name %></p>
+                      <p class="max-w-44 truncate text-center text-sm text-secondary" title="<%= row.name %>"><%= row.negative ? t(".refund_label", name: row.name) : row.name %></p>
 
-                      <p data-donut-chart-target="amount" class="text-3xl font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
+                      <p data-donut-chart-target="amount" class="text-3xl h-9 leading-9 font-bold tracking-tight text-primary privacy-sensitive whitespace-nowrap">
                         <%= "-" if row.negative %><%= format_money Money.new(row.amount, breakdown.currency) %>
                       </p>
 

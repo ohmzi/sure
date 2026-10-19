@@ -156,4 +156,9 @@ class TransactionsHelperTest < ActionView::TestCase
 
     assert_nil category_provenance_label(transaction)
   end
+
+  test "a filter chip writes its date out" do
+    assert_equal I18n.l(Date.new(2021, 10, 19), format: :long), filter_date_label("2021-10-19")
+    assert_equal "soon", filter_date_label("soon")
+  end
 end

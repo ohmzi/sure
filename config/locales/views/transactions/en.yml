@@ -415,6 +415,17 @@ en:
         toggle_selection_checkboxes: Toggle all checkboxes
         search_placeholder: "Search transactions ..."
         filter: "Filter"
+        active_filters:
+          one: "%{count} filter on"
+          other: "%{count} filters on"
+      sort:
+        label: "Sort"
+        menu_label: "Sort by"
+        options:
+          newest: "Newest first"
+          oldest: "Oldest first"
+          largest: "Largest amount"
+          smallest: "Smallest amount"
     attachments:
       cannot_exceed: "Cannot exceed %{count} attachments per transaction"
       uploaded_one: "Attachment uploaded successfully"

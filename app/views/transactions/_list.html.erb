@@ -43,7 +43,8 @@
       <% end %>
 
       <div class="space-y-6">
-        <%= entries_by_date(@transactions.map(&:entry), totals: true) do |entries| %>
+        <%= entries_by_date(@transactions.map(&:entry), totals: true,
+                            order: { "oldest" => :asc, "largest" => :sequence, "smallest" => :sequence }.fetch(@sort, :desc)) do |entries| %>
           <% if Current.user.show_split_grouped? %>
             <% group_split_entries(entries, @split_parents).each do |item| %>
               <% if item.is_a?(EntriesHelper::SplitGroup) %>
