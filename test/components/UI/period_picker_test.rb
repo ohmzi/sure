@@ -23,16 +23,25 @@ class UI::PeriodPickerTest < ViewComponent::TestCase
     assert_selector "a[aria-checked='true'] svg"
   end
 
-  test "trigger button shows the selected period's short label" do
+  # The trigger names the range in words, the tiles carry the codes (the
+  # owner, 2026-10-19).
+  test "trigger button names the selected period in words" do
     render_inline(UI::PeriodPicker.new(selected: "last_30_days", url: "/"))
 
-    assert_text Period.from_key("last_30_days").label_short
+    assert_selector "button", text: Period.from_key("last_30_days").label
+  end
+
+  test "the sheet groups the ranges and shows each code with its name" do
+    render_inline(UI::PeriodPicker.new(selected: "last_30_days", url: "/"))
+
+    %w[recent calendar long_term].each { |group| assert_selector "h3", text: I18n.t("UI.period_picker.groups.#{group}") }
+    assert_selector "a[role='menuitemradio']", text: /#{Period.from_key("last_month").label_short}\s*#{Period.from_key("last_month").label}/
   end
 
   test "trigger accessible name announces the selected period" do
     render_inline(UI::PeriodPicker.new(selected: "last_90_days", url: "/"))
 
-    label = Period.from_key("last_90_days").label_short
+    label = Period.from_key("last_90_days").label
     assert_selector "button[aria-label='Time period: #{label}']"
   end
 
@@ -40,7 +49,7 @@ class UI::PeriodPickerTest < ViewComponent::TestCase
     I18n.with_locale(:de) do
       render_inline(UI::PeriodPicker.new(selected: "last_90_days", url: "/"))
 
-      label = Period.from_key("last_90_days").label_short
+      label = Period.from_key("last_90_days").label
       assert_selector "button[aria-label='Zeitraum: #{label}']"
     end
   end
@@ -61,7 +70,7 @@ class UI::PeriodPickerTest < ViewComponent::TestCase
   test "accepts a Period object as selected" do
     render_inline(UI::PeriodPicker.new(selected: Period.last_7_days, url: "/"))
 
-    assert_text Period.from_key("last_7_days").label_short
+    assert_selector "button", text: Period.from_key("last_7_days").label
     assert_equal 1, page.all("a[aria-checked='true']").size
   end
 
@@ -80,7 +89,7 @@ class UI::PeriodPickerTest < ViewComponent::TestCase
 
     links = page.all("a[role='menuitemradio']")
     assert_equal Period.all.size + 1, links.size
-    assert_equal custom_period.label_short, links.last.text.strip
+    assert_includes links.last.text, custom_period.label_short
 
     checked = page.all("a[role='menuitemradio'][aria-checked='true']")
     assert_equal 1, checked.size

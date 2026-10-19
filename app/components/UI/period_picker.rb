@@ -35,6 +35,29 @@ class UI::PeriodPicker < ApplicationComponent
     options || Period.all.map { |period| [ period.key, period.label_short ] }
   end
 
+  # The ranges as the sheet groups them (the owner, 2026-10-19: a list of bare
+  # codes read as noise): [title, [[key, code, name], …]], titles nil when a
+  # chart narrows the menu to its own timescales.
+  GROUPS = {
+    recent: %w[last_day last_7_days last_30_days last_90_days last_365_days],
+    calendar: %w[current_week current_month last_month current_year],
+    long_term: %w[last_5_years last_10_years all_time]
+  }.freeze
+
+  def groups
+    return [ [ nil, options.map { |key, label| [ key, label, nil ] } ] ] if options
+
+    periods = Period.all.index_by(&:key)
+    grouped = GROUPS.filter_map do |name, keys|
+      rows = keys.filter_map { |key| periods.delete(key) }.map { |period| [ period.key, period.label_short, period.label ] }
+      [ I18n.t("UI.period_picker.groups.#{name}"), rows ] if rows.any?
+    end
+    # Any range the groups do not name still gets offered.
+    grouped << [ nil, periods.values.map { |period| [ period.key, period.label_short, period.label ] } ] if periods.any?
+    grouped
+  end
+
+  # The trigger names the range in words ("Last 30 Days"), not its code.
   def selected_label
     # A chart that supplies its own timescales labels them itself.
     option_label = options&.to_h&.fetch(selected_key, nil)
@@ -45,7 +68,7 @@ class UI::PeriodPicker < ApplicationComponent
     return selected.label_range if custom_selected?
 
     # A Period object knows its own label — no need to round-trip through PERIODS.
-    selected.respond_to?(:label_short) ? selected.label_short : period_for(selected_key).label_short
+    selected.respond_to?(:label) ? selected.label : period_for(selected_key).label
   end
 
   # True when the selection is a Period with no preset key, i.e. an explicit

@@ -1,42 +1,67 @@
-<%= render DS::Menu.new(variant: :button, placement: placement) do |menu| %>
-  <% menu.with_button(
+<%# The range picker, as a sheet of tiles (the owner, 2026-10-19: "a better
+    design" than a long list of codes): a pill naming the range in words,
+    opening "Time range" with the ranges grouped (Recent, Calendar, Long
+    term), each a tile with its code over its name, the current one filled.
+    Each tile stays a menuitemradio link with aria-checked, so the list reads
+    as one single-select group. %>
+<%= render DS::Popover.new(variant: :button, placement: placement, no_padding: true) do |popover| %>
+  <% popover.with_button(
        type: "button",
-       class: "inline-flex items-center gap-1.5 bg-container border border-secondary font-medium rounded-lg pl-3 pr-2 py-2 text-sm cursor-pointer text-primary hover:bg-container-inset-hover focus:outline-hidden focus:ring-0",
+       class: "press inline-flex items-center gap-1.5 h-9 rounded-full bg-container-inset pl-3 pr-2.5 text-sm font-semibold text-primary hover:bg-container-inset-hover transition-colors cursor-pointer focus-ring",
        aria: { label: t("UI.period_picker.aria_label", period: selected_label) }
      ) do %>
+    <%= helpers.icon("calendar", size: "sm", color: "current", class: "text-secondary") %>
     <span class="whitespace-nowrap"><%= selected_label %></span>
-    <%= helpers.icon("chevron-down", size: "sm") %>
+    <%= helpers.icon("chevron-down", size: "sm", color: "current", class: "text-secondary") %>
   <% end %>
 
-  <%# Both pickers navigate a Turbo frame — the dashboard's `dashboard_sections`
-      and, implicitly, the account page's own container frame — and a frame
-      navigation leaves the address bar alone. Without an explicit visit action
-      a stale ?start_date/&end_date from a chart drag-select would outlive a
-      preset pick and come back on refresh. See `turbo_action_for` for why the
-      checked row replaces rather than advances. %>
-  <% items.each do |key, label| %>
-    <% item_selected = selected?(key) %>
-    <% menu.with_item(
-         variant: :link,
-         text: label,
-         href: href_for(key),
-         frame: frame,
-         selected: item_selected,
-         data: { turbo_action: turbo_action_for(item_selected) }
-       ) %>
-  <% end %>
+  <% popover.with_custom_content do %>
+    <div class="w-full lg:w-[22rem] px-4 pb-4 pt-1 lg:pt-4 space-y-4" role="menu" aria-label="<%= t("UI.period_picker.title") %>">
+      <p class="text-base font-semibold text-primary"><%= t("UI.period_picker.title") %></p>
 
-  <% if custom_row? %>
-    <%# Last, so the presets keep their positions. Without this row a custom
-        range leaves the list with nothing checked, which reads as "no selection"
-        and hides the fact that picking a preset is how you leave it. %>
-    <% menu.with_item(
-         variant: :link,
-         text: selected.label_short,
-         href: custom_href,
-         frame: frame,
-         selected: true,
-         data: { turbo_action: turbo_action_for(true) }
-       ) %>
+      <% groups.each do |title, rows| %>
+        <section class="space-y-2">
+          <% if title %>
+            <h3 class="text-xs font-medium uppercase tracking-wide text-secondary"><%= title %></h3>
+          <% end %>
+          <div class="grid grid-cols-3 gap-2">
+            <% rows.each do |key, code, name| %>
+              <% item_selected = selected?(key) %>
+              <%= link_to href_for(key),
+                    role: "menuitemradio",
+                    aria: { checked: item_selected ? "true" : "false", label: name || code },
+                    data: { turbo_frame: frame, turbo_action: turbo_action_for(item_selected), action: "DS--popover#close" }.compact,
+                    class: class_names(
+                      "press relative flex min-h-16 flex-col items-start justify-center gap-0.5 rounded-2xl px-3 py-2.5 text-left transition-colors focus-ring",
+                      item_selected ? "bg-inverse text-inverse shadow-[0_8px_18px_-10px_var(--color-link)]" : "bg-container-inset text-primary hover:bg-container-inset-hover"
+                    ) do %>
+                <% if item_selected %>
+                  <span class="absolute right-2 top-2"><%= helpers.icon("check", size: "xs", color: "current") %></span>
+                <% end %>
+                <span class="text-base font-bold leading-tight tabular"><%= code %></span>
+                <% if name %>
+                  <span class="text-[11px] leading-tight <%= item_selected ? "opacity-80" : "text-secondary" %>"><%= name %></span>
+                <% end %>
+              <% end %>
+            <% end %>
+          </div>
+        </section>
+      <% end %>
+
+      <% if custom_row? %>
+        <%# Last, so the presets keep their positions. Without this row a custom
+            range leaves the list with nothing checked, which reads as "no
+            selection" and hides the fact that picking a preset is how you
+            leave it. %>
+        <%= link_to custom_href,
+              role: "menuitemradio",
+              aria: { checked: "true" },
+              data: { turbo_frame: frame, turbo_action: turbo_action_for(true), action: "DS--popover#close" }.compact,
+              class: "press relative flex items-center justify-between gap-3 rounded-2xl bg-inverse px-4 py-3 text-inverse focus-ring" do %>
+          <span class="text-base font-bold"><%= selected.label_short %></span>
+          <span class="flex items-center gap-2 text-sm opacity-80"><%= selected.label_range %><%= helpers.icon("check", size: "xs", color: "current") %></span>
+        <% end %>
+      <% end %>
+    </div>
   <% end %>
 <% end %>

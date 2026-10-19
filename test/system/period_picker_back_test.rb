@@ -68,7 +68,9 @@ class PeriodPickerBackTest < ApplicationSystemTestCase
   end
 
   private
-    def period_button(label)
+    # The trigger reads out the period's full name; its tile shows the code.
+    def period_button(code)
+      label = Period.all.find { |period| period.label_short == code }.label
       "button[aria-label='#{I18n.t("UI.period_picker.aria_label", period: label)}']"
     end
 
