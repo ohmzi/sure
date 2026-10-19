@@ -32,6 +32,9 @@ class Transaction < ApplicationRecord
   accepts_nested_attributes_for :taggings, allow_destroy: true
 
   after_save :clear_merchant_unlinked_association, if: :merchant_id_previously_changed?
+  # Labelled with a category that names an account, the money goes there
+  # (Transaction::CategoryRouting). After commit, so the entry exists.
+  after_commit :route_to_category_account, on: %i[create update], if: :saved_change_to_category_id?
 
   # Accessors for exchange_rate stored in extra jsonb field
   def exchange_rate
@@ -57,6 +60,12 @@ class Transaction < ApplicationRecord
   validate :exchange_rate_must_be_valid
 
   private
+    # A failure to move the money must never undo the categorisation itself.
+    def route_to_category_account
+      Transaction::CategoryRouting.new(self).route!
+    rescue StandardError => e
+      Rails.error.report(e, context: { transaction_id: id, category_id: category_id })
+    end
 
     def exchange_rate_must_be_valid
       if extra&.dig("exchange_rate_invalid")

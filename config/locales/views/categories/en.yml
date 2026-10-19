@@ -17,6 +17,11 @@ en:
       name_label: Name
       unassigned: "(unassigned)"
       parent_category_label: "Parent category (optional)"
+      destination_label: Moves money to
+      destination_none: Nowhere — stays spending
+      destination_no_accounts: Add an investment account to send this category's money there.
+      destination_create: Create account
+      destination_hint: Transactions given this category become transfers into this account. Saving moves the ones already in it too.
       trigger_label: Choose color and icon
       color: Color
       icon: Icon
@@ -55,6 +60,9 @@ en:
       target_selected_as_source: Choose different categories for the target and sources.
     update:
       success: Category updated successfully
+      success_moved:
+        one: Category updated — %{count} transaction moved to %{account}
+        other: Category updated — %{count} transactions moved to %{account}
     virtual:
       transfer: Transfer
       payment: Payment

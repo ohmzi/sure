@@ -5,7 +5,7 @@ class CategoriesController < ApplicationController
   before_action :set_transaction, only: :create
 
   def index
-    @categories = Current.family.categories.alphabetically_by_hierarchy.to_a
+    @categories = Current.family.categories.includes(:destination_account).alphabetically_by_hierarchy.to_a
     @category_groups = Category::Group.for(@categories)
     @category_ids_with_transactions = Category.ids_with_transactions(
       family: Current.family,
@@ -72,11 +72,15 @@ class CategoriesController < ApplicationController
 
   def update
     if @category.update(category_params)
-      flash[:notice] = t(".success")
+      # Saving a category that sends its money to an account also resyncs it
+      # (the owner, 2026-10-19): transactions already in the category move
+      # there too, so choosing the account is all it takes.
+      moved = @category.destination_account ? @category.route_existing_transactions! : 0
+      flash[:notice] = moved.positive? ? t(".success_moved", count: moved, account: @category.destination_account.name) : t(".success")
 
       redirect_target_url = request.referer || categories_path
       respond_to do |format|
-        format.html { redirect_back_or_to categories_path, notice: t(".success") }
+        format.html { redirect_back_or_to categories_path, notice: flash[:notice] }
         format.turbo_stream { render turbo_stream: turbo_stream.action(:redirect, redirect_target_url) }
       end
     else
@@ -144,7 +148,7 @@ class CategoriesController < ApplicationController
     end
 
     def category_params
-      params.require(:category).permit(:name, :color, :parent_id, :lucide_icon)
+      params.require(:category).permit(:name, :color, :parent_id, :lucide_icon, :destination_account_id)
     end
 
     def category_merge_params

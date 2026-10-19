@@ -170,6 +170,38 @@ class CategoriesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  # The owner (2026-10-19): choosing where a category's money goes and saving
+  # also moves the transactions already in it — saving is the resync.
+  test "saving an account for a category moves its transactions there" do
+    category = categories(:food_and_drink)
+    entry = @transaction.entry
+    assert entry.amount.positive?, "the fixture charge should be an outflow"
+    assert_equal category, @transaction.category
+
+    category.destination_account = accounts(:investment)
+    moving = category.routable_transactions.size
+    category.destination_account = nil
+    assert_operator moving, :>=, 1
+
+    assert_difference "Transfer.count", moving do
+      patch category_url(category), params: { category: { destination_account_id: accounts(:investment).id } }
+    end
+
+    assert_equal accounts(:investment), category.reload.destination_account
+    assert_equal accounts(:investment), @transaction.reload.transfer.inflow_transaction.entry.account
+    assert_equal I18n.t("categories.update.success_moved", count: moving, account: accounts(:investment).name), flash[:notice]
+  end
+
+  test "with no investment account the setting offers to create one" do
+    @family.accounts.where(accountable_type: Transaction::CategoryRouting::DESTINATION_TYPES).update_all(status: "pending_deletion")
+
+    get edit_category_url(categories(:food_and_drink))
+
+    assert_response :success
+    assert_select "[data-testid='destination-no-accounts'] a[href='#{new_investment_path}']"
+    assert_select "select[name='category[destination_account_id]']", count: 0
+  end
+
   test "update" do
     new_color = Category::COLORS.without(categories(:income).color).sample
 

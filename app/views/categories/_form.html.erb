@@ -65,6 +65,29 @@
           <%= f.select :parent_id, categories.pluck(:name, :id), { include_blank: t(".unassigned"), label: t(".parent_category_label") }, disabled: category.parent?, data: { action: "change->color-icon-picker#handleParentChange" } %>
         <% end %>
       </div>
+
+      <%# Where this category's money goes (the owner, 2026-10-19): a charge
+          given the category becomes a transfer into the account picked here,
+          and saving moves the ones already in it too. With no investment or
+          crypto account yet, it points to making one. %>
+      <% destination_options = category.destination_account_options %>
+      <% if destination_options.any? %>
+        <div class="space-y-2">
+          <%= f.collection_select :destination_account_id, destination_options, :id, :name,
+                { include_blank: t(".destination_none"), label: t(".destination_label") } %>
+          <p class="text-xs text-secondary"><%= t(".destination_hint") %></p>
+        </div>
+      <% else %>
+        <%# No investment account yet: say so and offer to make one. %>
+        <div class="flex items-center gap-3 rounded-[1.25rem] bg-container px-4 py-3 shadow-border-xs" data-testid="destination-no-accounts">
+          <span class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-surface-inset text-secondary" aria-hidden="true"><%= icon("trending-up", size: "md", color: "current") %></span>
+          <div class="min-w-0 grow">
+            <p class="text-xs font-semibold text-secondary"><%= t(".destination_label") %></p>
+            <p class="text-sm text-primary"><%= t(".destination_no_accounts") %></p>
+          </div>
+          <%= link_to t(".destination_create"), new_investment_path, class: "shrink-0 text-sm font-semibold text-link hover:underline focus-ring rounded", data: { turbo_frame: :modal } %>
+        </div>
+      <% end %>
     </section>
 
     <section>

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_18_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_19_200000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pgcrypto"
@@ -434,12 +434,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_120000) do
     t.string "classification_unused", default: "expense", null: false
     t.string "color", default: "#6172F3", null: false
     t.datetime "created_at", null: false
+    t.uuid "destination_account_id"
     t.uuid "family_id", null: false
     t.datetime "last_used_at"
     t.string "lucide_icon", default: "shapes", null: false
     t.string "name", null: false
     t.uuid "parent_id"
     t.datetime "updated_at", null: false
+    t.index ["destination_account_id"], name: "index_categories_on_destination_account_id"
     t.index ["family_id", "last_used_at"], name: "index_categories_on_family_id_and_last_used_at"
     t.index ["family_id", "name"], name: "index_categories_on_family_id_and_name", unique: true
     t.index ["family_id"], name: "index_categories_on_family_id"
@@ -3123,6 +3125,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_18_120000) do
   add_foreign_key "budget_shares", "users", column: "viewer_id"
   add_foreign_key "budgets", "families"
   add_foreign_key "budgets", "users", on_delete: :cascade
+  add_foreign_key "categories", "accounts", column: "destination_account_id", on_delete: :nullify
   add_foreign_key "categories", "families"
   add_foreign_key "categorization_comparisons", "families"
   add_foreign_key "categorization_comparisons", "transactions", on_delete: :nullify

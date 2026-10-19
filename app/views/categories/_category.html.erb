@@ -18,7 +18,13 @@
           style="background-color: color-mix(in oklab, <%= category.color %> 18%, transparent); color: <%= category.color %>" aria-hidden="true">
       <%= icon(category.lucide_icon.presence || "shapes", size: sub ? "xs" : "sm", color: "current") %>
     </span>
-    <span class="truncate text-[15px] font-semibold text-primary" data-testid="category-name"><%= category.name %></span>
+    <span class="min-w-0">
+      <span class="block truncate text-[15px] font-semibold text-primary" data-testid="category-name"><%= category.name %></span>
+      <% if category.destination_account %>
+        <%# Where its money goes (Settings › category › Moves money to). %>
+        <span class="flex items-center gap-1 truncate text-xs text-secondary"><%= icon("arrow-right", size: "xs", color: "current") %><%= category.destination_account.name %></span>
+      <% end %>
+    </span>
   <% end %>
 
   <div class="shrink-0" data-testid="category-actions">

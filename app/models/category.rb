@@ -11,6 +11,10 @@ class Category < ApplicationRecord
          foreign_key: :parent_id,
          dependent: :nullify
   belongs_to :parent, class_name: "Category", optional: true
+  # Where this category's money goes (the owner, 2026-10-19): a charge given
+  # the category becomes a transfer into this investment account
+  # (Transaction::CategoryRouting).
+  belongs_to :destination_account, class_name: "Account", optional: true
 
   # Set by .uncategorized so #filter_value can identify the synthetic instance
   # without a locale-sensitive name comparison. Not a DB column.
@@ -28,6 +32,7 @@ class Category < ApplicationRecord
 
   validate :category_level_limit
   validate :parent_in_same_family
+  validate :destination_account_is_an_investment_of_the_family
 
   before_save :inherit_color_from_parent
 
@@ -427,6 +432,25 @@ class Category < ApplicationRecord
     uncategorized? || other_investments?
   end
 
+  # The accounts a category can send its money to: the family's investment
+  # and crypto accounts.
+  def destination_account_options
+    family.accounts.visible.where(accountable_type: Transaction::CategoryRouting::DESTINATION_TYPES).alphabetically
+  end
+
+  # The transactions already in this category that would move to its account
+  # (the Resync button in its edit sheet).
+  def routable_transactions
+    return Transaction.none if destination_account.nil?
+
+    transactions.includes(entry: :account).select { |transaction| Transaction::CategoryRouting.new(transaction).routable? }
+  end
+
+  # Moves them; returns how many moved.
+  def route_existing_transactions!
+    routable_transactions.count { |transaction| Transaction::CategoryRouting.new(transaction).route! }
+  end
+
   private
     def reassign_transactions_to_nothing
       affected_count = Transaction.reassign_category!(transactions, nil)
@@ -462,6 +486,14 @@ class Category < ApplicationRecord
       return if parent.nil? || parent.family_id == family_id
 
       errors.add(:parent, :invalid)
+    end
+
+    def destination_account_is_an_investment_of_the_family
+      return if destination_account.nil?
+      return if destination_account.family_id == family_id &&
+        Transaction::CategoryRouting::DESTINATION_TYPES.include?(destination_account.accountable_type)
+
+      errors.add(:destination_account, :invalid)
     end
 
     def monetizable_currency
