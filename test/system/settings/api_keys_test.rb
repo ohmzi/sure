@@ -52,8 +52,9 @@ class Settings::ApiKeysTest < ApplicationSystemTestCase
     assert_text "First Key"
     assert_text "Second Key"
 
-    # Revoke the first key via the custom confirmation dialog
-    within all(".bg-container", text: "First Key").first do
+    # Revoke the first key via the custom confirmation dialog. The keys share
+    # one grouped card, so the row is found by its own id.
+    within find("[id^='api_key_']", text: "First Key") do
       click_button "Revoke"
     end
 

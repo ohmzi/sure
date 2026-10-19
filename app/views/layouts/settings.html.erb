@@ -25,13 +25,13 @@
     <main id="main" class="settings-page app-scroller grow min-w-0 h-full overflow-y-auto overscroll-contain" data-controller="settings-scroll" data-notification-tray-target="main">
       <div class="max-w-5xl mx-auto px-4 lg:px-10 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-12">
         <% if content_for?(:page_title) || content_for?(:page_actions) %>
-          <%# A phone stacks the actions under the title: a long settings title
-              ("Recurring Transactions") plus a shrink-0 action row would push
-              the action off the right edge. %>
-          <header class="flex flex-col gap-3 pt-2 lg:pt-10 pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <%# The actions sit on the title's row, as iOS puts a page's buttons
+              beside its large title (2026-10-19), and wrap under it only when
+              the title leaves no room ("Recurring Transactions"). %>
+          <header class="flex flex-wrap items-center justify-between gap-x-3 gap-y-3 pt-2 lg:pt-10 pb-5">
             <h1 class="min-w-0 text-3xl font-bold tracking-tight text-primary"><%= content_for :page_title %></h1>
             <% if content_for?(:page_actions) %>
-              <div class="flex flex-wrap items-center gap-2 sm:shrink-0"><%= yield :page_actions %></div>
+              <div class="flex flex-wrap items-center gap-2 shrink-0"><%= yield :page_actions %></div>
             <% end %>
           </header>
         <% end %>

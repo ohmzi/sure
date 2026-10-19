@@ -63,8 +63,9 @@
 }
 
 /* A Save or a page's main action sits at its trailing edge, sized to its
-   label, rather than a slab across the page. */
-.settings-page :is(button[type="submit"], a):is(.w-full):is(.justify-center) {
+   label, rather than a slab across the page. A sheet opened over a settings
+   page keeps its own full-width button. */
+.settings-page :is(button[type="submit"], a):is(.w-full):is(.justify-center):not(dialog *) {
   width: auto;
   margin-left: auto;
   display: flex;
@@ -90,7 +91,7 @@
 }
 
 /* A plain button made full width (Manage currencies) sizes to its label too. */
-.settings-page button[type="button"]:is(.w-full):is(.justify-center) {
+.settings-page button[type="button"]:is(.w-full):is(.justify-center):not(dialog *) {
   width: auto;
   margin-left: auto;
   display: flex;
@@ -116,4 +117,45 @@
   border-color: transparent;
   background-color: var(--color-container-inset);
   border-radius: 0.75rem;
+}
+
+/* A one-line field in a settings card is an iOS row (the owner, 2026-10-19:
+   "more beautiful versions"): its name on the left in the body colour, its
+   value on the right in the quiet one, so a card of preferences reads as a
+   list of answers rather than a stack of boxes. Fields with more than a
+   label and one control (money, pickers, text areas) keep the stacked form. */
+.settings-page .settings-card .form-field:has(> .form-field__body > .form-field__label:first-child + :is(select, input:is([type="text"], [type="email"], [type="number"], [type="url"], [type="tel"], [type="date"], :not([type]))):last-child) > .form-field__body {
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  min-height: 1.75rem;
+}
+
+.settings-page .settings-card .form-field:has(> .form-field__body > .form-field__label:first-child + :is(select, input):last-child) > .form-field__body > .form-field__label {
+  flex-shrink: 0;
+  max-width: 55%;
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--utility-text-primary);
+}
+
+.settings-page .settings-card .form-field:has(> .form-field__body > .form-field__label:first-child + :is(select, input):last-child) > .form-field__body > :is(select, input) {
+  flex: 1;
+  min-width: 0;
+  font-size: 1rem;
+  text-align: right;
+  text-align-last: right;
+  color: var(--utility-text-secondary);
+}
+
+/* Rows in a settings card sit edge to edge, split only by their hairlines:
+   the gaps a stacked form put between fields would open the list up. */
+.settings-page .settings-card :is(.space-y-2, .space-y-3, .space-y-4, .space-y-6) > :is(.form-field, :has(> .form-field)) {
+  margin-block: 0;
+}
+
+/* A field that opens a group of fields after another field (Profile's names
+   under its email) keeps the hairline between them. */
+.settings-page .settings-card .form-field ~ div > .form-field:first-child {
+  border-top: 1px solid var(--utility-border-subdued);
 }

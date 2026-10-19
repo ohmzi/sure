@@ -15,7 +15,8 @@
         </p>
       <% end %>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+      <%# One list of rows with the email above (2026-10-19), not three boxes. %>
+      <div class="grid grid-cols-1">
         <%= form.text_field :first_name, placeholder: t(".first_name"), label: t(".first_name") %>
         <%= form.text_field :last_name, placeholder: t(".last_name"), label: t(".last_name") %>
       </div>

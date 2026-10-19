@@ -35,7 +35,7 @@
 <% else %>
   <div class="settings-stack bg-container shadow-border-xs">
     <% @api_keys.each do |api_key| %>
-      <div class="bg-container rounded-xl shadow-border-xs p-4">
+      <div id="<%= dom_id(api_key) %>" class="bg-container rounded-xl shadow-border-xs p-4">
         <div class="flex items-start justify-between gap-3">
           <div class="flex items-start gap-3 min-w-0">
             <%= render DS::FilledIcon.new(
