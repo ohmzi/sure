@@ -19,19 +19,20 @@
     variant: "primary",
     icon: "plus",
     href: new_family_merchant_path,
-    frame: :modal
+    frame: :modal,
+    class: "max-md:hidden"
   ) %>
 <% end %>
+
+<%# On a phone the add button is the floating one every list screen has
+    (the owner, 2026-10-19); from md the header keeps its labelled button. %>
+<%= render DS::Fab.new(icon: "plus", label: t(".new"), href: new_family_merchant_path, frame: :modal, class: "md:hidden") %>
 
 <%# iOS grouped (the Settings audit, 2026-10-19): each list's name above one
     card, not a card holding a well holding a card. %>
 <div class="space-y-8">
   <section class="space-y-3">
-    <div class="flex items-center gap-1.5 px-4 text-xs font-medium text-secondary uppercase">
-      <p><%= t(".family_title", moniker: family_moniker) %></p>
-      <span class="text-subdued">&middot;</span>
-      <p><%= @all_family_merchants.count %></p>
-    </div>
+    <%= render "settings/list_heading", title: t(".family_title", moniker: family_moniker), count: @all_family_merchants.count %>
 
     <% if @all_family_merchants.any? %>
       <div class="space-y-2">
@@ -95,11 +96,7 @@
   </section>
 
   <section class="space-y-3">
-    <div class="flex items-center gap-1.5 px-4 text-xs font-medium text-secondary uppercase">
-      <p><%= t(".provider_title") %></p>
-      <span class="text-subdued">&middot;</span>
-      <p><%= @all_provider_merchants.count %></p>
-    </div>
+    <%= render "settings/list_heading", title: t(".provider_title"), count: @all_provider_merchants.count %>
 
     <div class="p-4 bg-container rounded-2xl shadow-border-xs">
       <div class="flex items-start gap-2">
@@ -177,11 +174,7 @@
 
   <% if @unlinked_merchants.any? %>
     <section class="space-y-3">
-      <div class="flex items-center gap-1.5 px-4 text-xs font-medium text-secondary uppercase">
-        <p><%= t(".unlinked_title") %></p>
-        <span class="text-subdued">&middot;</span>
-        <p><%= @unlinked_merchants.count %></p>
-      </div>
+      <%= render "settings/list_heading", title: t(".unlinked_title"), count: @unlinked_merchants.count %>
 
       <div class="p-4 bg-container-inset border border-secondary rounded-lg">
         <div class="flex items-start gap-2">

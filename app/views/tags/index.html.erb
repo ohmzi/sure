@@ -15,20 +15,20 @@
     variant: "primary",
     href: new_tag_path,
     icon: "plus",
-    frame: :modal
+    frame: :modal,
+    class: "max-md:hidden"
   ) %>
 <% end %>
+
+<%# On a phone the add button is the floating one every list screen has
+    (the owner, 2026-10-19); from md the header keeps its labelled button. %>
+<%= render DS::Fab.new(icon: "plus", label: t(".new"), href: new_tag_path, frame: :modal, class: "md:hidden") %>
 
 <%# iOS grouped (the Settings audit, 2026-10-19): the list's name above one
     card of rows. %>
 <div>
   <% if @tags.any? %>
     <section class="space-y-2">
-      <div class="flex items-center gap-1.5 px-4 text-xs font-medium text-secondary uppercase">
-        <p><%= t(".tags") %></p>
-        <span class="text-subdued">&middot;</span>
-        <p><%= @tags.count %></p>
-      </div>
 
       <div class="overflow-hidden rounded-2xl bg-container shadow-border-xs">
         <%= render partial: @tags %>

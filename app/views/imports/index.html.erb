@@ -2,13 +2,6 @@
 
 <%= settings_section do %>
   <div class="rounded-xl bg-container-inset space-y-1 p-1">
-    <div class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-secondary uppercase">
-      <p>
-        <%= t("imports.table.title") %>
-      </p>
-      <span class="text-subdued">&middot;</span>
-      <p><%= @pagy.count %></p>
-    </div>
 
     <% if @imports.any? %>
       <%# Desktop: the table. Phone: the same row as a card, so nothing is
@@ -71,7 +64,7 @@
                 <%= icon(import_type_icon(import), size: "sm", color: "current") %>
               </span>
               <span class="min-w-0">
-                <span class="block truncate text-base text-primary">
+                <span class="block truncate text-[15px] font-semibold text-primary">
                   <% if import.account.present? %>
                     <%= import.account.name + " " %>
                   <% end %>
@@ -100,8 +93,9 @@
     </div>
   <% end %>
 
+  <%= render DS::Fab.new(icon: "plus", label: t("imports.index.new"), href: new_import_path, frame: :modal, class: "md:hidden") %>
   <%= link_to new_import_path,
-              class: "bg-container-inset inline-flex items-center justify-center gap-2 hover:bg-container-inset-hover rounded-lg px-4 py-2 w-full font-medium text-primary text-sm text-center",
+              class: "max-md:hidden bg-container-inset inline-flex items-center justify-center gap-2 hover:bg-container-inset-hover rounded-lg px-4 py-2 w-full font-medium text-primary text-sm text-center",
               data: { turbo_frame: :modal } do %>
     <%= icon("plus") %>
     <%= t("imports.index.new") %>

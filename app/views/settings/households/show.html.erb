@@ -19,14 +19,14 @@
 <% end %>
 
 <%= settings_section title: t(".members_title", count: @users.size + @pending_invitations.size) do %>
-  <ul class="-m-4 divide-y divide-subdued">
+  <ul class="-m-5 divide-y divide-subdued">
     <% @users.each do |user| %>
-      <li class="flex items-center gap-3 px-4 py-3" data-household-member>
+      <li class="flex items-center gap-3 px-5 py-3" data-household-member>
         <div class="size-10 shrink-0">
           <%= render "settings/user_avatar", avatar_url: user.profile_image&.variant(:small)&.url, initials: user.initials %>
         </div>
         <div class="min-w-0 grow">
-          <p class="truncate text-sm font-semibold text-primary"><%= user.display_name %><% if user == Current.user %> <span class="font-normal text-secondary"><%= t(".you") %></span><% end %></p>
+          <p class="truncate text-[15px] font-bold text-primary"><%= user.display_name %><% if user == Current.user %> <span class="font-normal text-secondary"><%= t(".you") %></span><% end %></p>
           <p class="truncate text-xs text-secondary"><%= user.email %></p>
         </div>
         <%= render DS::Pill.new(label: t("users.roles.#{user.role}", default: user.role.humanize), tone: :gray, marker: false, size: :sm) %>
@@ -45,10 +45,10 @@
     <% end %>
 
     <% @pending_invitations.each do |invitation| %>
-      <li class="flex items-center gap-3 px-4 py-3" data-household-invitation>
+      <li class="flex items-center gap-3 px-5 py-3" data-household-invitation>
         <div class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dashed border-secondary text-sm font-semibold uppercase text-secondary"><%= invitation.email[0] %></div>
         <div class="min-w-0 grow">
-          <p class="truncate text-sm font-semibold text-primary"><%= invitation.email %></p>
+          <p class="truncate text-[15px] font-bold text-primary"><%= invitation.email %></p>
           <p class="text-xs text-secondary"><%= t(".invited") %></p>
         </div>
         <% if self_hosted? %>
@@ -78,8 +78,10 @@
 <% end %>
 
 <% if Current.user.admin? %>
+  <%# On a phone, adding someone is the floating button (2026-10-19). %>
+  <%= render DS::Fab.new(icon: "user-plus", label: t(".invite_member"), href: new_invitation_path, frame: :modal, class: "md:hidden") %>
   <%= link_to new_invitation_path, data: { turbo_frame: :modal },
-        class: "press flex h-12 items-center justify-center gap-2 rounded-2xl bg-container text-sm font-semibold text-link shadow-border-xs hover:bg-container-hover transition-colors focus-ring" do %>
+        class: "max-md:hidden press flex h-12 items-center justify-center gap-2 rounded-2xl bg-container text-sm font-semibold text-link shadow-border-xs hover:bg-container-hover transition-colors focus-ring" do %>
     <%= icon("user-plus", size: "sm", color: "current") %>
     <%= t(".invite_member") %>
   <% end %>

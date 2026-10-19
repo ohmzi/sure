@@ -21,9 +21,14 @@
     variant: "primary",
     icon: "plus",
     href: new_category_path,
-    frame: :modal
+    frame: :modal,
+    class: "max-md:hidden"
   ) %>
 <% end %>
+
+<%# On a phone the add button is the floating one every list screen has
+    (the owner, 2026-10-19); from md the header keeps its labelled button. %>
+<%= render DS::Fab.new(icon: "plus", label: t(".new"), href: new_category_path, frame: :modal, class: "md:hidden") %>
 
 <%# iOS grouped (the Settings audit, 2026-10-19): the list's name above one
     card of rows, not a card holding a well holding a card. %>
@@ -31,7 +36,6 @@
   <% if @categories.any? %>
     <div class="space-y-4">
       <%= render "categories/category_list_group",
-                 title: t(".categories"),
                  categories: @categories,
                  family: Current.family,
                  category_groups: @category_groups,

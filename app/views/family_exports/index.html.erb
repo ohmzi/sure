@@ -9,13 +9,6 @@
           polling_interval_value: 3000
         } : {} do %>
       <div class="rounded-xl bg-container-inset space-y-1 p-1">
-        <div class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-secondary uppercase">
-          <p>
-            <%= t("family_exports.table.title") %>
-          </p>
-          <span class="text-subdued">&middot;</span>
-          <p><%= @pagy.count %></p>
-        </div>
 
         <div class="overflow-x-auto">
           <% if @exports.any? %>
@@ -140,8 +133,10 @@
       <% end %>
     <% end %>
 
+    <%# On a phone a new export is the floating button (2026-10-19). %>
+    <%= render DS::Fab.new(icon: "plus", label: t(".new"), href: new_family_export_path, frame: :modal, class: "md:hidden") %>
     <%= link_to new_family_export_path,
-                class: "bg-container-inset inline-flex items-center justify-center gap-2 hover:bg-container-inset-hover rounded-lg px-4 py-2 w-full font-medium text-primary text-sm text-center",
+                class: "max-md:hidden bg-container-inset inline-flex items-center justify-center gap-2 hover:bg-container-inset-hover rounded-lg px-4 py-2 w-full font-medium text-primary text-sm text-center",
                 data: { turbo_frame: :modal } do %>
       <%= icon("plus") %>
       <%= t(".new") %>

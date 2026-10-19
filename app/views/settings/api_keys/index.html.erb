@@ -5,9 +5,13 @@
       text: t(".new_key"),
       href: new_settings_api_key_path,
       variant: "primary",
-      icon: "plus"
+      icon: "plus",
+      class: "max-md:hidden"
     ) %>
   <% end %>
+  <%# On a phone the add button is the floating one every list screen has
+      (the owner, 2026-10-19); from md the header keeps its labelled button. %>
+  <%= render DS::Fab.new(icon: "plus", label: t(".new_key"), href: new_settings_api_key_path, class: "md:hidden") %>
 <% end %>
 
 <% if @api_keys.empty? %>

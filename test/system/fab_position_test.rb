@@ -8,7 +8,9 @@ class FabPositionTest < ApplicationSystemTestCase
     sign_in users(:family_admin)
     page.driver.browser.manage.window.resize_to(390, 844)
 
-    positions = %w[/transactions /accounts /documents].to_h do |path|
+    # Settings' lists add with the same button (the owner, 2026-10-19: "the +
+    # button should be a FAB at bottom right like other screens").
+    positions = %w[/transactions /accounts /documents /categories /tags /family_merchants /rules /settings/api_keys /imports /family_exports /settings/household].to_h do |path|
       visit path
       assert_selector "[data-controller~='floating-action']", visible: :all
       [ path, page.evaluate_script(<<~JS) ]

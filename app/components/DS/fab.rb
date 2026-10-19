@@ -5,8 +5,10 @@
 # bottom-right corner — above the phone's bottom bar and clear of the desktop
 # assistant sidebar (floating_action_controller.js). A button by default (pass
 # `data:` to wire it), a link with `href:` (and `frame:` to open it in one).
+# `m-0`: rendered inside a `space-y-*` stack it would take the stack's gap as
+# a bottom margin and float that much higher than on other pages.
 class DS::Fab < DesignSystemComponent
-  CLASSES = "fixed z-20 right-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] lg:bottom-8 " \
+  CLASSES = "fixed z-20 m-0 right-4 bottom-[calc(5.75rem+env(safe-area-inset-bottom))] lg:bottom-8 " \
             "inline-flex items-center justify-center size-14 rounded-full bg-inverse hover:bg-inverse-hover " \
             "text-inverse shadow-lg active:scale-95 transition focus-ring"
 
