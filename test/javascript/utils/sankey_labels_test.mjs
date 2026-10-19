@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { hiddenSankeyLabels } from "../../../app/javascript/utils/sankey_labels.mjs";
+import {
+  hiddenSankeyLabels,
+  overlappingSankeyLabels,
+} from "../../../app/javascript/utils/sankey_labels.mjs";
 
 const SPACING = 28;
 
@@ -100,4 +103,53 @@ test("same-depth nodes in different visual columns do not compete", () => {
   ];
   const hidden = hiddenSankeyLabels(nodes, { height: 400, minSpacing: SPACING });
   assert.equal(hidden.size, 0);
+});
+
+// The owner (2026-10-18): on a phone, a middle column's labels ran into the
+// next column's ("RBC Chequing" under "Debt reduction"). Labels are checked
+// against every label already placed, across columns, by their drawn boxes.
+const box = (index, value, x, y, width = 80, height = 24) => ({
+  index,
+  value,
+  box: { x, y, width, height },
+});
+
+test("a label that overlaps a larger one in another column is hidden", () => {
+  const hidden = overlappingSankeyLabels([
+    box(0, 55461, 100, 100), // RBC Chequing
+    box(1, 6153, 150, 110), //  Debt reduction, drawn over it
+  ]);
+  assert.deepEqual([...hidden], [1]);
+});
+
+test("labels that do not touch both stay", () => {
+  const hidden = overlappingSankeyLabels([
+    box(0, 500, 0, 0),
+    box(1, 400, 90, 0),
+    box(2, 300, 0, 30),
+  ]);
+  assert.equal(hidden.size, 0);
+});
+
+test("the larger flow keeps its label whichever is listed first", () => {
+  const hidden = overlappingSankeyLabels([
+    box(0, 10, 0, 0),
+    box(1, 900, 20, 5),
+  ]);
+  assert.deepEqual([...hidden], [0]);
+});
+
+test("labels already hidden take no room", () => {
+  const hidden = overlappingSankeyLabels(
+    [box(0, 900, 0, 0), box(1, 10, 20, 5)],
+    { alreadyHidden: new Set([0]) },
+  );
+  assert.equal(hidden.has(1), false);
+});
+
+test("a label running under another column's bar is hidden", () => {
+  const hidden = overlappingSankeyLabels([box(0, 900, 100, 100)], {
+    obstacles: [{ x: 150, y: 90, width: 15, height: 200 }],
+  });
+  assert.deepEqual([...hidden], [0]);
 });

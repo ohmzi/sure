@@ -4,7 +4,10 @@ import { sankey } from "d3-sankey";
 import { formatCashFlowCurrency } from "utils/cash_flow_chart_data";
 import { CHART_TOOLTIP_CLASSES } from "utils/chart_tooltip";
 import { revealOnView } from "utils/reveal_on_view";
-import { hiddenSankeyLabels } from "utils/sankey_labels";
+import {
+  hiddenSankeyLabels,
+  overlappingSankeyLabels,
+} from "utils/sankey_labels";
 import { sankeyNodeHasChildren, zoomSankeyData } from "utils/sankey_zoom";
 import {
   buildCategoryTransactionsUrl,
@@ -491,6 +494,43 @@ export default class extends Controller {
           .style("font-size", "0.65rem")
           .text(controller.#formatCurrency(d.value));
       });
+
+    // The column rule above cannot see a neighbouring column, and on a phone
+    // a middle column's labels ran into the next column's labels and bars
+    // (the owner, 2026-10-18). Measure what was drawn and hide whichever
+    // label belongs to the smaller flow; hovering a node still shows it.
+    const svg = nodeGroups.node()?.ownerSVGElement;
+    if (svg) {
+      const origin = svg.getBoundingClientRect();
+      const labels = [];
+      nodeGroups.select("text").each(function (d) {
+        const r = this.getBoundingClientRect();
+        labels.push({
+          index: d.index,
+          value: d.value,
+          box: {
+            x: r.left - origin.left,
+            y: r.top - origin.top,
+            width: r.width,
+            height: r.height,
+          },
+        });
+      });
+      const obstacles = nodes.map((d) => ({
+        x: d.x0,
+        y: d.y0,
+        width: d.x1 - d.x0,
+        height: d.y1 - d.y0,
+      }));
+      for (const index of overlappingSankeyLabels(labels, {
+        alreadyHidden: hiddenLabels,
+        obstacles,
+      }))
+        hiddenLabels.add(index);
+      nodeGroups
+        .select("text")
+        .style("opacity", (d) => (hiddenLabels.has(d.index) ? 0 : 1));
+    }
 
     return hiddenLabels;
   }
