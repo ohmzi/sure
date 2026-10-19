@@ -1,0 +1,13 @@
+<%# locals: (title:, count: nil, trailing: nil) %>
+<%# A list's name over its card, as the dashboard heads its sections
+    ("Coming up", "Needs you"): bold, with how many there are beside it
+    (2026-10-19). `trailing` sits at the far end, for a filter or a link. %>
+<div class="flex items-baseline justify-between gap-3 px-1">
+  <div class="flex min-w-0 items-baseline gap-2">
+    <h2 class="truncate text-xl font-extrabold tracking-tight text-primary"><%= title %></h2>
+    <% unless count.nil? %>
+      <span class="text-sm font-semibold text-secondary tabular"><%= count %></span>
+    <% end %>
+  </div>
+  <%= trailing %>
+</div>

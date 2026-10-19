@@ -1,4 +1,4 @@
-<%# locals: (title:, categories:, family: nil, category_groups: nil, category_ids_with_transactions: nil) %>
+<%# locals: (categories:, family: nil, category_groups: nil, category_ids_with_transactions: nil) %>
 <% category_groups ||= Category::Group.for(categories) %>
 <% if category_ids_with_transactions.nil? %>
   <% category_ids_with_transactions = if categories.any? && family
@@ -9,11 +9,6 @@
 <% end %>
 
 <section class="space-y-2">
-  <div class="flex items-center gap-1.5 px-4 text-xs font-medium text-secondary uppercase">
-    <p><%= title %></p>
-    <span class="text-subdued">&middot;</span>
-    <p><%= categories.count %></p>
-  </div>
 
   <div class="shadow-border-xs rounded-2xl bg-container">
     <div class="overflow-hidden rounded-2xl">

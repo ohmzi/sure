@@ -14,7 +14,6 @@ class CategoryListGroupViewTest < ActionView::TestCase
     )
 
     html = render(partial: "categories/category_list_group", locals: {
-      title: "Categories",
       categories: [ category ],
       family: category.family
     })
@@ -26,7 +25,6 @@ class CategoryListGroupViewTest < ActionView::TestCase
   test "renders with empty categories when no transaction lookup is provided" do
     assert_nothing_raised do
       render(partial: "categories/category_list_group", locals: {
-        title: "Categories",
         categories: []
       })
     end

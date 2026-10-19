@@ -8,7 +8,7 @@
     <span class="flex size-8 shrink-0 items-center justify-center rounded-[9px]" style="background-color: color-mix(in oklab, <%= tag.color %> 18%, transparent); color: <%= tag.color %>" aria-hidden="true">
       <%= icon("tag", size: "sm", color: "current") %>
     </span>
-    <span class="truncate text-base text-primary"><%= tag.name %></span>
+    <span class="truncate text-[15px] font-semibold text-primary"><%= tag.name %></span>
   <% end %>
   <div class="shrink-0">
     <%= render DS::Menu.new do |menu| %>

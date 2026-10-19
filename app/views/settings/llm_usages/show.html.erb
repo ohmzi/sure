@@ -20,42 +20,43 @@
     <% end %>
   </div>
 
-  <!-- Statistics Summary -->
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-container-inset rounded-lg p-4">
+  <%# Statistics, as the dashboard shows its figures: big numbers on tiles,
+      two to a row on a phone (2026-10-19). %>
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5 mb-6">
+    <div class="bg-container-inset rounded-[20px] p-4">
       <div class="flex items-center gap-2 mb-2">
         <%= icon "activity", class: "w-5 h-5 text-secondary" %>
-        <p class="text-xs font-medium text-secondary uppercase"><%= t(".total_requests") %></p>
+        <p class="text-xs font-medium text-secondary"><%= t(".total_requests") %></p>
       </div>
-      <p class="text-2xl font-semibold text-primary"><%= number_with_delimiter(@statistics[:total_requests]) %></p>
+      <p class="text-[28px] leading-none font-extrabold tracking-tight text-primary tabular"><%= number_with_delimiter(@statistics[:total_requests]) %></p>
     </div>
 
-    <div class="bg-container-inset rounded-lg p-4">
+    <div class="bg-container-inset rounded-[20px] p-4">
       <div class="flex items-center gap-2 mb-2">
         <%= icon "hash", class: "w-5 h-5 text-secondary" %>
-        <p class="text-xs font-medium text-secondary uppercase"><%= t(".total_tokens") %></p>
+        <p class="text-xs font-medium text-secondary"><%= t(".total_tokens") %></p>
       </div>
-      <p class="text-2xl font-semibold text-primary"><%= number_with_delimiter(@statistics[:total_tokens]) %></p>
+      <p class="text-[28px] leading-none font-extrabold tracking-tight text-primary tabular"><%= number_with_delimiter(@statistics[:total_tokens]) %></p>
       <p class="text-xs text-secondary mt-1">
         <%= number_with_delimiter(@statistics[:total_prompt_tokens]) %> <%= t(".prompt") %> /
         <%= number_with_delimiter(@statistics[:total_completion_tokens]) %> <%= t(".completion") %>
       </p>
     </div>
 
-    <div class="bg-container-inset rounded-lg p-4">
+    <div class="bg-container-inset rounded-[20px] p-4">
       <div class="flex items-center gap-2 mb-2">
         <%= icon "dollar-sign", class: "w-5 h-5 text-secondary" %>
-        <p class="text-xs font-medium text-secondary uppercase"><%= t(".total_cost") %></p>
+        <p class="text-xs font-medium text-secondary"><%= t(".total_cost") %></p>
       </div>
-      <p class="text-2xl font-semibold text-primary">$<%= sprintf("%.2f", @statistics[:total_cost]) %></p>
+      <p class="text-[28px] leading-none font-extrabold tracking-tight text-primary tabular">$<%= sprintf("%.2f", @statistics[:total_cost]) %></p>
     </div>
 
-    <div class="bg-container-inset rounded-lg p-4">
+    <div class="bg-container-inset rounded-[20px] p-4">
       <div class="flex items-center gap-2 mb-2">
         <%= icon "trending-up", class: "w-5 h-5 text-secondary" %>
-        <p class="text-xs font-medium text-secondary uppercase"><%= t(".avg_cost_per_request") %></p>
+        <p class="text-xs font-medium text-secondary"><%= t(".avg_cost_per_request") %></p>
       </div>
-      <p class="text-2xl font-semibold text-primary">
+      <p class="text-[28px] leading-none font-extrabold tracking-tight text-primary tabular">
         $<%= sprintf("%.4f", @statistics[:avg_cost]) %>
       </p>
       <% if @statistics[:requests_with_cost] < @statistics[:total_requests] %>
@@ -77,7 +78,7 @@
                 completed_at: @categorization_quality.run.completed_at&.strftime("%b %d, %Y %I:%M %p")) %>
         </p>
       </div>
-      <div class="bg-container-inset rounded-lg p-4">
+      <div class="bg-container-inset rounded-[20px] p-4">
         <%
           accuracy = @categorization_quality.accuracy
           accuracy_description = if @categorization_quality.errored?
@@ -107,9 +108,9 @@
             <div>
               <div class="flex items-center gap-2 mb-2">
                 <%= icon stat[:icon], class: "w-5 h-5 text-secondary" %>
-                <p class="text-xs font-medium text-secondary uppercase"><%= stat[:label] %></p>
+                <p class="text-xs font-medium text-secondary"><%= stat[:label] %></p>
               </div>
-              <p class="text-2xl font-semibold text-primary"><%= stat[:value] %></p>
+              <p class="text-[28px] leading-none font-extrabold tracking-tight text-primary tabular"><%= stat[:value] %></p>
               <p class="text-xs text-secondary mt-1"><%= stat[:description] %></p>
             </div>
           <% end %>
@@ -145,7 +146,7 @@
   <% if @statistics[:by_operation].any? %>
     <div class="mb-6">
       <h2 class="text-lg font-semibold text-primary mb-3"><%= t(".cost_by_operation") %></h2>
-      <div class="bg-container-inset rounded-lg p-4">
+      <div class="bg-container-inset rounded-[20px] p-4">
         <div class="space-y-2">
           <% @statistics[:by_operation].each do |operation, cost| %>
             <div class="flex justify-between items-center">
@@ -162,7 +163,7 @@
   <% if @statistics[:by_model].any? %>
     <div class="mb-6">
       <h2 class="text-lg font-semibold text-primary mb-3"><%= t(".cost_by_model") %></h2>
-      <div class="bg-container-inset rounded-lg p-4">
+      <div class="bg-container-inset rounded-[20px] p-4">
         <div class="space-y-2">
           <% @statistics[:by_model].each do |model, cost| %>
             <div class="flex justify-between items-center">
@@ -183,11 +184,11 @@
         <table class="w-full">
           <thead class="bg-surface border-b border-primary">
             <tr>
-              <th class="px-4 py-3 text-left text-xs font-medium text-secondary uppercase"><%= t(".col_date") %></th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-secondary uppercase"><%= t(".col_operation") %></th>
-              <th class="px-4 py-3 text-left text-xs font-medium text-secondary uppercase"><%= t(".col_model") %></th>
-              <th class="px-4 py-3 text-right text-xs font-medium text-secondary uppercase"><%= t(".col_tokens") %></th>
-              <th class="px-4 py-3 text-right text-xs font-medium text-secondary uppercase"><%= t(".col_cost") %></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-secondary"><%= t(".col_date") %></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-secondary"><%= t(".col_operation") %></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-secondary"><%= t(".col_model") %></th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-secondary"><%= t(".col_tokens") %></th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-secondary"><%= t(".col_cost") %></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-alpha-black-200 theme-dark:divide-alpha-white-200">

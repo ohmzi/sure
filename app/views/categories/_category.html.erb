@@ -18,7 +18,7 @@
           style="background-color: color-mix(in oklab, <%= category.color %> 18%, transparent); color: <%= category.color %>" aria-hidden="true">
       <%= icon(category.lucide_icon.presence || "shapes", size: sub ? "xs" : "sm", color: "current") %>
     </span>
-    <span class="truncate text-base text-primary" data-testid="category-name"><%= category.name %></span>
+    <span class="truncate text-[15px] font-semibold text-primary" data-testid="category-name"><%= category.name %></span>
   <% end %>
 
   <div class="shrink-0" data-testid="category-actions">

@@ -12,7 +12,7 @@
         <%= render DS::Alert.new(variant: :warning, message: t(".redis_unreachable")) %>
       <% else %>
         <div class="space-y-3">
-          <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div class="grid grid-cols-3 lg:grid-cols-6 gap-2.5">
             <% {
               workers: @console.stats.processes,
               busy: @console.stats.busy,
@@ -21,9 +21,9 @@
               scheduled: @console.stats.scheduled_size,
               dead: @console.stats.dead_size
             }.each do |label, value| %>
-              <div class="rounded-lg bg-container-inset p-3">
-                <p class="text-xs text-secondary uppercase"><%= t(".stats.#{label}") %></p>
-                <p class="text-lg font-medium text-primary"><%= value %></p>
+              <div class="rounded-[20px] bg-container-inset p-3.5 space-y-2">
+                <p class="text-xs font-medium text-secondary"><%= t(".stats.#{label}") %></p>
+                <p class="text-[28px] leading-none font-extrabold tracking-tight text-primary tabular"><%= value %></p>
               </div>
             <% end %>
           </div>

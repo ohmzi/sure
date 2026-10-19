@@ -54,11 +54,11 @@
       <div data-controller="providers-filter">
         <%= render "settings/providers/search_filters" %>
 
-        <div id="available" class="flex items-baseline justify-between gap-3 mt-6 mb-1.5 px-1">
-          <h2 class="text-xs font-medium text-secondary uppercase flex items-baseline gap-2">
+        <div id="available" class="flex items-baseline justify-between gap-3 mt-7 mb-2.5 px-1">
+          <h2 class="text-xl font-extrabold tracking-tight text-primary flex items-baseline gap-2">
             <%= t("settings.providers.groups.available") %>
-            <span class="text-subdued font-normal normal-case tabular-nums">
-              · <span data-providers-filter-target="count"><%= @available.size %></span>
+            <span class="text-sm font-semibold text-secondary tabular-nums">
+              <span data-providers-filter-target="count"><%= @available.size %></span>
             </span>
           </h2>
         </div>

@@ -98,16 +98,16 @@
   padding-inline: 1.25rem;
 }
 
-/* Grey tiles inside a card (LLM usage and Background jobs stats, the user
-   admin's family rows) become plain label-and-value pairs on the card, as
-   System health lays its figures out; a run of them is split by hairlines. */
-.settings-page :is(.settings-card, .bg-container.shadow-border-xs) :is(div, details, section).bg-container-inset:is(.rounded-lg, .rounded-xl) {
+/* The user admin's expandable family rows sit on their card as plain rows
+   split by hairlines, not grey boxes in a box. (Stat tiles keep their fill:
+   they are the dashboard's figures, 2026-10-19.) */
+.settings-page :is(.settings-card, .bg-container.shadow-border-xs) details.bg-container-inset:is(.rounded-lg, .rounded-xl) {
   background: transparent;
   border-radius: 0;
   padding-inline: 0;
 }
 
-.settings-page :is(.settings-card, .bg-container.shadow-border-xs) :is(div, details, section).bg-container-inset:is(.rounded-lg, .rounded-xl) + :is(div, details, section).bg-container-inset:is(.rounded-lg, .rounded-xl) {
+.settings-page :is(.settings-card, .bg-container.shadow-border-xs) details.bg-container-inset:is(.rounded-lg, .rounded-xl) + details.bg-container-inset:is(.rounded-lg, .rounded-xl) {
   border-top: 1px solid var(--utility-border-subdued);
 }
 
@@ -158,4 +158,18 @@
    under its email) keeps the hairline between them. */
 .settings-page .settings-card .form-field ~ div > .form-field:first-child {
   border-top: 1px solid var(--utility-border-subdued);
+}
+
+/* Cards on a settings page round like the dashboard's (2026-10-19: "as how
+   the dashboard is"), whatever radius their markup asked for. */
+.settings-page main :is(.rounded-lg, .rounded-xl, .rounded-2xl).bg-container.shadow-border-xs:not(dialog *, .settings-stack > *) {
+  border-radius: 1.625rem;
+}
+
+/* A page with a floating add button leaves room under its last row for the
+   button on a phone, so nothing ends up hidden beneath it. */
+@media (width < 48rem) {
+  main.settings-page:has([data-controller~="floating-action"]) > div {
+    padding-bottom: calc(10.5rem + env(safe-area-inset-bottom));
+  }
 }

@@ -180,7 +180,7 @@ class Settings::ProvidersTest < ApplicationSystemTestCase
 
     connections_heading = find(:xpath, "//h2[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'your connections')]")
     normalized = connections_heading.text.squish
-    assert_match(/Your connections .*· \d+/i, normalized)
+    assert_match(/Your connections \d+/i, normalized)
 
     connections_y = connections_heading.native.location.y
     available_heading = find(:xpath, "//h2[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'available')]")

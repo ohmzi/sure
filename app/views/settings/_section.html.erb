@@ -3,6 +3,7 @@
   <%= render DS::Disclosure.new(
     variant: :card,
     open: open,
+    class: "rounded-[26px]! p-5!",
     data: auto_open_param.present? ? { controller: "auto-open", auto_open_param_value: auto_open_param } : nil
   ) do |disclosure| %>
     <% disclosure.with_summary_content do %>
@@ -11,7 +12,7 @@
           <%= icon "chevron-right", class: "text-secondary group-open:rotate-90 motion-safe:transition-transform motion-safe:duration-150" %>
           <div>
             <div class="flex items-center gap-2 flex-wrap">
-              <h2 class="text-lg font-semibold tracking-tight text-primary"><%= title %></h2>
+              <h2 class="text-xl font-extrabold tracking-tight text-primary"><%= title %></h2>
               <%= badge if badge.present? %>
             </div>
             <% if subtitle.present? %>
@@ -35,17 +36,22 @@
     </div>
   <% end %>
 <% else %>
-  <%# iOS grouped style (2026-10-17): the section's name small and uppercase
-      above its rounded card, the explanation as the card's footnote. %>
-  <section class="space-y-2">
-    <% if title.present? %>
-      <h2 class="px-4 text-xs font-medium uppercase tracking-wide text-secondary"><%= title %></h2>
+  <%# The dashboard's look (the owner, 2026-10-19: "modernized as how the
+      dashboard is"): a bold heading over the section, what it is for under
+      that, then one large rounded card. %>
+  <section class="space-y-2.5">
+    <% if title.present? || subtitle.present? %>
+      <div class="px-1 space-y-0.5">
+        <% if title.present? %>
+          <h2 class="text-xl font-extrabold tracking-tight text-primary"><%= title %></h2>
+        <% end %>
+        <% if subtitle.present? %>
+          <p class="text-sm text-secondary"><%= subtitle %></p>
+        <% end %>
+      </div>
     <% end %>
-    <div class="settings-card bg-container shadow-border-xs rounded-2xl p-4 space-y-4">
+    <div class="settings-card bg-container shadow-border-xs rounded-[26px] p-5 space-y-4">
       <%= content %>
     </div>
-    <% if subtitle.present? %>
-      <p class="px-4 text-xs text-secondary"><%= subtitle %></p>
-    <% end %>
   </section>
 <% end %>
