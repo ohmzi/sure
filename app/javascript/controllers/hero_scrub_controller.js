@@ -28,11 +28,19 @@ export default class extends Controller {
     if (!this.hasTrackTarget || this.pointsValue.length < 2) return;
     if (event.type === "pointerdown") {
       // A mouse press is not a scrub; it hovers already.
-      if (event.pointerType !== "mouse" && this.intent.down(event))
-        this.#scrubTo(event);
+      if (event.pointerType === "mouse") return;
+      // The finger stays with the track wherever it goes, so its lift always
+      // arrives here (the owner, 2026-10-19: a fast finger left the figure
+      // stuck on a day).
+      this.trackTarget.setPointerCapture?.(event.pointerId);
+      if (this.intent.down(event)) this.#scrubTo(event);
       return;
     }
     if (this.intent.move(event)) this.#scrubTo(event);
+  }
+
+  disconnect() {
+    this.#stopWatchingRelease();
   }
 
   // A finger lifting ends the scrub; a mouse button does not (it hovers on).
@@ -42,6 +50,7 @@ export default class extends Controller {
 
   end() {
     this.intent.end();
+    this.#stopWatchingRelease();
     if (!this.scrubbing) return;
     this.scrubbing = false;
 
@@ -68,6 +77,24 @@ export default class extends Controller {
     if (this.hasLabelTarget) this.labelTarget.textContent = this.restingLabel;
   }
 
+  // Any finger lifted anywhere ends the scrub, as a safety net under the
+  // pointer capture above.
+  #watchRelease() {
+    this.#stopWatchingRelease();
+    this.releaseHandler = (event) => {
+      if (event.pointerType !== "mouse") this.end();
+    };
+    window.addEventListener("pointerup", this.releaseHandler, true);
+    window.addEventListener("pointercancel", this.releaseHandler, true);
+  }
+
+  #stopWatchingRelease() {
+    if (!this.releaseHandler) return;
+    window.removeEventListener("pointerup", this.releaseHandler, true);
+    window.removeEventListener("pointercancel", this.releaseHandler, true);
+    this.releaseHandler = null;
+  }
+
   #scrubTo(event) {
     const ys = JSON.parse(this.trackTarget.dataset.ys || "[]");
     const rect = this.trackTarget.getBoundingClientRect();
@@ -79,7 +106,11 @@ export default class extends Controller {
     const point = this.pointsValue[index];
     const x = (index / (this.pointsValue.length - 1)) * 100;
 
+    if (!this.scrubbing) this.#watchRelease();
     if (this.hasDotTarget) {
+      // The dot sits on the line at once; easing it there left it trailing
+      // above or below the line under a fast finger.
+      this.dotTarget.style.transition = "none";
       this.dotTarget.style.left = `clamp(9px, ${x}%, calc(100% - 9px))`;
       if (ys[index] !== undefined)
         this.dotTarget.style.top = `${(ys[index] / 40) * 100}%`;
