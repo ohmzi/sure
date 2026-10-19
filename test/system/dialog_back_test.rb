@@ -18,7 +18,7 @@ class DialogBackTest < ApplicationSystemTestCase
   test "going back from an account the transfer drawer linked to shows the list without the drawer" do
     visit transactions_url
     open_transfer_drawer
-    within("dialog[open]") { click_on @account.name }
+    within("dialog[open]") { click_on @account.name, match: :first }
     assert_selector "main h2", text: @account.name
 
     page.go_back
@@ -95,7 +95,7 @@ class DialogBackTest < ApplicationSystemTestCase
   # Visited directly, the drawer is the page, so Back has to bring it back.
   test "going back to a drawer visited directly restores it as a modal" do
     visit transfer_url(@transfer)
-    within("dialog[open]") { click_on @account.name }
+    within("dialog[open]") { click_on @account.name, match: :first }
     assert_selector "main h2", text: @account.name
 
     page.go_back
