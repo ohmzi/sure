@@ -73,6 +73,19 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[role=menuitemradio][aria-checked=true]", text: I18n.t("transactions.searches.sort.options.newest")
   end
 
+  # The owner (2026-10-19): a phone can select every transaction on the page
+  # at once, and an account filter's chip names the account, not its id.
+  test "activity offers select all on a phone and names a filtered account" do
+    account = accounts(:depository)
+
+    get transactions_url(q: { account_ids: [ account.id ] })
+
+    assert_response :success
+    assert_select ".lg\\:hidden [data-checkbox-toggle-target='selectionEntry'] input[type=checkbox][data-action='bulk-select#togglePageSelection'][data-bulk-select-target='pageCheckbox']"
+    assert_select "#transaction-search-filters li", text: /#{Regexp.escape(account.name)}/
+    assert_select "#transaction-search-filters li", text: /#{account.id}/, count: 0
+  end
+
   # The Activity tab opens a fresh list every time (the owner, 2026-10-18): the
   # filters left on from last time are not brought back by the tab.
   test "the activity tab opens with the filters reset" do

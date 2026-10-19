@@ -9,6 +9,7 @@ export default class extends Controller {
     "selectionBarText",
     "bulkEditDrawerHeader",
     "duplicateLink",
+    "pageCheckbox",
   ];
   static values = {
     singularLabel: String,
@@ -127,10 +128,19 @@ export default class extends Controller {
   }
 
   _updateView = () => {
+    this._updatePageCheckboxes();
     this._updateSelectionBar();
     this._updateGroups();
     this._updateRows();
   };
+
+  // "Select all" stays ticked only while every row on the page is picked.
+  _updatePageCheckboxes() {
+    const selectable = this.rowTargets.filter((row) => !row.disabled).length;
+    const count = this.selectedIdsValue.length;
+    for (const box of this.pageCheckboxTargets)
+      box.checked = count > 0 && count >= selectable;
+  }
 
   _updateSelectionBar() {
     const count = this.selectedIdsValue.length;

@@ -2,6 +2,12 @@ module TransactionsHelper
   # A filter chip's date written out ("October 19, 2021") rather than as the
   # ISO value the filter keeps (the owner, 2026-10-18); anything unreadable
   # shows as it came.
+  # An account filter's chip names the account rather than showing its id
+  # (the owner, 2026-10-19); one the user cannot see shows as it came.
+  def filter_account_label(id)
+    Current.user.accessible_accounts.find_by(id: id)&.name || id
+  end
+
   def filter_date_label(value)
     l(Date.iso8601(value.to_s), format: :long)
   rescue Date::Error

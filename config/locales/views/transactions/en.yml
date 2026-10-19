@@ -286,6 +286,9 @@ en:
       drag_drop_subtitle: Upload transactions directly
       transaction: transaction
       transactions: transactions
+      select_all:
+        one: "Select the %{count} on this page"
+        other: "Select all %{count} on this page"
     toggle_recurring_section: Toggle upcoming recurring transactions
     search:
       filters:

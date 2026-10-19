@@ -20,6 +20,20 @@
     <%= render "transactions/selection_bar" %>
   </div>
 
+  <%# Select all, for a phone (the owner, 2026-10-19): it shows with the row
+      checkboxes (checkbox-toggle) and ticks itself when every row on the page
+      is picked; a computer has the column heading's box. %>
+  <div class="lg:hidden">
+    <div class="hidden" data-checkbox-toggle-target="selectionEntry">
+      <label for="select_all_on_page" class="mb-1 flex h-11 cursor-pointer items-center gap-3 rounded-full bg-container px-4 text-sm font-semibold text-primary shadow-border-xs">
+        <%= check_box_tag "select_all_on_page", "1", false,
+              class: "checkbox checkbox--light",
+              data: { action: "bulk-select#togglePageSelection", bulk_select_target: "pageCheckbox" } %>
+        <span><%= t(".select_all", count: transactions.size) %></span>
+      </label>
+    </div>
+  </div>
+
   <% if @pagy.count > 0 || (@projected_recurring.any? && @q.blank?) %>
     <div class="grow overflow-y-auto">
       <% if @transactions.any? %>
