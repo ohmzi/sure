@@ -49,8 +49,15 @@ class DS::MenuItem < DesignSystemComponent
 
   def text_classes
     [
-      "text-sm",
+      "text-[15px] font-medium group-data-[sheet]:text-[17px]",
       destructive? ? "text-destructive" : "text-primary"
+    ].join(" ")
+  end
+
+  def icon_tile_classes
+    [
+      "flex size-[30px] shrink-0 items-center justify-center rounded-[9px] group-data-[sheet]:size-[34px] group-data-[sheet]:rounded-[11px]",
+      destructive? ? "bg-destructive/10 text-destructive" : "bg-link/10 text-link"
     ].join(" ")
   end
 
@@ -81,9 +88,11 @@ class DS::MenuItem < DesignSystemComponent
 
     def container_classes
       [
-        # In the phone's bottom sheet (DS::Menu's data-sheet) a row is iOS-sized.
-        "flex items-center gap-2 p-2 rounded-md w-full focus-ring group-data-[sheet]:gap-3 group-data-[sheet]:px-5 group-data-[sheet]:py-3 group-data-[sheet]:text-base group-data-[sheet]:rounded-none",
-        destructive? ? "hover:bg-red-tint-5 theme-dark:hover:bg-red-tint-10" : "hover:bg-container-hover"
+        # A row of a V2 menu (2026-10-19): a rounded hover row on a computer;
+        # in the phone's bottom sheet (DS::Menu's data-sheet) an iOS-sized row
+        # of the sheet's white card.
+        "flex items-center gap-3 px-1.5 py-1.5 rounded-xl w-full text-left focus-ring group-data-[sheet]:gap-3.5 group-data-[sheet]:px-3 group-data-[sheet]:py-2.5 group-data-[sheet]:rounded-none",
+        destructive? ? "hover:bg-red-tint-5 theme-dark:hover:bg-red-tint-10" : "hover:bg-surface"
       ].join(" ")
     end
 

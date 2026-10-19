@@ -48,6 +48,7 @@ en:
       confirm_dialog:
         are_you_sure: Are you sure?
         cannot_be_undone: This action cannot be undone.
+        cancel: Cancel
         confirm: Confirm
       notification_tray:
         download_complete: Download complete

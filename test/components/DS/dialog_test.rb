@@ -45,7 +45,7 @@ class DS::DialogTest < ViewComponent::TestCase
     assert_selector "dialog#filters_sheet[data-ds--dialog-sheet-value='true'][data-ds--dialog-auto-open-value='false']"
     assert_selector "dialog[data-action~='sheet:open->DS--dialog#open'][data-action~='sheet:close->DS--dialog#close']"
     assert_selector "dialog [data-ds--dialog-target='grabber']"
-    assert_selector "dialog [data-ds--dialog-target='content'].rounded-t-3xl"
+    assert_selector "dialog [data-ds--dialog-target='content'].rounded-t-\\[2rem\\]"
     assert_text "Body"
   end
 
@@ -58,12 +58,12 @@ class DS::DialogTest < ViewComponent::TestCase
     assert_selector "dialog[data-ds--dialog-sheet-value='false']"
     assert_selector "dialog [data-ds--dialog-target='grabber'].lg\\:hidden"
     assert_selector "dialog > div.items-end.lg\\:items-center"
-    assert_selector "dialog [data-ds--dialog-target='content'].rounded-t-3xl.lg\\:rounded-2xl"
+    assert_selector "dialog [data-ds--dialog-target='content'].rounded-t-\\[2rem\\].lg\\:rounded-\\[1\\.75rem\\]"
 
     render_inline(DS::Dialog.new(variant: "drawer")) { |dialog| dialog.with_body { "Body" } }
     assert_selector "dialog [data-ds--dialog-target='grabber']"
     assert_selector "dialog > div.items-end.lg\\:justify-end"
-    assert_selector "dialog [data-ds--dialog-target='content'].rounded-t-3xl.lg\\:h-full"
+    assert_selector "dialog [data-ds--dialog-target='content'].rounded-t-\\[2rem\\].lg\\:h-full"
   end
 
   # The iOS sheet header: a leading action, the centred title the dialog is

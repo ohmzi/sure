@@ -8,7 +8,7 @@
 #
 # Use `DS::Menu` instead when the panel is a flat list of clickable actions.
 class DS::Popover < DesignSystemComponent
-  attr_reader :variant, :avatar_url, :initials, :placement, :offset, :icon, :no_padding, :testid, :mobile_fullwidth, :max_width, :panel_id
+  attr_reader :variant, :avatar_url, :initials, :placement, :offset, :icon, :no_padding, :testid, :mobile_fullwidth, :max_width, :panel_id, :sheet_card
 
   renders_one :button, ->(**button_options, &block) do
     options_with_target = button_options.deep_dup
@@ -28,14 +28,17 @@ class DS::Popover < DesignSystemComponent
   end
 
   renders_one :header, ->(&block) do
-    content_tag(:div, class: "border-b border-tertiary", &block)
+    content_tag(:div, class: "border-b border-tertiary group-data-[sheet]:border-0", &block)
   end
 
   renders_one :custom_content
 
   VARIANTS = %i[icon button avatar].freeze
 
-  def initialize(variant: "icon", avatar_url: nil, initials: nil, placement: "bottom-end", offset: 12, icon: "more-horizontal", no_padding: false, testid: nil, mobile_fullwidth: true, max_width: nil, aria_label: nil)
+  # `sheet_card: false` leaves the content on the phone sheet's lavender for a
+  # popover that lays out its own cards (the account menu, the time-range
+  # tiles); by default the content is one white card on it (V2, 2026-10-19).
+  def initialize(variant: "icon", avatar_url: nil, initials: nil, placement: "bottom-end", offset: 12, icon: "more-horizontal", no_padding: false, testid: nil, mobile_fullwidth: true, max_width: nil, aria_label: nil, sheet_card: true)
     @variant = variant.to_sym
     @avatar_url = avatar_url
     @initials = initials
@@ -43,6 +46,7 @@ class DS::Popover < DesignSystemComponent
     @offset = offset
     @icon = icon
     @no_padding = no_padding
+    @sheet_card = sheet_card
     @testid = testid
     @mobile_fullwidth = mobile_fullwidth
     @max_width = max_width

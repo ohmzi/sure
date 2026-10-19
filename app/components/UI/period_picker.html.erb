@@ -3,8 +3,9 @@
     opening "Time range" with the ranges grouped (Recent, Calendar, Long
     term), each a tile with its code over its name, the current one filled.
     Each tile stays a menuitemradio link with aria-checked, so the list reads
-    as one single-select group. %>
-<%= render DS::Popover.new(variant: :button, placement: placement, no_padding: true) do |popover| %>
+    as one single-select group. V2 (2026-10-19): on a phone the tiles are
+    white cards on the sheet's lavender under a bold title. %>
+<%= render DS::Popover.new(variant: :button, placement: placement, no_padding: true, sheet_card: false) do |popover| %>
   <% popover.with_button(
        type: "button",
        class: "press inline-flex items-center gap-1.5 h-9 rounded-full bg-container-inset pl-3 pr-2.5 text-sm font-semibold text-primary hover:bg-container-inset-hover transition-colors cursor-pointer focus-ring",
@@ -16,13 +17,13 @@
   <% end %>
 
   <% popover.with_custom_content do %>
-    <div class="w-full lg:w-[22rem] px-4 pb-4 pt-1 lg:pt-4 space-y-4" role="menu" aria-label="<%= t("UI.period_picker.title") %>">
-      <p class="text-base font-semibold text-primary"><%= t("UI.period_picker.title") %></p>
+    <div class="w-full lg:w-[22rem] px-4 pb-4 pt-1 lg:pt-4 space-y-4 group-data-[sheet]:px-0 group-data-[sheet]:pb-0" role="menu" aria-label="<%= t("UI.period_picker.title") %>">
+      <p class="text-lg font-extrabold tracking-tight text-primary group-data-[sheet]:px-1 group-data-[sheet]:text-2xl"><%= t("UI.period_picker.title") %></p>
 
       <% groups.each do |title, rows| %>
         <section class="space-y-2">
           <% if title %>
-            <h3 class="text-xs font-medium uppercase tracking-wide text-secondary"><%= title %></h3>
+            <h3 class="px-1 text-sm font-bold text-secondary"><%= title %></h3>
           <% end %>
           <div class="grid grid-cols-3 gap-2">
             <% rows.each do |key, code, name| %>
@@ -33,14 +34,14 @@
                     data: { turbo_frame: frame, turbo_action: turbo_action_for(item_selected), action: "DS--popover#close" }.compact,
                     class: class_names(
                       "press relative flex min-h-16 flex-col items-start justify-center gap-0.5 rounded-2xl px-3 py-2.5 text-left transition-colors focus-ring",
-                      item_selected ? "bg-inverse text-inverse shadow-[0_8px_18px_-10px_var(--color-link)]" : "bg-container-inset text-primary hover:bg-container-inset-hover"
+                      item_selected ? "bg-inverse text-inverse shadow-[0_12px_24px_-12px_var(--color-link)]" : "bg-container-inset text-primary hover:bg-container-inset-hover group-data-[sheet]:bg-container group-data-[sheet]:shadow-border-xs"
                     ) do %>
                 <% if item_selected %>
                   <span class="absolute right-2 top-2"><%= helpers.icon("check", size: "xs", color: "current") %></span>
                 <% end %>
-                <span class="text-base font-bold leading-tight tabular"><%= code %></span>
+                <span class="text-lg font-extrabold tracking-tight leading-tight tabular"><%= code %></span>
                 <% if name %>
-                  <span class="text-[11px] leading-tight <%= item_selected ? "opacity-80" : "text-secondary" %>"><%= name %></span>
+                  <span class="text-xs leading-tight <%= item_selected ? "opacity-80" : "text-secondary" %>"><%= name %></span>
                 <% end %>
               <% end %>
             <% end %>

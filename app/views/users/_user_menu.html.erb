@@ -6,7 +6,12 @@
   <%# `DS::Popover` (not `DS::Menu`) because the panel includes a
       decorative profile header alongside the action items — `role="menu"`
       would restrict AT users to menuitem-only navigation and hide the
-      user-info block. %>
+      user-info block.
+
+      V2 (2026-10-19): on a phone the sheet is three cards on the lavender
+      ground — who you are, where to go, and Log out on its own — with the
+      version under them; on a computer the same groups in one panel, split
+      by hairlines. `popup-group` is the card (popups.css). %>
   <%= render DS::Popover.new(
         variant: intro_mode ? "icon" : "avatar",
         avatar_url: user.profile_image&.variant(:small)&.url,
@@ -14,57 +19,59 @@
         placement: placement,
         offset: offset,
         icon: "settings",
+        sheet_card: false,
         aria_label: t(".aria_label", default: "Open account menu")
       ) do |popover| %>
     <%= popover.with_header do %>
-      <div class="px-4 py-3 flex items-center gap-3">
-        <div class="w-9 h-9 shrink-0">
+      <div class="popup-group flex items-center gap-3 px-3 py-3 group-data-[sheet]:gap-3.5 group-data-[sheet]:p-4 group-data-[sheet]:mb-3">
+        <div class="size-11 shrink-0 group-data-[sheet]:size-[52px]">
           <%= render "settings/user_avatar", avatar_url: user.profile_image&.variant(:small)&.url, initials: user.initials, lazy: true %>
         </div>
 
-        <div class="overflow-hidden text-ellipsis text-sm">
-          <p class="font-medium"><%= user.display_name %></p>
+        <div class="min-w-0">
+          <p class="truncate text-base font-extrabold tracking-tight text-primary group-data-[sheet]:text-lg"><%= user.display_name %></p>
           <% if user.display_name != user.email %>
-            <p class="text-secondary"><%= user.email %></p>
+            <p class="truncate text-sm text-secondary"><%= user.email %></p>
           <% end %>
         </div>
       </div>
-
-      <% if self_hosted? %>
-        <div class="px-4 py-3 border-t border-tertiary">
-          <p class="text-sm">
-            <span class="font-medium text-primary"><%= t(".version") %>:</span>
-            <%= link_to Sure.version.to_release_tag, "https://github.com/we-promise/sure/releases/tag/#{Sure.version.to_release_tag}", target: "_blank", class: "hover:underline" %>
-
-            <% if Sure.commit_sha.present? %>
-              (<%= link_to Sure.commit_sha.first(7), "https://github.com/we-promise/sure/commit/#{Sure.commit_sha}", target: "_blank", class: "hover:underline" %>)
-            <% end %>
-          </p>
-        </div>
-      <% end %>
     <% end %>
 
     <% popover.with_custom_content do %>
       <%# `roving: false` keeps these items in the normal Tab order. The parent
           `DS::Popover` has no arrow-key roving handler and is not a `role="menu"`
           container, so the default `tabindex="-1"` would skip every item. %>
-      <%= render DS::MenuItem.new(
-        variant: "link",
-        roving: false,
-        text: t(".settings"),
-        icon: "settings",
-        href: settings_root_path
-      ) %>
-      <%= render DS::MenuItem.new(variant: "link", roving: false, text: t(".changelog"), icon: "box", href: changelog_path) %>
+      <div class="popup-group px-0.5">
+        <%= render DS::MenuItem.new(
+          variant: "link",
+          roving: false,
+          text: t(".settings"),
+          icon: "settings",
+          href: settings_root_path
+        ) %>
+        <%= render DS::MenuItem.new(variant: "link", roving: false, text: t(".changelog"), icon: "box", href: changelog_path) %>
 
-      <% if self_hosted? && !intro_mode %>
-        <%= render DS::MenuItem.new(variant: "link", roving: false, text: t(".feedback"), icon: "megaphone", href: feedback_path) %>
+        <% if self_hosted? && !intro_mode %>
+          <%= render DS::MenuItem.new(variant: "link", roving: false, text: t(".feedback"), icon: "megaphone", href: feedback_path) %>
+        <% end %>
+        <%= render DS::MenuItem.new(variant: "link", roving: false, text: t(".contact"), icon: "message-square-more", href: "https://discord.gg/36ZGBsxYEK", target: "_blank", rel: "noopener noreferrer") %>
+      </div>
+
+      <div class="my-1 mx-2 border-t border-tertiary group-data-[sheet]:hidden" role="separator"></div>
+
+      <div class="popup-group px-0.5 group-data-[sheet]:mt-3">
+        <%= render DS::MenuItem.new(variant: "button", roving: false, text: t(".log_out"), icon: "log-out", href: session_path(Current.session), method: :delete) %>
+      </div>
+
+      <% if self_hosted? %>
+        <p class="px-3 pt-2 pb-1 text-xs text-secondary group-data-[sheet]:pt-3 group-data-[sheet]:text-center">
+          <%= t(".version") %>
+          <%= link_to Sure.version.to_release_tag, "https://github.com/we-promise/sure/releases/tag/#{Sure.version.to_release_tag}", target: "_blank", class: "hover:underline" %>
+          <% if Sure.commit_sha.present? %>
+            (<%= link_to Sure.commit_sha.first(7), "https://github.com/we-promise/sure/commit/#{Sure.commit_sha}", target: "_blank", class: "hover:underline" %>)
+          <% end %>
+        </p>
       <% end %>
-      <%= render DS::MenuItem.new(variant: "link", roving: false, text: t(".contact"), icon: "message-square-more", href: "https://discord.gg/36ZGBsxYEK", target: "_blank", rel: "noopener noreferrer") %>
-
-      <%= render DS::MenuItem.new(variant: "divider") %>
-
-      <%= render DS::MenuItem.new(variant: "button", roving: false, text: t(".log_out"), icon: "log-out", href: session_path(Current.session), method: :delete) %>
     <% end %>
   <% end %>
 </div>

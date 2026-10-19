@@ -1,0 +1,202 @@
+/*
+  Popups, V2 (the owner, 2026-10-19: "give the redesigned one to Claude
+  design and make it beautiful, then carry that V2 to all the bottom sheets
+  on a phone and the popups on a computer"). The design is the "V2" rows of
+  the Sure Settings & Sheets canvas. Every popup is one of five things, and
+  each is styled here so none is left behind:
+
+    1. sheets and dialogs (DS::Dialog: forms, detail drawers, confirmations)
+    2. action menus (DS::Menu)
+    3. popovers (DS::Popover: the account menu, the time range, filters)
+    4. picker lists (DS::Select, category, merchant and tag selects)
+    5. the securities combobox's own dialog (hotwire_combobox)
+
+  The language is the dashboard's: the lavender ground, white cards with a
+  20px radius, extra-bold titles, a tall pill for the main action with a
+  soft glow of its colour, icons on small tinted tiles. Unlayered, after
+  sheets.css (V1), so where the two disagree V2 wins.
+*/
+
+/* 1. Sheets and dialogs ------------------------------------------------- */
+
+/* Cards and fields round a little more than V1's. */
+dialog .form-field,
+dialog :is(section, div).space-y-2:has(> .form-field),
+dialog details > summary.min-h-11.bg-surface,
+dialog .overflow-hidden.rounded-2xl.bg-container-inset {
+  border-radius: 1.25rem;
+}
+
+dialog :is(section, div).space-y-2:has(> .form-field) > :first-child .form-field,
+dialog :is(section, div).space-y-2:has(> .form-field) > .form-field:first-child {
+  border-top-left-radius: 1.25rem;
+  border-top-right-radius: 1.25rem;
+}
+
+/* A field's name is small and firm; what it holds is the body size. */
+dialog .form-field .form-field__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+dialog .form-field :is(.form-field__input, select, input):not([type="checkbox"], [type="radio"]) {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+dialog .form-field :is(.form-field__input, input)::placeholder {
+  font-weight: 400;
+}
+
+/* The field being edited is tinted with the brand and names itself in it,
+   rather than underlined. */
+dialog .form-field:focus-within,
+dialog :is(section, div).space-y-2:has(> .form-field) .form-field:focus-within {
+  box-shadow: none;
+  background: color-mix(in oklab, var(--color-link) 5%, var(--color-container));
+}
+
+dialog .form-field:focus-within .form-field__label {
+  color: var(--color-link);
+}
+
+/* The close button is a white disc lifted off the sheet. */
+dialog header button[data-action~="DS--dialog#close"],
+dialog [data-DS--dialog-target="content"] > div > div > button[data-action~="DS--dialog#close"] {
+  width: 2rem;
+  height: 2rem;
+  background: var(--color-container);
+  box-shadow: var(--utility-shadow-border-xs);
+}
+
+dialog header button[data-action~="DS--dialog#close"]:hover {
+  background: var(--color-container-hover);
+}
+
+/* The main action: a tall pill with a soft glow of its own colour. */
+dialog [type="submit"].w-full:not([value="cancel"]) {
+  min-height: 3.375rem;
+  border-radius: 9999px;
+  font-weight: 700;
+  box-shadow: 0 14px 28px -14px var(--color-link);
+}
+
+dialog [type="submit"].w-full:is(.bg-destructive, [class*="bg-red-"]) {
+  box-shadow: 0 14px 28px -14px var(--color-destructive);
+}
+
+dialog [type="submit"].w-full:is(.bg-transparent, [class*="border"]):not(.bg-destructive) {
+  box-shadow: none;
+}
+
+/* Segmented controls are pills on a pill track. */
+dialog .segmented-control {
+  border-radius: 9999px;
+  padding: 0.1875rem;
+}
+
+dialog .segmented-control > :is(a, button, span) {
+  border-radius: 9999px;
+}
+
+/* Fold-outs and grouped lists are white cards; a fold-out names itself in a
+   firmer weight. */
+dialog details > summary.min-h-11.bg-surface span.text-xs.uppercase {
+  font-weight: 600;
+}
+
+dialog details > summary.min-h-11.bg-surface,
+dialog .overflow-hidden.rounded-2xl.bg-container-inset {
+  box-shadow: var(--utility-shadow-border-xs);
+}
+
+/* The confirmation's icon turns red when the action it asks about destroys
+   something. */
+#confirm-dialog:has([data-confirm-dialog-target="confirmButton"]:is([data-variant="destructive"], [data-variant="outline-destructive"]):not([hidden])) .confirm-dialog__icon {
+  background: color-mix(in oklab, var(--color-destructive) 10%, transparent);
+  color: var(--color-destructive);
+}
+
+/* 2 and 3. Action menus and popovers ------------------------------------- */
+
+/* On a phone (data-sheet) a group of rows is a white card on the sheet's
+   lavender, its rows split by hairlines that start where the text does. */
+[data-sheet] .popup-group {
+  border-radius: 1.25rem;
+  background: var(--color-container);
+  box-shadow: var(--utility-shadow-border-xs);
+  overflow: hidden;
+}
+
+[data-sheet] .popup-group > [role="none"] {
+  position: relative;
+}
+
+[data-sheet] .popup-group > [role="none"] + [role="none"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 3.75rem;
+  right: 0;
+  border-top: 1px solid var(--utility-border-subdued);
+}
+
+/* A divider in an action sheet splits the card into two, with the sheet's
+   lavender between them. */
+[data-sheet] .popup-group > [role="separator"] {
+  height: 0.625rem;
+  margin-inline: -1px;
+  background: var(--color-surface);
+}
+
+[data-sheet] .popup-group > [role="separator"] > * {
+  display: none;
+}
+
+/* 4. Picker lists ---------------------------------------------------------- */
+
+/* On a phone a picker is a sheet on the lavender ground, its search a white
+   pill and its options one white card of tall rows. */
+:is([data-category-select-target="menu"], [data-merchant-select-target="menu"], [data-tag-select-target="menu"], [data-select-target="menu"])[data-sheet] {
+  background: var(--color-surface);
+  border-radius: 2rem 2rem 0 0;
+  /* placeAsSheet() zeroes the side padding inline for the wrappers it
+     usually positions; a picker's panel is its own wrapper. */
+  padding-inline: 1rem !important;
+  box-shadow: var(--utility-shadow-border-xl);
+}
+
+[data-sheet] :is([role="listbox"], [data-list-filter-target="list"]) {
+  margin-top: 0.75rem;
+  padding: 0.25rem;
+  border-radius: 1.25rem;
+  background: var(--color-container);
+  box-shadow: var(--utility-shadow-border-xs);
+}
+
+[data-sheet] [role="listbox"] > [role="option"] {
+  min-height: 3rem;
+  border-radius: 0.875rem;
+}
+
+[data-sheet] [role="listbox"] > [role="option"][aria-selected="true"] {
+  background: color-mix(in oklab, var(--color-link) 8%, var(--color-container));
+}
+
+[data-sheet] :is(input[type="search"], input[type="text"]):not(.form-field__input) {
+  border-radius: 9999px;
+  background: var(--color-container);
+}
+
+/* 5. The securities combobox ---------------------------------------------- */
+
+.hw-combobox__dialog {
+  border-radius: 2rem 2rem 0 0;
+  background: var(--color-surface);
+  box-shadow: var(--utility-shadow-border-xl);
+}
+
+.hw-combobox__dialog .hw-combobox__listbox {
+  border-radius: 1.25rem;
+  background: var(--color-container);
+}

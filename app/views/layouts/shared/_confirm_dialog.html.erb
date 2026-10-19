@@ -1,18 +1,19 @@
 <%# This dialog is used as an override to the browser's confirm API when submitting forms with data-turbo-confirm %>
 <%# See confirm_dialog_controller.js and _htmldoc.html.erb  %>
+<%# V2 (2026-10-19): centred, as iOS asks — an icon on a tinted tile (red
+    when the action destroys something, popups.css), a bold question, what
+    it means, then the action as a tall pill with Cancel under it. %>
 <%= render DS::Dialog.new(id: "confirm-dialog", auto_open: false, data: { controller: "confirm-dialog" }, width: "sm", disable_frame: true) do |dialog| %>
   <% dialog.with_body do %>
-    <form method="dialog" class="space-y-4">
-      <div class="space-y-2">
-        <div class="flex items-center justify-between gap-2">
-          <h3 class="font-medium text-primary" data-confirm-dialog-target="title"><%= t(".are_you_sure") %></h3>
-          <%= icon("x", as_button: true, type: "submit", value: "cancel") %>
-        </div>
+    <form method="dialog" class="flex flex-col items-center gap-2 pt-2 text-center">
+      <span class="confirm-dialog__icon mb-2 flex size-[60px] items-center justify-center rounded-[20px] bg-link/10 text-link" aria-hidden="true">
+        <%= icon("circle-alert", size: "xl", color: "current") %>
+      </span>
 
-        <p class="text-sm text-secondary" data-confirm-dialog-target="subtitle"><%= t(".cannot_be_undone") %></p>
-      </div>
+      <h3 class="text-2xl font-extrabold tracking-tight text-primary" data-confirm-dialog-target="title"><%= t(".are_you_sure") %></h3>
+      <p class="text-[15px] leading-snug text-secondary" data-confirm-dialog-target="subtitle"><%= t(".cannot_be_undone") %></p>
 
-      <div>
+      <div class="w-full space-y-1 pt-4">
         <% ["primary", "outline-destructive", "destructive"].each do |variant| %>
           <%= render DS::Button.new(
           text: t(".confirm"),
@@ -25,6 +26,10 @@
           hidden: true,
         ) %>
         <% end %>
+
+        <button type="submit" value="cancel" class="press flex h-12 w-full items-center justify-center rounded-full text-[17px] font-bold text-link hover:bg-surface-inset focus-ring">
+          <%= t(".cancel") %>
+        </button>
       </div>
     </form>
   <% end %>

@@ -3,7 +3,7 @@
     <%= render "shared/ruler", classes: "my-1" %>
   </div>
 <% else %>
-  <div class="px-1" role="none">
+  <div class="px-1 group-data-[sheet]:px-0" role="none">
     <%= wrapper do %>
       <% if selectable? %>
         <span class="flex items-center justify-center w-5 h-5 shrink-0" aria-hidden="true">
@@ -11,7 +11,11 @@
         </span>
       <% end %>
       <% if icon %>
-        <%= helpers.icon(icon, color: destructive? ? :destructive : :default) %>
+        <%# V2 (2026-10-19): the icon sits on a small tinted tile, red for a
+            destructive action, as the action sheets and the dashboard draw them. %>
+        <span class="<%= icon_tile_classes %>" aria-hidden="true">
+          <%= helpers.icon(icon, size: "sm", color: "current") %>
+        </span>
       <% end %>
       <%= tag.span(text, class: text_classes) %>
     <% end %>

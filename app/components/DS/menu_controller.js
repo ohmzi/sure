@@ -143,11 +143,12 @@ export default class extends Controller {
     // Include selectable roles (menuitemradio/menuitemcheckbox) so roving focus
     // and keyboard handling work for single/multi-select menus, not just plain
     // action items.
+    // Only the ones on show: the sheet's Cancel row is hidden on a computer.
     return Array.from(
       this.contentTarget.querySelectorAll(
         '[role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"]',
       ),
-    );
+    ).filter((item) => item.getClientRects().length > 0);
   }
 
   #focusFirstMenuItem() {

@@ -8,7 +8,7 @@ class DS::Dialog < DesignSystemComponent
         # `aria-labelledby` so AT users hear the title when focus lands
         # in the dialog. `content_tag("h#{heading_level}", ...)` builds an
         # h2/h3/etc based on the caller's `heading_level:`.
-        title = content_tag("h#{heading_level}", title, id: title_id, class: class_names("font-bold tracking-tight text-primary", drawer? ? "text-[22px] leading-7" : "text-[22px] leading-7 lg:text-xl")) if title
+        title = content_tag("h#{heading_level}", title, id: title_id, class: class_names("text-2xl leading-8 font-extrabold tracking-tight text-primary")) if title
         close_icon = close_button unless custom_header
         safe_join([ title, close_icon ].compact)
       end
@@ -159,8 +159,8 @@ class DS::Dialog < DesignSystemComponent
     end
 
     class_names(
-      "flex flex-col w-full max-h-[92dvh] bg-surface shadow-border-xs",
-      "rounded-t-3xl lg:rounded-2xl pb-[env(safe-area-inset-bottom)] lg:pb-0",
+      "flex flex-col w-full max-h-[92dvh] bg-surface shadow-border-xl",
+      "rounded-t-[2rem] lg:rounded-[1.75rem] pb-[env(safe-area-inset-bottom)] lg:pb-0",
       # Below lg it rises on open (`starting:`) on the curve iOS sheets use,
       # settling rather than stopping; a sheet also fades up as a panel from lg.
       "transition-[transform,opacity] duration-300 ease-out max-lg:duration-[420ms] max-lg:ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",

@@ -65,7 +65,7 @@
 /* A Save or a page's main action sits at its trailing edge, sized to its
    label, rather than a slab across the page. A sheet opened over a settings
    page keeps its own full-width button. */
-.settings-page :is(button[type="submit"], a):is(.w-full):is(.justify-center):not(dialog *) {
+.settings-page :is(button[type="submit"], a):is(.w-full):is(.justify-center):not(dialog *, .popup-panel *) {
   width: auto;
   margin-left: auto;
   display: flex;
@@ -91,7 +91,7 @@
 }
 
 /* A plain button made full width (Manage currencies) sizes to its label too. */
-.settings-page button[type="button"]:is(.w-full):is(.justify-center):not(dialog *) {
+.settings-page button[type="button"]:is(.w-full):is(.justify-center):not(dialog *, .popup-panel *) {
   width: auto;
   margin-left: auto;
   display: flex;
