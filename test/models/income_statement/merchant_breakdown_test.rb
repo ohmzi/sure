@@ -30,6 +30,28 @@ class IncomeStatement::MerchantBreakdownTest < ActiveSupport::TestCase
     assert_match(/\A#[0-9a-f]{6}\z/i, result.rows.last.color)
   end
 
+  # The owner (2026-10-19): every merchant in a breakdown has its own colour,
+  # even when two would hash to the same palette slot or share a set colour,
+  # and the refunds are told apart from each other too.
+  test "every merchant and every refund gets its own colour" do
+    blue = @family.merchants.create!(name: "Blue One", type: "FamilyMerchant", color: "#6471eb")
+    also_blue = @family.merchants.create!(name: "Blue Two", type: "FamilyMerchant", color: "#6471eb")
+    transaction(amount: 90, merchant: blue, name: "Blue One")
+    transaction(amount: 80, merchant: also_blue, name: "Blue Two")
+    14.times { |i| transaction(amount: 10 + i, name: "Shop #{i}") }
+    3.times { |i| transaction(amount: -(5 + i), name: "Refund #{i}") }
+
+    result = breakdown
+    colours = result.rows.map(&:color)
+    refund_colours = result.refunds.map(&:color)
+
+    assert_equal colours.size, colours.uniq.size, colours.inspect
+    assert_equal refund_colours.size, refund_colours.uniq.size, refund_colours.inspect
+    assert_empty colours & refund_colours
+    assert_equal "#6471eb", result.rows.find { |row| row.name == "Blue One" }.color
+    colours.each { |colour| assert_match(/\A#[0-9a-f]{6}\z/i, colour) }
+  end
+
   test "an income category keeps only the income side and shows absolute slices" do
     salary = @family.categories.create!(name: "Salary")
     transaction(amount: -500, category: salary, merchant: @amazon, name: "Pay")

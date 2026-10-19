@@ -55,6 +55,8 @@ class IncomeStatement::MerchantBreakdown
     refund_rows = refunds.map do |group|
       build_row(group, merchants[group[:name]], activity_total, negative: true)
     end.sort_by { |row| -row.amount }
+    rows = distinct_colours(rows) { |index| spread_hue(index) }
+    refund_rows = distinct_colours(refund_rows, taken: rows.map(&:color)) { |index| refund_shade(index) }
 
     Result.new(
       rows: rows,
@@ -100,6 +102,54 @@ class IncomeStatement::MerchantBreakdown
         percentage: denominator.zero? ? 0 : (amount / denominator * 100).round(1),
         negative: negative
       )
+    end
+
+    # Every slice its own colour (the owner, 2026-10-19). Biggest first, a row
+    # keeps its colour unless a row before it already has that colour; then
+    # it takes the next unused palette colour, and once the palette runs out,
+    # the next colour from `fallback`.
+    def distinct_colours(rows, taken: [])
+      used = taken.map(&:downcase)
+      palette = FamilyMerchant::COLORS.map(&:downcase)
+      fallback_index = 0
+      rows.map do |row|
+        colour = row.color.to_s.downcase
+        if used.include?(colour)
+          colour = palette.find { |candidate| !used.include?(candidate) }
+          until colour
+            candidate = yield(fallback_index)
+            fallback_index += 1
+            colour = candidate unless used.include?(candidate)
+          end
+        end
+        used << colour
+        row.with(color: colour)
+      end
+    end
+
+    # Evenly spread hues past the palette: the golden angle keeps neighbours apart.
+    def spread_hue(index)
+      hsl_hex((index * 137.508 + 20) % 360, 0.62, 0.6)
+    end
+
+    # Refunds stay grey, told apart by shade.
+    def refund_shade(index)
+      hsl_hex(0, 0, [ 0.3 + (index * 0.13) % 0.55, 0.85 ].min)
+    end
+
+    def hsl_hex(hue, saturation, lightness)
+      chroma = (1 - (2 * lightness - 1).abs) * saturation
+      x = chroma * (1 - ((hue / 60.0) % 2 - 1).abs)
+      m = lightness - chroma / 2
+      r, g, b = case hue
+      when 0...60 then [ chroma, x, 0 ]
+      when 60...120 then [ x, chroma, 0 ]
+      when 120...180 then [ 0, chroma, x ]
+      when 180...240 then [ 0, x, chroma ]
+      when 240...300 then [ x, 0, chroma ]
+      else [ chroma, 0, x ]
+      end
+      format("#%02x%02x%02x", ((r + m) * 255).round, ((g + m) * 255).round, ((b + m) * 255).round)
     end
 
     # A stable, DOM-safe id: the donut controller looks up `#segment_<id>`.
