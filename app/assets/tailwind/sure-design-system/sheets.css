@@ -56,6 +56,12 @@
   border-top-right-radius: 1rem;
 }
 
+/* A hint under a card's fields is its footnote: no hairline over it. */
+:is(dialog, .app-scroller) :is(section, div).space-y-2:has(> .form-field) > p:not(.hidden) {
+  border-top: 0;
+  padding: 0 1rem 0.75rem;
+}
+
 /* Inside a settings section card a field stays a row (settings.css): no fill,
    no rounding, hairlines between; this comes last so it wins over the page
    rules above. */

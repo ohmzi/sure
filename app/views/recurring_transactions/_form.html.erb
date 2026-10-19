@@ -18,54 +18,58 @@
         is seeded from whatever the bill is currently called. Left as the bare
         attribute it renders empty on most bills, and being required, browsers
         then refuse to submit the form at all. %>
-    <%= f.text_field :name,
-          label: income ? t(".income_name_label") : t(".name_label"),
-          placeholder: income ? t(".income_name_placeholder") : t(".name_placeholder"),
-          value: recurring_transaction.display_name,
-          autofocus: true,
-          required: true %>
+    <%# Name, amount, due date and account are one grouped card in the sheet
+        (sheets.css), as iOS groups a form's first fields. %>
+    <div class="space-y-2">
+      <%= f.text_field :name,
+            label: income ? t(".income_name_label") : t(".name_label"),
+            placeholder: income ? t(".income_name_placeholder") : t(".name_placeholder"),
+            value: recurring_transaction.display_name,
+            autofocus: true,
+            required: true %>
 
-    <% if recurring_transaction.new_record? %>
-      <%# The money field every other form uses, currency picker included: a
-          new bill takes the currency picked here, like a transaction does. %>
-      <%= f.money_field :amount,
-            label: income ? t(".income_amount_label") : t(".amount_label"),
-            input_class: "privacy-sensitive privacy-sensitive-interactive",
-            value: recurring_transaction.amount&.abs,
-            default_currency: Current.family.currency,
-            step: RecurringTransaction.amount_step(recurring_transaction.currency.presence || Current.family.currency),
-            min: 0,
-            required: true %>
-      <%= f.date_field :first_due_on,
-            label: income ? t(".income_due_on_label") : t(".first_due_on_label"),
-            value: recurring_transaction.first_due_on,
-            required: true %>
-    <% else %>
-      <%# first_due_on seeds the schedule and does nothing once the series
-          exists, so editing when a bill falls due happens in the frequency
-          picker below rather than here. %>
-      <div class="space-y-2">
-        <%# Income stores its amount negative; the field edits the magnitude
-            and the update path re-applies the sign. %>
-        <%# The currency shows but stays put: it shapes the schedule and the
-            payments already matched to it. %>
+      <% if recurring_transaction.new_record? %>
+        <%# The money field every other form uses, currency picker included: a
+            new bill takes the currency picked here, like a transaction does. %>
         <%= f.money_field :amount,
               label: income ? t(".income_amount_label") : t(".amount_label"),
               input_class: "privacy-sensitive privacy-sensitive-interactive",
               value: recurring_transaction.amount&.abs,
-              disable_currency: true,
-              step: RecurringTransaction.amount_step(recurring_transaction.currency),
+              default_currency: Current.family.currency,
+              step: RecurringTransaction.amount_step(recurring_transaction.currency.presence || Current.family.currency),
               min: 0,
               required: true %>
-        <p class="text-xs text-secondary"><%= income ? t(".income_amount_edit_hint") : t(".amount_edit_hint") %></p>
-      </div>
-    <% end %>
+        <%= f.date_field :first_due_on,
+              label: income ? t(".income_due_on_label") : t(".first_due_on_label"),
+              value: recurring_transaction.first_due_on,
+              required: true %>
+      <% else %>
+        <%# first_due_on seeds the schedule and does nothing once the series
+            exists, so editing when a bill falls due happens in the frequency
+            picker below rather than here. %>
+        <div class="space-y-2">
+          <%# Income stores its amount negative; the field edits the magnitude
+              and the update path re-applies the sign. %>
+          <%# The currency shows but stays put: it shapes the schedule and the
+              payments already matched to it. %>
+          <%= f.money_field :amount,
+                label: income ? t(".income_amount_label") : t(".amount_label"),
+                input_class: "privacy-sensitive privacy-sensitive-interactive",
+                value: recurring_transaction.amount&.abs,
+                disable_currency: true,
+                step: RecurringTransaction.amount_step(recurring_transaction.currency),
+                min: 0,
+                required: true %>
+          <p class="text-xs text-secondary"><%= income ? t(".income_amount_edit_hint") : t(".amount_edit_hint") %></p>
+        </div>
+      <% end %>
 
-    <%= f.collection_select :account_id,
-          Current.user.accessible_accounts.visible.alphabetically,
-          :id, :name,
-          { label: income ? t(".income_account_label") : t(".account_label"), include_blank: t(".account_blank"),
-            variant: :logo, searchable: true } %>
+      <%= f.collection_select :account_id,
+            Current.user.accessible_accounts.visible.alphabetically,
+            :id, :name,
+            { label: income ? t(".income_account_label") : t(".account_label"), include_blank: t(".account_blank"),
+              variant: :logo, searchable: true } %>
+    </div>
 
     <%# Which kind this is was decided by the entry point that opened the
         dialog, so the form only has to carry the answer. Offering it as a
