@@ -82,12 +82,20 @@
       <% shown_goals.each_with_index do |goal, index| %>
         <%= link_to goal_path(goal), class: "flex items-center gap-3 py-2.5 group #{"border-b border-divider" unless index == shown_goals.size - 1}" do %>
           <%= render Goals::AvatarComponent.new(goal: goal, size: "md") %>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-1">
-              <span class="text-sm font-medium text-primary truncate"><%= goal.name %></span>
+          <%# Name and amount share the first line, the status pill the next,
+              the bar under them (the owner, 2026-10-19: on a phone the pill
+              ran over the amount and squeezed the name out). %>
+          <div class="flex-1 min-w-0 space-y-1.5">
+            <div class="flex items-baseline justify-between gap-3">
+              <span class="min-w-0 truncate text-[15px] font-semibold text-primary"><%= goal.name %></span>
+              <span class="shrink-0 text-xs tabular-nums text-primary privacy-sensitive">
+                <%= format_money(goal.current_balance_money) %><% if goal.target_amount.to_d.positive? %><span class="text-subdued">/<%= goal.target_amount_money.format(precision: 0) %></span><% end %>
+              </span>
+            </div>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
               <%= render Goals::StatusPillComponent.new(goal: goal) %>
               <% if goal.open_pledges.any? %>
-                <span class="text-xs text-warning shrink-0">· <%= t(".pending_marker") %></span>
+                <span class="text-xs text-warning">· <%= t(".pending_marker") %></span>
               <% end %>
             </div>
             <% if goal.target_amount.to_d.positive? %>
@@ -104,9 +112,6 @@
               </p>
             <% end %>
           </div>
-          <span class="shrink-0 text-xs tabular-nums text-primary privacy-sensitive">
-            <%= format_money(goal.current_balance_money) %><% if goal.target_amount.to_d.positive? %><span class="text-subdued">/<%= goal.target_amount_money.format(precision: 0) %></span><% end %>
-          </span>
           <%= icon("chevron-right", size: "sm", class: "text-subdued shrink-0") %>
         <% end %>
       <% end %>

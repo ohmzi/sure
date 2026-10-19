@@ -40,10 +40,15 @@
     </section>
   <% end %>
 
+  <%# Log out reads as it does in the account sheet (V2, 2026-10-19): a red
+      tile and the words, in a card of its own. %>
   <section>
-    <div class="overflow-hidden rounded-2xl bg-container shadow-border-xs">
+    <div class="overflow-hidden rounded-[1.25rem] bg-container shadow-border-xs">
       <%= button_to session_path(Current.session), method: :delete,
-            class: "flex w-full items-center justify-center min-h-12 text-base font-medium text-destructive hover:bg-container-hover focus-ring" do %>
+            class: "flex w-full items-center gap-3.5 min-h-14 px-3 text-left text-[17px] font-medium text-destructive hover:bg-container-hover focus-ring" do %>
+        <span class="flex size-[34px] shrink-0 items-center justify-center rounded-[11px] bg-destructive/10 text-destructive" aria-hidden="true">
+          <%= icon("log-out", size: "sm", color: "current") %>
+        </span>
         <%= t("settings.settings_nav.logout") %>
       <% end %>
     </div>
