@@ -73,7 +73,7 @@
             <%= render "pages/dashboard/breakdown_focus_detail", frame_id: "merchant_breakdown_transactions", reset_label: t(".show_all_merchants") %>
 
             <div class="space-y-1 fade-in" data-breakdown-focus-target="list">
-            <div class="px-4 py-2 flex items-center uppercase text-xs font-medium text-secondary">
+            <div class="px-3 sm:px-4 py-2 flex items-center uppercase text-xs font-medium text-secondary">
               <div class="w-16 @2xl:w-40">
                 <p><%= t(".merchants") %><span class="text-subdued mx-1">&middot;</span><%= breakdown.rows.count %></p>
               </div>
@@ -87,7 +87,7 @@
               </div>
             </div>
 
-            <div class="py-1 border-t border-subdued font-medium text-sm max-w-full">
+            <div class="border-t border-subdued divide-y divide-subdued font-medium text-sm max-w-full">
               <% breakdown.rows.each_with_index do |row, idx| %>
                 <% row_content = capture do %>
                   <div class="flex items-center gap-3 flex-1 min-w-0">
@@ -123,7 +123,7 @@
                   <% query[:search] = row.name %>
                 <% end %>
                 <%= link_to transactions_path(q: query),
-                    class: "flex items-center justify-between mx-3 p-3 rounded-lg cursor-pointer group gap-3 hover:bg-container-inset-hover transition-colors press",
+                    class: "flex items-center justify-between px-3 sm:px-4 py-3 cursor-pointer group gap-3 hover:bg-container-hover transition-colors press",
                     data: {
                       turbo_frame: "_top",
                       turbo_prefetch: false,
@@ -136,9 +136,6 @@
                   <%= row_content %>
                 <% end %>
 
-                <% if idx < breakdown.rows.size - 1 %>
-                  <%= render "shared/ruler", classes: "mx-3 @2xl:mx-4" %>
-                <% end %>
               <% end %>
             </div>
 
@@ -148,7 +145,7 @@
                 merchant's preview shows that merchant's own refunds instead.
                 Each row can be picked on the ring like a merchant. %>
             <% if breakdown.refunds.any? %>
-              <div class="mt-3 px-4 py-2 flex items-center justify-between gap-3 text-xs font-medium uppercase text-secondary border-b border-subdued">
+              <div class="mt-3 px-3 sm:px-4 py-2 flex items-center justify-between gap-3 text-xs font-medium uppercase text-secondary border-b border-subdued">
                 <p class="flex items-center gap-1.5">
                   <%= icon("undo-2", size: "xs", color: "current") %>
                   <%= t(".refunds") %><span class="text-subdued">&middot;</span><%= breakdown.refunds.count %>
@@ -156,7 +153,7 @@
                 <p class="text-success normal-case text-sm font-semibold privacy-sensitive tabular">+<%= format_money Money.new(breakdown.refunds.sum(&:amount), breakdown.currency) %></p>
               </div>
 
-              <div class="py-1 font-medium text-sm max-w-full">
+              <div class="divide-y divide-subdued font-medium text-sm max-w-full">
                 <% breakdown.refunds.each_with_index do |row, idx| %>
                   <% query = { categories: [ selected_category.filter_value ],
                                start_date: period.date_range.first,
@@ -167,7 +164,7 @@
                     <% query[:search] = row.name %>
                   <% end %>
                   <%= link_to transactions_path(q: query),
-                      class: "flex items-center justify-between mx-3 p-3 rounded-lg cursor-pointer group gap-3 hover:bg-container-inset-hover transition-colors press",
+                      class: "flex items-center justify-between px-3 sm:px-4 py-3 cursor-pointer group gap-3 hover:bg-container-hover transition-colors press",
                       data: {
                         turbo_frame: "_top",
                         turbo_prefetch: false,
@@ -190,13 +187,10 @@
                     </div>
                   <% end %>
 
-                  <% if idx < breakdown.refunds.size - 1 %>
-                    <%= render "shared/ruler", classes: "mx-3 @2xl:mx-4" %>
-                  <% end %>
                 <% end %>
               </div>
 
-              <div class="mx-3 flex items-center justify-between gap-3 border-t border-primary p-3 text-sm">
+              <div class="flex items-center justify-between gap-3 border-t border-primary px-3 sm:px-4 py-3 text-sm">
                 <span class="text-secondary"><%= t(".net_after_refunds") %></span>
                 <span class="font-semibold text-primary privacy-sensitive tabular"><%= format_money Money.new(breakdown.net_total, breakdown.currency) %></span>
               </div>

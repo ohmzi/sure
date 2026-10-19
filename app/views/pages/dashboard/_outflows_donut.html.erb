@@ -73,7 +73,7 @@
                                                              reset_label: t("pages.dashboard.outflows_donut.show_all_categories") %>
 
         <div class="space-y-1 fade-in" data-breakdown-focus-target="list">
-        <div class="px-4 py-2 flex items-center uppercase text-xs font-medium text-secondary">
+        <div class="px-3 sm:px-4 py-2 flex items-center uppercase text-xs font-medium text-secondary">
           <div class="w-16 @2xl:w-40">
             <p><%= t("pages.dashboard.outflows_donut.categories") %><span class="text-subdued mx-1">&middot;</span><%= outflows_data[:categories].count %></p>
           </div>
@@ -86,7 +86,7 @@
             </div>
           </div>
         </div>
-        <div class="py-1 border-t border-subdued font-medium text-sm max-w-full">
+        <div class="border-t border-subdued divide-y divide-subdued font-medium text-sm max-w-full">
           <% outflows_data[:categories].each_with_index do |category, idx| %>
             <%
               category_content = capture do
@@ -121,7 +121,7 @@
               <% category_query = { categories: [ category[:filter_value] ], start_date: period.date_range.first, end_date: period.date_range.last } %>
               <% category_query[:account_ids] = [ selected_card.id ] if selected_card %>
               <%= link_to transactions_path(q: category_query),
-                  class: "flex items-center justify-between mx-3 p-3 rounded-lg cursor-pointer group gap-3 hover:bg-container-inset-hover transition-colors press",
+                  class: "flex items-center justify-between px-3 sm:px-4 py-3 cursor-pointer group gap-3 hover:bg-container-hover transition-colors press",
                   data: {
                     turbo_frame: "_top",
                     turbo_prefetch: false,
@@ -134,14 +134,11 @@
                 <%= category_content %>
               <% end %>
             <% else %>
-              <div class="flex items-center justify-between mx-3 p-3 rounded-lg group gap-3"
+              <div class="flex items-center justify-between px-3 sm:px-4 py-3 group gap-3"
                   data-category-id="<%= category[:id] %>"
                   data-action="pointerenter->donut-chart#highlightSegment pointerleave->donut-chart#unhighlightSegment">
                 <%= category_content %>
               </div>
-            <% end %>
-            <% if idx < outflows_data[:categories].size - 1 %>
-              <%= render "shared/ruler", classes: "mx-3 @2xl:mx-4" %>
             <% end %>
           <% end %>
         </div>
