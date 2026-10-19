@@ -232,16 +232,29 @@ export default class extends Controller {
 
     const bisectDay = d3.bisector((d) => d).center;
 
+    // Pointer events, so a finger can scrub along the month on a phone; a
+    // horizontal drag scrubs and a vertical one still scrolls the page (the
+    // animation pass, 2026-10-18). Phones read touch-action from the chart's
+    // own box, not from shapes inside its SVG, and a held finger must not
+    // select text or open the long-press menu.
+    d3.select(this.element)
+      .style("touch-action", "pan-y")
+      .style("user-select", "none")
+      .style("-webkit-touch-callout", "none");
+
+    const clear = () => {
+      group.selectAll(".guideline").remove();
+      group.selectAll(".data-point-circle").remove();
+      tooltip.style("opacity", 0);
+      this.dispatch("release");
+    };
+
     group
       .append("rect")
       .attr("width", innerWidth)
       .attr("height", innerHeight)
       .attr("fill", "none")
       .attr("pointer-events", "all")
-      // Pointer events, so a finger can scrub along the month on a phone; a
-      // horizontal drag scrubs and a vertical one still scrolls the page (the
-      // animation pass, 2026-10-18).
-      .style("touch-action", "pan-y")
       .on("pointerdown pointermove", (event) => {
         const [xPos] = d3.pointer(event);
         const dayFloat = x.invert(xPos);
@@ -287,23 +300,38 @@ export default class extends Controller {
             .attr("pointer-events", "none");
         }
 
+        // The figures above follow the point (scrub_readout_controller), so
+        // a finger reads them there rather than from a box under it (the
+        // owner, 2026-10-18).
+        this.dispatch("scrub", {
+          detail: {
+            value: currentPoint && this._formatCurrency(currentPoint.value),
+            compare: previousPoint && this._formatCurrency(previousPoint.value),
+            date: labelPoint.date_formatted,
+          },
+        });
+
+        if (event.pointerType !== "mouse") {
+          tooltip.style("opacity", 0);
+          return;
+        }
+
         tooltip
           .html(this._tooltipTemplate(labelPoint, currentPoint, previousPoint))
           .style("opacity", 1)
           .style("left", `${adjustedX}px`)
           .style("top", `${event.pageY - 10}px`);
       })
+      // A lifted finger clears the reading too, so it never floats over the
+      // page as it scrolls (the owner, 2026-10-18).
+      .on("pointerup pointercancel", (event) => {
+        if (event.pointerType !== "mouse") clear();
+      })
       .on("pointerleave", (event) => {
-        // A lifted finger clears the reading too, so it never floats over the
-        // page as it scrolls (the owner, 2026-10-18).
         const hoveringOnGuideline =
           event.relatedTarget?.classList?.contains("guideline");
 
-        if (!hoveringOnGuideline) {
-          group.selectAll(".guideline").remove();
-          group.selectAll(".data-point-circle").remove();
-          tooltip.style("opacity", 0);
-        }
+        if (!hoveringOnGuideline) clear();
       });
   }
 

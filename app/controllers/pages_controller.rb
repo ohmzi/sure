@@ -775,6 +775,9 @@ class PagesController < ApplicationController
           # collide with its neighbours on a phone. The bar chart measures the
           # rendered labels and drops to this when they overlap.
           short_label: I18n.l(month_start, format: "%b"),
+          # The summary's own heading for the month, which it shows while a
+          # finger or pointer is on that month's bars.
+          full_label: I18n.l(month_start, format: :month_year).capitalize,
           income: totals.income_money.amount.to_f.round(2),
           expense: totals.expense_money.amount.to_f.round(2),
           highlighted: month_start == selected_month,

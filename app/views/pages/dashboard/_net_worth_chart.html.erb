@@ -1,14 +1,19 @@
 <%# locals: (balance_sheet:, period:, **args) %>
 
-<div id="net-worth-chart">
+<%# Sliding a finger (or the pointer) along the line moves the figure to
+    that day and names it; letting go rolls back (the owner, 2026-10-18). %>
+<div id="net-worth-chart"
+     data-controller="scrub-readout"
+     data-action="time-series-chart:scrub->scrub-readout#show time-series-chart:release->scrub-readout#reset">
   <% series = balance_sheet.net_worth_series(period: period) %>
   <div class="flex justify-between gap-4 px-4">
     <div class="space-y-2">
       <% if series.trend.present? %>
+        <p class="text-sm font-medium text-secondary" data-scrub-readout-target="label"><%= period.label %></p>
         <%# While syncing, a small glowing dot beside the figure rather than the
             figure itself pulsing (the animation pass, 2026-10-18). %>
         <p class="text-primary text-4xl font-bold tracking-tight flex items-center gap-3">
-          <span class="privacy-sensitive"><%= series.trend.current.format %></span>
+          <span class="privacy-sensitive tabular" data-scrub-readout-target="value"><%= series.trend.current.format %></span>
           <% if balance_sheet.syncing? %>
             <span class="relative inline-flex size-2.5" aria-hidden="true">
               <span class="ping absolute inset-0 rounded-full bg-inverse"></span>
@@ -16,7 +21,9 @@
             </span>
           <% end %>
         </p>
-        <%= render partial: "shared/trend_change", locals: { trend: series.trend, comparison_label: period.comparison_label } %>
+        <div class="transition-opacity" data-scrub-readout-target="hide">
+          <%= render partial: "shared/trend_change", locals: { trend: series.trend, comparison_label: period.comparison_label } %>
+        </div>
       <% else %>
         <p class="text-sm text-secondary"><%= t(".data_not_available") %></p>
       <% end %>

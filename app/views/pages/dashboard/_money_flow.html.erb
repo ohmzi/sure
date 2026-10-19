@@ -14,7 +14,11 @@
   # they stack so the chart gets the full column and the month labels don't crowd.
   stacked = col_span != "full"
 %>
-<div id="money-flow-section" class="px-4 space-y-4">
+<%# Sliding along the bars (or hovering them) moves the summary to that month;
+    letting go rolls it back (the owner, 2026-10-18). %>
+<div id="money-flow-section" class="px-4 space-y-4"
+     data-controller="scrub-readout"
+     data-action="bar-chart:scrub->scrub-readout#show bar-chart:release->scrub-readout#reset">
   <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
     <p class="text-sm text-secondary">
       <%= t(".date_range", start_date: l(period.date_range.begin, format: :long), end_date: l(period.date_range.end, format: :long)) %>
@@ -104,11 +108,11 @@
     </div>
 
     <div class="w-full space-y-4<%= " xl:w-2/5" unless stacked %>">
-      <p class="text-sm font-medium text-primary capitalize"><%= I18n.l(money_flow_data[:month], format: :month_year) %></p>
+      <p class="text-sm font-medium text-primary capitalize" data-scrub-readout-target="label"><%= I18n.l(money_flow_data[:month], format: :month_year) %></p>
 
       <div class="flex items-center justify-between text-sm">
         <span class="text-secondary"><%= t(".balance") %></span>
-        <span class="font-medium text-lg tabular-nums privacy-sensitive <%= money_flow_data[:balance].negative? ? "text-destructive" : (money_flow_data[:balance].zero? ? "text-primary" : "text-success") %>">
+        <span data-scrub-readout-target="field" data-scrub-field="balance" data-scrub-tone class="font-medium text-lg tabular-nums privacy-sensitive <%= money_flow_data[:balance].negative? ? "text-destructive" : (money_flow_data[:balance].zero? ? "text-primary" : "text-success") %>">
           <%= format_money money_flow_data[:balance] %>
         </span>
       </div>
@@ -125,7 +129,7 @@
             off the scale the dashboard uses (sm for rows, lg for a total, 3xl
             for a hero) and left the amount larger than the label beside it. %>
         <span class="flex items-center gap-2">
-          <span class="text-sm font-medium tabular-nums text-success privacy-sensitive"><%= format_money money_flow_data[:income] %></span>
+          <span class="text-sm font-medium tabular-nums text-success privacy-sensitive" data-scrub-readout-target="field" data-scrub-field="income"><%= format_money money_flow_data[:income] %></span>
           <%= icon("chevron-right", size: "sm", class: "text-secondary group-hover:text-primary group-hover:translate-x-0.5 transition-[color,transform] duration-200") %>
         </span>
       <% end %>
@@ -138,7 +142,7 @@
           <%= t(".expenses") %>
         </span>
         <span class="flex items-center gap-2">
-          <span class="text-sm font-medium tabular-nums text-primary privacy-sensitive"><%= format_money money_flow_data[:expense] %></span>
+          <span class="text-sm font-medium tabular-nums text-primary privacy-sensitive" data-scrub-readout-target="field" data-scrub-field="expense"><%= format_money money_flow_data[:expense] %></span>
           <%= icon("chevron-right", size: "sm", class: "text-secondary group-hover:text-primary group-hover:translate-x-0.5 transition-[color,transform] duration-200") %>
         </span>
       <% end %>

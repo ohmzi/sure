@@ -145,30 +145,71 @@ export default class extends Controller {
       .style("cursor", "pointer")
       .style("transition", "opacity 160ms ease");
 
-    // The bar under the pointer stays bright and the rest dim, with its value
-    // beside it (the animation pass, 2026-10-18). Pointer events, so a tap on
-    // a phone does the same while the finger is down, and lifting it clears
-    // the reading so no tooltip floats over the page (the owner, 2026-10-18).
-    const highlight = (target) =>
-      bars.style("opacity", function () {
-        return target && this !== target ? 0.4 : null;
-      });
+    // The month under the pointer stays bright and the rest dim (the
+    // animation pass, 2026-10-18). A finger slides across the months, the
+    // way a stock app scrubs, and the summary beside the chart follows the
+    // month under it (scrub_readout_controller); a mouse also gets the
+    // value of the bar it is on. Lifting the finger clears it all, so no
+    // reading floats over the page (the owner, 2026-10-18). Phones read
+    // touch-action from the chart's own box, not from shapes in its SVG.
+    d3.select(this.element)
+      .style("touch-action", "pan-y")
+      .style("user-select", "none")
+      .style("-webkit-touch-callout", "none");
 
-    bars
-      .on("pointerenter pointermove", (event, d) => {
-        highlight(event.currentTarget);
+    const highlight = (month) =>
+      bars.style("opacity", (d) => (month && d.month !== month ? 0.4 : null));
+
+    const monthAt = (event) => {
+      const [xPos] = d3.pointer(event, group.node());
+      const index = Math.floor(
+        (xPos - x0.step() * x0.paddingOuter()) / x0.step(),
+      );
+      return data[Math.max(0, Math.min(index, data.length - 1))];
+    };
+
+    let scrubbed = null;
+    const scrub = (event) => {
+      const month = monthAt(event);
+      highlight(month);
+      if (event.pointerType === "mouse" && event.target.tagName === "rect") {
+        const d = d3.select(event.target).datum();
         showTooltip(event, d.month, d.key);
-      })
-      .on("pointerleave pointercancel", () => {
-        highlight(null);
+      } else {
         hideTooltip();
+      }
+      if (month === scrubbed) return;
+      scrubbed = month;
+      const balance = month.income - month.expense;
+      this.dispatch("scrub", {
+        detail: {
+          date: month.full_label ?? month.label,
+          fields: {
+            income: this._formatCurrency(month.income, 2),
+            expense: this._formatCurrency(month.expense, 2),
+            balance: this._formatCurrency(balance, 2),
+          },
+          tones: {
+            balance:
+              balance < 0 ? "negative" : balance > 0 ? "positive" : "zero",
+          },
+        },
       });
+    };
 
-    svg.on("pointerdown", (event) => {
-      if (event.target.tagName === "rect") return;
+    const release = () => {
+      scrubbed = null;
       highlight(null);
       hideTooltip();
-    });
+      this.dispatch("release");
+    };
+
+    svg
+      .on("pointerdown pointermove", scrub)
+      .on("pointerleave pointercancel", release)
+      .on("pointerup", (event) => {
+        if (event.pointerType !== "mouse") release();
+      });
 
     const axisLabels = group
       .append("g")
@@ -231,12 +272,13 @@ export default class extends Controller {
     `;
   }
 
-  _formatCurrency(value) {
+  _formatCurrency(value, fractionDigits = 0) {
     try {
       return new Intl.NumberFormat(undefined, {
         style: "currency",
         currency: this.currencyValue,
-        maximumFractionDigits: 0,
+        minimumFractionDigits: fractionDigits,
+        maximumFractionDigits: fractionDigits,
       }).format(value);
     } catch {
       return value;

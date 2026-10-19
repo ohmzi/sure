@@ -15,7 +15,11 @@
   previous_comparison_day = data[:previous_comparison_day]
   date_range_short = data[:date_range_short]
 %>
-<div id="spending-trend-section" class="px-4 space-y-4">
+<%# Sliding along the chart moves both figures to that day and names it;
+    letting go rolls them back (the owner, 2026-10-18). %>
+<div id="spending-trend-section" class="px-4 space-y-4"
+     data-controller="scrub-readout"
+     data-action="spending-chart:scrub->scrub-readout#show spending-chart:release->scrub-readout#reset">
   <div class="flex items-center justify-between gap-3">
     <p class="text-sm text-secondary hidden sm:block">
       <%= t(".date_range", start_date: l(period.date_range.begin, format: :long), end_date: l(period.date_range.end, format: :long)) %>
@@ -51,10 +55,10 @@
     <div class="flex items-center gap-3 min-w-0">
       <span class="w-1 h-10 rounded-full bg-success shrink-0"></span>
       <div class="min-w-0">
-        <p class="text-sm text-primary capitalize truncate"><%= I18n.l(data[:month], format: :month_year) %></p>
+        <p class="text-sm text-primary capitalize truncate" data-scrub-readout-target="label"><%= I18n.l(data[:month], format: :month_year) %></p>
         <p class="flex flex-wrap items-baseline gap-x-2">
-          <span class="font-medium text-lg tabular-nums text-primary privacy-sensitive whitespace-nowrap"><%= format_money data[:current_total] %></span>
-          <span class="text-sm tabular-nums privacy-sensitive whitespace-nowrap <%= data[:delta].negative? ? "text-success" : (data[:delta].zero? ? "text-secondary" : "text-destructive") %>">
+          <span class="font-medium text-lg tabular-nums text-primary privacy-sensitive whitespace-nowrap" data-scrub-readout-target="value"><%= format_money data[:current_total] %></span>
+          <span data-scrub-readout-target="hide" class="transition-opacity text-sm tabular-nums privacy-sensitive whitespace-nowrap <%= data[:delta].negative? ? "text-success" : (data[:delta].zero? ? "text-secondary" : "text-destructive") %>">
             <%= format_money data[:delta] %>
           </span>
         </p>
@@ -72,7 +76,7 @@
             <span class="text-xs"><%= t(".previous_comparison_days", end_day: previous_comparison_day) %></span>
           <% end %>
         </p>
-        <p class="font-medium text-lg tabular-nums text-secondary privacy-sensitive whitespace-nowrap"><%= format_money data[:previous_total] %></p>
+        <p class="font-medium text-lg tabular-nums text-secondary privacy-sensitive whitespace-nowrap" data-scrub-readout-target="compare"><%= format_money data[:previous_total] %></p>
       </div>
     </div>
   </div>
