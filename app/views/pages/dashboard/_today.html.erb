@@ -58,19 +58,20 @@
     <% end %>
 
     <%# No movement draws no line (a flat rule along the card's foot read as
-        broken). The line draws itself in, its area fades below it, and today's
-        point glows. %>
+        broken). The line and its area wipe in from the left (a dash-drawn line
+        broke into pieces on a phone, the owner, 2026-10-18), and today's point
+        glows. %>
     <% if points.size >= 2 && points.uniq.size > 1 %>
       <% min, max = points.minmax %>
       <% span = (max - min).zero? ? 1 : (max - min) %>
       <% xy = points.each_with_index.map { |v, i| [ (i * 100.0 / (points.size - 1)).round(2), (36 - (v - min) / span * 30).round(2) ] } %>
       <% line = "M#{xy.first.join(" ")}" + xy.each_cons(2).map { |(x0, y0), (x1, y1)| mid = ((x0 + x1) / 2).round(2); " C#{mid} #{y0} #{mid} #{y1} #{x1} #{y1}" }.join %>
-      <div class="relative -mx-5 mt-1 h-24 touch-pan-y cursor-crosshair"
+      <div class="relative -mx-5 mt-1 h-24 touch-pan-y select-none cursor-crosshair"
            data-controller="reveal"
            data-hero-scrub-target="track"
            data-ys="<%= xy.map(&:last).to_json %>"
            data-action="pointerdown->hero-scrub#move pointermove->hero-scrub#move pointerup->hero-scrub#lift pointercancel->hero-scrub#end pointerleave->hero-scrub#end">
-        <svg viewBox="0 0 100 40" preserveAspectRatio="none" class="absolute inset-0 size-full" aria-hidden="true">
+        <svg viewBox="0 0 100 40" preserveAspectRatio="none" class="wipe-in absolute inset-0 size-full" aria-hidden="true">
           <defs>
             <linearGradient id="today-net-worth-fill" x1="0" x2="0" y1="0" y2="1">
               <stop offset="0" stop-color="currentColor" stop-opacity="0.3"></stop>
@@ -78,7 +79,7 @@
             </linearGradient>
           </defs>
           <path d="<%= line %> L100 40 L0 40 Z" fill="url(#today-net-worth-fill)"></path>
-          <path d="<%= line %>" class="draw-line" pathLength="1600" fill="none" stroke="currentColor" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></path>
+          <path d="<%= line %>" fill="none" stroke="currentColor" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></path>
         </svg>
         <span aria-hidden="true" class="pointer-events-none absolute inset-y-0 w-px bg-white/50 hidden" data-hero-scrub-target="guide"></span>
         <span aria-hidden="true" class="pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-on-accent transition-[top] duration-75"

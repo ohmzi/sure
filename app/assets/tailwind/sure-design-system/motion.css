@@ -9,9 +9,16 @@
   to { opacity: 1; transform: none; }
 }
 
+/* The dash lives only inside the animation, so a line at rest is always solid,
+   whatever unit a browser measures its dashes in. */
 @keyframes sure-draw {
-  from { stroke-dashoffset: 1600; }
-  to { stroke-dashoffset: 0; }
+  from { stroke-dasharray: 1600; stroke-dashoffset: 1600; }
+  to { stroke-dasharray: 1600; stroke-dashoffset: 0; }
+}
+
+@keyframes sure-wipe {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
 }
 
 @keyframes sure-grow-y {
@@ -74,8 +81,13 @@
 }
 
 @utility draw-line {
-  stroke-dasharray: 1600;
   animation: sure-draw 1200ms cubic-bezier(0.3, 0.7, 0.2, 1) backwards;
+}
+
+/* Reveals a chart left to right. For lines drawn with a non-scaling stroke,
+   whose dashes Chrome measures on screen and not along the path. */
+@utility wipe-in {
+  animation: sure-wipe 1200ms cubic-bezier(0.3, 0.7, 0.2, 1) backwards;
 }
 
 @utility grow-up {
@@ -178,7 +190,7 @@ turbo-frame { transition: opacity 200ms ease-out; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rise, .rise-children > *, .fade-children > *, .draw-line, .grow-up, .grow-right, .ping, .shimmer, .fade-in, .pop-in, .sweep-in { animation: none; }
+  .rise, .rise-children > *, .fade-children > *, .draw-line, .wipe-in, .grow-up, .grow-right, .ping, .shimmer, .fade-in, .pop-in, .sweep-in { animation: none; }
   .press:active { animation: none; }
   .lift:hover { transform: none; }
 }

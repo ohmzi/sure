@@ -489,12 +489,18 @@ export default class extends Controller {
   }
 
   _bindTooltipHandlers(selection) {
-    selection
-      // A finger scrubs sideways along the line, the way a stock app does,
-      // while an up-and-down swipe still scrolls the page (the owner,
-      // 2026-10-18). The figure above the chart follows the finger, so the
-      // tooltip box stays out from under it.
+    // A finger scrubs sideways along the line, the way a stock app does,
+    // while an up-and-down swipe still scrolls the page (the owner,
+    // 2026-10-18). The figure above the chart follows the finger, so the
+    // tooltip box stays out from under it. Phones read touch-action from the
+    // chart's own box, not from the shapes inside its SVG, and a held finger
+    // must not select text or open the long-press menu.
+    d3.select(this.element)
       .style("touch-action", "pan-y")
+      .style("user-select", "none")
+      .style("-webkit-touch-callout", "none");
+
+    selection
       .on("pointerdown pointermove", (event) => {
         if (event.pointerType === "mouse") return;
         this._lastTouchAt = Date.now();
