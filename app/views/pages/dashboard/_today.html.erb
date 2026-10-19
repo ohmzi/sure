@@ -82,8 +82,10 @@
           <path d="<%= line %>" fill="none" stroke="currentColor" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></path>
         </svg>
         <span aria-hidden="true" class="pointer-events-none absolute inset-y-0 w-px bg-white/50 hidden" data-hero-scrub-target="guide"></span>
-        <span aria-hidden="true" class="pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-on-accent transition-[top] duration-75"
-              style="left: calc(100% - 9px); top: <%= (xy.last.last / 40 * 100).round(2) %>%" data-hero-scrub-target="dot">
+        <%# Today's point lands when the line reaches it, not before (the
+            owner, 2026-10-18). %>
+        <span aria-hidden="true" class="pop-in pointer-events-none absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-on-accent transition-[top] duration-75"
+              style="left: calc(100% - 9px); top: <%= (xy.last.last / 40 * 100).round(2) %>%; animation-delay: 1000ms" data-hero-scrub-target="dot">
           <span class="ping absolute inset-0 rounded-full bg-on-accent"></span>
         </span>
       </div>
