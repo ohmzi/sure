@@ -9,8 +9,4 @@
 <p id="documents_intake_status" role="status" aria-live="polite"
    class="text-sm text-destructive empty:sr-only" data-document-dropzone-target="status"></p>
 
-<%= render DS::Fab.new(icon: "plus", label: t(".add_document"),
-      aria: { controls: "document_add_sheet", haspopup: "dialog" },
-      data: { controller: "sheet-opener", sheet_opener_sheet_value: "document_add_sheet", action: "sheet-opener#open" }) %>
-
 <%= render "documents/add_sheet" %>

@@ -16,4 +16,11 @@
       <%= render DocumentsAttentionComponent.new(family: Current.family, user: Current.user) %>
     <% end %>
   <% end %>
+
+  <%# Outside the browser: its responsive (@container) wrapper would become the
+      + button's frame and lift it above where it sits on every other page
+      (the owner, 2026-10-19). %>
+  <%= render DS::Fab.new(icon: "plus", label: t("documents.intake_bar.add_document"),
+        aria: { controls: "document_add_sheet", haspopup: "dialog" },
+        data: { controller: "sheet-opener", sheet_opener_sheet_value: "document_add_sheet", action: "sheet-opener#open" }) %>
 </div>
