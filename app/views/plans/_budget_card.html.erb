@@ -1,14 +1,11 @@
 <%# locals: (budget:, top_budget_categories:, editable:, switch_options:) %>
 
-<%= render DS::Card.new do %>
-  <div class="flex flex-wrap items-center gap-2 mb-4">
-    <span class="w-7 h-7 rounded-lg bg-surface-inset text-secondary flex items-center justify-center shrink-0">
-      <%= icon("layout-grid", size: "sm") %>
-    </span>
-    <h2 class="text-sm font-medium text-primary shrink-0"><%= t(".title") %></h2>
-    <span class="text-xs text-subdued truncate">
-      · <%= budget.name %>
-    </span>
+<%= render DS::Card.new(class: "rounded-[26px] gap-4") do %>
+  <%# Headed as Home's cards are: a bold title, its detail beside it, the
+      action at the end (the owner, 2026-10-19). %>
+  <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+    <h2 class="text-xl font-extrabold tracking-tight text-primary shrink-0"><%= t(".title") %></h2>
+    <span class="text-sm text-secondary truncate"><%= budget.name %></span>
 
     <% if budget.initialized? %>
       <% if budget.available_to_spend.negative? %>
@@ -40,14 +37,14 @@
   </div>
 
   <% if switch_options.size > 1 %>
-    <div class="mb-4">
+    <div>
       <%= render "budgets/owner_switcher", switch_options: switch_options, switch_path: ->(owner_param) { plan_path(owner: owner_param) } %>
     </div>
   <% end %>
 
   <% if budget.initialized? %>
     <div class="flex items-baseline gap-2">
-      <span class="text-3xl font-medium text-primary tabular-nums privacy-sensitive">
+      <span class="text-3xl font-extrabold tracking-tight text-primary tabular-nums privacy-sensitive">
         <%= format_money(budget.actual_spending_money) %>
       </span>
       <span class="text-sm text-subdued privacy-sensitive">
@@ -95,10 +92,8 @@
       </div>
     <% end %>
   <% else %>
-    <div class="flex-1 flex flex-col items-center justify-center text-center gap-3 py-10">
-      <span class="w-12 h-12 rounded-full bg-surface-inset text-secondary flex items-center justify-center">
-        <%= icon("map", size: "md") %>
-      </span>
+    <div class="flex-1 flex flex-col items-center justify-center text-center gap-3 py-6">
+      <%= render DS::FilledIcon.new(icon: "map", hex_color: "var(--color-brand-500)", size: "lg") %>
       <p class="text-sm text-secondary max-w-xs"><%= t(".empty_body") %></p>
       <% if editable %>
         <%= render DS::Link.new(
@@ -110,13 +105,11 @@
     </div>
   <% end %>
 
-  <%= render DS::Link.new(
-    text: t(".view_budget"),
-    variant: "secondary",
-    href: budget_path(budget, **budget_owner_query),
-    icon: "chevron-right",
-    icon_position: :right,
-    full_width: true,
-    class: "mt-5"
-  ) %>
+  <%# The way on is a row along the card's foot, as Home's cards link out,
+      not a slab (2026-10-19). %>
+  <%= link_to budget_path(budget, **budget_owner_query),
+        class: "group mt-auto -mx-5 -mb-5 flex items-center justify-between rounded-b-[26px] border-t border-subdued px-5 py-3.5 text-sm font-semibold text-link hover:bg-container-hover transition-colors focus-ring" do %>
+    <%= t(".view_budget") %>
+    <%= icon("chevron-right", size: "sm", color: "current", class: "transition-transform group-hover:translate-x-0.5") %>
+  <% end %>
 <% end %>

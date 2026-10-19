@@ -1,13 +1,12 @@
 <%# locals: (goals:, summary:, linkable_account_count:, family_has_goals:) %>
 
-<%= render DS::Card.new do %>
-  <div class="flex flex-wrap items-center gap-2 mb-4">
-    <span class="w-7 h-7 rounded-lg bg-surface-inset text-secondary flex items-center justify-center shrink-0">
-      <%= icon("target", size: "sm") %>
-    </span>
-    <h2 class="text-sm font-medium text-primary shrink-0"><%= t(".title") %></h2>
+<%= render DS::Card.new(class: "rounded-[26px] gap-4") do %>
+  <%# Headed as Home's cards are: a bold title, its detail beside it, the
+      action at the end (the owner, 2026-10-19). %>
+  <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+    <h2 class="text-xl font-extrabold tracking-tight text-primary shrink-0"><%= t(".title") %></h2>
     <% if goals.any? %>
-      <span class="text-xs text-subdued">· <%= t(".active_count", count: goals.size) %></span>
+      <span class="text-sm text-secondary"><%= t(".active_count", count: goals.size) %></span>
     <% end %>
     <% if goals.any? && linkable_account_count > 0 %>
       <div class="ml-auto shrink-0">
@@ -30,10 +29,8 @@
     <%# No *active* goals. The family may still have completed/archived ones
         on the goals index, and this card is the only route there for preview
         users (the Goals nav entry is gone) — hence the footer link below. %>
-    <div class="flex-1 flex flex-col items-center justify-center text-center gap-3 py-10">
-      <span class="w-12 h-12 rounded-full bg-surface-inset text-secondary flex items-center justify-center">
-        <%= icon("target", size: "md") %>
-      </span>
+    <div class="flex-1 flex flex-col items-center justify-center text-center gap-3 py-6">
+      <%= render DS::FilledIcon.new(icon: "target", hex_color: "var(--color-brand-500)", size: "lg") %>
       <p class="text-sm text-secondary max-w-xs"><%= t("goals.empty_state.body") %></p>
       <% if linkable_account_count > 0 %>
         <%= render DS::Link.new(
@@ -54,7 +51,7 @@
     </div>
   <% else %>
     <div class="flex items-baseline gap-2">
-      <span class="text-3xl font-medium text-primary tabular-nums privacy-sensitive">
+      <span class="text-3xl font-extrabold tracking-tight text-primary tabular-nums privacy-sensitive">
         <%= format_money(summary[:saved_money]) %>
       </span>
       <% if summary[:target_money].positive? %>
@@ -118,14 +115,10 @@
   <% end %>
 
   <% if family_has_goals %>
-    <%= render DS::Link.new(
-      text: t(".all_goals"),
-      variant: "secondary",
-      href: goals_path,
-      icon: "chevron-right",
-      icon_position: :right,
-      full_width: true,
-      class: "mt-5"
-    ) %>
+    <%= link_to goals_path,
+          class: "group mt-auto -mx-5 -mb-5 flex items-center justify-between rounded-b-[26px] border-t border-subdued px-5 py-3.5 text-sm font-semibold text-link hover:bg-container-hover transition-colors focus-ring" do %>
+      <%= t(".all_goals") %>
+      <%= icon("chevron-right", size: "sm", color: "current", class: "transition-transform group-hover:translate-x-0.5") %>
+    <% end %>
   <% end %>
 <% end %>

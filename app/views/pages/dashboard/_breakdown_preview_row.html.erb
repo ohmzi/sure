@@ -1,0 +1,17 @@
+<%# locals: (entry:, amount:, tone: "text-primary", data: {}) %>
+<%# One transaction in a donut widget's preview, built as the widget's own
+    list rows are — the same circle, one line of name, the amount in the value
+    column and the date where the share was — so picking a slice changes
+    what the rows say, not their size or place (the owner, 2026-10-19). %>
+<%= tag.div class: "flex items-center justify-between gap-3 px-3 sm:px-4 py-3", data: data do %>
+  <div class="flex items-center gap-3 flex-1 min-w-0">
+    <div class="h-7 w-7 flex-shrink-0 rounded-full flex justify-center items-center bg-container-inset text-secondary">
+      <%= icon("receipt", size: "sm", color: "current") %>
+    </div>
+    <span class="text-sm font-medium text-primary truncate"><%= entry.name %></span>
+  </div>
+  <div class="flex items-center gap-4 flex-shrink-0 text-right">
+    <span class="text-sm font-medium whitespace-nowrap privacy-sensitive tabular <%= tone %>"><%= amount %></span>
+    <span class="text-sm text-secondary whitespace-nowrap w-10 @2xl:w-15"><%= l(entry.date, format: "%b %-d") %></span>
+  </div>
+<% end %>

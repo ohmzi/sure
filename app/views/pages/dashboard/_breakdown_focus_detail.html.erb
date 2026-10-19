@@ -4,11 +4,13 @@
     (as does picking the slice again), then the slice's latest transactions
     loaded into a frame (breakdown-focus). Used by the merchants and card
     charges widgets. %>
-<div hidden class="fade-in" data-breakdown-focus-target="detail">
-  <div class="pb-2">
+<div hidden class="fade-in space-y-1" data-breakdown-focus-target="detail">
+  <%# The chip sits in a row the height of the list's column header, so the
+      rows under it start where the list's did. %>
+  <div class="flex h-8 items-center px-1">
     <button type="button" data-action="donut-chart#reset"
             aria-label="<%= reset_label %>" title="<%= reset_label %>"
-            class="press group inline-flex h-9 max-w-full items-center gap-2 rounded-full bg-container-inset pl-3 pr-1.5 text-sm font-semibold text-primary hover:bg-container-inset-hover transition-colors focus-ring">
+            class="press group inline-flex h-8 max-w-full items-center gap-2 rounded-full bg-container-inset pl-3 pr-1 text-sm font-semibold text-primary hover:bg-container-inset-hover transition-colors focus-ring">
       <span class="size-2.5 shrink-0 rounded-full" data-breakdown-focus-target="swatch"></span>
       <span class="min-w-0 truncate" data-breakdown-focus-target="title"></span>
       <span class="flex size-6 shrink-0 items-center justify-center rounded-full text-secondary group-hover:bg-container group-hover:text-primary transition-colors">
@@ -16,7 +18,7 @@
       </span>
     </button>
   </div>
-  <%= turbo_frame_tag frame_id, class: "block border-t border-subdued pt-1" do %>
+  <%= turbo_frame_tag frame_id, class: "block border-t border-subdued" do %>
     <div class="space-y-2 p-3" aria-hidden="true">
       <div class="shimmer h-10 rounded-lg"></div>
       <div class="shimmer h-10 rounded-lg"></div>

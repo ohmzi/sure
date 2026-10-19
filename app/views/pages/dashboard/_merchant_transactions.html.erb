@@ -1,6 +1,7 @@
 <%# locals: (transactions:, refunds:, net:, count:, query:, frame_id:) %>
 <%# The latest transactions of the merchant picked on the merchants donut,
-    flat rows on the card like the merchant list they stand in for, and a
+    rows laid out exactly as the list they stand in for (the owner,
+    2026-10-19: nothing should move or change size on a pick), and a
     link to all of them in Activity when they do not all fit (the owner,
     2026-10-18). The merchant's own refunds follow its purchases as money
     back — green, with a plus — and the net closes the list when there are
@@ -12,13 +13,7 @@
     <div class="divide-y divide-subdued font-medium text-sm">
       <% transactions.each do |transaction| %>
         <% entry = transaction.entry %>
-        <div class="flex items-center justify-between gap-3 px-3 sm:px-4 py-3" data-merchant-preview-row>
-          <div class="min-w-0">
-            <p class="truncate text-primary"><%= entry.name %></p>
-            <p class="text-xs text-secondary"><%= l(entry.date, format: :long) %></p>
-          </div>
-          <span class="shrink-0 whitespace-nowrap text-primary privacy-sensitive tabular"><%= format_money entry.amount_money %></span>
-        </div>
+        <%= render "pages/dashboard/breakdown_preview_row", entry: entry, amount: format_money(entry.amount_money), data: { merchant_preview_row: true } %>
       <% end %>
     </div>
 
@@ -30,13 +25,7 @@
       <div class="divide-y divide-subdued font-medium text-sm">
         <% refunds.each do |transaction| %>
           <% entry = transaction.entry %>
-          <div class="flex items-center justify-between gap-3 px-3 sm:px-4 py-3" data-merchant-preview-refund>
-            <div class="min-w-0">
-              <p class="truncate text-primary"><%= entry.name %></p>
-              <p class="text-xs text-secondary"><%= l(entry.date, format: :long) %></p>
-            </div>
-            <span class="shrink-0 whitespace-nowrap text-success privacy-sensitive tabular">+<%= format_money entry.amount_money.abs %></span>
-          </div>
+          <%= render "pages/dashboard/breakdown_preview_row", entry: entry, amount: "+#{format_money(entry.amount_money.abs)}", tone: "text-success", data: { merchant_preview_refund: true } %>
         <% end %>
       </div>
     <% end %>
