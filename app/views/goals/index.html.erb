@@ -16,9 +16,10 @@
     <%= render "empty_state", linkable_account_count: @linkable_account_count %>
   <% else %>
     <%# KPI strip. Contributed last 30d (with prior-30d comparison) / Needs / On track %>
-    <%# The KPI cards rise in one after another and their amounts roll up
-        (the animation pass, 2026-10-18). %>
-    <section class="grid grid-cols-1 @3xl:grid-cols-3 gap-3 rise-children">
+    <%# The KPI amounts roll up the first time the page is opened in a session
+        (the animation pass, 2026-10-18); the cards themselves stay still, so
+        moving between screens does not jitter (the owner, 2026-10-18). %>
+    <section class="grid grid-cols-1 @3xl:grid-cols-3 gap-3">
       <div class="bg-container rounded-xl shadow-border-xs px-5 py-5">
         <p class="text-[11px] font-medium uppercase tracking-wide text-secondary"><%= t(".kpi.contributed_label") %></p>
         <p class="text-3xl font-medium text-primary tabular-nums mt-2 privacy-sensitive" data-controller="count-up"><%= @kpi[:velocity_30d_sign] %><%= @kpi[:velocity_30d_money].format %></p>

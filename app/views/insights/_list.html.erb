@@ -1,6 +1,6 @@
 <%# locals: (insights:, unread_ids:) %>
 
-<div id="insights-list" class="space-y-3 rise-children">
+<div id="insights-list" class="space-y-3">
   <% if insights.any? %>
     <% insights.each do |insight| %>
       <%= render "insights/insight_card", insight: insight, unread: unread_ids.include?(insight.id) %>

@@ -113,7 +113,7 @@ end %>
     <% end %>
 
     <%# SHARED - Main content %>
-    <%= tag.main id: "main", class: class_names("grow overflow-y-auto px-3 lg:px-10 w-full mx-auto pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0 fade-children"), data: { app_layout_target: "content", viewport_target: "content", notification_tray_target: "main", controller: "scroll-top" } do %>
+    <%= tag.main id: "main", class: class_names("grow overflow-y-auto [scrollbar-gutter:stable] px-3 lg:px-10 w-full mx-auto pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0"), data: { app_layout_target: "content", viewport_target: "content", notification_tray_target: "main", controller: "scroll-top" } do %>
       <% unless intro_mode %>
         <%# The page's own large title leads (no breadcrumbs — the owner,
             2026-10-17); the bar carries only the page-wide actions. %>

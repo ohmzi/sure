@@ -112,7 +112,7 @@
         name on up to two lines, the cadence with how soon the next one is, the
         amount; a state pill only when it is not simply active. The whole row
         opens the bill; the ⋯ menu sits beside it. %>
-    <div class="@3xl:hidden bg-container rounded-3xl shadow-border-xs overflow-hidden divide-y divide-subdued rise">
+    <div class="@3xl:hidden bg-container rounded-3xl shadow-border-xs overflow-hidden divide-y divide-subdued">
       <% @all_series.each do |series| %>
         <% next_date = series.next_expected_date %>
         <% in_days = next_date && (next_date - Date.current).to_i %>

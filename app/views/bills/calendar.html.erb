@@ -30,7 +30,7 @@
   <% paid = @month_paid || Money.new(0, currency) %>
   <% left = [ expected - paid, Money.new(0, expected.currency) ].max %>
   <% paid_pct = expected.amount.positive? ? (paid.amount / expected.amount * 100).clamp(0, 100).round : 0 %>
-  <section aria-label="<%= t(".summary_label") %>" class="rounded-3xl bg-container shadow-border-xs p-4 space-y-3 rise">
+  <section aria-label="<%= t(".summary_label") %>" class="rounded-3xl bg-container shadow-border-xs p-4 space-y-3">
     <div class="grid grid-cols-3 gap-2">
       <% [ [ t(".expected"), expected, "text-primary" ], [ t(".paid"), paid, "text-success" ], [ t(".left"), left, "text-primary" ] ].each do |label, money, tone| %>
         <div class="min-w-0">
@@ -55,7 +55,7 @@
       <% end %>
     </div>
     <%# One fade for the whole grid, not 42 cells staggering. %>
-    <div class="grid grid-cols-7 gap-px bg-alpha-black-100 theme-dark:bg-alpha-white-200 rounded-lg overflow-hidden fade-in">
+    <div class="grid grid-cols-7 gap-px bg-alpha-black-100 theme-dark:bg-alpha-white-200 rounded-lg overflow-hidden">
       <% (@grid_start..@grid_end).each do |day| %>
         <% in_month = day.between?(@month, @month.end_of_month) %>
         <div class="bg-container min-h-24 p-1.5 space-y-1 <%= "opacity-40" unless in_month %>">
@@ -74,7 +74,7 @@
   <%# Phone: an agenda of the month's days that have bills (the owner,
       2026-10-18): a date tile beside each day's rows — today's in the brand
       colour — on one card split by hairlines. %>
-  <div class="md:hidden rounded-3xl bg-container shadow-border-xs overflow-hidden divide-y divide-subdued rise">
+  <div class="md:hidden rounded-3xl bg-container shadow-border-xs overflow-hidden divide-y divide-subdued">
     <% month_days = (@month..@month.end_of_month).select { |day| @by_day[day].present? } %>
     <% if month_days.empty? %>
       <p class="p-4 text-sm text-secondary"><%= t(".empty_month") %></p>

@@ -29,6 +29,9 @@ export default class extends Controller {
 
     this.panelTargets.forEach((panel) => {
       if (panel.dataset.id === selectedTabId) {
+        // Only a panel coming into view fades; re-picking the open tab and
+        // opening the screen leave it still.
+        if (panel.classList.contains("hidden")) panel.classList.add("fade-in");
         panel.classList.remove("hidden");
       } else {
         panel.classList.add("hidden");

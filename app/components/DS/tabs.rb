@@ -14,8 +14,10 @@ class DS::Tabs < DesignSystemComponent
     content_tag(
       :div,
       # A panel fades in each time its tab is picked (the animation pass,
-      # 2026-10-18): the animation restarts whenever `hidden` comes off.
-      class: class_names("fade-in", "hidden" => tab_id != active_tab),
+      # 2026-10-18): the animation restarts whenever `hidden` comes off. The
+      # panel open on arrival does not, so opening a screen stays still (the
+      # owner, 2026-10-18); the tabs controller adds the fade once switched.
+      class: class_names("fade-in hidden" => tab_id != active_tab),
       role: "tabpanel",
       id: panel_dom_id(tab_id),
       "aria-labelledby": tab_dom_id(tab_id),

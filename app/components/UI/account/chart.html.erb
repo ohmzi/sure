@@ -1,6 +1,6 @@
 <%# Scrubbing the chart moves the balance and its label to the point under
     the finger (the owner, 2026-10-18). %>
-<div id="<%= dom_id(account, :chart) %>" class="bg-container shadow-border-xs rounded-[26px] space-y-2 overflow-hidden rise"
+<div id="<%= dom_id(account, :chart) %>" class="bg-container shadow-border-xs rounded-[26px] space-y-2 overflow-hidden"
      data-controller="scrub-readout"
      data-action="time-series-chart:scrub->scrub-readout#show time-series-chart:release->scrub-readout#reset">
   <div class="flex justify-between flex-col-reverse lg:flex-row gap-2 px-4 pt-4 mb-2">

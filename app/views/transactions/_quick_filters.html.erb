@@ -21,7 +21,7 @@
         <li>
           <%= link_to path, aria: { current: ("page" if active) },
                 class: class_names("press flex h-9 items-center justify-center gap-1.5 rounded-full px-2 text-sm font-bold whitespace-nowrap focus-ring transition-colors",
-                                   active ? "bg-container text-primary shadow-border-xs pop-in" : "text-secondary hover:text-primary") do %>
+                                   active ? "bg-container text-primary shadow-border-xs" : "text-secondary hover:text-primary") do %>
             <span><%= label %></span>
             <% if count.to_i.positive? %>
               <span class="inline-flex min-w-[18px] h-[18px] items-center justify-center rounded-full bg-warning px-1 text-[11px] text-inverse"><%= count %></span>

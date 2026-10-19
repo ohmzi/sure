@@ -275,7 +275,7 @@
           </div>
         </div>
         <%# Fades back in each time the section is expanded. %>
-        <div class="py-4 fade-in" data-dashboard-section-target="content">
+        <div class="py-4" data-dashboard-section-target="content">
           <%= render partial: section[:partial], locals: section[:locals] %>
           <% if section[:key] == "cashflow_sankey" && preview_features_enabled? %>
             <%= render "pages/dashboard/cashflow_preview", period: @period, legacy_data: section[:locals][:sankey_data] %>

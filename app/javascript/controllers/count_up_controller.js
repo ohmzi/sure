@@ -3,13 +3,16 @@ import { Controller } from "@hotwired/stimulus";
 // A headline amount rolls up to its value as the page opens (the animation
 // pass, 2026-10-18), keeping its own currency, separators and decimals. It
 // runs once, on a text-only element, and not for a reader who asked for less
-// motion; the original text is always what it ends on.
+// motion; the original text is always what it ends on. It rolls only the
+// first time a screen is opened in a session: rolling again on every visit
+// made moving between screens jitter (the owner, 2026-10-18).
 export default class extends Controller {
   static values = { duration: { type: Number, default: 700 } };
 
   connect() {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     if (this.element.children.length > 0) return;
+    if (this.#seenBefore()) return;
 
     this.text = this.element.textContent;
     const match = this.text.match(/\d(?:[\d.,'   ]*\d)?/);
@@ -54,6 +57,22 @@ export default class extends Controller {
       }
     };
     this.frame = requestAnimationFrame(step);
+  }
+
+  // Marks this figure as shown and says whether it had been already. Storage
+  // that is blocked or full counts as unseen, so the figure simply rolls.
+  #seenBefore() {
+    const figures = [
+      ...document.querySelectorAll("[data-controller~='count-up']"),
+    ];
+    const key = `count-up:${location.pathname}:${figures.indexOf(this.element)}`;
+    try {
+      if (sessionStorage.getItem(key)) return true;
+      sessionStorage.setItem(key, "1");
+    } catch {
+      return false;
+    }
+    return false;
   }
 
   disconnect() {
