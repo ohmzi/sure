@@ -77,10 +77,13 @@ class PagesController < ApplicationController
   # A merchant picked on the merchants donut (the owner, 2026-10-18): its
   # latest few transactions under the chart, found with the same filters the
   # merchant's row opens in Activity, which the More link then opens.
+  # Card charges asks for the same preview of a category, kept to its card
+  # (account_ids) and drawn into its own frame.
   MERCHANT_PREVIEW_LIMIT = 5
+  PREVIEW_FRAMES = %w[merchant_breakdown_transactions outflows_donut_transactions].freeze
 
   def merchant_transactions
-    query = params.fetch(:q, {}).permit(:start_date, :end_date, :search, categories: [], merchants: []).to_h.compact_blank
+    query = params.fetch(:q, {}).permit(:start_date, :end_date, :search, categories: [], merchants: [], account_ids: []).to_h.compact_blank
     scope = Transaction::Search.new(Current.family, filters: query,
                                     accessible_account_ids: Current.user.accessible_accounts.pluck(:id)).transactions_scope
 
@@ -96,7 +99,8 @@ class PagesController < ApplicationController
            locals: { transactions: purchases.reverse_chronological.includes(:entry).limit(MERCHANT_PREVIEW_LIMIT),
                      refunds: refunds.reverse_chronological.includes(:entry).limit(MERCHANT_PREVIEW_LIMIT),
                      net: net,
-                     count: scope.count, query: query }
+                     count: scope.count, query: query,
+                     frame_id: params[:frame].presence_in(PREVIEW_FRAMES) || PREVIEW_FRAMES.first }
   end
 
   def intro

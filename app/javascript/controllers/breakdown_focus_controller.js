@@ -1,11 +1,12 @@
 import { Controller } from "@hotwired/stimulus";
 
-// The merchants donut's list follows a picked slice (the owner, 2026-10-18):
-// the merchant list gives way to that merchant's latest transactions, loaded
-// into a frame from the merchant row's own preview URL, with "All merchants"
-// (donut-chart#reset) bringing the list back.
+// A donut widget's list follows a picked slice (the owner, 2026-10-18): the
+// list gives way to the slice's latest transactions, loaded into a frame
+// from its row's preview URL, under a chip naming the slice in its colour.
+// The chip's ✕ (donut-chart#reset), or picking the slice again, brings the
+// list back. Used by the merchants and card charges widgets.
 export default class extends Controller {
-  static targets = ["list", "detail", "title"];
+  static targets = ["list", "detail", "title", "swatch"];
 
   select({ detail: { id } }) {
     const row = this.listTarget.querySelector(
@@ -15,8 +16,8 @@ export default class extends Controller {
 
     const frame = this.detailTarget.querySelector("turbo-frame");
     frame.src = row.dataset.previewUrl;
-    if (this.hasTitleTarget)
-      this.titleTarget.textContent = row.dataset.previewTitle;
+    this.titleTarget.textContent = row.dataset.previewTitle;
+    this.swatchTarget.style.backgroundColor = row.dataset.previewColor || "";
     this.listTarget.hidden = true;
     this.detailTarget.hidden = false;
   }

@@ -1,11 +1,11 @@
-<%# locals: (transactions:, refunds:, net:, count:, query:) %>
+<%# locals: (transactions:, refunds:, net:, count:, query:, frame_id:) %>
 <%# The latest transactions of the merchant picked on the merchants donut,
     flat rows on the card like the merchant list they stand in for, and a
     link to all of them in Activity when they do not all fit (the owner,
     2026-10-18). The merchant's own refunds follow its purchases as money
     back — green, with a plus — and the net closes the list when there are
     both. %>
-<%= turbo_frame_tag "merchant_breakdown_transactions" do %>
+<%= turbo_frame_tag frame_id do %>
   <% if transactions.empty? && refunds.empty? %>
     <p class="px-4 py-6 text-center text-sm text-secondary"><%= t(".empty") %></p>
   <% else %>

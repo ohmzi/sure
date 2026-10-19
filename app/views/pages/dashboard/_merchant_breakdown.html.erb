@@ -70,25 +70,9 @@
           </div>
 
           <div class="w-full @2xl:w-2/3 overflow-x-auto">
-            <div hidden data-breakdown-focus-target="detail">
-              <div class="px-4 py-2 flex items-center justify-between gap-3">
-                <p class="min-w-0 truncate text-xs font-medium uppercase text-secondary" data-breakdown-focus-target="title"></p>
-                <button type="button" data-action="donut-chart#reset"
-                        class="press inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-container-inset px-3.5 text-sm font-semibold text-primary hover:bg-container-inset-hover transition-colors focus-ring">
-                  <%= icon("rotate-ccw", size: "sm", color: "current") %>
-                  <%= t(".all_merchants") %>
-                </button>
-              </div>
-              <%= turbo_frame_tag "merchant_breakdown_transactions", class: "block border-t border-subdued pt-1" do %>
-                <div class="space-y-2 p-3" aria-hidden="true">
-                  <div class="shimmer h-10 rounded-lg"></div>
-                  <div class="shimmer h-10 rounded-lg"></div>
-                  <div class="shimmer h-10 rounded-lg"></div>
-                </div>
-              <% end %>
-            </div>
+            <%= render "pages/dashboard/breakdown_focus_detail", frame_id: "merchant_breakdown_transactions", reset_label: t(".show_all_merchants") %>
 
-            <div class="space-y-1" data-breakdown-focus-target="list">
+            <div class="space-y-1 fade-in" data-breakdown-focus-target="list">
             <div class="px-4 py-2 flex items-center uppercase text-xs font-medium text-secondary">
               <div class="w-16 @2xl:w-40">
                 <p><%= t(".merchants") %><span class="text-subdued mx-1">&middot;</span><%= breakdown.rows.count %></p>
@@ -144,9 +128,10 @@
                       turbo_frame: "_top",
                       turbo_prefetch: false,
                       category_id: row.id,
-                      preview_url: dashboard_merchant_transactions_path(q: query),
+                      preview_url: dashboard_merchant_transactions_path(q: query, frame: "merchant_breakdown_transactions"),
                       preview_title: row.name,
-                      action: "mouseenter->donut-chart#highlightSegment mouseleave->donut-chart#unhighlightSegment"
+                      preview_color: row.color,
+                      action: "click->donut-chart#pick pointerenter->donut-chart#highlightSegment pointerleave->donut-chart#unhighlightSegment"
                     } do %>
                   <%= row_content %>
                 <% end %>
@@ -188,9 +173,10 @@
                         turbo_prefetch: false,
                         refund_row: true,
                         category_id: row.id,
-                        preview_url: dashboard_merchant_transactions_path(q: query),
+                        preview_url: dashboard_merchant_transactions_path(q: query, frame: "merchant_breakdown_transactions"),
                         preview_title: row.name,
-                        action: "mouseenter->donut-chart#highlightSegment mouseleave->donut-chart#unhighlightSegment"
+                        preview_color: row.color,
+                        action: "click->donut-chart#pick pointerenter->donut-chart#highlightSegment pointerleave->donut-chart#unhighlightSegment"
                       } do %>
                     <div class="flex items-center gap-3 flex-1 min-w-0">
                       <div class="h-7 w-7 flex-shrink-0 rounded-full flex justify-center items-center bg-success/10 text-success">

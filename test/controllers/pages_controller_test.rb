@@ -111,6 +111,27 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_select ".bg-container-inset [data-refund-row]", count: 0
   end
 
+  # Card charges (the owner, 2026-10-18): a picked category previews that
+  # card's charges in it, in the card widget's own frame.
+  test "a category preview keeps to the chosen card and fills the frame it was asked for" do
+    travel = @family.categories.find_or_create_by!(name: "Travel")
+    create_transaction(account: accounts(:credit_card), amount: 300, name: "Flight", category: travel, date: Date.current)
+    create_transaction(account: accounts(:depository), amount: 50, name: "Bus pass", category: travel, date: Date.current)
+    query = { categories: [ "Travel" ], start_date: Date.current.beginning_of_month.iso8601,
+              end_date: Date.current.iso8601, account_ids: [ accounts(:credit_card).id ] }
+
+    get dashboard_merchant_transactions_path(q: query, frame: "outflows_donut_transactions")
+
+    assert_select "turbo-frame#outflows_donut_transactions"
+    assert_select "[data-merchant-preview-row]", count: 1, text: /Flight/
+  end
+
+  test "a preview asked for an unknown frame fills the merchants one" do
+    get dashboard_merchant_transactions_path(q: { categories: [ "Travel" ] }, frame: "anything_else")
+
+    assert_select "turbo-frame#merchant_breakdown_transactions"
+  end
+
   test "a merchant preview that fits has no more link" do
     create_transaction(account: accounts(:depository), amount: 40, name: "Netflix",
                        category: categories(:food_and_drink), merchant: merchants(:netflix), date: Date.current)

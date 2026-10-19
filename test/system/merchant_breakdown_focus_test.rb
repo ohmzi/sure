@@ -29,20 +29,59 @@ class MerchantBreakdownFocusTest < ApplicationSystemTestCase
       assert_no_text "Corner shop"
       assert_link I18n.t("pages.dashboard.merchant_transactions.see_all", count: 7)
 
-      click_on I18n.t("pages.dashboard.merchant_breakdown.all_merchants")
+      click_on I18n.t("pages.dashboard.merchant_breakdown.show_all_merchants")
       assert_text "Corner shop"
       assert_no_selector "[data-merchant-preview-row]"
     end
   end
 
+  test "picking the picked merchant again lets it go" do
+    family = users(:family_admin).family
+    shopping = family.categories.find_or_create_by!(name: "Shopping")
+    create_transaction(account: accounts(:depository), amount: 20, name: "Corner shop", category: shopping, date: Date.current)
+
+    sign_in users(:family_admin)
+    visit root_path
+
+    within "#merchant-breakdown-section" do
+      find("select[name='category_id']").find("option", text: "Shopping").select_option
+      assert_text "Corner shop"
+      click_on_ring_slice
+      assert_selector "[data-merchant-preview-row]"
+      click_on_ring_slice
+      assert_no_selector "[data-merchant-preview-row]"
+      assert_selector "[data-breakdown-focus-target='list']", visible: true
+    end
+  end
+
+  # Card charges (the owner, 2026-10-18): a category picked on the ring or in
+  # the list previews its charges instead of leaving for Activity.
+  test "card charges preview a category picked on the ring or in the list" do
+    travel = users(:family_admin).family.categories.find_or_create_by!(name: "Travel")
+    create_transaction(account: accounts(:credit_card), amount: 300, name: "Flight", category: travel, date: Date.current)
+    sign_in users(:family_admin)
+    visit root_path
+
+    within "#outflows-donut-section" do
+      click_on_ring_slice("#outflows-donut-section")
+      assert_selector "[data-merchant-preview-row]", minimum: 1
+      click_on I18n.t("pages.dashboard.outflows_donut.show_all_categories")
+      assert_no_selector "[data-merchant-preview-row]"
+
+      find("[data-breakdown-focus-target='list'] a[data-preview-url]", match: :first).click
+      assert_selector "[data-merchant-preview-row]", minimum: 1
+    end
+    assert_current_path root_path
+  end
+
   private
     # The middle of a slice's box is the ring's centre, under the amount, so
     # click a point on the slice's own outline instead.
-    def click_on_ring_slice
+    def click_on_ring_slice(section = "#merchant-breakdown-section")
       assert_selector "path.hover-path[data-segment-id]", visible: :all
       point = page.evaluate_script(<<~JS)
         (() => {
-          const path = document.querySelector("#merchant-breakdown-section path.hover-path[data-segment-id]");
+          const path = document.querySelector("#{section} path.hover-path[data-segment-id]");
           path.scrollIntoView({ block: "center" });
           const p = path.getPointAtLength(path.getTotalLength() * 0.1);
           const m = path.getScreenCTM();

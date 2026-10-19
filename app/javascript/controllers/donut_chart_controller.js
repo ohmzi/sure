@@ -56,11 +56,8 @@ export default class extends Controller {
     this.#draw();
     this.#fitAmountTargets();
     document.addEventListener("turbo:load", this.#redraw);
-    this.element.addEventListener("mouseleave", this.#clearSegmentHover);
-    this.contentContainerTarget.addEventListener(
-      "mouseleave",
-      this.#clearSegmentHover,
-    );
+    this.element.addEventListener("pointerleave", this.#leave);
+    this.contentContainerTarget.addEventListener("pointerleave", this.#leave);
 
     if (typeof ResizeObserver !== "undefined" && this.hasChartContainerTarget) {
       this.#resizeObserver = new ResizeObserver(() => this.#fitAmountTargets());
@@ -72,10 +69,10 @@ export default class extends Controller {
     this.stopReveal?.();
     this.#teardown();
     document.removeEventListener("turbo:load", this.#redraw);
-    this.element.removeEventListener("mouseleave", this.#clearSegmentHover);
+    this.element.removeEventListener("pointerleave", this.#leave);
     this.contentContainerTarget.removeEventListener(
-      "mouseleave",
-      this.#clearSegmentHover,
+      "pointerleave",
+      this.#leave,
     );
 
     if (this.#resizeObserver) {
@@ -235,14 +232,19 @@ export default class extends Controller {
     // Ensures that user can click on default content without triggering hover on a segment if that is their intent
     let hoverTimeout = null;
 
+    // Hover is for a mouse only. A phone also fires mouse events after a
+    // tap, which cleared and redrew the picked slice, so it flickered on
+    // every pick (the owner, 2026-10-18); pointer events say which is which.
     segmentGroups
-      .on("mouseover", (event) => {
+      .on("pointerover", (event) => {
+        if (event.pointerType !== "mouse") return;
         hoverTimeout = setTimeout(() => {
           this.#clearSegmentHover();
           this.#handleSegmentHover(event);
         }, 10);
       })
-      .on("mouseleave", (event, d) => {
+      .on("pointerleave", (event, d) => {
+        if (event.pointerType !== "mouse") return;
         clearTimeout(hoverTimeout);
         const leavingUnused = d.data.id === this.unusedSegmentIdValue;
         if (
@@ -283,11 +285,37 @@ export default class extends Controller {
   };
 
   // Highlights segment and shows segment specific content (all other segments are grayed out)
+  // Picking the picked slice again lets it go (the owner, 2026-10-18: "a
+  // way to deselect"), as "All …" beside the list does.
   #select(segmentId) {
-    if (!this.selectableValue || segmentId === this.#selectedSegmentId) return;
+    if (!this.selectableValue) return;
+    if (segmentId === this.#selectedSegmentId) {
+      this.reset();
+      return;
+    }
     this.#selectedSegmentId = segmentId;
     this.dispatch("select", { detail: { id: segmentId } });
   }
+
+  // A row in the list picks its slice rather than leaving the page; the
+  // preview that opens has the way on to Activity (the owner, 2026-10-18).
+  // Only on a selectable donut; elsewhere the row's own link still works.
+  pick(event) {
+    if (!this.selectableValue) return;
+    event.preventDefault();
+    const segmentId = event.currentTarget.dataset.categoryId;
+    this.#clearSegmentHover();
+    this.#showSegment(segmentId);
+    this.#select(segmentId);
+  }
+
+  // A mouse moving off the chart ends its hover and goes back to the picked
+  // slice, if any; a finger lifting off is not a hover ending.
+  #leave = (event) => {
+    if (event.pointerType !== "mouse") return;
+    this.#clearSegmentHover();
+    if (this.#selectedSegmentId) this.#showSegment(this.#selectedSegmentId);
+  };
 
   // Lets go of a picked slice and shows the whole ring again.
   reset() {
@@ -313,13 +341,22 @@ export default class extends Controller {
       this.#visiblePaths ||
       d3.select(this.chartContainerTarget).selectAll("path.visible-path");
 
+    // The emphasised slice is drawn solid: a see-through fill under a
+    // see-through outline of the same colour showed the seams between them
+    // as stripes (the owner, 2026-10-18). Every slice keeps an outline in its
+    // own colour and only its width changes, so it eases in and out.
+    const solid = (color) => {
+      const parsed = d3.color(color);
+      return parsed ? parsed.copy({ opacity: 1 }).formatRgb() : color;
+    };
+
     paths.attr("fill", function () {
       if (this.dataset.segmentId === segmentId) {
         if (this.dataset.segmentId === unusedSegmentId) {
           return "var(--budget-unused-fill)";
         }
 
-        return this.dataset.originalColor;
+        return solid(this.dataset.originalColor);
       }
 
       return "var(--budget-unallocated-fill)";
@@ -330,7 +367,7 @@ export default class extends Controller {
       .attr("stroke", function () {
         return this.dataset.segmentId === segmentId
           ? this.getAttribute("fill")
-          : "none";
+          : solid(this.dataset.originalColor);
       })
       .style("stroke-width", function () {
         return this.dataset.segmentId === segmentId ? popWidth : 0;
@@ -382,6 +419,8 @@ export default class extends Controller {
 
   // Public methods for external highlighting (e.g., from category list hover)
   highlightSegment(event) {
+    // A list row lights its slice for a mouse; a finger's tap picks instead.
+    if (event.pointerType && event.pointerType !== "mouse") return;
     const segmentId = event.currentTarget.dataset.categoryId;
 
     // Use cached selection if available for better performance
@@ -394,7 +433,8 @@ export default class extends Controller {
     });
   }
 
-  unhighlightSegment() {
+  unhighlightSegment(event) {
+    if (event?.pointerType && event.pointerType !== "mouse") return;
     // Use cached selection if available for better performance
     const paths =
       this.#visiblePaths ||

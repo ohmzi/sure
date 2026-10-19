@@ -174,6 +174,7 @@ en:
         description: "Add accounts to display net worth data"
         add_account: "Add account"
       outflows_donut:
+        show_all_categories: "Show all categories"
         title: "Outflows"
         card_title: "Card charges"
         card_label: "Credit card"
@@ -197,7 +198,7 @@ en:
         refund_label: "%{name} (refund)"
         net_after_refunds: "Net after refunds"
         empty: "No merchant activity in this category for this period."
-        all_merchants: "All merchants"
+        show_all_merchants: "Show all merchants"
       merchant_transactions:
         latest: "Latest"
         empty: "No transactions for this merchant in this period."
