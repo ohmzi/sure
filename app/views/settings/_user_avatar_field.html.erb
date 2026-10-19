@@ -1,6 +1,8 @@
 <%# locals: (form:, user:) %>
 
-<div class="flex flex-col items-center gap-4" data-controller="profile-image-preview">
+<%# A compact row (the Settings redesign, 2026-10-19): the photo, then how to
+    change it beside it, not a large dashed circle centred over the form. %>
+<div class="flex items-center gap-4" data-controller="profile-image-preview">
   <div class="relative">
     <button type="button"
             data-profile-image-preview-target="clearBtn"
@@ -9,7 +11,7 @@
       <%= icon "x", size: "sm" %>
     </button>
 
-    <div class="relative flex justify-center items-center bg-surface-inset size-26 md:size-24 rounded-full border-primary border border-dashed overflow-hidden">
+    <div class="relative flex justify-center items-center bg-surface-inset size-16 rounded-full border-primary border border-dashed overflow-hidden">
       <%# The image preview once user has uploaded a new file  %>
       <div data-profile-image-preview-target="previewImage" class="h-full w-full flex justify-center items-center hidden">
         <img src="" alt="Preview" class="w-full h-full rounded-full object-cover">
@@ -35,10 +37,10 @@
     </div>
   </div>
 
-  <div class="text-center">
+  <div class="space-y-1">
     <%= form.hidden_field :delete_profile_image, value: "0", data: { profile_image_preview_target: "deleteProfileImage" } %>
 
-    <%= form.label :profile_image, class: "px-3 py-2 rounded-lg text-sm hover:bg-surface-hover border border-secondary inline-flex items-center gap-2 cursor-pointer", data: { profile_image_preview_target: "uploadButton" } do %>
+    <%= form.label :profile_image, class: "press px-3.5 py-2 rounded-full text-sm font-semibold bg-container-inset hover:bg-container-inset-hover inline-flex items-center gap-2 cursor-pointer transition-colors", data: { profile_image_preview_target: "uploadButton" } do %>
       <%= icon "camera", data: { profile_image_preview_target: "cameraIcon" } %>
       <span data-profile-image-preview-target="uploadText">
         <%= t(".choose") %> <span class="text-secondary"><%= t(".choose_label") %></span>

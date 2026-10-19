@@ -38,7 +38,7 @@
 
         <%= render DS::Button.new(
           text: t(".reset_account"),
-          variant: "destructive",
+          variant: "outline_destructive",
           href: reset_user_path(@user),
           method: :delete,
           confirm: CustomConfirm.new(
@@ -59,7 +59,7 @@
 
         <%= render DS::Button.new(
           text: t(".reset_account_with_sample_data"),
-          variant: "destructive",
+          variant: "outline_destructive",
           href: reset_with_sample_data_user_path(@user),
           method: :delete,
           confirm: CustomConfirm.new(
@@ -80,7 +80,7 @@
 
       <%= render DS::Button.new(
         text: t(".delete_account"),
-        variant: "destructive",
+        variant: "outline_destructive",
         href: user_path(@user),
         method: :delete,
         confirm: CustomConfirm.for_resource_deletion("your account", high_severity: true)

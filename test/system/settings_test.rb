@@ -13,7 +13,7 @@ class SettingsTest < ApplicationSystemTestCase
 
     @settings_links += [
       [ "Preferences", settings_preferences_path ],
-      [ "Profile Info", settings_profile_path ],
+      [ "Profile", settings_profile_path ],
       [ "Security", settings_security_path ],
       [ "Categories", categories_path ],
       [ "Tags", tags_path ],

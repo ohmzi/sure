@@ -1,0 +1,72 @@
+/*
+  Settings, as iOS Settings looks (the owner, 2026-10-19: "still very
+  ugly"). Inside a settings section card a form field is a row, not a box
+  in a box: no border or fill of its own, a hairline between it and the
+  field before it, the label quiet above a larger value, and a link-coloured
+  line under the row being edited. Scoped to `.settings-page` (the settings
+  layout) so forms elsewhere keep their boxed fields.
+*/
+@layer components {
+  .settings-page .settings-card .form-field {
+    @apply rounded-none border-0 bg-transparent px-0 py-3 shadow-none;
+    @apply focus-within:ring-0 focus-within:shadow-none;
+    box-shadow: inset 0 -1px 0 transparent;
+    transition: box-shadow 200ms ease;
+  }
+
+  .settings-page .settings-card .form-field:focus-within {
+    box-shadow: inset 0 -2px 0 var(--color-link);
+  }
+
+  .settings-page .settings-card .form-field ~ .form-field,
+  .settings-page .settings-card :where(div, label):has(> .form-field) ~ :where(div, label):has(> .form-field) > .form-field {
+    @apply border-t border-subdued;
+  }
+
+  .settings-page .settings-card .form-field__label {
+    @apply text-[13px] font-medium text-secondary;
+  }
+
+  .settings-page .settings-card .form-field__input {
+    @apply bg-transparent text-[15px];
+  }
+
+  /* The first field sits flush with the card's top padding. */
+  .settings-page .settings-card > :first-child .form-field:first-child,
+  .settings-page .settings-card > .form-field:first-child {
+    @apply pt-0;
+  }
+}
+
+/* Unlayered, so these win over the utility classes on the markup they
+   restyle. */
+
+/* A box inside a settings card (a bordered well, a shadowed tile) melts
+   into the card: one surface per group, rows split by hairlines. */
+.settings-page .settings-card :is(div, section, li):is(.rounded-xl.border.border-secondary, .rounded-lg.shadow-border-xs, .rounded-lg.border.border-primary) {
+  border-radius: 0;
+  border-width: 0;
+  background: transparent;
+  box-shadow: none;
+  padding-inline: 0;
+}
+
+.settings-page .settings-card :is(div, li).rounded-lg.shadow-border-xs + :is(div, li).rounded-lg.shadow-border-xs {
+  border-top: 1px solid var(--utility-border-subdued);
+}
+
+/* The grey well some lists sit in (Imports, Exports) melts into its card. */
+.settings-page .settings-card div.rounded-xl.bg-container-inset.p-1 {
+  background: transparent;
+  padding: 0;
+  margin-inline: -0.25rem;
+}
+
+/* A Save or a page's main action sits at its trailing edge, sized to its
+   label, rather than a slab across the page. */
+.settings-page :is(button[type="submit"], a):is(.w-full):is(.justify-center) {
+  width: auto;
+  margin-left: auto;
+  display: flex;
+  padding-inline: 1.25rem;
+}
