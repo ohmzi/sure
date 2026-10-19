@@ -74,6 +74,21 @@ class PagesController < ApplicationController
            locals: merchant_breakdown_locals(dashboard_selected_category)
   end
 
+  # A merchant picked on the merchants donut (the owner, 2026-10-18): its
+  # latest few transactions under the chart, found with the same filters the
+  # merchant's row opens in Activity, which the More link then opens.
+  MERCHANT_PREVIEW_LIMIT = 5
+
+  def merchant_transactions
+    query = params.fetch(:q, {}).permit(:start_date, :end_date, :search, categories: [], merchants: []).to_h.compact_blank
+    scope = Transaction::Search.new(Current.family, filters: query,
+                                    accessible_account_ids: Current.user.accessible_accounts.pluck(:id)).transactions_scope
+
+    render partial: "pages/dashboard/merchant_transactions",
+           locals: { transactions: scope.reverse_chronological.includes(:entry).limit(MERCHANT_PREVIEW_LIMIT),
+                     count: scope.count, query: query }
+  end
+
   def intro
     @breadcrumbs = [ [ t("breadcrumbs.home"), chats_path ], [ t("breadcrumbs.intro"), nil ] ]
   end

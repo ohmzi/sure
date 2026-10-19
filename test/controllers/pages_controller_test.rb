@@ -49,6 +49,40 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Netflix"
   end
 
+  # The owner (2026-10-18): picking a merchant on the donut shows its latest
+  # transactions under it, and a More button opens them all in Activity with
+  # the same filters.
+  test "a merchant preview shows its latest five and a link to all of them" do
+    shopping = @family.categories.find_or_create_by!(name: "Shopping")
+    amazon = @family.merchants.find_or_create_by!(name: "Amazon") { |merchant| merchant.type = "FamilyMerchant" }
+    6.times do |i|
+      create_transaction(account: accounts(:depository), amount: 10 + i, name: "Amazon order #{i}",
+                         category: shopping, merchant: amazon, date: Date.current - i.days)
+    end
+    query = { categories: [ "Shopping" ], merchants: [ "Amazon" ],
+              start_date: (Date.current - 30.days).iso8601, end_date: Date.current.iso8601 }
+
+    get dashboard_merchant_transactions_path(q: query)
+
+    assert_response :ok
+    assert_select "turbo-frame#merchant_breakdown_transactions"
+    assert_select "[data-merchant-preview-row]", count: 5
+    assert_select "[data-merchant-preview-row]", text: /Amazon order 0/
+    assert_select "a[href='#{transactions_path(q: query)}']", text: /6/
+  end
+
+  test "a merchant preview that fits has no more link" do
+    create_transaction(account: accounts(:depository), amount: 40, name: "Netflix",
+                       category: categories(:food_and_drink), merchant: merchants(:netflix), date: Date.current)
+    query = { categories: [ categories(:food_and_drink).name ], merchants: [ "Netflix" ],
+              start_date: Date.current.beginning_of_month.iso8601, end_date: Date.current.iso8601 }
+
+    get dashboard_merchant_transactions_path(q: query)
+
+    assert_select "[data-merchant-preview-row]", count: 1
+    assert_select "a[href='#{transactions_path(q: query)}']", count: 0
+  end
+
   test "dashboard renders the net worth chart as drag-selectable, opting it out of card drag-and-drop" do
     get root_path
 

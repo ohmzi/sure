@@ -332,6 +332,7 @@ Rails.application.routes.draw do
 
   get "dashboard/today", to: "pages#today", as: :dashboard_today
   get "dashboard/merchant_breakdown", to: "pages#merchant_breakdown", as: :dashboard_merchant_breakdown
+  get "dashboard/merchant_transactions", to: "pages#merchant_transactions", as: :dashboard_merchant_transactions
   get "more", to: "pages#more", as: :more
   get "changelog", to: "pages#changelog"
   get "release_highlight", to: "release_highlights#show"

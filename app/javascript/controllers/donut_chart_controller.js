@@ -20,6 +20,9 @@ export default class extends Controller {
     extendedHover: { type: Boolean, default: false },
     hoverExtension: { type: Number, default: 3 },
     enableClick: { type: Boolean, default: false },
+    // A tapped or clicked slice stays picked until reset(); only where the
+    // page offers a way back (the merchants donut's "All merchants").
+    selectable: { type: Boolean, default: false },
     startDate: String,
     endDate: String,
   };
@@ -33,6 +36,10 @@ export default class extends Controller {
   #lastPointerType = "mouse";
   #touchedSegmentId = null;
   #tapArmed = false;
+  // A slice picked with a tap or click stays picked, with the page told
+  // (donut-chart:select / :clear) so a list can follow it, until reset()
+  // (the owner, 2026-10-18).
+  #selectedSegmentId = null;
   #resizeObserver = null;
   #measureCanvas = null;
   // Largest square inscribed in a circle has side D/√2 ≈ 0.707·D. A single
@@ -243,6 +250,8 @@ export default class extends Controller {
           !this.contentContainerTarget.contains(event.relatedTarget)
         ) {
           this.#clearSegmentHover();
+          if (this.#selectedSegmentId)
+            this.#showSegment(this.#selectedSegmentId);
         }
       })
       .on("pointerdown", (event, d) => {
@@ -252,8 +261,10 @@ export default class extends Controller {
         this.#touchedSegmentId = d.data.id;
         this.#clearSegmentHover();
         this.#handleSegmentHover(event);
+        this.#select(d.data.id);
       })
       .on("click", (event, d) => {
+        if (this.#lastPointerType === "mouse") this.#select(d.data.id);
         if (!this.enableClickValue) return;
         // On touch the first tap only previews the slice.
         if (this.#lastPointerType !== "mouse" && !this.#tapArmed) return;
@@ -272,8 +283,26 @@ export default class extends Controller {
   };
 
   // Highlights segment and shows segment specific content (all other segments are grayed out)
+  #select(segmentId) {
+    if (!this.selectableValue || segmentId === this.#selectedSegmentId) return;
+    this.#selectedSegmentId = segmentId;
+    this.dispatch("select", { detail: { id: segmentId } });
+  }
+
+  // Lets go of a picked slice and shows the whole ring again.
+  reset() {
+    this.#selectedSegmentId = null;
+    this.#touchedSegmentId = null;
+    this.#tapArmed = false;
+    this.#clearSegmentHover();
+    this.dispatch("clear");
+  }
+
   #handleSegmentHover(event) {
-    const segmentId = event.target.dataset.segmentId;
+    this.#showSegment(event.target.dataset.segmentId);
+  }
+
+  #showSegment(segmentId) {
     const template = this.element.querySelector(`#segment_${segmentId}`);
     const unusedSegmentId = this.unusedSegmentIdValue;
 

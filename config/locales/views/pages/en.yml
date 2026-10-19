@@ -197,6 +197,13 @@ en:
         refund_label: "%{name} (refund)"
         net_after_refunds: "Net after refunds"
         empty: "No merchant activity in this category for this period."
+        all_merchants: "All merchants"
+      merchant_transactions:
+        latest: "Latest"
+        empty: "No transactions for this merchant in this period."
+        see_all:
+          one: "See %{count} transaction"
+          other: "See all %{count} transactions"
       investment_summary:
         title: "Investments"
         total_return: "Total Return"

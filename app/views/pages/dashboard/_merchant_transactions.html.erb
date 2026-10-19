@@ -1,0 +1,34 @@
+<%# locals: (transactions:, count:, query:) %>
+<%# The latest transactions of the merchant picked on the merchants donut,
+    flat rows on the card like the merchant list they stand in for, and a
+    link to all of them in Activity when they do not all fit (the owner,
+    2026-10-18). Amounts read as the list's do: spending plain, money back
+    with a minus. %>
+<%= turbo_frame_tag "merchant_breakdown_transactions" do %>
+  <% if transactions.empty? %>
+    <p class="px-4 py-6 text-center text-sm text-secondary"><%= t(".empty") %></p>
+  <% else %>
+    <div class="divide-y divide-subdued font-medium text-sm">
+      <% transactions.each do |transaction| %>
+        <% entry = transaction.entry %>
+        <div class="flex items-center justify-between gap-3 mx-3 p-3" data-merchant-preview-row>
+          <div class="min-w-0">
+            <p class="truncate text-primary"><%= entry.name %></p>
+            <p class="text-xs text-secondary"><%= l(entry.date, format: :long) %></p>
+          </div>
+          <span class="shrink-0 whitespace-nowrap text-primary privacy-sensitive tabular">
+            <%= "-" if entry.amount.negative? %><%= format_money entry.amount_money.abs %>
+          </span>
+        </div>
+      <% end %>
+    </div>
+
+    <% if count > transactions.size %>
+      <div class="px-3 pt-3">
+        <%= link_to t(".see_all", count: count), transactions_path(q: query),
+              data: { turbo_frame: "_top", turbo_prefetch: false },
+              class: "press flex h-11 items-center justify-center rounded-full bg-container-inset text-sm font-semibold text-primary hover:bg-container-inset-hover transition-colors focus-ring" %>
+      </div>
+    <% end %>
+  <% end %>
+<% end %>
