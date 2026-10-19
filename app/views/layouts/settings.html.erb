@@ -1,11 +1,12 @@
 <%# Settings, redesigned as an Apple app would (the owner, 2026-10-17). On a
-    phone it is a navigation stack: the grouped list (Settings home), and each
-    page under a "‹ Settings" back bar with its large title. On a computer it is
+    phone every page has the app's toolbar and then its large title, and the
+    tab bar with More picked, like any other page (2026-10-19: no back bar). On a computer it is
     two panes, like System Settings: the list on the left, the page on the
     right. No breadcrumbs, no tab strip, no next/previous footer. %>
-<% on_home = controller_path == "settings/home" %>
+<% intro_mode = Current.user&.ui_layout_intro? %>
 <%= render "layouts/shared/htmldoc", sidebar_aware: true do %>
-  <div class="flex h-full bg-surface pt-[env(safe-area-inset-top)]">
+  <div class="flex h-full bg-surface lg:pt-[env(safe-area-inset-top)]" data-controller="privacy-mode">
+    <%= render "layouts/shared/mobile_toolbar", intro_mode: intro_mode, home_path: intro_mode ? chats_path : root_path %>
     <%= link_to t("layouts.application.skip_to_main"), "#main",
         class: "sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus:rounded-lg focus:bg-container focus:text-primary focus:shadow-border-xs" %>
 
@@ -21,16 +22,8 @@
       <%= render "settings/settings_nav" %>
     </aside>
 
-    <main id="main" class="settings-page grow min-w-0 h-full overflow-y-auto overscroll-contain" data-controller="settings-scroll" data-notification-tray-target="main">
-      <div class="max-w-5xl mx-auto px-4 lg:px-10 pb-24 lg:pb-12">
-        <%# A phone's navigation bar: back to Settings (or, from Settings itself,
-            back to the app). %>
-        <div class="lg:hidden sticky top-0 z-10 -mx-4 px-4 py-2.5 bg-surface/85 backdrop-blur-xl">
-          <%= link_to (on_home ? previous_path : settings_root_path), class: "inline-flex items-center gap-1 min-h-9 text-base text-link rounded-md focus-ring" do %>
-            <%= icon("chevron-left", size: "sm", color: "current") %><%= on_home ? t("layouts.settings.back_to_app") : t("layouts.settings.title") %>
-          <% end %>
-        </div>
-
+    <main id="main" class="settings-page app-scroller grow min-w-0 h-full overflow-y-auto overscroll-contain" data-controller="settings-scroll" data-notification-tray-target="main">
+      <div class="max-w-5xl mx-auto px-4 lg:px-10 pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-12">
         <% if content_for?(:page_title) || content_for?(:page_actions) %>
           <%# A phone stacks the actions under the title: a long settings title
               ("Recurring Transactions") plus a shrink-0 action row would push
@@ -49,5 +42,6 @@
         </div>
       </div>
     </main>
+    <%= render "layouts/shared/mobile_tab_bar", items: app_tab_items(intro_mode: intro_mode, selected: :more) %>
   </div>
 <% end %>

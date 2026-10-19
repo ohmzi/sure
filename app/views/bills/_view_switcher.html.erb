@@ -14,7 +14,7 @@
 <% add_text = income_first ? t("bills.index.add_income") : t("bills.index.add_bill") %>
 <% add_href = income_first ? new_recurring_transaction_path(income: true) : new_recurring_transaction_path %>
 <header class="flex justify-between items-center gap-2 text-primary font-medium">
-  <h1 class="text-xl font-bold tracking-tight"><%= t("bills.index.title") %></h1>
+  <h1 class="text-3xl font-bold tracking-tight"><%= t("bills.index.title") %></h1>
 
   <div class="flex items-center gap-2 shrink-0">
     <%= render DS::Menu.new do |menu| %>

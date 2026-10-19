@@ -2,25 +2,7 @@
 <% home_path = intro_mode ? chats_path : root_path %>
 <%# Assistant type "mcp_only" removes every chat surface. MCP is unaffected. %>
 <% assistant_enabled = Current.family.assistant_enabled? %>
-<% mobile_nav_items = if intro_mode
-  [
-    { name: t(".nav.home"), path: chats_path, icon: "home", icon_custom: false, active: page_active?(chats_path) },
-    { name: "Intro", path: intro_path, icon: "sparkles", icon_custom: false, active: page_active?(intro_path) }
-  ]
-else
-  [
-    # Five tabs (the owner's redesign, 2026-10-17): Plan gathers budgets,
-    # reports and goals; More gathers documents, bills, the assistant and
-    # settings.
-    { name: t(".nav.home"), path: root_path, icon: "pie-chart", icon_custom: false, active: page_active?(root_path) },
-    # The tab opens a fresh list every time (the owner, 2026-10-18); a bare
-    # /transactions would bring back the filters left on last time.
-    { name: t(".nav.activity"), path: transactions_path(clear_filters: true), icon: "credit-card", icon_custom: false, active: page_active?(transactions_path) },
-    { name: t(".nav.accounts"), path: accounts_path, icon: "wallet", icon_custom: false, active: page_active?(accounts_path) },
-    plan_tab_item,
-    more_tab_item
-  ].compact
-end %>
+<% mobile_nav_items = app_tab_items(intro_mode: intro_mode) %>
 
 <% desktop_nav_items = mobile_nav_items.reject { |item| item[:mobile_only] } %>
 <% expanded_sidebar_class = "w-full" %>
@@ -36,33 +18,9 @@ end %>
     <%= link_to t("layouts.application.skip_to_main"), "#main",
         class: "sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-2 focus:rounded-lg focus:bg-container focus:text-primary focus:shadow-border-xs" %>
 
-    <%# MOBILE - Top nav %>
-    <nav class="lg:hidden relative flex justify-between items-center p-3 pt-[calc(env(safe-area-inset-top)+0.75rem)]">
-      <% if intro_mode %>
-      <% else %>
-        <div class="flex items-center gap-1">
-          <%= render "layouts/shared/insights_button" %>
-        </div>
-      <% end %>
-
-      <%= link_to home_path, class: "absolute left-1/2 -translate-x-1/2" do %>
-        <%= image_tag "logomark-color.svg", class: "w-9 h-9 mx-auto" %>
-      <% end %>
-
-      <div class="flex items-center gap-1">
-        <button type="button"
-                class="inline-flex items-center justify-center w-9 h-9 pointer-coarse:w-11 pointer-coarse:h-11 rounded-lg text-secondary hover:text-primary hover:bg-container-inset-hover transition-colors focus-ring"
-                data-action="click->privacy-mode#toggle"
-                data-privacy-mode-target="toggle"
-                title="<%= t("layouts.application.privacy_mode") %>"
-                aria-label="<%= t("layouts.application.privacy_mode") %>"
-                aria-pressed="false">
-          <%= icon("eye-off", size: "sm", data: { privacy_mode_target: "iconOff" }) %>
-          <%= icon("eye", size: "sm", class: "hidden", data: { privacy_mode_target: "iconOn" }) %>
-        </button>
-        <%= render "users/user_menu", user: Current.user, placement: "bottom-end", offset: 12, intro_mode: intro_mode %>
-      </div>
-    </nav>
+    <%# MOBILE - Top nav: floats over the page, frosted, the page scrolling
+        beneath it (layouts/shared/mobile_toolbar). %>
+    <%= render "layouts/shared/mobile_toolbar", intro_mode: intro_mode, home_path: home_path %>
 
     <%# DESKTOP - Left navbar %>
     <div class="hidden lg:block border-r border-divider">
@@ -113,7 +71,7 @@ end %>
     <% end %>
 
     <%# SHARED - Main content %>
-    <%= tag.main id: "main", class: class_names("grow overflow-y-auto [scrollbar-gutter:stable] px-3 lg:px-10 w-full mx-auto pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0"), data: { app_layout_target: "content", viewport_target: "content", notification_tray_target: "main", controller: "scroll-top" } do %>
+    <%= tag.main id: "main", class: class_names("grow overflow-y-auto [scrollbar-gutter:stable] px-3 lg:px-10 w-full mx-auto pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0 app-scroller"), data: { app_layout_target: "content", viewport_target: "content", notification_tray_target: "main", controller: "scroll-top" } do %>
       <% unless intro_mode %>
         <%# The page's own large title leads (no breadcrumbs — the owner,
             2026-10-17); the bar carries only the page-wide actions. %>
@@ -188,13 +146,7 @@ end %>
     <% end %>
 
     <%# MOBILE - Bottom Nav %>
-    <%# The bottom bar: frosted, iOS-style (2026-10-17). %>
-    <%= tag.nav class: "lg:hidden fixed bottom-0 left-0 right-0 z-10 bg-container/85 backdrop-blur-xl border-t border-tertiary flex justify-around px-1 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.25rem)]",
-      data: { viewport_target: "bottomNav", controller: "nav-press", action: "click->nav-press#press" } do %>
-      <% mobile_nav_items.each do |nav_item| %>
-        <%= render "layouts/shared/nav_item", **nav_item %>
-      <% end %>
-    <% end %>
+    <%= render "layouts/shared/mobile_tab_bar", items: mobile_nav_items %>
     <%# "What's new" release highlight: one dialog per deployed release,
         shown on first interaction and tracked per account. %>
     <% unless intro_mode %>

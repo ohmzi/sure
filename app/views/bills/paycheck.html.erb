@@ -26,7 +26,7 @@
   <% end %>
 
   <% if @plan.nil? %>
-    <div class="bg-container rounded-xl shadow-border-xs p-4">
+    <div class="bg-container rounded-[26px] shadow-border-xs p-4">
       <%= render DS::EmptyState.new(
             icon: "calendar-clock",
             title: t(".empty.title"),
@@ -44,7 +44,7 @@
       <% end %>
     </div>
   <% elsif @plan.none? { |period| period.items.any? } %>
-    <div class="bg-container rounded-xl shadow-border-xs p-4">
+    <div class="bg-container rounded-[26px] shadow-border-xs p-4">
       <%= render DS::EmptyState.new(
             icon: "circle-check",
             title: t(".all_clear.title"),
@@ -58,7 +58,7 @@
       <%= render "bills/paycheck_bridge", period: bridge_note, currency: currency %>
     <% end %>
 
-    <div class="bg-container rounded-xl shadow-border-xs">
+    <div class="bg-container rounded-[26px] shadow-border-xs">
       <% periods.each_with_index do |period, index| %>
         <%= render "bills/paycheck_period",
               period: period,

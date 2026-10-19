@@ -118,6 +118,30 @@ module ApplicationHelper
   # tiles read. The count rides the nav on every page; zero renders nothing.
   # The Plan tab: budgets, reports and goals under one switch (2026-10-17).
   # Preview users land on the Plan hub, everyone else on this month's budget.
+  # The phone's tab bar (the owner's five tabs, 2026-10-17), shared by the app
+  # and settings layouts. `selected:` marks one tab as the current one — the
+  # settings pages sit under More, wherever their own paths point.
+  def app_tab_items(intro_mode:, selected: nil)
+    items = if intro_mode
+      [
+        { name: t("layouts.application.nav.home"), path: chats_path, icon: "home", icon_custom: false, active: page_active?(chats_path) },
+        { name: "Intro", path: intro_path, icon: "sparkles", icon_custom: false, active: page_active?(intro_path) }
+      ]
+    else
+      [
+        { name: t("layouts.application.nav.home"), path: root_path, icon: "pie-chart", icon_custom: false, active: page_active?(root_path), key: :home },
+        # The tab opens a fresh list every time (the owner, 2026-10-18); a bare
+        # /transactions would bring back the filters left on last time.
+        { name: t("layouts.application.nav.activity"), path: transactions_path(clear_filters: true), icon: "credit-card", icon_custom: false, active: page_active?(transactions_path), key: :activity },
+        { name: t("layouts.application.nav.accounts"), path: accounts_path, icon: "wallet", icon_custom: false, active: page_active?(accounts_path), key: :accounts },
+        plan_tab_item.merge(key: :plan),
+        more_tab_item.merge(key: :more)
+      ].compact
+    end
+    items = items.map { |item| item.merge(active: item[:key] == selected) } if selected
+    items.map { |item| item.except(:key) }
+  end
+
   def plan_tab_item
     {
       name: t("layouts.application.nav.plan"),

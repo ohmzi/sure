@@ -1,0 +1,13 @@
+/*
+  On a phone the toolbar floats over the page (layouts/shared/mobile_toolbar):
+  the scrolling area starts its content below it and keeps its height in
+  --app-toolbar-h, so sticky headers stop under the toolbar and an anchor
+  scrolled to is not hidden behind it (the owner, 2026-10-19).
+*/
+@media (max-width: 1023.98px) {
+  .app-scroller {
+    --app-toolbar-h: calc(env(safe-area-inset-top) + 4.25rem);
+    padding-top: var(--app-toolbar-h);
+    scroll-padding-top: var(--app-toolbar-h);
+  }
+}

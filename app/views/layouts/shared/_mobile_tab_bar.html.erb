@@ -1,0 +1,11 @@
+<%# locals: (items:) %>
+<%# The phone's tab bar, frosted iOS-style (2026-10-17), shared by the app and
+    settings layouts. The page fades into it rather than meeting a hard line
+    (the owner, 2026-10-19). %>
+<%= tag.nav class: "lg:hidden fixed bottom-0 left-0 right-0 z-10 bg-surface/70 backdrop-blur-xl backdrop-saturate-150 flex justify-around px-1 pt-1.5 pb-[calc(env(safe-area-inset-bottom)+0.25rem)]",
+  data: { viewport_target: "bottomNav", controller: "nav-press", action: "click->nav-press#press" } do %>
+  <div aria-hidden="true" class="pointer-events-none absolute inset-x-0 bottom-full h-6 bg-linear-to-t from-surface/70 to-transparent"></div>
+  <% items.each do |nav_item| %>
+    <%= render "layouts/shared/nav_item", **nav_item %>
+  <% end %>
+<% end %>

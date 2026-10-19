@@ -1,20 +1,19 @@
-<div class="space-y-4 pb-6 lg:pb-12">
+<div class="space-y-6 pb-6 lg:pb-12">
   <%= render "bills/view_switcher", active: "overview" %>
 
-  <div class="space-y-4 min-w-0">
+  <div class="space-y-6 min-w-0">
   <%# Nothing here was confirmed by anyone: detection built it from bank data.
       Says so once, and stops as soon as the user works with any of it. %>
   <% if @detected_awaiting_review.positive? %>
-    <div class="bg-container rounded-xl shadow-border-xs p-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-      <p class="text-sm text-primary">
+    <%# As Home's insight cards read: a tinted icon, the note, a pill to act
+        on it (2026-10-19). %>
+    <div class="bg-container rounded-[26px] shadow-border-xs p-4 flex items-center gap-3">
+      <%= render DS::FilledIcon.new(icon: "sparkles", hex_color: "var(--color-brand-500)", size: "lg") %>
+      <p class="min-w-0 grow text-sm text-primary">
         <%= t(".detected_review", count: @detected_awaiting_review) %>
       </p>
-      <%= render DS::Link.new(
-            text: t(".detected_review_action"),
-            variant: :default,
-            href: bills_path(view: "all"),
-            class: "text-xs shrink-0"
-          ) %>
+      <%= link_to t(".detected_review_action"), bills_path(view: "all"),
+            class: "press shrink-0 inline-flex h-9 items-center rounded-full bg-container-inset px-3.5 text-sm font-semibold text-link hover:bg-container-inset-hover transition-colors focus-ring" %>
     </div>
   <% end %>
 
@@ -32,7 +31,7 @@
 
   <% if bill_rows_empty %>
     <% if @suggested_series.none? %>
-      <div class="bg-container rounded-xl shadow-border-xs p-4">
+      <div class="bg-container rounded-[26px] shadow-border-xs p-5">
         <%= render DS::EmptyState.new(
               icon: "receipt",
               title: t(".empty.title"),

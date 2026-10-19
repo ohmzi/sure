@@ -585,10 +585,10 @@ class BillsControllerTest < ActionDispatch::IntegrationTest
       I18n.t("bills.manage"),
       I18n.t("bills.month_pulse.view_calendar")
     ]
-    # One text link style: DS::Link's underlined text link, kept at the
-    # compact text-xs the default variant does not set.
+    # Each carries the DS ring (Review them became a pill and View calendar a
+    # plain link in the Bills restyle, 2026-10-19).
     text_links.each do |text|
-      assert_select "main a.text-link.underline.focus-ring.text-xs", text: text
+      assert_select "main a.text-link.focus-ring", text: text
     end
     # Premise: the rows are on the page, so the sweep below covers them.
     assert_select "main #{BILL_ROW_LINK}", minimum: 2

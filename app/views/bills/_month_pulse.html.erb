@@ -15,15 +15,17 @@
      overdue: @past_due_total&.amount
    ) %>
 
-<div class="bg-container rounded-xl shadow-border-xs p-4 space-y-4">
+<%# Home's card (the owner, 2026-10-19: Bills should match the other pages):
+    the month as a bold title, the count beside it, the figure large. %>
+<div class="bg-container rounded-[26px] shadow-border-xs p-5 space-y-4">
   <div class="flex items-baseline justify-between gap-3">
-    <p class="text-xs font-medium uppercase text-secondary"><%= l(Date.current, format: "%B") %></p>
-    <p class="text-xs text-secondary"><%= t(".bill_count", count: @month_bill_count) %></p>
+    <h2 class="text-xl font-extrabold tracking-tight text-primary"><%= l(Date.current, format: "%B") %></h2>
+    <p class="text-sm text-secondary"><%= t(".bill_count", count: @month_bill_count) %></p>
   </div>
 
   <%# The one figure the page exists to state. %>
   <div>
-    <p class="text-3xl font-medium text-primary privacy-sensitive leading-tight">
+    <p class="text-[34px] font-extrabold tracking-tight text-primary privacy-sensitive leading-tight tabular">
       <%= @remaining_this_month ? format_money(@remaining_this_month) : "–" %>
     </p>
     <p class="text-sm text-secondary"><%= t(".left_to_pay") %></p>
@@ -77,12 +79,8 @@
     <div class="pt-3 border-t border-subdued space-y-2">
       <div class="flex items-center justify-between gap-3">
         <p class="text-xs font-medium uppercase text-secondary"><%= t(".next_up") %></p>
-        <%= render DS::Link.new(
-              text: t(".view_calendar"),
-              variant: :default,
-              href: bills_path(view: "calendar"),
-              class: "text-xs shrink-0"
-            ) %>
+        <%= link_to t(".view_calendar"), bills_path(view: "calendar"),
+              class: "shrink-0 text-sm font-semibold text-link hover:underline focus-ring rounded" %>
       </div>
 
       <%# Never a sideways scroll (the owner, 2026-10-18): on a phone a short

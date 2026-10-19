@@ -99,9 +99,12 @@ class AccountsTest < ApplicationSystemTestCase
 
     # The account sidebar is gone (2026-10-17): Accounts is its own tab, with
     # "New account" in its header.
+    # Waits for the picker: the Accounts page lists a "Credit Card" account
+    # too, and a click racing the picker's arrival opened that instead.
     def open_new_account_modal
       visit accounts_path
       click_link "New account", match: :first
+      assert_selector "dialog[open] a", text: Accountable.from_type("Depository").singular_display_name
     end
 
     # The account page issues a Turbo morph refresh shortly after it loads
@@ -139,7 +142,7 @@ class AccountsTest < ApplicationSystemTestCase
     end
 
     def assert_account_created(accountable_type, &block)
-      click_link Accountable.from_type(accountable_type).singular_display_name
+      within("dialog[open]") { click_link Accountable.from_type(accountable_type).singular_display_name }
       click_link "Enter account balance" if accountable_type.in?(%w[Depository Investment Crypto Loan CreditCard])
 
       account_name = "[system test] #{accountable_type} Account"
