@@ -190,22 +190,28 @@ export default class extends Controller {
       .style("cursor", this.enableClickValue ? "pointer" : null)
       .attr("d", mainArc);
 
-    // The slices sweep round into place on first draw, one a beat after the
-    // other (the animation pass, 2026-10-18). Hover only recolours, so it
-    // never interrupts or replays this.
+    // The ring draws itself round once from twelve o'clock, each slice
+    // taking over where the last one ends, while the whole ring turns the last
+    // few degrees into place. Slices growing each from its own start looked
+    // like scattered fragments (the owner, 2026-10-18). Hover only recolours,
+    // so it never interrupts or replays this.
     if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      segmentArcs.attr("d", (d) => mainArc({ ...d, endAngle: d.startAngle }));
+      const centre = this.#viewBoxSize / 2;
+      const sweepTo = (angle, turn) => {
+        g.attr("transform", `translate(${centre}, ${centre}) rotate(${turn})`);
+        segmentArcs.attr("d", (d) =>
+          angle <= d.startAngle
+            ? null
+            : mainArc({ ...d, endAngle: Math.min(d.endAngle, angle) }),
+        );
+      };
+      sweepTo(0, -40);
       // Off screen, the sweep waits until the donut is scrolled to.
       whenRevealed(this.element, () => {
-        segmentArcs
-          .transition()
-          .duration(650)
-          .delay((_d, i) => Math.min(i, 8) * 40)
-          .ease(d3.easeCubicOut)
-          .attrTween("d", (d) => {
-            const endAngle = d3.interpolate(d.startAngle, d.endAngle);
-            return (t) => mainArc({ ...d, endAngle: endAngle(t) });
-          });
+        g.transition()
+          .duration(1100)
+          .ease(d3.easeCubicInOut)
+          .tween("sweep", () => (t) => sweepTo(t * 2 * Math.PI, -40 * (1 - t)));
       });
     }
 

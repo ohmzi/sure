@@ -137,6 +137,17 @@
         <svg viewBox="0 0 132 132" class="size-32 shrink-0" role="img"
              aria-label="<%= t(".percent_spent", percent: today.percent_spent.round) %>">
           <circle cx="66" cy="66" r="54" fill="none" stroke="currentColor" stroke-opacity="0.14" class="text-secondary" stroke-width="16"></circle>
+          <%# The slices are revealed by one stroke sweeping round from twelve
+              o'clock, so the ring fills as a single motion (the owner,
+              2026-10-18), however many slices there are. %>
+          <defs>
+            <mask id="spending-ring-sweep" maskUnits="userSpaceOnUse" x="0" y="0" width="132" height="132">
+              <circle cx="66" cy="66" r="54" fill="none" stroke="white" stroke-width="28" transform="rotate(-90 66 66)"
+                      stroke-dasharray="<%= circumference.round(2) %>" class="sweep-in"
+                      style="--sweep-from: <%= circumference.round(2) %>; animation-duration: 1100ms"></circle>
+            </mask>
+          </defs>
+          <g mask="url(#spending-ring-sweep)">
           <% offset = 0 %>
           <% slices.each_with_index do |slice, index| %>
             <% length = denominator.positive? ? [ (slice.amount / denominator).to_f * circumference, circumference - offset ].min : 0 %>
@@ -147,6 +158,7 @@
                     data-spending-ring-target="slice" data-index="<%= index %>"></circle>
             <% offset += length %>
           <% end %>
+          </g>
           <text x="66" y="63" text-anchor="middle" class="fill-current text-primary text-[18px] font-extrabold privacy-sensitive" data-spending-ring-target="value"
                 data-default="<%= Money.new(left.abs, budget.currency).format(precision: 0) %>"><%= Money.new(left.abs, budget.currency).format(precision: 0) %></text>
           <text x="66" y="81" text-anchor="middle" class="fill-current text-secondary text-[10px] font-medium" data-spending-ring-target="label"
