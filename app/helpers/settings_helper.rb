@@ -29,49 +29,64 @@ module SettingsHelper
   ]
 
   # The Settings list's groups, in order (the iOS Settings redesign,
-  # 2026-10-17). Each row has a tint for its icon tile, as iOS colours its
-  # settings. Accounts and Documents are tabs of their own, not settings.
+  # 2026-10-17; regrouped in the Settings audit, 2026-10-19). Each row has a
+  # tint for its icon tile, as iOS colours its settings, and where it helps a
+  # short summary of what is set ("Dark", "3 people", "Two-factor off").
+  # Accounts and Documents are tabs of their own, not settings.
   def settings_nav_sections
     admin = Current.user&.admin?
     super_admin = Current.user&.super_admin?
+    family = Current.family
+    nav = ->(key) { t("settings.settings_nav.#{key}") }
     [
-      { header: t("settings.settings_nav.general_section_title"), items: [
-        { label: t("settings.settings_nav.bank_sync_label"), path: settings_providers_path, icon: "banknote", tint: "green", if: admin },
-        { label: t("settings.settings_nav.preferences_label"), path: settings_preferences_path, icon: "bolt", tint: "gray" },
-        { label: t("settings.settings_nav.appearance_label"), path: settings_appearance_path, icon: "palette", tint: "brand" },
-        { label: t("settings.settings_nav.security_label"), path: settings_security_path, icon: "shield-check", tint: "blue" },
-        { label: t("settings.settings_nav.payment_label"), path: settings_payment_path, icon: "circle-dollar-sign", tint: "yellow", if: !self_hosted? && Current.family&.can_manage_subscription? }
+      { header: nav.("account_section_title"), items: [
+        { label: nav.("household_label"), path: settings_household_path, icon: "users", tint: "cyan",
+          detail: (t("settings.settings_nav.people", count: family.users.count) if family) },
+        { label: nav.("security_label"), path: settings_security_path, icon: "shield-check", tint: "blue",
+          detail: nav.(Current.user&.otp_required? ? "two_factor_on" : "two_factor_off") },
+        { label: nav.("payment_label"), path: settings_payment_path, icon: "circle-dollar-sign", tint: "yellow", if: !self_hosted? && family&.can_manage_subscription? }
       ] },
-      { header: t("settings.settings_nav.transactions_section_title"), items: [
-        { label: t("settings.settings_nav.categories_label"), path: categories_path, icon: "shapes", tint: "orange" },
-        { label: t("settings.settings_nav.tags_label"), path: tags_path, icon: "tags", tint: "fuchsia" },
-        { label: t("settings.settings_nav.rules_label"), path: rules_path, icon: "git-branch", tint: "indigo" },
-        { label: t("settings.settings_nav.merchants_label"), path: family_merchants_path, icon: "store", tint: "cyan" },
-        { label: t("settings.settings_nav.recurring_transactions_label"), path: recurring_transactions_path, icon: "repeat", tint: "green" }
+      { header: nav.("app_section_title"), items: [
+        { label: nav.("preferences_label"), path: settings_preferences_path, icon: "bolt", tint: "gray", detail: family&.currency },
+        { label: nav.("appearance_label"), path: settings_appearance_path, icon: "palette", tint: "brand",
+          detail: t("settings.appearances.show.theme_#{Current.user&.theme.presence || "system"}", default: "") }
       ] },
-      (admin ? { header: t("settings.settings_nav.advanced_section_title"), items: [
-        { label: t("settings.settings_nav.ai_prompts_label"), path: settings_ai_prompts_path, icon: "bot", tint: "violet" },
-        { label: t("settings.settings_nav.llm_usage_label"), path: settings_llm_usage_path, icon: "activity", tint: "pink" },
-        { label: t("settings.settings_nav.api_keys_label"), path: settings_api_keys_path, icon: "key", tint: "yellow" },
-        { label: t("settings.settings_nav.mcp_label"), path: settings_mcp_path, icon: "plug", tint: "indigo" },
-        { label: t("settings.settings_nav.debug_label", default: "Debug"), path: settings_debug_path, icon: "bug", tint: "red", if: super_admin },
-        { label: t("settings.settings_nav.background_jobs_label"), path: settings_background_jobs_path, icon: "list-checks", tint: "gray", if: super_admin },
-        # Self-hosting split by subject (2026-10-17).
-        { label: t("settings.settings_nav.ai_label"), path: settings_ai_path, icon: "sparkles", tint: "violet", if: self_hosted? },
-        { label: t("settings.settings_nav.data_providers_label"), path: settings_data_providers_path, icon: "chart-line", tint: "cyan", if: self_hosted? },
-        { label: t("settings.settings_nav.self_hosting_label"), path: settings_hosting_path, icon: "server", tint: "gray", if: self_hosted? },
-        { label: t("settings.settings_nav.imports_label"), path: imports_path, icon: "download", tint: "blue" },
-        { label: t("settings.settings_nav.exports_label"), path: family_exports_path, icon: "upload", tint: "green" },
-        { label: t("settings.settings_nav.sso_providers_label"), path: admin_sso_providers_path, icon: "key-round", tint: "orange", if: super_admin },
-        { label: t("settings.settings_nav.users_label"), path: admin_users_path, icon: "users", tint: "cyan", if: super_admin },
-        { label: t("settings.settings_nav.system_health_label"), path: admin_system_health_path, icon: "heart-pulse", tint: "red", if: super_admin }
+      { header: nav.("money_section_title"), items: [
+        { label: nav.("bank_sync_label"), path: settings_providers_path, icon: "banknote", tint: "green", if: admin },
+        { label: nav.("categories_label"), path: categories_path, icon: "shapes", tint: "orange", detail: family&.categories&.count },
+        { label: nav.("tags_label"), path: tags_path, icon: "tags", tint: "fuchsia", detail: family&.tags&.count },
+        { label: nav.("rules_label"), path: rules_path, icon: "git-branch", tint: "indigo", detail: family&.rules&.count },
+        { label: nav.("merchants_label"), path: family_merchants_path, icon: "store", tint: "cyan" },
+        { label: nav.("recurring_transactions_label"), path: recurring_transactions_path, icon: "repeat", tint: "green" }
+      ] },
+      (admin ? { header: nav.("data_section_title"), items: [
+        { label: nav.("imports_label"), path: imports_path, icon: "download", tint: "blue" },
+        { label: nav.("exports_label"), path: family_exports_path, icon: "upload", tint: "green" }
       ] } : nil),
-      { header: t("settings.settings_nav.other_section_title"), items: [
-        { label: t("settings.settings_nav.guides_label"), path: settings_guides_path, icon: "book-open", tint: "yellow" },
-        { label: t("settings.settings_nav.whats_new_label"), path: changelog_path, icon: "box", tint: "indigo" },
-        { label: t("settings.settings_nav.feedback_label"), path: feedback_path, icon: "megaphone", tint: "orange" }
+      (admin ? { header: nav.("ai_section_title"), items: [
+        { label: nav.("ai_label"), path: settings_ai_path, icon: "sparkles", tint: "violet", if: self_hosted? },
+        { label: nav.("ai_prompts_label"), path: settings_ai_prompts_path, icon: "bot", tint: "violet" },
+        { label: nav.("llm_usage_label"), path: settings_llm_usage_path, icon: "activity", tint: "pink" },
+        { label: nav.("data_providers_label"), path: settings_data_providers_path, icon: "chart-line", tint: "cyan", if: self_hosted? },
+        { label: nav.("api_keys_label"), path: settings_api_keys_path, icon: "key", tint: "yellow" },
+        { label: nav.("mcp_label"), path: settings_mcp_path, icon: "plug", tint: "indigo" }
+      ] } : nil),
+      (admin && (self_hosted? || super_admin) ? { header: nav.("system_section_title"), items: [
+        { label: nav.("self_hosting_label"), path: settings_hosting_path, icon: "server", tint: "gray", if: self_hosted? },
+        { label: t("settings.settings_nav.debug_label", default: "Debug"), path: settings_debug_path, icon: "bug", tint: "red", if: super_admin },
+        { label: nav.("background_jobs_label"), path: settings_background_jobs_path, icon: "list-checks", tint: "gray", if: super_admin },
+        { label: nav.("sso_providers_label"), path: admin_sso_providers_path, icon: "key-round", tint: "orange", if: super_admin },
+        { label: nav.("users_label"), path: admin_users_path, icon: "users", tint: "cyan", if: super_admin },
+        { label: nav.("system_health_label"), path: admin_system_health_path, icon: "heart-pulse", tint: "red", if: super_admin }
+      ] } : nil),
+      { header: nav.("other_section_title"), items: [
+        { label: nav.("guides_label"), path: settings_guides_path, icon: "book-open", tint: "yellow" },
+        { label: nav.("whats_new_label"), path: changelog_path, icon: "box", tint: "indigo" },
+        { label: nav.("feedback_label"), path: feedback_path, icon: "megaphone", tint: "orange" }
       ] }
-    ].compact.map { |section| section.merge(items: section[:items].reject { |item| item[:if] == false }) }
+    ].compact
+     .map { |section| section.merge(items: section[:items].reject { |item| item[:if] == false }) }
+     .reject { |section| section[:items].empty? }
   end
 
   def adjacent_setting(current_path, offset)

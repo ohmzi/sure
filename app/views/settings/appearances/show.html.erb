@@ -2,21 +2,27 @@
 
 <%= settings_section title: t(".theme_title"), subtitle: t(".theme_subtitle") do %>
   <div data-controller="theme" data-theme-user-preference-value="<%= @user.theme %>">
-    <%= form_with model: @user, class: "flex flex-col md:flex-row justify-between items-center gap-4", id: "theme_form",
+    <%# Three side by side at every width, the picked one ringed and ticked
+        (the Settings audit, 2026-10-19); they used to stack full width on a
+        phone, three screens of pictures. %>
+    <%= form_with model: @user, class: "grid grid-cols-3 gap-2 sm:gap-4", id: "theme_form",
         data: { controller: "auto-submit-form", auto_submit_form_trigger_event_value: "change" } do |form| %>
       <%= form.hidden_field :redirect_to, value: "appearance" %>
 
-      <% theme_option_class = "text-center transition-all duration-200 p-3 rounded-lg hover:bg-surface-hover cursor-pointer [&:has(input:checked)]:bg-surface-hover [&:has(input:checked)]:border [&:has(input:checked)]:border-primary [&:has(input:checked)]:shadow-xs" %>
+      <% theme_option_class = "press relative flex flex-col items-center gap-2 rounded-2xl p-2 sm:p-3 text-center ring-1 ring-transparent transition-[background-color,box-shadow] duration-200 hover:bg-surface-hover cursor-pointer [&:has(input:checked)]:bg-surface-hover [&:has(input:checked)]:ring-2 [&:has(input:checked)]:ring-link" %>
 
       <% [
         { value: "light", image: "light-mode-preview.png" },
         { value: "dark", image: "dark-mode-preview.png" },
         { value: "system", image: "system-mode-preview.png" }
       ].each do |theme| %>
-        <%= form.label :"theme_#{theme[:value]}", class: "group" do %>
+        <%= form.label :"theme_#{theme[:value]}", class: "group block" do %>
           <div class="<%= theme_option_class %>">
-            <%= image_tag(theme[:image], alt: "#{theme[:value].titleize} Theme Preview", class: "max-h-44 mb-2") %>
-            <div class="<%= theme[:value] == "system" ? "flex items-center gap-2 justify-center" : "text-sm font-medium text-primary" %>">
+            <span class="absolute right-2 top-2 hidden size-5 items-center justify-center rounded-full bg-inverse text-inverse group-has-[input:checked]:flex" aria-hidden="true">
+              <%= icon("check", size: "xs", color: "current") %>
+            </span>
+            <%= image_tag(theme[:image], alt: "#{theme[:value].titleize} Theme Preview", class: "w-full max-h-32 object-contain rounded-lg") %>
+            <div class="text-sm font-semibold text-primary">
               <%= form.radio_button :theme, theme[:value], checked: @user.theme == theme[:value], class: "sr-only",
                 data: { auto_submit_form_target: "auto", autosubmit_trigger_event: "change", action: "theme#updateTheme" } %>
               <%= t(".theme_#{theme[:value]}") %>

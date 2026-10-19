@@ -32,7 +32,7 @@ class Settings::ProfilesControllerTest < ActionDispatch::IntegrationTest
       delete settings_profile_path(user_id: @member)
     end
 
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("settings.profiles.destroy.member_removed"), flash[:notice]
     assert_raises(ActiveRecord::RecordNotFound) { User.find(@member.id) }
   end
@@ -43,7 +43,7 @@ class Settings::ProfilesControllerTest < ActionDispatch::IntegrationTest
       delete settings_profile_path(user_id: @admin)
     end
 
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("settings.profiles.destroy.cannot_remove_self"), flash[:alert]
     assert User.find(@admin.id)
   end
@@ -54,7 +54,7 @@ class Settings::ProfilesControllerTest < ActionDispatch::IntegrationTest
       delete settings_profile_path(user_id: @admin)
     end
 
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("settings.profiles.destroy.not_authorized"), flash[:alert]
     assert User.find(@admin.id)
   end
@@ -73,7 +73,7 @@ class Settings::ProfilesControllerTest < ActionDispatch::IntegrationTest
       delete settings_profile_path(user_id: @member)
     end
 
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("settings.profiles.destroy.member_owns_other_family_data"), flash[:alert]
     assert User.find(@member.id), "user row must be preserved so historical access can be restored"
   end
@@ -92,7 +92,7 @@ class Settings::ProfilesControllerTest < ActionDispatch::IntegrationTest
       delete settings_profile_path(user_id: @member)
     end
 
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("settings.profiles.destroy.member_removed"), flash[:notice]
     assert_raises(ActiveRecord::RecordNotFound) { User.find(@member.id) }
     assert_raises(ActiveRecord::RecordNotFound) { Invitation.find(invitation.id) }

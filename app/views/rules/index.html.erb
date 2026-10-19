@@ -46,19 +46,22 @@
     </p>
   </div>
 <% end %>
-<div class="bg-container rounded-xl shadow-border-xs p-4">
+<%# iOS grouped (the Settings audit, 2026-10-19): the list's name and how
+    its order works above one card of rules, not a card holding a well
+    holding a card. %>
+<div>
   <% if @rules.any? %>
-    <div class="bg-container-inset rounded-xl">
-      <div class="flex justify-between px-4 py-2 text-xs uppercase">
+    <section class="space-y-2">
+      <div class="flex justify-between px-4 text-xs uppercase">
         <div class="flex items-center gap-1.5 font-medium text-secondary">
           <p><%= t(".rules_heading") %></p>
           <span class="text-subdued">&middot;</span>
           <p><%= @rules.count %></p>
         </div>
       </div>
-      <p class="px-4 pb-2 text-sm text-secondary"><%= t(".order_hint") %></p>
-      <div class="p-1">
-        <div class="flex flex-col bg-container rounded-lg shadow-border-xs divide-y divide-subdued"
+      <p class="px-4 text-sm text-secondary"><%= t(".order_hint") %></p>
+      <div>
+        <div class="flex flex-col bg-container rounded-2xl shadow-border-xs divide-y divide-subdued overflow-hidden"
              data-controller="sortable-list"
              data-sortable-list-url-value="<%= reorder_rules_path %>"
              data-sortable-list-param-value="rule_ids"
@@ -88,9 +91,9 @@
           <% end %>
         </div>
       </div>
-    </div>
+    </section>
   <% else %>
-    <div class="flex justify-center items-center py-20">
+    <div class="flex justify-center items-center py-20 rounded-2xl bg-container shadow-border-xs">
       <div class="text-center flex flex-col items-center max-w-[500px]">
         <p class="text-sm text-primary font-medium mb-1"><%= t(".no_rules_title") %></p>
         <p class="text-sm text-secondary mb-4"><%= t(".no_rules_description") %></p>
@@ -110,7 +113,7 @@
 
 <!-- Undoable apply-all runs -->
 <% if @undoable_batches.present? %>
-  <div id="rule-applications" class="mt-6 bg-container rounded-xl shadow-border-xs p-4">
+  <div id="rule-applications" class="mt-6 bg-container rounded-2xl shadow-border-xs p-4">
     <div class="mb-3">
       <h2 class="text-primary text-lg font-medium mb-1"><%= t("rules.applications.title") %></h2>
       <p class="text-sm text-secondary"><%= t("rules.applications.description") %></p>
@@ -149,7 +152,7 @@
 
 <!-- Recent Runs Section -->
 <% if @recent_runs.any? %>
-  <div class="mt-6 bg-container rounded-xl shadow-border-xs p-4">
+  <div class="mt-6 bg-container rounded-2xl shadow-border-xs p-4">
     <div class="mb-4">
       <h2 class="text-primary text-lg font-medium mb-1"><%= t("rules.recent_runs.title") %></h2>
       <p class="text-sm text-secondary"><%= t("rules.recent_runs.description") %></p>

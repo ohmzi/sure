@@ -1,0 +1,86 @@
+<%# The household on its own page (the Settings audit, the owner,
+    2026-10-19): its name, then everyone in it — avatar, name, email, role —
+    and the people invited, each with a link to copy rather than a long field
+    that ran off a phone's screen, then a way to add someone. %>
+<% group = Current.family&.moniker == "Group" %>
+<% content_for :page_title, group ? t(".group_title") : t(".household_title") %>
+
+<%= settings_section title: t(".name_title"), subtitle: t(".household_subtitle", moniker_plural: family_moniker_plural_downcase, moniker: family_moniker_downcase) do %>
+  <%= styled_form_with model: Current.user, data: { controller: "auto-submit-form" } do |form| %>
+    <%= form.hidden_field :redirect_to, value: "household" %>
+    <%= form.fields_for :family do |family_fields| %>
+      <%= family_fields.text_field :name,
+            placeholder: group ? t(".group_form_input_placeholder") : t(".household_form_input_placeholder"),
+            label: group ? t(".group_form_label") : t(".household_form_label"),
+            disabled: !Current.user.admin?,
+            "data-auto-submit-form-target": "auto" %>
+    <% end %>
+  <% end %>
+<% end %>
+
+<%= settings_section title: t(".members_title", count: @users.size + @pending_invitations.size) do %>
+  <ul class="-m-4 divide-y divide-subdued">
+    <% @users.each do |user| %>
+      <li class="flex items-center gap-3 px-4 py-3" data-household-member>
+        <div class="size-10 shrink-0">
+          <%= render "settings/user_avatar", avatar_url: user.profile_image&.variant(:small)&.url, initials: user.initials %>
+        </div>
+        <div class="min-w-0 grow">
+          <p class="truncate text-sm font-semibold text-primary"><%= user.display_name %><% if user == Current.user %> <span class="font-normal text-secondary"><%= t(".you") %></span><% end %></p>
+          <p class="truncate text-xs text-secondary"><%= user.email %></p>
+        </div>
+        <%= render DS::Pill.new(label: t("users.roles.#{user.role}", default: user.role.humanize), tone: :gray, marker: false, size: :sm) %>
+        <% if Current.user.admin? && user != Current.user %>
+          <%= render DS::Button.new(
+                variant: "icon",
+                icon: "x",
+                href: settings_profile_path(user_id: user),
+                method: :delete,
+                title: t(".remove_member"),
+                aria_label: t(".remove_member"),
+                confirm: CustomConfirm.for_resource_deletion(user.display_name, high_severity: true)
+              ) %>
+        <% end %>
+      </li>
+    <% end %>
+
+    <% @pending_invitations.each do |invitation| %>
+      <li class="flex items-center gap-3 px-4 py-3" data-household-invitation>
+        <div class="flex size-10 shrink-0 items-center justify-center rounded-full border border-dashed border-secondary text-sm font-semibold uppercase text-secondary"><%= invitation.email[0] %></div>
+        <div class="min-w-0 grow">
+          <p class="truncate text-sm font-semibold text-primary"><%= invitation.email %></p>
+          <p class="text-xs text-secondary"><%= t(".invited") %></p>
+        </div>
+        <% if self_hosted? %>
+          <div data-controller="clipboard">
+            <span data-clipboard-target="source" class="hidden"><%= accept_invitation_url(invitation.token) %></span>
+            <button type="button" data-action="clipboard#copy" title="<%= t(".copy_link") %>" aria-label="<%= t(".copy_link") %>"
+                    class="press inline-flex h-9 items-center gap-1.5 rounded-full bg-container-inset px-3 text-xs font-semibold text-primary hover:bg-container-inset-hover transition-colors focus-ring">
+              <span data-clipboard-target="iconDefault" class="inline-flex items-center gap-1.5"><%= icon "link", size: "sm", color: "current" %><span class="hidden sm:inline"><%= t(".copy_link") %></span></span>
+              <span data-clipboard-target="iconSuccess" class="hidden items-center gap-1.5 text-success"><%= icon "check", size: "sm", color: "current" %><span class="hidden sm:inline"><%= t(".copied") %></span></span>
+            </button>
+          </div>
+        <% end %>
+        <% if Current.user.admin? %>
+          <%= render DS::Button.new(
+                variant: "icon",
+                icon: "x",
+                href: invitation_path(invitation),
+                method: :delete,
+                title: t(".remove_invitation"),
+                aria_label: t(".remove_invitation"),
+                confirm: CustomConfirm.for_resource_deletion(invitation.email, high_severity: true)
+              ) %>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if Current.user.admin? %>
+  <%= link_to new_invitation_path, data: { turbo_frame: :modal },
+        class: "press flex h-12 items-center justify-center gap-2 rounded-2xl bg-container text-sm font-semibold text-link shadow-border-xs hover:bg-container-hover transition-colors focus-ring" do %>
+    <%= icon("user-plus", size: "sm", color: "current") %>
+    <%= t(".invite_member") %>
+  <% end %>
+<% end %>

@@ -265,6 +265,26 @@ en:
     budget_shares:
       update:
         success: Budget sharing settings updated
+    households:
+      show:
+        household_title: Household
+        group_title: Group
+        name_title: Name
+        household_form_label: Household name
+        household_form_input_placeholder: Enter household name
+        group_form_label: Group name
+        group_form_input_placeholder: Enter group name
+        household_subtitle: Invitees can log in to your %{moniker} account and see what you share with them.
+        members_title:
+          one: People · %{count}
+          other: People · %{count}
+        you: (you)
+        invited: Invited · waiting to join
+        copy_link: Copy link
+        copied: Copied
+        remove_member: Remove member
+        remove_invitation: Remove invitation
+        invite_member: Add someone
     profiles:
       destroy:
         cannot_remove_self: You cannot remove yourself from the account.
@@ -372,6 +392,21 @@ en:
         pick_description: Pick something from the list to see and change it here.
     settings_nav:
       title: Settings
+      account_section_title: Account
+      app_section_title: App
+      money_section_title: Money
+      data_section_title: Your data
+      ai_section_title: AI & integrations
+      system_section_title: System
+      household_label: Household
+      people:
+        one: "%{count} person"
+        other: "%{count} people"
+      two_factor_on: Two-factor on
+      two_factor_off: Two-factor off
+      search_placeholder: Search settings
+      search_label: Search settings
+      no_results: No settings match your search.
       ai_label: AI
       data_providers_label: Data providers
       accounts_label: Accounts
@@ -390,7 +425,7 @@ en:
       merchants_label: Merchants
       providers_label: Providers
       guides_label: Guides
-      other_section_title: More
+      other_section_title: Help
       preferences_label: Preferences
       profile_label: Profile Info
       recurring_transactions_label: Recurring

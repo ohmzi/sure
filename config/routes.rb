@@ -393,6 +393,8 @@ Rails.application.routes.draw do
     get "ai", to: "hostings#show", defaults: { section: "ai" }, as: :ai
     get "data_providers", to: "hostings#show", defaults: { section: "data" }, as: :data_providers
     resource :profile, only: [ :show, :destroy ]
+    # The household's own page (the Settings audit, 2026-10-19).
+    resource :household, only: :show
     resource :preferences, only: %i[show update]
     resource :budget_shares, only: :update
     resource :appearance, only: %i[show update]

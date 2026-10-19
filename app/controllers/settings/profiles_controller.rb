@@ -14,7 +14,7 @@ class Settings::ProfilesController < ApplicationController
   def destroy
     unless Current.user.admin?
       flash[:alert] = t("settings.profiles.destroy.not_authorized")
-      redirect_to settings_profile_path
+      redirect_to settings_household_path
       return
     end
 
@@ -22,13 +22,13 @@ class Settings::ProfilesController < ApplicationController
 
     if @user == Current.user
       flash[:alert] = t("settings.profiles.destroy.cannot_remove_self")
-      redirect_to settings_profile_path
+      redirect_to settings_household_path
       return
     end
 
     if @user.owned_accounts.where.not(family_id: Current.family.id).exists?
       flash[:alert] = t(".member_owns_other_family_data")
-      redirect_to settings_profile_path
+      redirect_to settings_household_path
       return
     end
 
@@ -40,7 +40,7 @@ class Settings::ProfilesController < ApplicationController
       flash[:alert] = t(".member_removal_failed")
     end
 
-    redirect_to settings_profile_path
+    redirect_to settings_household_path
   end
 
   private

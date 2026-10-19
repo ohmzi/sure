@@ -2,7 +2,9 @@
     the first row, then inset grouped lists — a tinted icon tile, the label, a
     chevron — and Log out on its own at the end. The same list is a phone's
     Settings page and a computer's left pane, where the open page is marked. %>
-<nav aria-label="<%= t("settings.settings_nav.title", default: "Settings") %>" class="space-y-7">
+<%# A search field filters the rows as you type and hides groups left empty
+    (settings_search_controller; the Settings audit, 2026-10-19). %>
+<nav aria-label="<%= t("settings.settings_nav.title", default: "Settings") %>" class="space-y-7" data-controller="settings-search">
   <%= link_to settings_profile_path, class: class_names(
         "flex items-center gap-3.5 rounded-2xl bg-container p-3.5 shadow-border-xs active:scale-[0.99] transition focus-ring",
         ("ring-2 ring-link" if page_active?(settings_profile_path))
@@ -17,13 +19,21 @@
     <%= icon("chevron-right", size: "sm") %>
   <% end %>
 
+  <label class="flex h-11 items-center gap-2 rounded-xl bg-container-inset px-3 text-secondary focus-within:ring-2 focus-within:ring-link transition-shadow">
+    <%= icon("search", size: "sm", color: "current") %>
+    <input type="search" data-settings-search-target="input" data-action="input->settings-search#filter keydown.esc->settings-search#clear"
+           placeholder="<%= t("settings.settings_nav.search_placeholder") %>" aria-label="<%= t("settings.settings_nav.search_label") %>"
+           autocomplete="off" class="min-w-0 grow border-0 bg-transparent p-0 text-base text-primary placeholder:text-secondary focus:outline-hidden focus:ring-0">
+  </label>
+  <p class="hidden px-4 text-sm text-secondary" data-settings-search-target="empty"><%= t("settings.settings_nav.no_results") %></p>
+
   <% settings_nav_sections.each do |section| %>
-    <section>
+    <section data-settings-search-target="section">
       <h3 class="px-4 mb-2 text-xs font-medium uppercase tracking-wide text-secondary"><%= section[:header] %></h3>
       <ul class="overflow-hidden rounded-2xl bg-container shadow-border-xs divide-y divide-subdued">
         <% section[:items].each do |item| %>
-          <li>
-            <%= render "shared/list_row", label: item[:label], path: item[:path], icon: item[:icon], tint: item[:tint], active: page_active?(item[:path]) %>
+          <li data-settings-search-target="row" data-search-text="<%= [ item[:label], section[:header] ].join(" ") %>">
+            <%= render "shared/list_row", label: item[:label], path: item[:path], icon: item[:icon], tint: item[:tint], active: page_active?(item[:path]), detail: item[:detail] %>
           </li>
         <% end %>
       </ul>

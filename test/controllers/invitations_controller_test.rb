@@ -31,7 +31,7 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "member", invitation.role
     assert_equal @admin, invitation.inviter
     assert_equal "new@example.com", invitation.email
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("invitations.create.success"), flash[:notice]
   end
 
@@ -55,7 +55,7 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
     existing_user.reload
     assert_equal @admin.family_id, existing_user.family_id
     assert_equal "member", existing_user.role
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("invitations.create.existing_user_added"), flash[:notice]
   end
 
@@ -71,7 +71,7 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
       }
     end
 
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("invitations.create.failure"), flash[:alert]
   end
 
@@ -146,7 +146,7 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
       }
     }
 
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("invitations.create.success"), flash[:notice]
     assert_not Invitation.exists?(expired.id), "stale expired invitation should be replaced"
 
@@ -169,7 +169,7 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
       }
     end
 
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("invitations.create.failure"), flash[:alert]
   end
 
@@ -183,7 +183,7 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
       }
     end
 
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("invitations.create.failure"), flash[:alert]
   end
 
@@ -204,7 +204,7 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
       delete invitation_url(@invitation)
     end
 
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("invitations.destroy.success"), flash[:notice]
   end
 
@@ -215,7 +215,7 @@ class InvitationsControllerTest < ActionDispatch::IntegrationTest
       delete invitation_url(@invitation)
     end
 
-    assert_redirected_to settings_profile_path
+    assert_redirected_to settings_household_path
     assert_equal I18n.t("invitations.destroy.not_authorized"), flash[:alert]
   end
 

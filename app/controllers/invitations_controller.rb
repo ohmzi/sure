@@ -7,7 +7,7 @@ class InvitationsController < ApplicationController
   def create
     unless Current.user.admin?
       flash[:alert] = t(".failure")
-      redirect_to settings_profile_path
+      redirect_to settings_household_path
       return
     end
 
@@ -31,7 +31,7 @@ class InvitationsController < ApplicationController
       flash[:alert] = t(".failure")
     end
 
-    redirect_to settings_profile_path
+    redirect_to settings_household_path
   end
 
   def accept
@@ -47,7 +47,7 @@ class InvitationsController < ApplicationController
   def destroy
     unless Current.user.admin?
       flash[:alert] = t("invitations.destroy.not_authorized")
-      redirect_to settings_profile_path
+      redirect_to settings_household_path
       return
     end
 
@@ -59,7 +59,7 @@ class InvitationsController < ApplicationController
       flash[:alert] = t("invitations.destroy.failure")
     end
 
-    redirect_to settings_profile_path
+    redirect_to settings_household_path
   end
 
   private

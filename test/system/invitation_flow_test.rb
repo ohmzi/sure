@@ -10,8 +10,8 @@ class InvitationFlowTest < ApplicationSystemTestCase
   test "admin invites a household member and the accept link works" do
     sign_in users(:family_admin)
 
-    visit settings_profile_path
-    click_on I18n.t("settings.profiles.show.invite_member") # "Add member"
+    visit settings_household_path
+    click_on I18n.t("settings.households.show.invite_member") # "Add someone"
 
     fill_in I18n.t("invitations.new.email_label"), with: "new-member@example.com"
     # The role control is a native <select id="invitation_role">. The view passes

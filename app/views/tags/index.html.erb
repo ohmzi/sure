@@ -19,23 +19,23 @@
   ) %>
 <% end %>
 
-<div class="bg-container rounded-xl shadow-border-xs p-4">
+<%# iOS grouped (the Settings audit, 2026-10-19): the list's name above one
+    card of rows. %>
+<div>
   <% if @tags.any? %>
-    <div class="rounded-xl bg-container-inset space-y-1 p-1">
-      <div class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-secondary uppercase">
+    <section class="space-y-2">
+      <div class="flex items-center gap-1.5 px-4 text-xs font-medium text-secondary uppercase">
         <p><%= t(".tags") %></p>
         <span class="text-subdued">&middot;</span>
         <p><%= @tags.count %></p>
       </div>
 
-      <div class="bg-container rounded-lg shadow-border-xs">
-        <div class="overflow-hidden rounded-lg">
-          <%= render partial: @tags, spacer_template: "shared/ruler" %>
-        </div>
+      <div class="overflow-hidden rounded-2xl bg-container shadow-border-xs">
+        <%= render partial: @tags, spacer_template: "shared/ruler" %>
       </div>
-    </div>
+    </section>
   <% else %>
-    <div class="flex justify-center items-center py-20">
+    <div class="flex justify-center items-center py-20 rounded-2xl bg-container shadow-border-xs">
       <div class="text-center flex flex-col items-center max-w-[300px]">
         <p class="text-primary mb-1 font-medium text-sm"><%= t(".empty") %></p>
 

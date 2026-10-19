@@ -8,15 +8,15 @@
   end %>
 <% end %>
 
-<div class="rounded-xl bg-container-inset space-y-1 p-1">
-  <div class="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-secondary uppercase">
+<section class="space-y-2">
+  <div class="flex items-center gap-1.5 px-4 text-xs font-medium text-secondary uppercase">
     <p><%= title %></p>
     <span class="text-subdued">&middot;</span>
     <p><%= categories.count %></p>
   </div>
 
-  <div class="shadow-border-xs rounded-lg bg-container">
-    <div class="overflow-hidden rounded-lg">
+  <div class="shadow-border-xs rounded-2xl bg-container">
+    <div class="overflow-hidden rounded-2xl">
       <% category_groups.each_with_index do |group, idx| %>
         <%= render "categories/category",
                    category: group.category,
@@ -36,4 +36,4 @@
       <% end %>
     </div>
   </div>
-</div>
+</section>
