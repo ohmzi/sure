@@ -70,3 +70,29 @@
   display: flex;
   padding-inline: 1.25rem;
 }
+
+/* A list of cards (Bank sync's connections, API keys) becomes one grouped
+   card, each former card a row split by a hairline (2026-10-19). */
+.settings-page .settings-stack {
+  overflow: hidden;
+  border-radius: 1rem;
+}
+
+.settings-page .settings-stack > *,
+.settings-page .settings-stack > * > details {
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.settings-page .settings-stack > * + * {
+  border-top: 1px solid var(--utility-border-subdued);
+}
+
+/* A plain button made full width (Manage currencies) sizes to its label too. */
+.settings-page button[type="button"]:is(.w-full):is(.justify-center) {
+  width: auto;
+  margin-left: auto;
+  display: flex;
+  padding-inline: 1.25rem;
+}

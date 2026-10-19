@@ -39,7 +39,7 @@
                  title: t("settings.providers.groups.your_connections"),
                  count: all_connections.size %>
 
-      <div class="space-y-2">
+      <div class="settings-stack bg-container shadow-border-xs">
         <% all_connections.each do |entry| %>
           <% auto_open = all_connections.size == 1 %>
           <%= render "settings/providers/connection_row",
