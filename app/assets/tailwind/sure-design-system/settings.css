@@ -96,3 +96,24 @@
   display: flex;
   padding-inline: 1.25rem;
 }
+
+/* Grey tiles inside a card (LLM usage and Background jobs stats, the user
+   admin's family rows) become plain label-and-value pairs on the card, as
+   System health lays its figures out; a run of them is split by hairlines. */
+.settings-page :is(.settings-card, .bg-container.shadow-border-xs) :is(div, details, section).bg-container-inset:is(.rounded-lg, .rounded-xl) {
+  background: transparent;
+  border-radius: 0;
+  padding-inline: 0;
+}
+
+.settings-page :is(.settings-card, .bg-container.shadow-border-xs) :is(div, details, section).bg-container-inset:is(.rounded-lg, .rounded-xl) + :is(div, details, section).bg-container-inset:is(.rounded-lg, .rounded-xl) {
+  border-top: 1px solid var(--utility-border-subdued);
+}
+
+/* Plain inputs and selects with their own outline (filters on LLM usage,
+   Debug, Users) read as filled fields, like every other field. */
+.settings-page :is(input, select, textarea):is(.border-primary, .border-secondary):not(.form-field__input, [type="checkbox"], [type="radio"]) {
+  border-color: transparent;
+  background-color: var(--color-container-inset);
+  border-radius: 0.75rem;
+}
