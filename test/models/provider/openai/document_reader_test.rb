@@ -83,6 +83,7 @@ class Provider::Openai::DocumentReaderTest < ActiveSupport::TestCase
     assert_includes prompt, "belongs to the date of the row above it"
     assert_includes prompt, "the column it sits in decides its direction"
     assert_includes prompt, "Never a row: an opening, closing, previous or new balance"
+    assert_includes prompt, "is that row's note, never a row of its own"
     assert_not_includes identity_prompt, "never the posting date"
   end
 end

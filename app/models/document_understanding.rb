@@ -44,6 +44,42 @@ class DocumentUnderstanding
     row["date"].blank? && name.match?(DATELESS_SUMMARY_LINE)
   end
 
+  # A foreign purchase prints its original amount on the line below it
+  # ("26.22 USD @ 1.417877574"). A model that read that line as its own row
+  # (the bake-off, 2026-10-20) is dropped: a row whose amount is the foreign
+  # amount noted on a row of the same name a few days either side. A different purchase that
+  # happens to cost the same is kept.
+  FOREIGN_AMOUNT_NOTE = /(\d[\d,]*\.\d+)\s*[A-Z]{3}\s*@/
+
+  def self.without_foreign_amount_rows(rows)
+    noted = rows.filter_map do |row|
+      amount = row["notes"].to_s[FOREIGN_AMOUNT_NOTE, 1] or next
+      [ loose_date(row["date"]), parse_amount(amount), name_key(row["name"]) ]
+    end
+    return rows if noted.empty?
+
+    rows.reject do |row|
+      next false if row["notes"].to_s.match?(FOREIGN_AMOUNT_NOTE)
+
+      amount = parse_amount(row["amount"].to_s.delete("$"))&.abs
+      date = loose_date(row["date"])
+      noted.any? do |noted_date, foreign, name|
+        foreign == amount && name == name_key(row["name"]) &&
+          (noted_date.nil? || date.nil? || (noted_date - date).abs <= 3)
+      end
+    end
+  end
+
+  # The read can misdate the stray line by a day or two, so it matches its
+  # purchase within a few days.
+  def self.loose_date(value)
+    Date.parse(value.to_s)
+  rescue Date::Error
+    nil
+  end
+
+  def self.name_key(name) = name.to_s.upcase.gsub(/[^A-Z0-9]/, "")[0, 10]
+
   # The second parameter is a plain positional flag (NOT a keyword): every
   # existing caller passes the verdict as a trailing bare hash, which Ruby would
   # slurp into keywords if this method took any — turning `new("a" => 1)` into

@@ -215,4 +215,22 @@ class DocumentUnderstandingTest < ActiveSupport::TestCase
     junk.each { |row| assert DocumentUnderstanding.summary_line?(row), "#{row["name"]} is not a transaction" }
     real.each { |row| assert_not DocumentUnderstanding.summary_line?(row), "#{row["name"]} is a transaction" }
   end
+
+  # The same bake-off, run through the app's own reader: the line under a
+  # foreign purchase ("26.22 USD @ 1.417877574") came back as a row of its own,
+  # in US dollars, beside the real Canadian-dollar row. It is the row's note.
+  test "a foreign-currency line read as its own row is dropped" do
+    rows = [
+      { "date" => "2026-06-02", "name" => "DD *DOORDASH PARISBAGU 8559731040 CA", "amount" => "37.17", "notes" => "26.22 USD @ 1.417877574" },
+      { "date" => "2026-06-02", "name" => "DD *DOORDASH PARISBAGU 8559731040 CA (USD converted)", "amount" => "26.22", "notes" => nil },
+      { "date" => "2026-06-02", "name" => "Uber Eats", "amount" => "26.22", "notes" => nil },
+      { "date" => "2026-06-05", "name" => "BATTERY MART WINCHESTER VA", "amount" => "78.44", "notes" => "54.95 USD @ 1.427538672" },
+      { "date" => "2026-06-06", "name" => "BATTERY MART WINCHESTER VA (USD converted partial amount)", "amount" => "54.95", "notes" => nil }
+    ]
+
+    kept = DocumentUnderstanding.without_foreign_amount_rows(rows)
+
+    assert_equal [ "37.17", "26.22", "78.44" ], kept.map { |row| row["amount"] }
+    assert_equal "Uber Eats", kept.second["name"], "a different purchase of the same amount is kept"
+  end
 end

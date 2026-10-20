@@ -53,7 +53,8 @@ class Provider::Openai::DocumentReader
         (withdrawals or deposits, debits or credits), never the words in the
         description: amounts from the same column always share one sign.
       - name: the description as printed, prefixes such as "e-Transfer sent"
-        included.
+        included. A foreign-currency line printed under a row (such as
+        "26.22 USD @ 1.4178") is that row's note, never a row of its own.
       - Never a row: an opening, closing, previous or new balance, a total or
         subtotal, a payment-due line, or any line of a summary or interest-rate
         table.
