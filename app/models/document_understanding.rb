@@ -29,6 +29,21 @@ class DocumentUnderstanding
     nil
   end
 
+  # Lines a model sometimes returns as statement rows that are never
+  # transactions (the owner's bake-off, 2026-10-19): a balance, a total, a
+  # payment-due figure — dated or not — and, when it carries no date, a line of
+  # a summary or interest-rate table ("Purchases 34.14"). A dated "INTEREST
+  # CHARGES" line is a real charge and is kept.
+  SUMMARY_LINE = /\A\s*(?:(?:opening|closing|previous|new|starting|ending)\s+balance|balance\s+(?:due|forward|brought\s+forward)|minimum\s+payment(?:\s+due)?|payment\s+due\s+date|(?:sub)?total(?:\s+(?:purchases|payments|charges|credits|returns|fees|interest|deposits|withdrawals|amount|due|balance|new\s+balance)\b.*|\s+for\s+.*)?)\s*\z/i
+  DATELESS_SUMMARY_LINE = /\A\s*(?:purchases|payments(?:\s+received)?|returns(?:\s+and\s+other\s+credits)?|cash\s+transactions(?:\s+and\s+fees)?|fees|interest(?:\s+charges)?)\s*\z/i
+
+  def self.summary_line?(row)
+    name = row["name"].to_s
+    return true if name.match?(SUMMARY_LINE)
+
+    row["date"].blank? && name.match?(DATELESS_SUMMARY_LINE)
+  end
+
   # The second parameter is a plain positional flag (NOT a keyword): every
   # existing caller passes the verdict as a trailing bare hash, which Ruby would
   # slurp into keywords if this method took any — turning `new("a" => 1)` into

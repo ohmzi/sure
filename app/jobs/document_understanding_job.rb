@@ -1227,8 +1227,11 @@ class DocumentUnderstandingJob < ApplicationJob
       # `transactions` is non-empty (some pages used `transactions`, others did
       # not) — otherwise the owner would see an all-green panel while rows are
       # gone.
+      # A balance, a total or a summary-table line a model returned as a row is
+      # dropped before the rows are stitched (DocumentUnderstanding.summary_line?).
       if merged.document_class == "statement"
-        merged.with_transactions(normalise_statement_dates(transactions, merged))
+        rows = normalise_statement_dates(transactions, merged).reject { |row| DocumentUnderstanding.summary_line?(row) }
+        merged.with_transactions(rows)
               .with_line_items(line_items)
               .with_statement_rows_fallback(fell_back)
       else

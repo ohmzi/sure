@@ -158,7 +158,7 @@ class Provider::RegistryTest < ActiveSupport::TestCase
       Setting.stubs(:openai_access_token).returns("cloud-secret-key")
 
       Provider::Openai.expects(:new)
-        .with("ollama-local", uri_base: "http://host.docker.internal:11434/v1", model: "llama3.2-vision")
+        .with("ollama-local", uri_base: "http://host.docker.internal:11434/v1", model: "llama3.2-vision", document_reasoning: false)
         .returns(:local_client)
 
       assert_equal :local_client, Provider::Registry.get_provider(:openai)
@@ -172,7 +172,7 @@ class Provider::RegistryTest < ActiveSupport::TestCase
     Setting.stubs(:local_llm_token).returns("my-lan-token")
 
     Provider::Openai.expects(:new)
-      .with("my-lan-token", uri_base: "http://host.docker.internal:11434/v1", model: "llama3.2-vision")
+      .with("my-lan-token", uri_base: "http://host.docker.internal:11434/v1", model: "llama3.2-vision", document_reasoning: false)
       .returns(:local_client)
 
     assert_equal :local_client, Provider::Registry.get_provider(:openai)
@@ -236,10 +236,21 @@ class Provider::RegistryTest < ActiveSupport::TestCase
     Setting.stubs(:local_llm_call_timeout).returns(180)
 
     Provider::Openai.expects(:new)
-      .with("ollama-local", uri_base: "http://host.docker.internal:11434/v1", model: "qwen2.5vl:7b", request_timeout: 180)
+      .with("ollama-local", uri_base: "http://host.docker.internal:11434/v1", model: "qwen2.5vl:7b", request_timeout: 180,
+            document_reasoning: false)
       .returns(:local_reader)
 
     assert_equal :local_reader, Provider::Registry.local_document_reader
+  end
+
+  # The owner's bake-off (2026-10-19): a local thinking model reads statements
+  # without reasoning, and passes that to every document read it makes.
+  test "a local provider reads documents without reasoning" do
+    provider = Provider::Openai.new("ollama-local", uri_base: "http://local/v1", model: "qwen3.5:9b", document_reasoning: false)
+    Provider::Openai::DocumentReader.expects(:new).with(anything, has_entry(reasoning: false))
+      .returns(stub(read: DocumentUnderstanding.new({ "document_class" => "statement" })))
+
+    assert provider.understand_document(pages: [], ocr_text: "x").success?
   end
 
   test "a provider built with its own timeout uses it over the global one" do

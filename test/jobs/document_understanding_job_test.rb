@@ -1053,6 +1053,22 @@ class DocumentUnderstandingJobTest < ActiveSupport::TestCase
     assert_equal 3, import.rows_count
   end
 
+  # The owner's local-model bake-off (2026-10-19): a model read the interest-rate
+  # table and an opening balance as rows. They are never posted.
+  test "a statement read drops the balance and summary-table lines a model returns as rows" do
+    stub_ocr_success(pages: [ { page: 1, text: "ACCOUNT SUMMARY\nCHASE", confidence: 0.96, image: "aGk=" } ])
+    junk = STATEMENT.merge("transactions" => STATEMENT["transactions"] + [
+      { "date" => "2026-09-01", "amount" => "1456.97", "name" => "Opening Balance", "notes" => "" },
+      { "date" => nil, "amount" => "34.14", "name" => "Purchases", "notes" => "" }
+    ])
+    stub_provider(FakeProvider.new(junk))
+
+    DocumentUnderstandingJob.perform_now(@link.id)
+
+    import = PdfImport.find_by!(account_statement_id: statement_for(@link).id)
+    assert_equal [ "Cafe", "Fuel" ], import.rows.order(:source_row_number).pluck(:name)
+  end
+
   test "a multi-page receipt keeps the line items of its later batches" do
     # Review finding 3 (ruling on finding 4): understand_in_batches runs for every
     # class, so batching quietly applied to receipts too — while

@@ -64,7 +64,8 @@ class Provider::Registry
 
       Provider::Openai.new(Setting.local_llm_token.presence || Setting::LOCAL_LLM_PLACEHOLDER_TOKEN,
                            uri_base: Setting.local_llm_base_url.presence || Setting::LOCAL_LLM_DEFAULT_BASE_URL,
-                           model: model, request_timeout: Setting.local_llm_call_timeout)
+                           model: model, request_timeout: Setting.local_llm_call_timeout,
+                           document_reasoning: false)
     end
 
     def plaid_provider_for_region(region)
@@ -144,7 +145,7 @@ class Provider::Registry
         uri_base = Setting.local_llm_base_url.presence || Setting::LOCAL_LLM_DEFAULT_BASE_URL
         access_token = Setting.local_llm_token.presence || Setting::LOCAL_LLM_PLACEHOLDER_TOKEN
 
-        Provider::Openai.new(access_token, uri_base: uri_base, model: model)
+        Provider::Openai.new(access_token, uri_base: uri_base, model: model, document_reasoning: false)
       end
 
       # DeepSeek and Gemini both speak the OpenAI chat protocol, so each is the

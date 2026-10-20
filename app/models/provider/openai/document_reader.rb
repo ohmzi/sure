@@ -45,6 +45,18 @@ class Provider::Openai::DocumentReader
       one entry per line of the statement's transaction table, each with its date
       (a statement's rows always carry a date), the name and the amount. Use an
       empty array for anything that is not a statement.
+      How to fill each row:
+      - date: YYYY-MM-DD. When a row shows a transaction date and a posting
+        date, use the transaction (purchase) date, never the posting date. A row
+        printed without its own date belongs to the date of the row above it.
+      - amount: as printed, and the column it sits in decides its direction
+        (withdrawals or deposits, debits or credits), never the words in the
+        description: amounts from the same column always share one sign.
+      - name: the description as printed, prefixes such as "e-Transfer sent"
+        included.
+      - Never a row: an opening, closing, previous or new balance, a total or
+        subtotal, a payment-due line, or any line of a summary or interest-rate
+        table.
   TEXT
 
   # The row paragraph for the IDENTITY-ONLY read: the deterministic reader has
@@ -84,8 +96,14 @@ class Provider::Openai::DocumentReader
   # identity fields alone and the row table is explicitly withdrawn. Every other
   # caller (every non-statement, and any statement whose deterministic read did
   # not reconcile) leaves it at the default and gets today's instructions.
+  #
+  # `reasoning: false` asks the endpoint not to reason before it answers
+  # (`reasoning_effort: "none"`), for a local thinking model: with it on,
+  # qwen3.5:9b spent ~3 minutes a page and multi-page reads came back empty
+  # (the owner's bake-off, 2026-10-19). Ollama honours it on /v1 and ignores it
+  # for a model that does not think.
   def initialize(client, model:, pages:, ocr_text:, custom_provider: false, langfuse_trace: nil,
-                 family: nil, rows_expected: true, max_tokens: nil)
+                 family: nil, rows_expected: true, max_tokens: nil, reasoning: true)
     @client = client
     @model = model
     @pages = Array(pages)
@@ -97,6 +115,7 @@ class Provider::Openai::DocumentReader
     # Sent only when configured (Provider::Openai#explicit_max_response_tokens),
     # so a stock install is never silently truncated.
     @max_tokens = max_tokens
+    @reasoning = reasoning
   end
 
   def read
@@ -148,6 +167,7 @@ class Provider::Openai::DocumentReader
         ]
       }
       params[:max_tokens] = @max_tokens if @max_tokens
+      params[:reasoning_effort] = "none" unless @reasoning
       params
     end
 

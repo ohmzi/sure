@@ -53,4 +53,36 @@ class Provider::Openai::DocumentReaderTest < ActiveSupport::TestCase
                  identity.sub(Provider::Openai::DocumentReader::ROWS_ALREADY_READ, ""),
                  "the variants must differ only by their row paragraph"
   end
+
+  # The owner's local-model bake-off (2026-10-19): with thinking on, qwen3.5:9b
+  # spent three minutes a page reasoning and multi-page reads came back empty.
+  # A read made with reasoning: false asks the endpoint for none.
+  test "a read without reasoning asks the endpoint for none" do
+    client = mock
+    client.expects(:chat).with { |parameters:| parameters[:reasoning_effort] == "none" }
+          .returns({ "choices" => [ { "message" => { "content" => { document_class: "statement", transactions: [] }.to_json } } ] })
+
+    Provider::Openai::DocumentReader.new(client, model: "qwen3.5:9b", pages: [], ocr_text: "x",
+                                         custom_provider: true, reasoning: false).read
+  end
+
+  test "a read leaves the endpoint's reasoning alone by default" do
+    client = mock
+    client.expects(:chat).with { |parameters:| !parameters.key?(:reasoning_effort) }
+          .returns({ "choices" => [ { "message" => { "content" => { document_class: "statement", transactions: [] }.to_json } } ] })
+
+    Provider::Openai::DocumentReader.new(client, model: "deepseek-chat", pages: [], ocr_text: "x", custom_provider: true).read
+  end
+
+  # The same bake-off's misses, read against the statement: posting dates in
+  # place of purchase dates, a continuation row moved to the next day, a
+  # "Payroll Deposit" in the withdrawals column read as money in, and an
+  # interest-rate table and an opening balance read as rows.
+  test "the row request says which date, which sign and which lines" do
+    assert_includes prompt, "use the transaction (purchase) date, never the posting date"
+    assert_includes prompt, "belongs to the date of the row above it"
+    assert_includes prompt, "the column it sits in decides its direction"
+    assert_includes prompt, "Never a row: an opening, closing, previous or new balance"
+    assert_not_includes identity_prompt, "never the posting date"
+  end
 end

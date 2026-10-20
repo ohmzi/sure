@@ -186,4 +186,33 @@ class DocumentUnderstandingTest < ActiveSupport::TestCase
     end
     assert_nil DocumentUnderstanding.new("field_confidence" => { "total" => "sure" }).field_confidence["total"].then { nil }
   end
+
+  # The owner's local-model bake-off (2026-10-19): a model read the June
+  # statement's interest-rate table ("Purchases 34.14", "Cash Transactions and
+  # Fees 0.12", no date) and the RBC "Opening Balance" line as rows. They are
+  # not transactions and must never be posted; the statement's own dated
+  # "INTEREST CHARGES" line is one, and stays.
+  test "balance, total and dateless summary-table lines are not statement rows" do
+    junk = [
+      { "date" => "2026-08-17", "name" => "Opening Balance", "amount" => "1456.97" },
+      { "date" => "2026-09-11", "name" => "Closing Balance", "amount" => "2.05" },
+      { "date" => "2026-06-08", "name" => "Balance Due", "amount" => "5604.73" },
+      { "date" => "2026-06-08", "name" => "Minimum payment due", "amount" => "44.26" },
+      { "date" => "2026-06-08", "name" => "Total purchases", "amount" => "8188.01" },
+      { "date" => "2026-06-08", "name" => "Total purchases for 5446 12XX XXXX 1512", "amount" => "8091.96" },
+      { "date" => nil, "name" => "Total", "amount" => "8222.27" },
+      { "date" => nil, "name" => "Purchases", "amount" => "34.14" },
+      { "date" => "", "name" => "Cash Transactions and Fees", "amount" => "0.12" }
+    ]
+    real = [
+      { "date" => "2026-06-08", "name" => "INTEREST CHARGES", "amount" => "34.26" },
+      { "date" => "2026-05-10", "name" => "Amazon.ca TORONTO ON", "amount" => "-181.41" },
+      { "date" => "2026-09-08", "name" => "Payroll Deposit Borrowell", "amount" => "-15.00" },
+      { "date" => nil, "name" => "SQ *WET COFFEE Oakville ON", "amount" => "7.78" },
+      { "date" => "2026-05-20", "name" => "TOTAL WINE & MORE", "amount" => "42.10" }
+    ]
+
+    junk.each { |row| assert DocumentUnderstanding.summary_line?(row), "#{row["name"]} is not a transaction" }
+    real.each { |row| assert_not DocumentUnderstanding.summary_line?(row), "#{row["name"]} is a transaction" }
+  end
 end
