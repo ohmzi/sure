@@ -77,6 +77,32 @@ from dropped caps and `no-new-privileges`. `deploy/dc exec -T web` is the servic
 4. `http://127.0.0.1:7300/up` answers 200; log in with the admin email — a fresh
    admin is redirected to `/onboarding` until the wizard is completed once, not
    to the dashboard.
+5. `./setup-local-ai.sh` — the local AI the stack is configured for (see
+   [Local AI](#local-ai-default)). Re-run it any time; it changes nothing that is
+   already in place.
+
+## Local AI (default)
+`compose.yml` defaults to `LLM_PROVIDER=local`: the assistant and the document
+reader both use **qwen3.5:9b** served by Ollama on this host and reached at
+`http://host.docker.internal:11434/v1`. `setup-local-ai.sh` installs the Ollama
+service settings the app relies on (listen beyond loopback, a 32k context, a 60 s
+keep-alive), pulls the model and checks it reports `vision` and `tools`.
+
+The model was chosen on a bake-off through Sure's own code (2026-10-19):
+
+| | qwen2.5vl:7b | qwen3.5:9b |
+|---|---|---|
+| Assistant tool calls (Sure's 43 real tools, 9 questions) | 0/9 — Ollama refuses tools | 9/9 |
+| June card statement, 133 rows | 3/133 | 125–132/133, every amount exact |
+| RBC chequing statement, 29 rows | 13/29 | 24/29 |
+
+The app reads statements with the model's reasoning switched off
+(`reasoning_effort: "none"`): with it on, a page took ~3 minutes and multi-page
+reads came back empty. Statements Sure can read from their own text are read
+deterministically regardless, and the model only fills in the bank and card
+details. To use another model set `LOCAL_LLM_MODEL` in `deploy/.env` (or Settings ›
+Self-Hosting); it needs both `vision` and `tools`. System health › AI status has
+**Load local model** and **Run checks again** to warm it and confirm it.
 
 ## Everyday commands
 - `./dc ps` / `./dc logs -f web` — status and logs.
