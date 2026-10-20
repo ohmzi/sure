@@ -111,11 +111,14 @@ class AiHealthTest < ActiveSupport::TestCase
     Setting.stubs(:local_llm_base_url).returns("http://host.docker.internal:11434/v1")
     Setting.stubs(:local_llm_token).returns(nil)
 
-    AiHealth::Probe.any_instance.stubs(:function_calling).returns(result(:passing))
+    # The checks load the model first and ask it without reasoning: a cold
+    # 9B model or its thinking ran past the 5-second check (2026-10-20).
+    LocalLlm::WarmUp.expects(:call).once
+    AiHealth::Probe.any_instance.expects(:function_calling).with(has_entry(reasoning: false)).returns(result(:passing))
     AiHealth::Probe.any_instance.expects(:pdf_text_extraction).with(has_entry(reasoning: false)).returns(result(:passing))
     AiHealth::Probe.any_instance.expects(:pdf_vision_processing).with(has_entry(reasoning: false)).returns(result(:passing))
     AiHealth::Probe.any_instance.expects(:llm)
-                   .with(has_entries(endpoint: "http://host.docker.internal:11434/v1", model: "qwen2.5vl:7b", access_token: Setting::LOCAL_LLM_PLACEHOLDER_TOKEN, openai_compatible: true))
+                   .with(has_entries(endpoint: "http://host.docker.internal:11434/v1", model: "qwen2.5vl:7b", access_token: Setting::LOCAL_LLM_PLACEHOLDER_TOKEN, openai_compatible: true, reasoning: false))
                    .returns(result(:passing))
 
     health = ClimateControl.modify(AI_ENVIRONMENT) { AiHealth.new }

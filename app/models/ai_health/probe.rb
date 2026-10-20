@@ -88,7 +88,9 @@ class AiHealth
       @cache = cache
     end
 
-    def llm(provider:, endpoint:, access_token:, model:, openai_compatible: false)
+    # `reasoning: false` (the local model) asks for no reasoning first: a
+    # thinking model otherwise runs past the check's few seconds (2026-10-20).
+    def llm(provider:, endpoint:, access_token:, model:, openai_compatible: false, reasoning: true)
       verification = openai_compatible ? :chat_completion : :models
 
       run(
@@ -102,7 +104,7 @@ class AiHealth
         model_available = case provider
         when :openai
           if openai_compatible
-            openai_chat_completion_available?(access_token:, endpoint:, model:)
+            openai_chat_completion_available?(access_token:, endpoint:, model:, reasoning:)
           else
             response = openai_client(access_token:, endpoint:).models.list
             openai_model_ids(response).include?(model)
@@ -125,7 +127,7 @@ class AiHealth
     # model for one trivial tool call and report what came back. The caller
     # picks the OpenAI API, because `Provider::Openai#supports_responses_endpoint?`
     # can be overridden: probing the route chat does not take proves nothing.
-    def function_calling(provider:, endpoint:, access_token:, model:, use_responses_endpoint: false)
+    def function_calling(provider:, endpoint:, access_token:, model:, use_responses_endpoint: false, reasoning: true)
       run(
         component: "function_calling",
         provider_key: provider,
@@ -139,7 +141,7 @@ class AiHealth
           if use_responses_endpoint
             openai_responses_tool_call?(access_token:, endpoint:, model:)
           else
-            openai_chat_tool_call?(access_token:, endpoint:, model:)
+            openai_chat_tool_call?(access_token:, endpoint:, model:, reasoning:)
           end
         when :anthropic
           anthropic_tool_call?(access_token:, endpoint:, model:)
@@ -318,23 +320,21 @@ class AiHealth
         response["data"].filter_map { |item| item["id"] || item[:id] }
       end
 
-      def openai_chat_completion_available?(access_token:, endpoint:, model:)
-        response = openai_client(access_token:, endpoint:).chat(
-          parameters: {
-            model: model,
-            messages: [ { role: "user", content: CHAT_TEST_INPUT } ]
-          }
-        )
+      def openai_chat_completion_available?(access_token:, endpoint:, model:, reasoning: true)
+        parameters = { model: model, messages: [ { role: "user", content: CHAT_TEST_INPUT } ] }
+        parameters[:reasoning_effort] = "none" unless reasoning
+        response = openai_client(access_token:, endpoint:).chat(parameters: parameters)
 
         response.is_a?(Hash) && response["choices"].is_a?(Array) && response["choices"].any?
       end
 
-      def openai_chat_tool_call?(access_token:, endpoint:, model:)
+      def openai_chat_tool_call?(access_token:, endpoint:, model:, reasoning: true)
         client = openai_client(access_token:, endpoint:)
         parameters = {
           model: model,
           messages: [ { role: "user", content: FUNCTION_CALL_TEST_INPUT } ]
         }
+        parameters[:reasoning_effort] = "none" unless reasoning
 
         response = confirming_tools_refusal(
           tools: -> { client.chat(parameters: parameters.merge(tools: [ { type: "function", function: openai_test_tool } ])) },

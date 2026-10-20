@@ -101,6 +101,20 @@ class AiHealth::ProbeTest < ActiveSupport::TestCase
     assert_requested request
   end
 
+  test "a check without reasoning asks the local model for none" do
+    endpoint = "http://host.docker.internal:11434/v1"
+    request = stub_request(:post, "#{endpoint}/chat/completions")
+              .with { |req| JSON.parse(req.body)["reasoning_effort"] == "none" }
+              .to_return(status: 200, headers: { "Content-Type" => "application/json" },
+                         body: { choices: [ { message: { content: "OK" } } ] }.to_json)
+
+    result = @probe.llm(provider: :openai, endpoint: endpoint, access_token: "ollama-local",
+                        model: "qwen3.5:9b", openai_compatible: true, reasoning: false)
+
+    assert result.passing?
+    assert_requested request
+  end
+
   test "Anthropic LLM probe calls the models endpoint and verifies the configured model" do
     model_info = Struct.new(:id).new("claude-sonnet-4-6")
     models = mock("models")

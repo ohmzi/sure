@@ -252,8 +252,13 @@ class AiHealth
       return unless run_probes?
 
       probe = Probe.new(force: @force_probes, cache: @probe_cache)
+      # The local model is loaded before it is checked: a cold 9B model takes
+      # longer to load than a check may wait (LocalLlm::WarmUp skips a model
+      # already loaded, and never loads over another one using the GPU).
+      LocalLlm::WarmUp.call if local_llm_selected? && llm_configured?
       if llm_configured?
         @llm_probe = probe.llm(
+          reasoning: !local_llm_selected?,
           provider: @effective_llm_protocol,
           endpoint: @llm_raw_endpoint,
           access_token: @llm_access_token,
@@ -261,6 +266,7 @@ class AiHealth
           openai_compatible: @effective_llm_protocol == :openai && openai_compatible_endpoint?
         )
         @function_calling_probe = probe.function_calling(
+          reasoning: !local_llm_selected?,
           provider: @effective_llm_protocol,
           endpoint: @llm_raw_endpoint,
           access_token: @llm_access_token,
