@@ -151,8 +151,9 @@ class AiHealth
       end
     end
 
-    def pdf_text_extraction(provider:, endpoint:, access_token:, model:, openai_compatible: false)
+    def pdf_text_extraction(provider:, endpoint:, access_token:, model:, openai_compatible: false, reasoning: true)
       pdf_processing(
+        reasoning: reasoning,
         provider: provider,
         endpoint: endpoint,
         access_token: access_token,
@@ -164,8 +165,9 @@ class AiHealth
       )
     end
 
-    def pdf_vision_processing(provider:, endpoint:, access_token:, model:, openai_compatible: false)
+    def pdf_vision_processing(provider:, endpoint:, access_token:, model:, openai_compatible: false, reasoning: true)
       pdf_processing(
+        reasoning: reasoning,
         provider: provider,
         endpoint: endpoint,
         access_token: access_token,
@@ -222,7 +224,7 @@ class AiHealth
       attr_reader :cache, :force
 
       def pdf_processing(provider:, endpoint:, access_token:, model:, openai_compatible:, component:, verification:,
-                         processing_mode:)
+                         processing_mode:, reasoning: true)
         run(
           component: component,
           provider_key: provider,
@@ -240,7 +242,8 @@ class AiHealth
                 pdf_content: synthetic_pdf,
                 custom_provider: openai_compatible,
                 max_response_tokens: PDF_MAX_RESPONSE_TOKENS,
-                processing_mode: processing_mode
+                processing_mode: processing_mode,
+                reasoning: reasoning
               ).process
             when :anthropic
               raise Failure, :unsupported_provider unless processing_mode == :vision

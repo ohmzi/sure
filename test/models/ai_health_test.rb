@@ -112,8 +112,8 @@ class AiHealthTest < ActiveSupport::TestCase
     Setting.stubs(:local_llm_token).returns(nil)
 
     AiHealth::Probe.any_instance.stubs(:function_calling).returns(result(:passing))
-    AiHealth::Probe.any_instance.stubs(:pdf_text_extraction).returns(result(:passing))
-    AiHealth::Probe.any_instance.stubs(:pdf_vision_processing).returns(result(:passing))
+    AiHealth::Probe.any_instance.expects(:pdf_text_extraction).with(has_entry(reasoning: false)).returns(result(:passing))
+    AiHealth::Probe.any_instance.expects(:pdf_vision_processing).with(has_entry(reasoning: false)).returns(result(:passing))
     AiHealth::Probe.any_instance.expects(:llm)
                    .with(has_entries(endpoint: "http://host.docker.internal:11434/v1", model: "qwen2.5vl:7b", access_token: Setting::LOCAL_LLM_PLACEHOLDER_TOKEN, openai_compatible: true))
                    .returns(result(:passing))

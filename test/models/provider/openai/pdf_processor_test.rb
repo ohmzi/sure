@@ -78,6 +78,20 @@ class Provider::Openai::PdfProcessorTest < ActiveSupport::TestCase
     assert_equal expected, processor.process
   end
 
+  # The local-model bake-off (2026-10-20): with reasoning on, qwen3.5:9b ran
+  # past the health check's time limit on a one-page PDF. A processor built
+  # with reasoning: false asks for none.
+  test "a processor without reasoning asks the endpoint for none" do
+    client = mock
+    client.expects(:chat).with { |parameters:| parameters[:reasoning_effort] == "none" }
+          .returns({ "choices" => [ { "message" => { "content" => { summary: "Synthetic PDF", document_type: "other", extracted_data: {} }.to_json } } ] })
+    processor = Provider::Openai::PdfProcessor.new(client, model: "qwen3.5:9b", pdf_content: @pdf_content, custom_provider: true,
+                                                   max_response_tokens: 512, processing_mode: :text, reasoning: false)
+    processor.stubs(:extract_text_from_pdf).returns("Statement text")
+
+    assert_equal "Synthetic PDF", processor.process.summary
+  end
+
   test "vision mode exercises only vision processing" do
     expected = Provider::LlmConcept::PdfProcessingResult.new(
       summary: "Synthetic PDF",

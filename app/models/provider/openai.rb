@@ -361,7 +361,8 @@ class Provider::Openai < Provider
         custom_provider: custom_provider?,
         langfuse_trace: trace,
         family: family,
-        max_response_tokens: response_limit
+        max_response_tokens: response_limit,
+        reasoning: @document_reasoning
       ).process
 
       upsert_langfuse_trace(trace: trace, output: result.to_h)

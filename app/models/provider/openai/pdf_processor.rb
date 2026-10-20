@@ -4,8 +4,10 @@ class Provider::Openai::PdfProcessor
   attr_reader :client, :model, :pdf_content, :custom_provider, :langfuse_trace, :family, :max_response_tokens,
               :processing_mode
 
+  # `reasoning: false` sends `reasoning_effort: "none"`, for a local thinking
+  # model whose reasoning otherwise runs past the read (2026-10-20).
   def initialize(client, model: "", pdf_content: nil, custom_provider: false, langfuse_trace: nil, family: nil,
-                 max_response_tokens:, processing_mode: :auto)
+                 max_response_tokens:, processing_mode: :auto, reasoning: true)
     @client = client
     @model = model
     @pdf_content = pdf_content
@@ -14,6 +16,7 @@ class Provider::Openai::PdfProcessor
     @family = family
     @max_response_tokens = max_response_tokens
     @processing_mode = processing_mode
+    @reasoning = reasoning
   end
 
   def process
@@ -129,6 +132,7 @@ class Provider::Openai::PdfProcessor
         response_format: { type: "json_object" }
       }
 
+      params[:reasoning_effort] = "none" unless @reasoning
       response = client.chat(parameters: params)
 
       Rails.logger.info("Tokens used to process PDF: #{response.dig("usage", "total_tokens")}")
@@ -193,6 +197,7 @@ class Provider::Openai::PdfProcessor
         params[:max_tokens] = max_response_tokens
       end
 
+      params[:reasoning_effort] = "none" unless @reasoning
       response = client.chat(parameters: params)
 
       Rails.logger.info("Tokens used to process PDF via vision: #{response.dig("usage", "total_tokens")}")

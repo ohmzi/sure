@@ -269,6 +269,7 @@ class AiHealth
         )
         if @pdf_text_extraction_capable
           @pdf_text_extraction_probe = probe.pdf_text_extraction(
+            reasoning: !local_llm_selected?,
             provider: @effective_llm_protocol,
             endpoint: @llm_raw_endpoint,
             access_token: @llm_access_token,
@@ -278,6 +279,7 @@ class AiHealth
         end
         if @pdf_vision_processing_capable
           @pdf_vision_processing_probe = probe.pdf_vision_processing(
+            reasoning: !local_llm_selected?,
             provider: @effective_llm_protocol,
             endpoint: @llm_raw_endpoint,
             access_token: @llm_access_token,
