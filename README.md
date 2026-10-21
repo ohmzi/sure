@@ -1,3 +1,39 @@
+<h3 align="center">This fork, in short</h3>
+
+<p align="center">
+  This is <a href="https://github.com/ohmzi">Omar's</a> heavily modified fork of
+  <a href="https://github.com/we-promise/sure">we-promise/sure</a>: the native document pipeline, the
+  envelope budgeting, and the self-hosted deploy stack are all fork work built on top of Sure's
+  accounts, transactions and reporting. The upstream README below still describes the shared app;
+  <a href="docs/fork/fork-changes.md"><code>docs/fork/fork-changes.md</code></a> is the full record
+  of what this fork adds and changes.
+</p>
+
+- **Native document pipeline** — receipts, bills and statements are read by a PaddleOCR sidecar plus
+  a vision pass that reconciles the text against the page images, and every transaction keeps
+  provenance back to the document it came from.
+- **Deterministic statement import and reconciliation** — a statement's rows are parsed from its own
+  text layer and proven against the statement's printed totals before anything is written; archived
+  receipts are matched to their transactions in a link-only review inbox.
+- **YNAB-style envelope budgeting** — a Ready-to-Assign pool, signed red carry, per-envelope targets,
+  credit-card payment envelopes, and a writable `/api/v1/envelopes` API.
+- **Hardened self-hosted stack** — a compose project with its own secrets, container healthchecks and
+  alerting, plus nightly backups that have been restore-drilled (`deploy/README.md`).
+- **135 new test files** — fixtures, system tests and VCR cassettes across the document, import,
+  reconciliation and budgeting paths.
+- **The full record** — milestone by milestone in
+  [`docs/fork/fork-changes.md`](docs/fork/fork-changes.md), with the per-file upstream contact
+  surface in [`docs/fork/upstream-rebase.md`](docs/fork/upstream-rebase.md).
+
+<p align="center">
+  <img src="docs/fork/screenshots/documents-browser.png" alt="The Documents browser showing statement and receipt tiles" width="32%">
+  <img src="docs/fork/screenshots/envelope-budget.png" alt="The Plan surface showing a monthly envelope budget" width="32%">
+  <img src="docs/fork/screenshots/statement-vault.png" alt="The Statement Vault listing imported statements" width="32%">
+</p>
+<p align="center">
+  <em>Documents, the envelope budget, and the Statement Vault. Names and amounts are synthetic.</em>
+</p>
+
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/we-promise/sure)
 [![View performance data on Skylight](https://badges.skylight.io/typical/s6PEZSKwcklL.svg)](https://oss.skylight.io/app/applications/s6PEZSKwcklL)
 [![Dosu](https://raw.githubusercontent.com/dosu-ai/assets/main/dosu-badge.svg)](https://app.dosu.dev/a72bdcfd-15f5-4edc-bd85-ea0daa6c3adc/ask)
@@ -28,15 +64,6 @@ involved: [Discord](https://discord.gg/36ZGBsxYEK) • [Website](https://sure.am
 > [!IMPORTANT]
 > This repository is a community fork of the now-abandoned Maybe Finance project. <br />
 > Learn more in their [final release](https://github.com/maybe-finance/maybe/releases/tag/v0.6.0) doc.
-
-> [!NOTE]
-> **This repository is a working fork of [we-promise/sure](https://github.com/we-promise/sure)** — a
-> self-hosted household finance app that adds a native documents → statement → transaction pipeline,
-> YNAB-shaped envelope budgeting, and its own deployable stack. What it adds and what it changes,
-> milestone by milestone, is in
-> [`docs/fork/fork-changes.md`](docs/fork/fork-changes.md); the procedure for rebasing
-> onto upstream is in
-> [`docs/fork/upstream-rebase.md`](docs/fork/upstream-rebase.md).
 
 ## Backstory
 
