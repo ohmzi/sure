@@ -46,7 +46,8 @@ class Merchant::Canonicalizer
       rule.conditions.destroy_all if rule.persisted?
       rule.actions.destroy_all if rule.persisted?
       rule.active = true
-      rule.conditions.build(condition_type: "transaction_name", operator: "matches", value: pattern.source)
+      rule.conditions.build(condition_type: "transaction_name", operator: "matches_regex", value: pattern.source,
+                            skip_regex_safety_validation: true)
       rule.actions.build(action_type: "set_transaction_merchant", value: merchant.id.to_s)
       rule.save!
       rule

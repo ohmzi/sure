@@ -1,3 +1,13 @@
+// Used when the server omits a node's colour. Invested keeps its own colour
+// (IncomeStatement::Sankey::INVESTED_COLOR) rather than reading as income; a
+// bare balance reads as secondary.
+const FALLBACK_COLORS = {
+  expense: "var(--color-destructive)",
+  deficit: "var(--color-destructive)",
+  invested: "#0d9488",
+  balance: "var(--color-secondary)",
+};
+
 // Decimal strings remain authoritative on the wire. Conversion to Number is
 // exclusively for D3 geometry and locale formatting, never financial totals.
 export function cashFlowChartData(body) {
@@ -34,6 +44,7 @@ export function cashFlowChartData(body) {
         "surplus",
         "deficit",
         "balance",
+        "invested",
       ].includes(node.kind)
     ) {
       throw new Error("Invalid cash flow node");
@@ -41,11 +52,7 @@ export function cashFlowChartData(body) {
     ids.add(node.id);
     const color = /^#[0-9a-f]{6}$/i.test(node.color)
       ? node.color
-      : ["expense", "deficit"].includes(node.kind)
-        ? "var(--color-destructive)"
-        : node.kind === "balance"
-          ? "var(--color-secondary)"
-          : "var(--color-success)";
+      : (FALLBACK_COLORS[node.kind] ?? "var(--color-success)");
     const value = number(node.value),
       percentage = number(node.percentage);
     if (value <= 0 || percentage > 100)

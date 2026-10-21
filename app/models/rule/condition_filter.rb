@@ -3,6 +3,22 @@ class Rule::ConditionFilter
 
   TYPES = [ "text", "number", "select" ]
 
+  # Operators whose value is a pattern, not text. The pattern is bound as given,
+  # and matched against the column as stored: collapsing whitespace on either
+  # side would change what it matches (a run of spaces, a tab, `^\s`).
+  REGEX_OPERATORS = %w[matches_regex not_matches_regex].freeze
+
+  # Operators stored before upstream renamed them (and the fork's not-matches
+  # form): still applied, and matched against the same rules.
+  LEGACY_OPERATOR_ALIASES = {
+    "matches" => "matches_regex",
+    "not_matches" => "not_matches_regex"
+  }.freeze
+
+  def self.regex_operator?(operator)
+    REGEX_OPERATORS.include?(LEGACY_OPERATOR_ALIASES.fetch(operator, operator))
+  end
+
   # Operators that don't require a value (and that the form hides the value field for)
   VALUELESS_OPERATORS = [ "is_null", "is_not_null" ].freeze
 
@@ -10,8 +26,10 @@ class Rule::ConditionFilter
     "text" => [
       [ :contains, "like" ],
       [ :does_not_contain, "not_like" ],
-      [ :matches_regex, "matches" ],
-      [ :does_not_match_regex, "not_matches" ],
+      [ :starts_with, "starts_with" ],
+      [ :ends_with, "ends_with" ],
+      [ :matches_regex, "matches_regex" ],
+      [ :does_not_match_regex, "not_matches_regex" ],
       [ :equal_to, "=" ],
       [ :not_equal_to, "!=" ],
       [ :is_empty, "is_null" ],
@@ -99,19 +117,27 @@ class Rule::ConditionFilter
     end
 
     def build_sanitized_where_condition(field, operator, value)
+      operator = LEGACY_OPERATOR_ALIASES.fetch(operator, operator)
+
       if VALUELESS_OPERATORS.include?(operator)
         ActiveRecord::Base.sanitize_sql_for_conditions(
           "#{field} #{sanitize_operator(operator)}"
         )
       else
-        normalized_value = if %w[matches not_matches].include?(operator)
-          value.to_s
-        else
-          normalize_value(value)
-        end
-        normalized_field = normalize_field(field)
+        regex = REGEX_OPERATORS.include?(operator)
+        normalized_value = regex ? value.to_s : normalize_value(value)
+        normalized_field = regex ? field : normalize_field(field)
 
-        if operator == "like" || operator == "not_like"
+        if operator == "starts_with" || operator == "ends_with"
+          sanitize_operator(operator)
+          like_value = ActiveRecord::Base.sanitize_sql_like(normalized_value)
+          like_value = operator == "starts_with" ? "#{like_value}%" : "%#{like_value}"
+
+          ActiveRecord::Base.sanitize_sql_for_conditions([
+            "#{normalized_field} ILIKE ?",
+            like_value
+          ])
+        elsif operator == "like" || operator == "not_like"
           sanitized_value = "%#{ActiveRecord::Base.sanitize_sql_like(normalized_value)}%"
           expression = ActiveRecord::Base.sanitize_sql_for_conditions([
             "#{normalized_field} #{sanitize_operator(operator)} ?",
@@ -121,7 +147,7 @@ class Rule::ConditionFilter
           # "Does not contain" should also match rows where the field is absent (NULL),
           # otherwise NOT ILIKE silently drops them due to SQL's three-valued logic.
           operator == "not_like" ? "(#{expression} OR #{field} IS NULL)" : expression
-        elsif operator == "not_matches"
+        elsif operator == "not_matches_regex"
           expression = ActiveRecord::Base.sanitize_sql_for_conditions([
             "#{normalized_field} #{sanitize_operator(operator)} ?",
             normalized_value
@@ -145,9 +171,9 @@ class Rule::ConditionFilter
         "ILIKE"
       when "not_like"
         "NOT ILIKE"
-      when "matches"
+      when "matches_regex"
         "~*"
-      when "not_matches"
+      when "not_matches_regex"
         "!~*"
       when "is_null"
         "IS NULL"

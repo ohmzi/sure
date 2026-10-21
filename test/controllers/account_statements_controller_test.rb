@@ -630,6 +630,27 @@ class AccountStatementsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action='#{link_account_statement_path(statement)}'] select[name='account_id']", count: 0
   end
 
+  test "rejected statement stays in the inbox where it can be deleted" do
+    statement = AccountStatement.create_from_upload!(
+      family: @account.family,
+      account: nil,
+      file: uploaded_file(filename: "rejected_statement.csv", content_type: "text/csv", content: "date,amount\n2024-01-01,1\n")
+    )
+    statement.update!(suggested_account: @account, match_confidence: 0.9)
+
+    # The vault renders rows as list items, not table rows (M8).
+    get account_statements_url
+    assert_select "##{dom_id(statement)}", count: 1
+
+    patch reject_account_statement_url(statement)
+    follow_redirect!
+
+    assert_select "##{dom_id(statement)}", count: 1 do
+      assert_select "a[href=?]", account_statement_path(statement)
+      assert_select "span", text: I18n.t("account_statements.status.rejected")
+    end
+  end
+
   test "updates metadata" do
     statement = AccountStatement.create_from_upload!(
       family: @account.family,

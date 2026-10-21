@@ -59,7 +59,7 @@
   }
   
   .hw-combobox__option {
-    @apply bg-container hover:bg-container-hover;
+    @apply bg-container hover:bg-container-inset-hover;
   }
 
   .hw_combobox__pagination__wrapper {
@@ -70,10 +70,50 @@
     }
   }
 
+  --hw-active-bg-color: var(--color-container-inset-hover);
+  --hw-option-bg-color: var(--color-container);
   --hw-border-color: rgba(0, 0, 0, 0.2);
   --hw-handle-width: 20px;
   --hw-handle-height: 20px;
   --hw-handle-offset-right: 0px;
+}
+
+/* Below `mobile_at` the gem opens a full-screen dialog with fixed light colors.
+   The gem renders that dialog outside the form's `.combobox` wrapper, so these
+   cannot be nested under it. */
+.hw-combobox__dialog {
+  @apply bg-container text-primary;
+}
+
+.hw-combobox__dialog__label {
+  @apply text-primary;
+}
+
+.hw-combobox__dialog__input {
+  @apply bg-container text-primary border-primary;
+}
+
+/* The gem portals its listbox and dialog to the page, so its own custom
+   properties must be set on those elements, not only under `.combobox`. */
+.hw-combobox__dialog,
+.hw-combobox__listbox {
+  --hw-active-bg-color: var(--color-container-inset-hover);
+  --hw-option-bg-color: var(--color-container);
+  --hw-dialog-label-color: var(--utility-text-primary);
+}
+
+/* The fork's dialog form fields are transparent by design; the combobox
+   dialog input is its own surface, so restore the container colour there. */
+:is(dialog, .app-scroller) .form-field input.hw-combobox__dialog__input {
+  background-color: var(--color-container) !important;
+}
+
+/* The gem's option states resolve its own variable; pin them to the theme's
+   active-row colour (upstream's --hw-active-bg-color intent). */
+.hw-combobox__option:hover,
+.hw-combobox__option--navigated,
+.hw-combobox__option--selected {
+  background-color: var(--color-container-inset-hover) !important;
 }
 
 /* Typography */

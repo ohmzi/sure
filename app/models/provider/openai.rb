@@ -195,10 +195,6 @@ class Provider::Openai < Provider
     [ context_window - max_response_tokens - system_prompt_reserve, 256 ].max
   end
 
-  def max_items_per_call
-    positive_budget(ENV["LLM_MAX_ITEMS_PER_CALL"], Setting.llm_max_items_per_call, 25)
-  end
-
   def auto_categorize(transactions: [], user_categories: [], model: "", family: nil, json_mode: nil)
     with_provider_response do
       if user_categories.blank?
@@ -336,7 +332,7 @@ class Provider::Openai < Provider
   # @param model [String] optional override of the configured model
   # @param family [Family, nil] usage attribution
   # @return [Provider::Response] structured result or provider failure
-  def process_pdf(pdf_content:, model: "", family: nil)
+  def process_pdf(pdf_content:, model: "", family: nil, json_mode: nil)
     with_provider_response do
       effective_model = model.presence || @default_model
       raise Error, "Model does not support PDF/vision processing: #{effective_model}" unless supports_pdf_processing?(model: effective_model)
@@ -362,7 +358,8 @@ class Provider::Openai < Provider
         langfuse_trace: trace,
         family: family,
         max_response_tokens: response_limit,
-        reasoning: @document_reasoning
+        reasoning: @document_reasoning,
+        json_mode: json_mode
       ).process
 
       upsert_langfuse_trace(trace: trace, output: result.to_h)
@@ -409,7 +406,7 @@ class Provider::Openai < Provider
     end
   end
 
-  def extract_bank_statement(pdf_content:, model: "", family: nil)
+  def extract_bank_statement(pdf_content:, model: "", family: nil, json_mode: nil)
     with_provider_response do
       effective_model = model.presence || @default_model
 
@@ -421,7 +418,8 @@ class Provider::Openai < Provider
       result = BankStatementExtractor.new(
         client: client,
         pdf_content: pdf_content,
-        model: effective_model
+        model: effective_model,
+        json_mode: json_mode
       ).extract
 
       upsert_langfuse_trace(trace: trace, output: { transaction_count: result[:transactions].size })
@@ -519,7 +517,6 @@ class Provider::Openai < Provider
     def slice_for_context(items, fixed: nil)
       BatchSlicer.call(
         Array(items),
-        max_items: max_items_per_call,
         max_tokens: max_input_tokens,
         fixed_tokens: fixed ? Assistant::TokenEstimator.estimate(fixed) : 0
       )

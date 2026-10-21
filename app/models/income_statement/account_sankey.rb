@@ -36,7 +36,7 @@ class IncomeStatement::AccountSankey
     capacity = [
       stats.values.map { |stat| [ stat[:inflow], stat[:outflow] ].max }.max,
       flows.sum { |flow| flow[:income] },
-      flows.sum { |flow| flow[:spending] }
+      flows.sum { |flow| flow[:spending] + flow[:invested] }
     ].max.to_d
     return empty_graph if capacity.zero?
 
@@ -51,6 +51,7 @@ class IncomeStatement::AccountSankey
     { basis: "net_by_account",
       income: decimal(stats.values.sum { |stat| stat[:flow][:income] }),
       spending: decimal(stats.values.sum { |stat| stat[:flow][:spending] }),
+      invested: decimal(stats.values.sum { |stat| stat[:flow][:invested] }),
       net_savings: decimal(stats.values.sum { |stat| stat[:flow][:income] - stat[:flow][:spending] }),
       nodes: @nodes.map { |node| serialize(node) },
       links: @links }
@@ -58,7 +59,7 @@ class IncomeStatement::AccountSankey
 
   private
     def empty_graph
-      { basis: "net_by_account", income: "0", spending: "0", net_savings: "0", nodes: [], links: [] }
+      { basis: "net_by_account", income: "0", spending: "0", invested: "0", net_savings: "0", nodes: [], links: [] }
     end
 
     def account_flows
@@ -71,7 +72,9 @@ class IncomeStatement::AccountSankey
         # refunds/credits. Show them as a credits sink instead of income.
         credits = account.liability? ? income : 0.to_d
         income = 0.to_d if account.liability?
-        { account: account, groups: groups, income: income, spending: spending, credits: credits }
+        # Zero unless the family stops counting investing as spending (#3952).
+        invested = scoped.invested_total(period: @period).amount.to_d
+        { account: account, groups: groups, income: income, spending: spending, credits: credits, invested: invested }
       end
     end
 
@@ -148,7 +151,7 @@ class IncomeStatement::AccountSankey
       end
       stats.each_value do |stat|
         stat[:inflow] = stat[:flow][:income] + stat[:flow][:credits].to_d + stat[:transfer_in]
-        stat[:outflow] = stat[:flow][:spending] + stat[:transfer_out]
+        stat[:outflow] = stat[:flow][:spending] + stat[:flow][:invested] + stat[:transfer_out]
       end
       stats
     end
@@ -200,6 +203,7 @@ class IncomeStatement::AccountSankey
       end
 
       add_credits_source(account_index, flow, capacity) if flow[:credits].positive?
+      add_invested_sink(account_index, flow, capacity) if flow[:invested].positive?
     end
 
     # A card/loan's non-transfer credits are money returning to the account
@@ -213,6 +217,16 @@ class IncomeStatement::AccountSankey
       credits[:value] += flow[:credits]
       credits[:percentage] = percentage(flow[:credits], capacity)
       add_link(credits[:index], account_index, flow[:credits], percentage(flow[:credits], capacity))
+    end
+
+    # Money moved into investment accounts is an outflow from the account, not
+    # spending and not a transfer (upstream #3952). One shared sink so several
+    # accounts' contributions sum in one node.
+    def add_invested_sink(account_index, flow, capacity)
+      invested = node("invested_node", "Invested", :invested, color: IncomeStatement::Sankey::INVESTED_COLOR)
+      invested[:value] += flow[:invested]
+      invested[:percentage] = percentage(invested[:value], capacity)
+      add_link(account_index, invested[:index], flow[:invested], percentage(flow[:invested], capacity))
     end
 
     def add_balance_bridge(account_index, stat, capacity)

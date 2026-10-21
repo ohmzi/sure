@@ -2,7 +2,7 @@
 http_interactions:
 - request:
     method: get
-    uri: https://bridge.example.org/simplefin/access/abc/accounts
+    uri: https://bridge.example.org/simplefin/access/abc/accounts?version=2
     body:
       encoding: UTF-8
       string: ''

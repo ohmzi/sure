@@ -232,9 +232,13 @@ class Rule::ApplicationPreview
         normalized_text.present? && normalized_text.downcase.include?(normalized_value.downcase)
       when "not_like"
         normalized_text.nil? || !normalized_text.downcase.include?(normalized_value.downcase)
-      when "matches"
+      when "starts_with"
+        normalized_text.present? && normalized_text.downcase.start_with?(normalized_value.downcase)
+      when "ends_with"
+        normalized_text.present? && normalized_text.downcase.end_with?(normalized_value.downcase)
+      when "matches", "matches_regex"
         normalized_text.present? && Regexp.new(value.to_s, Regexp::IGNORECASE).match?(normalized_text)
-      when "not_matches"
+      when "not_matches", "not_matches_regex"
         normalized_text.nil? || !Regexp.new(value.to_s, Regexp::IGNORECASE).match?(normalized_text)
       when "="
         if transaction

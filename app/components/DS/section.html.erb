@@ -12,9 +12,9 @@
   </div>
 <% end %>
 <% card = capture do %>
-  <div class="@container bg-container rounded-2xl shadow-border-xs overflow-hidden divide-y divide-subdued">
+  <%= tag.div class: card_classes do %>
     <%= content %>
-  </div>
+  <% end %>
 <% end %>
 
 <%= tag.section class: container_classes do %>

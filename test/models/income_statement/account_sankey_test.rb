@@ -99,6 +99,21 @@ class IncomeStatement::AccountSankeyTest < ActiveSupport::TestCase
     assert_equal({ nodes: [], links: [] }, graph(Date.new(2023, 1, 1)).slice(:nodes, :links))
   end
 
+  test "money invested leaves the account for an Invested sink when investing is not spending" do
+    @family.update!(investment_contributions_as_spending: false)
+    transaction(@checking, -1000, @salary)
+    transaction(@checking, 200, @shopping)
+    create_transaction(account: @checking, amount: 300, category: nil, date: @month, kind: "investment_contribution")
+    result = graph
+
+    assert_equal "300.0", result[:invested]
+    assert_link result, "account_#{@checking.id}", "invested_node", "300.0"
+    # What came in and was not spent or invested stays in the account.
+    assert_link result, "account_#{@checking.id}", "balance_to_#{@checking.id}", "500.0"
+    assert_nil node(result, "deficit_node")
+    assert_balanced result
+  end
+
   test "a category's per-account values add up to the category view" do
     transaction(@checking, 120, @shopping)
     transaction(@checking, -20, @shopping)

@@ -8,8 +8,8 @@
          data-pending-response-timeout-url="<%= report_timeout_chat_message_path(assistant_message.chat, assistant_message) %>">
       <%= render "chats/ai_avatar" %>
       <%# Three dots that bounce in turn while the answer comes (the animation
-          pass, 2026-10-18); a still reader gets the word alone. %>
-      <p class="flex items-center gap-1.5 text-sm text-secondary">
+          pass, 2026-10-18); a still reader gets the word alone. The id is what the status broadcast replaces. %>
+      <p id="<%= dom_id(assistant_message, :status) %>" class="flex items-center gap-1.5 text-sm text-secondary">
         <span><%= t("chats.thinking") %></span>
         <span class="flex items-center gap-1 motion-reduce:hidden" aria-hidden="true">
           <span class="size-1.5 rounded-full bg-current animate-bounce [animation-delay:-0.3s]"></span>

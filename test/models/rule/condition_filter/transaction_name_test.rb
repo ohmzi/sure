@@ -123,14 +123,14 @@ class Rule::ConditionFilter::TransactionNameTest < ActiveSupport::TestCase
     amzn = manual_entry(name: "AMZN Mktp CA")
     manual_entry(name: "Coffee Shop")
 
-    assert_equal [ amzn.id ], matching_entry_ids(operator: "matches", value: "^amzn")
+    assert_equal [ amzn.id ], matching_entry_ids(operator: "matches_regex", value: "^amzn")
   end
 
   test "a not-matches regex excludes matching rows and keeps the rest" do
     manual_entry(name: "AMZN Mktp CA")
     keeper = manual_entry(name: "Coffee Shop")
 
-    assert_equal [ keeper.id ], matching_entry_ids(operator: "not_matches", value: "^amzn")
+    assert_equal [ keeper.id ], matching_entry_ids(operator: "not_matches_regex", value: "^amzn")
   end
 
   private

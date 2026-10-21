@@ -163,6 +163,8 @@ class AccountStatement < ApplicationRecord
   scope :visible_to, ->(user) {
     user ? where(account_id: nil).or(where(account_id: user.accessible_accounts.select(:id))) : all
   }
+  # Rejecting a suggestion leaves the statement accountless, so it stays in the inbox where it can be found and deleted.
+  scope :inbox, -> { where(account_id: nil).where(review_status: %w[unmatched rejected]) }
   scope :for_month, ->(month) {
     month_start = month.to_date.beginning_of_month
     month_end = month_start.end_of_month

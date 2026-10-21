@@ -1,13 +1,14 @@
 class Provider::Openai::PdfProcessor
   include Provider::Openai::Concerns::UsageRecorder
+  include Provider::Openai::Concerns::JsonMode
 
   attr_reader :client, :model, :pdf_content, :custom_provider, :langfuse_trace, :family, :max_response_tokens,
-              :processing_mode
+              :processing_mode, :json_mode
 
   # `reasoning: false` sends `reasoning_effort: "none"`, for a local thinking
   # model whose reasoning otherwise runs past the read (2026-10-20).
   def initialize(client, model: "", pdf_content: nil, custom_provider: false, langfuse_trace: nil, family: nil,
-                 max_response_tokens:, processing_mode: :auto, reasoning: true)
+                 max_response_tokens:, processing_mode: :auto, reasoning: true, json_mode: nil)
     @client = client
     @model = model
     @pdf_content = pdf_content
@@ -17,6 +18,7 @@ class Provider::Openai::PdfProcessor
     @max_response_tokens = max_response_tokens
     @processing_mode = processing_mode
     @reasoning = reasoning
+    @json_mode = json_mode || default_json_mode
   end
 
   def process
@@ -128,10 +130,10 @@ class Provider::Openai::PdfProcessor
             role: "user",
             content: "Please analyze the following document text and provide a structured summary:\n\n#{pdf_text}"
           }
-        ],
-        response_format: { type: "json_object" }
+        ]
       }
 
+      apply_json_mode(params, mode: json_mode)
       params[:reasoning_effort] = "none" unless @reasoning
       response = client.chat(parameters: params)
 

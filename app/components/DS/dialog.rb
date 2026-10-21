@@ -209,9 +209,12 @@ class DS::Dialog < DesignSystemComponent
     @responsive
   end
 
+  # Shown at every width: responsive dialogs use it as their only close
+  # control on phones too. shrink-0 keeps its square beside a long title in a
+  # custom header. A round, filled button, easy to find and to hit
+  # (2026-10-19).
   def close_button
-    # A round, filled close button, easy to find and to hit (2026-10-19).
-    classes = class_names("rounded-full bg-container-inset hover:bg-container-inset-hover", responsive? ? "ml-auto hidden lg:flex" : "ml-auto")
+    classes = class_names("rounded-full bg-container-inset hover:bg-container-inset-hover", "ml-auto shrink-0")
     render DS::Button.new(
       variant: "icon",
       size: :sm,

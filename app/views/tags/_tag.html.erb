@@ -4,34 +4,45 @@
     the tag's colour and its name, which opens it for editing; an inset hairline
     splits it from the row above. %>
 <div id="<%= dom_id(tag) %>" class="relative flex items-center gap-2 min-h-[3.25rem] pl-4 pr-2 bg-container not-first:before:absolute not-first:before:top-0 not-first:before:left-[3.75rem] not-first:before:right-0 not-first:before:border-t not-first:before:border-subdued">
-  <%= link_to edit_tag_path(tag), class: "flex min-w-0 flex-1 items-center gap-3 py-2 rounded-lg focus-ring", data: { turbo_frame: "modal" } do %>
+  <% row_classes = "flex min-w-0 flex-1 items-center gap-3 py-2 rounded-lg" %>
+  <% row_contents = capture do %>
     <span class="flex size-8 shrink-0 items-center justify-center rounded-[9px]" style="background-color: color-mix(in oklab, <%= tag.color %> 18%, transparent); color: <%= tag.color %>" aria-hidden="true">
       <%= icon("tag", size: "sm", color: "current") %>
     </span>
     <span class="truncate text-[15px] font-semibold text-primary"><%= tag.name %></span>
   <% end %>
-  <div class="shrink-0">
-    <%= render DS::Menu.new do |menu| %>
-      <% menu.with_item(variant: "link", text: t(".edit"), href: edit_tag_path(tag), icon: "pencil", data: { turbo_frame: "modal" }) %>
-
-      <% if tag.transactions.any? %>
-        <% menu.with_item(
-          variant: "link",
-          text: t(".delete"),
-          href: new_tag_deletion_path(tag),
-          icon: "trash-2",
-          frame: :modal
-        ) %>
-      <% else %>
-        <% menu.with_item(
-          variant: "button",
-          text: t(".delete"),
-          href: tag_path(tag),
-          icon: "trash-2",
-          method: :delete,
-          confirm: CustomConfirm.for_resource_deletion(tag.name)
-        ) %>
-      <% end %>
+  <%# Guests may read the tag but not open it for editing. %>
+  <% if Current.user&.guest? %>
+    <div class="<%= row_classes %>"><%= row_contents %></div>
+  <% else %>
+    <%= link_to edit_tag_path(tag), class: "#{row_classes} focus-ring", data: { turbo_frame: "modal" } do %>
+      <%= row_contents %>
     <% end %>
-  </div>
+  <% end %>
+  <% unless Current.user&.guest? %>
+    <div class="shrink-0">
+      <%= render DS::Menu.new do |menu| %>
+        <% menu.with_item(variant: "link", text: t(".edit"), href: edit_tag_path(tag), icon: "pencil", data: { turbo_frame: "modal" }) %>
+
+        <% if tag.transactions.any? %>
+          <% menu.with_item(
+            variant: "link",
+            text: t(".delete"),
+            href: new_tag_deletion_path(tag),
+            icon: "trash-2",
+            frame: :modal
+          ) %>
+        <% else %>
+          <% menu.with_item(
+            variant: "button",
+            text: t(".delete"),
+            href: tag_path(tag),
+            icon: "trash-2",
+            method: :delete,
+            confirm: CustomConfirm.for_resource_deletion(tag.name)
+          ) %>
+        <% end %>
+      <% end %>
+    </div>
+  <% end %>
 </div>

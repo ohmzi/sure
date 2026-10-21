@@ -89,6 +89,7 @@ class TransactionCategoriesController < ApplicationController
     end
 
     def category_rule_prompt_allowed?(transaction)
+      return false if Current.user.guest?
       return false if Current.user.rule_prompts_disabled
       return false if transaction.category_id.blank?
 

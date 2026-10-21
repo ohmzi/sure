@@ -248,6 +248,7 @@ en:
         zero: due today
         one: due tomorrow
         other: "in %{count} days"
+      next_short: "next %{date}"
       search_placeholder: Search bills
       any_status: Any status
       status_filters:
@@ -269,12 +270,8 @@ en:
       no_matches_title: Nothing matches
       no_matches_description: Try clearing a filter or the search.
       col_name: Name
-      col_type: Type
-      col_frequency: Frequency
       col_amount: Amount
       col_next: Next due
-      next_short: "next %{date}"
-      col_status: Status
       col_actions: Actions
       monthly_equivalent: "%{amount}/mo"
       types:
