@@ -33,6 +33,12 @@
 <p align="center">
   <em>Documents, the envelope budget, and the Statement Vault. Names and amounts are synthetic.</em>
 </p>
+<p align="center">
+  <img src="docs/fork/screenshots/mobile.webp" alt="Sure on a phone: the Today dashboard with net worth and this month's budget, the Activity feed, and the Accounts list" width="100%">
+</p>
+<p align="center">
+  <em>On a phone: Today, Activity and Accounts, from the live demo at <a href="https://sure-demo.ohmz.cloud">sure-demo.ohmz.cloud</a> (made-up household, any login works).</em>
+</p>
 
 [![Ask DeepWiki](https://img.shields.io/badge/Ask-DeepWiki-blue)](https://deepwiki.com/we-promise/sure)
 [![View performance data on Skylight](https://badges.skylight.io/typical/s6PEZSKwcklL.svg)](https://oss.skylight.io/app/applications/s6PEZSKwcklL)
