@@ -1,9 +1,10 @@
-<%# locals: (form:) %>
+<%# locals: (form:, exclude: [], clear_filters_path: nil) %>
+<% filters = transaction_search_filters(exclude: exclude) %>
 
 <%# The owner's design (2026-10-19): on a phone the Filters sheet has its own header, the filter types as one row of chips that scrolls sideways, and a footer whose Apply counts what is checked; a computer keeps the list down the side with Cancel and Apply. %>
 <%= render DS::Tabs.new(
   variant: :unstyled,
-  active_tab: get_default_transaction_search_filter[:key],
+  active_tab: filters.first[:key],
   active_btn_classes: "bg-inverse text-inverse font-semibold md:bg-surface md:text-primary md:font-medium",
   inactive_btn_classes: "bg-container text-primary font-medium shadow-border-xs hover:bg-container-hover md:bg-transparent md:text-secondary md:shadow-none md:hover:bg-container-inset"
 ) do |tabs| %>
@@ -25,7 +26,7 @@
 
     <%# The chips scroll sideways on a phone and fade out on the right; a computer stacks them down the side. %>
     <%= tabs.with_nav(classes: "shrink-0 flex flex-nowrap overflow-x-auto md:overflow-y-auto md:flex-col items-center md:items-stretch gap-2 md:gap-0 px-4 pb-3 md:p-3 md:w-44 md:border-r md:border-secondary [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_88%,transparent)] md:[mask-image:none]") do |nav| %>
-      <% transaction_search_filters.each do |filter| %>
+      <% filters.each do |filter| %>
         <%= nav.with_btn(id: filter[:key], label: filter[:label], classes: "press flex h-11 md:h-auto shrink-0 md:w-full items-center gap-2 px-4 md:px-3 md:py-2 rounded-full md:rounded-md text-[15px] md:text-sm transition-colors focus-ring") do %>
           <%= icon(filter[:icon], size: "sm", color: "current") %>
           <span class="whitespace-nowrap"><%= filter[:label] %></span>
@@ -35,7 +36,7 @@
 
     <div class="flex flex-col grow min-h-0">
       <div class="grow min-h-0 overflow-y-auto px-4 pt-1 pb-4 md:p-3">
-        <% transaction_search_filters.each do |filter| %>
+        <% filters.each do |filter| %>
           <%= tabs.with_panel(tab_id: filter[:key]) do %>
             <%= render partial: get_transaction_search_filter_partial_path(filter), locals: { form: form } %>
           <% end %>
@@ -44,7 +45,7 @@
 
       <div class="flex shrink-0 items-center gap-3 border-t border-subdued bg-container px-5 pt-3.5 pb-[calc(env(safe-area-inset-bottom)+1rem)] md:px-3 md:py-3 md:pb-3">
         <%= link_to t(".clear"),
-                    transactions_path(clear_filters: true),
+                    clear_filters_path || transactions_path(clear_filters: true),
                     class: class_names("press rounded-md px-1 text-[15px] md:text-sm font-semibold focus-ring", "text-link" => @q.present?, "text-secondary" => @q.blank?) %>
 
         <div class="hidden md:block">

@@ -59,6 +59,22 @@ zh-CN:
     actions:
       value_placeholder: 输入值
       to_label: 改为
+      split:
+        type_fixed: 固定金额
+        type_percentage: 百分比
+        type_label: 分拆类型
+        add_split: 添加分拆
+        name_placeholder: 分拆名称
+        share_label: 分拆金额或百分比
+        category_label: 分拆分类
+        merchant_label: 分拆商户
+        tags_label: 分拆标签
+        remove_split: 移除分拆
+        hint: 固定分拆作为确切金额优先扣除。百分比分拆随后分配剩余资金。如果此处的每个分拆都使用固定金额，请同时添加与确切交易金额匹配的条件（例如“金额 = 42.00”），因为每笔匹配的交易都需要相同的总额以使固定金额相加平衡。分拆规则不能包含其他操作。
+        fixed_summary_label: 固定
+        summary:
+          one: '%{count} 笔分拆'
+          other: '%{count} 笔分拆'
     update:
       success: 规则已更新
     destroy:
@@ -126,6 +142,19 @@ zh-CN:
       operators:
         matches_regex: 匹配（正则）
         does_not_match_regex: 不匹配（正则）
+        contains: 包含
+        does_not_contain: 不包含
+        starts_with: 开头为
+        ends_with: 结尾为
+        equal_to: 等于
+        is_equal_to: 等于
+        not_equal_to: 不等于
+        is_empty: 为空
+        is_not_empty: 不为空
+        greater_than: 大于
+        greater_or_equal_to: 大于或等于
+        less_than: 小于
+        less_than_or_equal_to: 小于或等于
     category_rule_cta:
       close: 关闭
       create_rule: 创建规则
@@ -176,6 +205,10 @@ zh-CN:
       updated:
         one: 1 笔交易已分类
         other: "%{count} 笔交易已分类"
+    notification_baseline_timed_out: 此规则仍处于关闭状态。检查它已匹配的历史交易耗时过长，若不进行检查，将会就所有这些匹配交易发送通知邮件。请简化其条件，然后重新开启。
+    classifier_rules:
+      category_classifier: 交易分类器
+      merchant_matcher: 商户匹配器
   rule:
     conditions:
       condition_group:
@@ -185,3 +218,5 @@ zh-CN:
         any: 任一
         of_the_following_conditions: 以下条件
         add_condition: 添加条件
+      condition:
+        value_placeholder: 输入值

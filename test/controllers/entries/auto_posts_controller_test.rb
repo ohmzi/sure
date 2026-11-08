@@ -198,7 +198,7 @@ class Entries::AutoPostsControllerTest < ActionDispatch::IntegrationTest
     patch transaction_path(human), params: { entry: { ai_posted_at: Time.current.iso8601 } }
 
     assert_nil human.reload.ai_posted_at, "ai_posted_at must not be mass-assignable"
-    assert_not_includes EntrySearch.new(ai_posted: "true").build_query(Entry.all), human
+    assert_not_includes EntrySearch.new({ ai_posted: "true" }).build_query(Entry.all), human
   end
 
   # The filter the owner audits with, wired end to end through the ledger.

@@ -35,7 +35,9 @@
     <section class="space-y-2">
 
       <div class="overflow-hidden rounded-2xl bg-container shadow-border-xs">
-        <%= render partial: @tags %>
+        <% @tags.each do |tag| %>
+          <%= render "tags/tag", tag: tag, has_transactions: @tag_ids_with_transactions.key?(tag.id) %>
+        <% end %>
       </div>
     </section>
   <% else %>

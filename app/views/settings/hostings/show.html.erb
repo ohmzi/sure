@@ -2,18 +2,25 @@
     serves three Settings pages; each renders only its own sections:
     - AI: the assistant, the AI provider and cloud readers, categorization;
     - Data providers: market data, property valuations, logos;
-    - Self-hosting: sync, invites, demo refresh and the danger zone. %>
+    - Self-hosting: sync, invites, demo refresh and the danger zone.
+    Instance-wide settings (providers, keys, sync) are shown only to a user
+    who manages them; everyone else sees the notice below. %>
 <%= content_for :page_title, t(".titles.#{@section}") %>
+<% manages_instance_settings = Current.user.manages_instance_settings? %>
+<% unless manages_instance_settings %>
+  <%= render DS::Alert.new(message: t(".instance_settings_restricted"), variant: :info) %>
+<% end %>
 <% case @section %>
 <% when "ai" %>
 <%= settings_section title: t(".ai_assistant") do %>
-  <%= render "settings/hostings/assistant_settings" %>
+  <%= render "settings/hostings/assistant_settings", manages_instance_settings: manages_instance_settings %>
 <% end %>
 <%# The AI provider gets its own titled section (spec N5, owner report
     2026-10-13) — it was buried under "General Settings" beside unrelated
     options, so a user hunting for where to enter a key or pick a local model
     could not find it. The anchor `ai-provider` is the destination the
     document hold panel links to. %>
+<% if manages_instance_settings %>
 <%= settings_section title: t(".ai_provider"), subtitle: t(".ai_provider_description") do %>
   <div id="ai-provider" class="space-y-6"
        data-controller="provider-settings"
@@ -33,12 +40,14 @@
     <%= render "settings/hostings/cloud_reader_settings" %>
   </div>
 <% end %>
+<% end %>
 <% if preview_features_enabled? %>
   <%= settings_section title: t(".categorization") do %>
-    <%= render "settings/hostings/categorization_provider_selector" %>
+    <%= render "settings/hostings/categorization_provider_selector", manages_instance_settings: manages_instance_settings %>
   <% end %>
 <% end %>
 <% when "data" %>
+<% if manages_instance_settings %>
 <%= settings_section title: t(".financial_data_providers") do %>
   <div class="space-y-6">
     <%= render "settings/hostings/provider_selection" %>
@@ -75,9 +84,12 @@
 <%= settings_section title: t(".logos") do %>
   <%= render "settings/hostings/brand_fetch_settings" %>
 <% end %>
+<% end %>
 <% else %>
+<% if manages_instance_settings %>
 <%= settings_section title: t(".sync_settings") do %>
   <%= render "settings/hostings/sync_settings" %>
+<% end %>
 <% end %>
 <% if Current.user.super_admin? %>
   <%= settings_section title: t(".invites") do %>

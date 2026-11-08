@@ -27,9 +27,7 @@ class Settings::PreferencesController < ApplicationController
       return redirect_to settings_preferences_path, alert: t("settings.preferences.show.dashboard_category.invalid") if dashboard_category.nil?
     end
 
-    @user.transaction do
-      @user.lock!
-      updated_prefs = (@user.preferences || {}).deep_dup
+    @user.with_locked_preferences do |updated_prefs|
       if user_params.key?(:preview_features_enabled)
         updated_prefs["preview_features_enabled"] =
           ActiveModel::Type::Boolean.new.cast(user_params[:preview_features_enabled])
@@ -37,9 +35,9 @@ class Settings::PreferencesController < ApplicationController
       if user_params.key?(:dashboard_category_id)
         updated_prefs["dashboard_category_id"] = dashboard_category&.id
       end
-      @user.assign_attributes(preferences: updated_prefs)
+      # with_locked_preferences saves the user after this block, so the
+      # default account is written in the same locked update.
       @user.default_account = account if user_params.key?(:default_account_id)
-      @user.save!
     end
     redirect_to settings_preferences_path
   end

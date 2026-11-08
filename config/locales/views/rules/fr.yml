@@ -15,6 +15,22 @@ fr:
     actions:
       value_placeholder: Entrez une valeur
       to_label: vers
+      split:
+        add_split: Ajouter une division
+        category_label: Catégorie de la division
+        fixed_summary_label: fixe
+        hint: Les divisions à montant fixe sont déduites en premier, comme montants exacts. Les divisions en pourcentage se partagent ensuite le reste. Si toutes les divisions utilisent un montant fixe, ajoutez aussi une condition correspondant à un montant de transaction exact (par ex. Montant = 42.00), car chaque transaction correspondante doit avoir le même total pour que les montants fixes tombent juste. Une règle de division ne peut pas avoir d'autres actions.
+        merchant_label: Marchand de la division
+        name_placeholder: Nom de la division
+        remove_split: Supprimer la division
+        share_label: Montant ou pourcentage de la division
+        summary:
+          one: '%{count} division'
+          other: '%{count} divisions'
+        tags_label: Étiquettes de la division
+        type_fixed: Montant fixe
+        type_label: Type de division
+        type_percentage: Pourcentage
     apply_all:
       ai_cost_message: Cela utilisera l'IA pour catégoriser jusqu'à %{transactions} transactions.
       ai_cost_title: Estimation des coûts de l'IA
@@ -61,6 +77,8 @@ fr:
         not_equal_to: Différent de
         matches_regex: Correspond (regex)
         does_not_match_regex: Ne correspond pas (regex)
+        ends_with: Se termine par
+        starts_with: Commence par
       transaction_type:
         equal_to: Égal à
         expense: Dépense
@@ -200,3 +218,7 @@ fr:
       updated:
         one: 1 transaction catégorisée
         other: "%{count} transactions catégorisées"
+    classifier_rules:
+      category_classifier: Classifieur de catégories
+      merchant_matcher: Rapprochement des marchands
+    notification_baseline_timed_out: Cette règle est toujours désactivée. La vérification des transactions auxquelles elle correspond déjà a pris trop de temps, et sans cette vérification elle enverrait un e-mail pour chacune d'elles. Simplifiez ses conditions, puis réactivez-la.

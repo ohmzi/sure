@@ -17,7 +17,9 @@ class Settings::HostingsController < ApplicationController
   guard_feature unless: -> { self_hosted? }
 
   before_action :ensure_admin, only: [ :update, :clear_cache, :disconnect_external_assistant, :detect_local_models, :persist_local_model ]
+  before_action :ensure_instance_settings_manager, only: [ :update, :disconnect_external_assistant ]
   before_action :ensure_super_admin_for_onboarding, only: :update
+  before_action :ensure_super_admin, only: :reset_market_data
 
   # The three pages this controller serves (2026-10-17): AI, data providers,
   # and what is left of self-hosting proper.
@@ -182,6 +184,29 @@ class Settings::HostingsController < ApplicationController
       sync_auto_sync_scheduler!
     end
 
+    market_data_sync_settings_changed = false
+
+    if hosting_params.key?(:market_data_sync_enabled)
+      Setting.market_data_sync_enabled = hosting_params[:market_data_sync_enabled] == "1"
+      market_data_sync_settings_changed = true
+    end
+
+    if hosting_params.key?(:market_data_sync_time)
+      time_value = hosting_params[:market_data_sync_time]
+      unless Setting.valid_auto_sync_time?(time_value)
+        flash[:alert] = t(".invalid_sync_time")
+        return redirect_to section_return_path
+      end
+
+      Setting.market_data_sync_time = time_value
+      Setting.market_data_sync_timezone = current_user_timezone
+      market_data_sync_settings_changed = true
+    end
+
+    if market_data_sync_settings_changed
+      sync_market_data_scheduler!
+    end
+
     update_encrypted_setting(:openai_access_token)
 
     # Validate OpenAI configuration before updating
@@ -264,7 +289,12 @@ class Settings::HostingsController < ApplicationController
 
     if hosting_params.key?(:jev_endpoint)
       raw_endpoint = hosting_params[:jev_endpoint].to_s.strip
-      if raw_endpoint.blank?
+      stored_endpoint = Setting.jev_endpoint
+      if stored_endpoint.present? && raw_endpoint == Provider::Jev.redacted_endpoint(stored_endpoint)
+        # The field shows the stored endpoint redacted, and auto-submits on
+        # blur, so this is the page echoing it back, not a change. Saving it
+        # would strip the credentials the operator put in the URL.
+      elsif raw_endpoint.blank?
         Setting.jev_endpoint = nil
       else
         # Provider::Jev owns the rule so settings, JEV_ENDPOINT and eval-time
@@ -332,6 +362,14 @@ class Settings::HostingsController < ApplicationController
   def clear_cache
     DataCacheClearJob.perform_later(Current.family)
     redirect_to section_return_path, notice: t(".cache_cleared")
+  end
+
+  def reset_market_data
+    case MarketDataResetJob.enqueue_once
+    when :queued then redirect_to settings_hosting_path, notice: t(".market_data_reset")
+    when :already_queued then redirect_to settings_hosting_path, notice: t(".market_data_reset_already_queued")
+    else redirect_to settings_hosting_path, alert: t(".market_data_reset_failed")
+    end
   end
 
   def disconnect_external_assistant
@@ -446,7 +484,7 @@ class Settings::HostingsController < ApplicationController
     # Strong parameters for the self-hosting settings form.
     def hosting_params
       return ActionController::Parameters.new unless params.key?(:setting)
-      params.require(:setting).permit(:onboarding_state, :require_email_confirmation, :invite_only_default_family_id, :demo_family_refresh_enabled, :demo_family_refresh_family_id, :brand_fetch_client_id, :brand_fetch_high_res_logos, :twelve_data_api_key, :tiingo_api_key, :eodhd_api_key, :alpha_vantage_api_key, :tinkoff_invest_api_key, :mansa_api_key, :rentcast_api_key, :realie_api_key, :chimnie_api_key, :openai_access_token, :openai_uri_base, :openai_model, :openai_json_mode, :anthropic_access_token, :anthropic_base_url, :anthropic_model, :jev_api_key, :jev_endpoint, :jev_model, :llm_provider, :local_llm_base_url, :local_llm_model, :local_llm_token, :deepseek_api_key, :deepseek_model, :gemini_api_key, :gemini_model, :cloud_document_fallback, :llm_context_window, :llm_max_response_tokens, :llm_max_items_per_call, :openai_request_timeout, :ai_response_timeout, :ai_health_probe_timeout, :exchange_rate_provider, :securities_provider, :syncs_include_pending, :auto_sync_enabled, :auto_sync_time, :external_assistant_url, :external_assistant_token, :external_assistant_model, securities_providers: [])
+      params.require(:setting).permit(:onboarding_state, :require_email_confirmation, :invite_only_default_family_id, :demo_family_refresh_enabled, :demo_family_refresh_family_id, :brand_fetch_client_id, :brand_fetch_high_res_logos, :twelve_data_api_key, :tiingo_api_key, :eodhd_api_key, :alpha_vantage_api_key, :tinkoff_invest_api_key, :mansa_api_key, :rentcast_api_key, :realie_api_key, :chimnie_api_key, :openai_access_token, :openai_uri_base, :openai_model, :openai_json_mode, :anthropic_access_token, :anthropic_base_url, :anthropic_model, :jev_api_key, :jev_endpoint, :jev_model, :llm_provider, :local_llm_base_url, :local_llm_model, :local_llm_token, :deepseek_api_key, :deepseek_model, :gemini_api_key, :gemini_model, :cloud_document_fallback, :llm_context_window, :llm_max_response_tokens, :llm_max_items_per_call, :openai_request_timeout, :ai_response_timeout, :ai_health_probe_timeout, :exchange_rate_provider, :securities_provider, :syncs_include_pending, :auto_sync_enabled, :auto_sync_time, :market_data_sync_enabled, :market_data_sync_time, :external_assistant_url, :external_assistant_token, :external_assistant_model, securities_providers: [])
     end
 
     def load_external_assistant_models
@@ -600,6 +638,17 @@ class Settings::HostingsController < ApplicationController
       redirect_to section_return_path, alert: t(".not_authorized") unless Current.user.admin?
     end
 
+    # Everything under params[:setting] is stored in the global Setting and
+    # applies to every family; params[:family] only touches Current.family.
+    def ensure_instance_settings_manager
+      return unless action_name == "disconnect_external_assistant" || params.key?(:setting)
+      redirect_to section_return_path, alert: t(".not_authorized") unless Current.user.manages_instance_settings?
+    end
+
+    def ensure_super_admin
+      redirect_to settings_hosting_path, alert: t("settings.hostings.not_authorized") unless Current.user.super_admin?
+    end
+
     def ensure_super_admin_for_onboarding
       onboarding_params = %i[onboarding_state invite_only_default_family_id]
       return unless onboarding_params.any? { |p| hosting_params.key?(p) }
@@ -611,6 +660,15 @@ class Settings::HostingsController < ApplicationController
     rescue StandardError => error
       Rails.logger.error("[AutoSyncScheduler] Failed to sync scheduler: #{error.message}")
       Rails.logger.error(error.backtrace.join("\n"))
+      flash[:alert] = t(".scheduler_sync_failed")
+    end
+
+    def sync_market_data_scheduler!
+      MarketDataScheduler.sync!
+    rescue StandardError => error
+      Rails.logger.error("[MarketDataScheduler] Failed to sync scheduler: #{error.message}")
+      Rails.logger.error(error.backtrace.join("\n"))
+      MarketDataScheduler.capture_sync_failure(error, source: self.class.name, user: Current.user)
       flash[:alert] = t(".scheduler_sync_failed")
     end
 

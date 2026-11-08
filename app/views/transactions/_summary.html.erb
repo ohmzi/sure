@@ -1,4 +1,4 @@
-<%# locals: (totals:, months: nil) %>
+<%# locals: (totals:, months: nil, transactions_count: nil) %>
 <%# Show Inflow/Outflow labels only when the result set contains exclusively transfers
     (income and expense are both $0). For mixed filters (e.g. Expense+Transfer),
     we keep Income/Expenses labels — transfer amounts aren't included in the summary
@@ -15,7 +15,10 @@
 <div class="grid grid-cols-3 divide-x divide-subdued">
   <div class="min-w-0 p-3 md:p-4 space-y-1 md:space-y-2">
     <p class="text-xs md:text-sm text-secondary"><%= t("transactions.summary.total_transactions") %></p>
-    <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-transactions" data-controller="count-up"><%= totals.count.round(0) %></p>
+    <p class="text-primary font-bold tracking-tight text-base md:text-xl break-words privacy-sensitive" id="total-transactions" data-controller="count-up"><%= transactions_count || totals.count.round(0) %></p>
+    <% if totals.excluded_scheduled_count.positive? %>
+      <p class="text-xs text-secondary" id="scheduled-transactions-count"><%= t("transactions.summary.scheduled_count", count: totals.excluded_scheduled_count) %></p>
+    <% end %>
   </div>
   <div class="min-w-0 p-3 md:p-4 space-y-1 md:space-y-2">
     <% if show_transfers %>

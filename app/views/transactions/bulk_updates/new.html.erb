@@ -21,7 +21,7 @@
           } do |form| %>
       <div class="sheet-rows overflow-visible rounded-[1.25rem] bg-container shadow-border-xs">
         <%= render "transactions/bulk_updates/row", icon: "calendar" do %>
-          <%= form.date_field :date, label: t("transactions.bulk_updates.new.date_label"), max: Date.current %>
+          <%= form.date_field :date, label: t("transactions.bulk_updates.new.date_label") %>
         <% end %>
         <%= render "transactions/bulk_updates/row", icon: "type" do %>
           <%= form.text_field :name, label: t("transactions.bulk_updates.new.name_label"), placeholder: t("transactions.bulk_updates.new.name_placeholder") %>

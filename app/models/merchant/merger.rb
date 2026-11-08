@@ -73,6 +73,7 @@ class Merchant::Merger
           "affected_count" => affected_count
         }
       )
+      Rule.replace_merchant_references!(family, from: source_merchants.map(&:id), to: target_merchant.id)
     end
 
     true
