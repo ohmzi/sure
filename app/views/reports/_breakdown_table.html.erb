@@ -14,51 +14,36 @@
     <span class="font-medium text-secondary <%= color_class %> privacy-sensitive"> <%= Money.new(total, Current.family.currency).format %></span>
   </div>
 
-  <div class="overflow-x-auto">
-    <div class="w-max sm:w-full">
-    <div class="overflow-hidden">
-    <table class="w-full">
-      <thead class="border-b border-subdued">
-        <tr class="uppercase text-xs font-medium text-secondary">
-          <th class="px-4 py-2 text-left font-medium" colspan="2"><%= t("reports.transactions_breakdown.table.category") %></th>
-          <th class="px-4 py-2 text-right font-medium">
-            <%= link_to reports_path(amount_sort_params), class: "inline-flex items-center gap-1 hover:text-primary" do %>
-              <%= t("reports.transactions_breakdown.table.amount") %>
-              <% if current_sort_by == "amount" %>
-                <%= icon(current_sort_direction == "desc" ? "chevron-down" : "chevron-up", class: "w-3 h-3") %>
-              <% end %>
-            <% end %>
-          </th>
-          <th class="px-4 py-2 text-right font-medium"><%= t("reports.transactions_breakdown.table.percentage") %></th>
-        </tr>
-      </thead>
-      <tbody>
-        <% groups.each_with_index do |group, idx| %>
-          <%= render "reports/category_row",
-            item: group,
-            total: total,
-            color_class: color_class,
-            level: :category,
-            start_date: start_date,
-            end_date: end_date,
-            show_border: idx < groups.size - 1 || group[:subcategories].present? %>
-          <%# Render subcategories if present %>
-          <% if group[:subcategories].present? && group[:subcategories].any? %>
-            <% group[:subcategories].each_with_index do |subcategory, sub_idx| %>
-              <%= render "reports/category_row",
-                item: subcategory,
-                total: total,
-                color_class: color_class,
-                level: :subcategory,
-                start_date: start_date,
-                end_date: end_date,
-                show_border: sub_idx < group[:subcategories].size - 1 %>
-            <% end %>
-          <% end %>
-        <% end %>
-      </tbody>
-    </table>
-    </div>
-    </div>
-  </div>
+  <%
+    rows = groups.flat_map do |group|
+      [ group.merge(level: :category), *Array(group[:subcategories]).map { |subcategory| subcategory.merge(level: :subcategory) } ]
+    end.map { |item| item.merge(href: breakdown_transactions_path(item, start_date, end_date)) }
+    amount_header = link_to reports_path(amount_sort_params), class: "inline-flex items-center gap-1 hover:text-primary" do
+      concat t("reports.transactions_breakdown.table.amount")
+      concat icon(current_sort_direction == "desc" ? "chevron-down" : "chevron-up", class: "w-3 h-3") if current_sort_by == "amount"
+    end
+    link_options = { class: "block", data: { turbo_frame: "_top", turbo_prefetch: false } }
+  %>
+
+  <%= render DS::Table.new(
+        rows: rows,
+        label: t(title_key),
+        row_class: ->(item) { class_names("text-secondary group/category-row transition-colors", "hover:bg-container-hover" => item[:href]) },
+        row_opts: ->(item) { { data: { category: "category-#{item[:category_id]}" } } }
+      ) do |table| %>
+    <% table.with_column(t("reports.transactions_breakdown.table.category")) do |item| %>
+      <%= render "reports/category_name", item: item %>
+    <% end %>
+    <% table.with_column(amount_header, numeric: true) do |item| %>
+      <%= link_to_if item[:href], tag.span(Money.new(item[:total], Current.family.currency).format, class: "#{color_class} privacy-sensitive"), item[:href], link_options %>
+    <% end %>
+    <% table.with_column(t("reports.transactions_breakdown.table.percentage"), numeric: true) do |item| %>
+      <% percentage = total.zero? ? 0 : (item[:total].to_f / total * 100).round(1) %>
+      <%= link_to_if item[:href], "#{percentage}%", item[:href], link_options %>
+      <%# The share as a thin bar in the category's colour, growing in. %>
+      <div class="ml-auto mt-1 h-1 w-16 rounded-full bg-surface-inset overflow-hidden" aria-hidden="true">
+        <div class="h-full rounded-full grow-right" style="width: <%= percentage.clamp(0, 100) %>%; background-color: <%= item[:category_color] %>"></div>
+      </div>
+    <% end %>
+  <% end %>
 </div>

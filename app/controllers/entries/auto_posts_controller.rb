@@ -30,7 +30,7 @@ class Entries::AutoPostsController < ApplicationController
     # statement's reconciled chip. The undo refuses and leaves the row exactly
     # as it was. The copy names why, because a bare refusal the user cannot act
     # on is a wall.
-    if entry.reconciled?
+    if entry.statement_reconciled?
       flash.now[:alert] = t(".reconciled")
       return head :unprocessable_content
     end

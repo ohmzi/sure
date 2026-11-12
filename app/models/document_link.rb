@@ -661,7 +661,7 @@ class DocumentLink < ApplicationRecord
   # on, and cannot see, is a wall. Unreconciled entries only: a reconciled entry
   # is settled evidence, safe to leave behind as a tombstoned provenance trail.
   def deletion_blockers
-    derived_entries.reject(&:reconciled?).map(&:name)
+    derived_entries.reject(&:statement_reconciled?).map(&:name)
   end
 
   def deletable? = deletion_blockers.empty?

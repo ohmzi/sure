@@ -73,7 +73,6 @@
 
     <%= button_to transfer_path(transaction.transfer, transfer: { status: "rejected" }),
                     method: :patch,
-                    data: { turbo: false },
                     class: "inline-flex items-center justify-center size-9 pointer-coarse:size-11 rounded-full text-subdued hover:bg-container-inset-hover hover:text-primary cursor-pointer transition",
                     title: t("transactions.transfer_match.reject_match"),
                     aria: { label: t("transactions.transfer_match.reject_match") } do %>

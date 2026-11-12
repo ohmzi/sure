@@ -162,10 +162,11 @@ zh-CN:
         one: 应用到 1 笔相似交易
         other: 应用到 %{count} 笔相似交易
       description: 立即将其应用到相似的未分类交易，或为以后的交易创建规则
-      dont_show_again: 不再显示
       hide_for_today: 今天隐藏
       hide_for_today_hint: "“今天隐藏”会暂停这些建议 24 小时。"
       message: 已更新为%{category_name}
+      not_today: 今天不要
+      turn_off_suggestions: 关闭规则建议
     applications:
       title: 最近的应用
       description: 仍可撤销的“全部应用”运行。撤销会恢复每笔交易在运行前的值。

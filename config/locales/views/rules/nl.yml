@@ -76,9 +76,10 @@ nl:
         other: Toepassen op %{count} vergelijkbare transacties
       description: Pas hem nu toe op vergelijkbare niet-gecategoriseerde transacties of maak een regel voor toekomstige
       dont_show_again: Dit niet meer tonen
-      hide_for_today: Vandaag verbergen
       hide_for_today_hint: "‘Vandaag verbergen’ pauzeert deze suggesties 24 uur."
       message: Bijgewerkt naar %{category_name}
+      not_today: Niet vandaag
+      turn_off_suggestions: Regelsuggesties uitschakelen
     rule:
       review: Transacties bekijken
       stop_processing: Stoppen

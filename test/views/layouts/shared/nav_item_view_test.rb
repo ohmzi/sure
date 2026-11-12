@@ -38,4 +38,15 @@ class NavItemViewTest < ActionView::TestCase
     assert_includes inactive, "group-aria-[current=page]:text-link"
     assert_equal active.gsub(' aria-current="page"', ""), inactive
   end
+
+  # The layout filters desktop-only items out of the bottom bar; the partial
+  # itself accepts the flag and draws the same link with or without it.
+  test "desktop_only defaults off and leaves the item's markup unchanged" do
+    locals = { name: "Reports", path: "/reports", icon: "chart-bar", icon_custom: false, active: false }
+
+    without_flag = render(partial: "layouts/shared/nav_item", locals: locals)
+
+    assert_equal without_flag, render(partial: "layouts/shared/nav_item", locals: locals.merge(desktop_only: false))
+    assert_equal without_flag, render(partial: "layouts/shared/nav_item", locals: locals.merge(desktop_only: true))
+  end
 end

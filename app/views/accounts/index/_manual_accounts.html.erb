@@ -1,4 +1,4 @@
-<%# locals: (accounts:, titled: true) %>
+<%# locals: (accounts:, titled: true, reconciliation_indicators: {}) %>
 <%# The accounts you keep by hand, kind by kind, each kind its own card under
     its heading (the owner, 2026-10-18: no folder card around cards inside a
     well). The "Other accounts" heading only shows when connected banks are
@@ -7,5 +7,5 @@
   <% if titled %>
     <h2 class="px-1 text-sm font-semibold text-secondary"><%= t(".other_accounts") %></h2>
   <% end %>
-  <%= render "accounts/index/account_groups", accounts: accounts, standalone: true %>
+  <%= render "accounts/index/account_groups", accounts: accounts, standalone: true, reconciliation_indicators: reconciliation_indicators %>
 </section>

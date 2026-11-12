@@ -753,7 +753,7 @@ class AccountStatement < ApplicationRecord
   # The archived document is the surviving evidence and obeys the same N9 rule
   # as the document browser: it must not cover unreconciled entries.
   def deletion_blocker
-    return :imports if pdf_imports.exists? || Entry.reconciled_by(self).exists?
+    return :imports if pdf_imports.exists? || Entry.reconciled_by_statement(self).exists?
     return :document if archived_document_link.present? && !archived_document_link.deletable?
 
     nil
@@ -777,7 +777,7 @@ class AccountStatement < ApplicationRecord
     end
 
     def statement_rows
-      Entry.reconciled_by(self).where(account_id: account_id).where.not(entryable_type: "Valuation")
+      Entry.reconciled_by_statement(self).where(account_id: account_id).where.not(entryable_type: "Valuation")
     end
 
     def row_checkable?

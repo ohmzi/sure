@@ -1,4 +1,4 @@
-<%# locals: (accounts:, standalone: false) %>
+<%# locals: (accounts:, standalone: false, reconciliation_indicators: {}) %>
 <%# The accounts of one kind under a plain heading — its name, how many, its
     total — then the rows on one surface split by hairlines (the owner,
     2026-10-18: no card in a card in a card). `standalone` makes that surface
@@ -30,7 +30,7 @@
     </div>
     <div class="<%= standalone ? "bg-container rounded-3xl shadow-border-xs" : "" %> overflow-hidden divide-y divide-subdued">
       <% accounts.each do |account| %>
-        <%= render "accounts/account", account: account %>
+        <%= render "accounts/account", account: account, reconciliation_indicator: reconciliation_indicators[account.id] %>
       <% end %>
     </div>
   </section>

@@ -1,4 +1,4 @@
-<%# locals: (account:, return_to: nil) %>
+<%# locals: (account:, return_to: nil, reconciliation_indicator: nil) %>
 
 <% is_default = Current.user&.default_account_id == account.id %>
 
@@ -12,7 +12,7 @@
         ending in "…" rather than wrapping the row taller (the owner,
         2026-10-17). %>
     <div class="flex items-center gap-3 min-w-0 grow">
-      <%= render "accounts/logo", account: account, size: "lg" %>
+      <%= render "accounts/logo", account: account, size: "lg", reconciliation_indicator: reconciliation_indicator %>
 
       <div class="min-w-0">
         <% if account.pending_deletion? %>

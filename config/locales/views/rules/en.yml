@@ -11,10 +11,9 @@ en:
         one: "Apply to 1 similar transaction"
         other: "Apply to %{count} similar transactions"
       description: Apply it to similar uncategorized transactions now, or create a rule for future ones
-      dont_show_again: Don't show this again
-      hide_for_today: Hide for today
-      hide_for_today_hint: "Hide for today pauses these suggestions for 24 hours."
       message: Updated to %{category_name}
+      not_today: Not today
+      turn_off_suggestions: Turn off rule suggestions
     classifier_rules:
       category_classifier: Category classifier
       merchant_matcher: Merchant matcher

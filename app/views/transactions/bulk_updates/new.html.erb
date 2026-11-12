@@ -41,6 +41,14 @@
         <%= render "transactions/bulk_updates/row", icon: "notebook-pen" do %>
           <%= form.text_area :notes, label: t("transactions.bulk_updates.new.notes_label"), placeholder: t("transactions.bulk_updates.new.notes_placeholder"), rows: 2 %>
         <% end %>
+        <% if Current.family&.manual_reconciliation? %>
+          <%= render "transactions/bulk_updates/row", icon: "check-circle" do %>
+            <%= form.select :reconciled_status,
+                Entry.reconciled_statuses.keys.map { |status| [ t("transactions.reconcile.statuses.#{status}"), status ] },
+                { include_blank: t("transactions.bulk_updates.new.no_change"), label: t("transactions.bulk_updates.new.reconciled_status_label") } %>
+            <p class="text-xs text-secondary"><%= t("transactions.bulk_updates.new.reconciled_status_hint") %></p>
+          <% end %>
+        <% end %>
       </div>
 
       <div class="sheet-footer sticky -bottom-4 z-10 -mx-4 mt-auto space-y-3 border-t border-subdued bg-container px-5 pt-3.5 pb-4">

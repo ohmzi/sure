@@ -47,7 +47,7 @@ class Entries::AutoPostsControllerTest < ActionDispatch::IntegrationTest
   # exactly as it was.
   test "undo refuses a reconciled entry and leaves it in place" do
     @entry.update!(reconciled_at: Time.current)
-    assert @entry.reconciled?
+    assert @entry.statement_reconciled?
 
     assert_no_difference -> { Entry.count } do
       delete entry_auto_post_path(@entry)

@@ -175,10 +175,10 @@ fr:
         one: Appliquer à 1 transaction similaire
         other: Appliquer à %{count} transactions similaires
       description: Applique-la maintenant aux transactions non catégorisées similaires, ou crée une règle pour les suivantes
-      dont_show_again: Ne plus afficher
-      hide_for_today: Masquer pour aujourd'hui
       hide_for_today_hint: "« Masquer pour aujourd'hui » suspend ces suggestions pendant 24 heures."
       message: Mis à jour vers %{category_name}
+      not_today: Pas aujourd'hui
+      turn_off_suggestions: Désactiver les suggestions de règles
     applications:
       title: Applications récentes
       description: Exécutions « Tout appliquer » que vous pouvez encore annuler. Annuler restaure les valeurs qu'avait chaque transaction avant l'exécution.

@@ -56,7 +56,7 @@ class AccountStatementsController < ApplicationController
     @can_manage_statement = @statement.manageable_by?(Current.user)
     @reconciliation_checks = @statement.reconciliation_checks
     @overlap_mismatches = @statement.overlapping_balance_mismatches
-    @imported_rows_count = Entry.reconciled_by(@statement).count
+    @imported_rows_count = Entry.reconciled_by_statement(@statement).count
     @statement_imports_count = @statement.pdf_imports.count
     @delete_blocked_message = deletion_blocker_message(@statement)
     @audit_logs = AuditLog.for_family(Current.family)
@@ -131,7 +131,7 @@ class AccountStatementsController < ApplicationController
       @can_manage_statement = @statement.manageable_by?(Current.user)
       @reconciliation_checks = @statement.reconciliation_checks
       @overlap_mismatches = @statement.overlapping_balance_mismatches
-      @imported_rows_count = Entry.reconciled_by(@statement).count
+      @imported_rows_count = Entry.reconciled_by_statement(@statement).count
       @statement_imports_count = @statement.pdf_imports.count
       @delete_blocked_message = deletion_blocker_message(@statement)
       @audit_logs = AuditLog.for_family(Current.family)
@@ -324,7 +324,7 @@ class AccountStatementsController < ApplicationController
         t("account_statements.destroy.document_blocked",
           entries: statement.archived_document_link.deletion_blockers.to_sentence)
       when :imports
-        imported_rows = Entry.reconciled_by(statement).count
+        imported_rows = Entry.reconciled_by_statement(statement).count
         if imported_rows.positive?
           t("account_statements.destroy.imported_rows", count: imported_rows)
         else

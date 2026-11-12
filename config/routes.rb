@@ -528,6 +528,11 @@ Rails.application.routes.draw do
     end
   end
 
+  # Family-wide investment hub, built on the Reports section framework.
+  resource :portfolio, only: :show do
+    patch :update_preferences
+  end
+
   resources :budgets, only: %i[index show edit update], param: :month_year do
     post :copy_previous, on: :member
     get :picker, on: :collection
@@ -683,6 +688,7 @@ Rails.application.routes.draw do
       post :dismiss_duplicate
       post :apply_category_to_similar, to: "transaction_categories#apply_to_similar"
       post :unlock
+      patch :reconcile
       patch :tags, action: :update_tags
     end
   end
@@ -905,6 +911,7 @@ Rails.application.routes.draw do
 
       # Production API endpoints
       resources :accounts, only: [ :index, :show ]
+      resources :account_statements, only: [ :index, :show, :create ]
       resources :balances, only: [ :index, :show ]
       resources :budgets, only: [ :index, :show ]
       resources :budget_categories, only: [ :index, :show ]

@@ -477,7 +477,7 @@ class PdfImport < Import
   def reconciled_entries
     return Entry.none if account_statement.blank?
 
-    Entry.reconciled_by(account_statement)
+    Entry.reconciled_by_statement(account_statement)
   end
 
   # The half of reconciled_entries this import did not create -- transactions the
@@ -770,7 +770,7 @@ class PdfImport < Import
 
       # The ids are read before the UPDATE, or the relation would come back
       # empty and there would be nothing left to detach.
-      released_ids = Entry.reconciled_by(account_statement).where(account_id: account_scope_id).pluck(:id)
+      released_ids = Entry.reconciled_by_statement(account_statement).where(account_id: account_scope_id).pluck(:id)
       return if released_ids.empty?
 
       Entry.where(id: released_ids).update_all(
